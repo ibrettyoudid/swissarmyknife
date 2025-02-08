@@ -178,8 +178,6 @@ getRequestRefr ref url =
 
 addUserAgent req = req{requestHeaders = (hUserAgent, B.toStrict $ bsofs "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") : requestHeaders req}
 
-addFBCookie req = req{requestHeaders = (hCookie, B.toStrict $ bsofs "datr=d18SZxfCbqmHyLYuNNEduut8; sb=d18SZwZRStK6Q2RNjCKRsq-g; wd=3840x1964; c_user=753682177; fr=0yiNNflONKkQh7yry.AWVDIQ5lKKfSyquWCCdxqqbt6P0.BnEmSw..AAA.0.0.BnEmS0.AWUCgR16df4; xs=14%3AfutkDtFm27oD2w%3A2%3A1729258674%3A-1%3A2373; presence=C%7B%22t3%22%3A%5B%5D%2C%22utc3%22%3A1729258681170%2C%22v%22%3A1%7D ") : requestHeaders req}
-
 {-
 urlToFileName url = let
    s = split "/" url
@@ -731,13 +729,6 @@ getCol col tbl = map (!! col) tbl
 
 l = [[1, 2, 3], [10, 20, 30], [100, 200, 300]]
 
-{-
-"http://nsfwr.com/images/1292788477.JPG"
-"http://nsfwr.com/view/1079-02"
--}
-
-test6 m = wget m "http://nsfwr.com/view/1079-02" (isPrefixOf "http://nsfwr.com/view/1079-") (isPrefixOf "http://nsfwr.com/images/") 2
-
 test7 m = wget m "http://www.burjdubaiskyscraper.com/2007/09September/2007September.html" (const False) (isPrefixOf "http://www.burjdubaiskyscraper.com/2007/09September/") 1
 
 ngbtb = do
@@ -817,147 +808,6 @@ lucas
 bendix
 -}
 
--- sgReq url = Request (relTo1 "http://suicidegirls.com" url) GET [Header HdrCookie "$Version=0;PHPSESSID=774dab695dfa69d6e5961e3e421c518a;$Domain=.suicidegirls.com"] ""
-
-sgReq url = unsafePerformIO $ parseRequest url
-
-{-
-sg url pics = mapM_ (\n -> writeHTTPReq $ sgReq (url ++ zeropad n 2 ++ ".jpg")) pics
--}
-
-cd dir = do createDirectoryIfMissing True dir; setCurrentDirectory dir
-
-sgSet2 m url = sbetweens "ImageHolder(\"" "\"" $ sofbs $ unsafePerformIO $ getHTTPReq m $ sgReq url
-
-sgSet1 m dir url = do
-  -- cd ("D:/pics/1porn/suicidegirls/"++dir)
-  cd ("/docs/pics/1Porn/suicidegirls/" ++ dir)
-  index <- getHTTPReq m $ sgReq url
-
-  mapM_ (writeHTTPReq m . sgReq) $ sbetweens "ImageHolder(\"" "\"" $ sofbs index
-
-sgSet m url = sgSet1 m (sgFile url) url
-
-sgTag m t = sgPages m ("albums/girls/search=" ++ t ++ "/")
-
-sgPages m url =
-  let
-    n = getNestedReq m $ sgReq url
-    pages1 = extractText $ findType "a" $ findClass "listNext" n
-    pages2 = extractText $ last $ subTags $ findType "a" $ findClass "pageList" n
-
-    pages = if pages1 /= [] then readInt pages1 else readInt pages2
-   in
-    sgPages1 m url [1 .. pages]
-
-sgPages1 m url pages = concat $ for pages (\p -> sgPage m (url ++ "page" ++ show p ++ "/"))
-
-sgPage m url = map (tagAttrib "href") $ filter (("pngSpank" ==) . tagClass) $ getParsedReq m $ sgReq url
-
-trim1 s = trim $ trim2 $ replace "%20" " " $ replace "+" " " s
-
-trim2 [] = []
-trim2 (' ' : ' ' : xs) = trim2 (' ' : xs)
-trim2 (x : xs) = x : trim2 xs
-
-sgFile url = case split "/" $ relTo "http://suicidegirls.com" url of
-  ["http:", _, site, "girls", girl, "photos", set, _] -> girl ++ "/" ++ trim1 set
-  ["http:", _, site, "girls", girl, "albums", "site", albumNo, _] -> girl ++ "/" ++ albumNo
-  ["http:", _, site, "members", girl, "albums", "site", albumNo, _] -> girl ++ "/" ++ albumNo
-
-sgFile1 url = case split "/" $ relTo "http://suicidegirls.com" url of
-  ["http:", _, site, "girls", girl, "photos", set, _] -> girl ++ "_" ++ trim1 set ++ ".jpg"
-  ["http:", _, site, "media", "girls", girl, "photos", set, photo] -> girl ++ "_" ++ trim1 set ++ ".jpg"
-
-girl url = split "/" url !! 4
-
-{-
-sgGetTags m = let
-   curvy    = sgTag m "curvy"
-   redheads = sgTag m "redhead"
-   cr       = concatMap (\(g,c,r) -> if g > "Cecilia" then c else []) $ joinLists (map (\u -> (girl u, u)) curvy) (map (\u -> (girl u, u)) redheads)
-
-   in mapM_ (sgSet m) cr
--}
-
-sgSave m urls = mapM_ (\u -> writeHTTPReq m $ sgReq u) urls
-
-sgAll m =
-  let
-    sets = sgPages1 m "albums/girls/" [211 .. 245]
-    -- n     = fromJust $ elemIndex "/girls/Dika/photos/Money+Laundering/" sets1
-    -- sets  = drop n sets1
-   in
-    mapM_
-      ( \seturl ->
-          let file = sgFile1 seturl
-              pic = head $ sgSet2 m seturl
-           in writeHTTPAs m file $ sgReq pic
-      )
-      sets
-
-{-
-Cianuro_No Way Out
-King_Love Potion No5
-Thanatogenous_Wide Eyed
-Vice_So What
-Charm_tangle of thorns
-Opaque_Pearl
-Xiu_abuse me
-Vivid_All is Full of Love
-Venla_reflections
-Fractal_Dirty Noir
-Charm_La Petite Mort
-Maia_in ponyland
-Saffire_Lizard woman
-Mnislahi_hotel madera
-Klodi_Dryad experience
-Sunshine_A Girl For All Seasons
-Nena_Fetish Kitty
-Taye_Pinup Fashion Magazine
-Hezza_Enjoy the silence
-Zoey_Scrub
-Cye_Creepy Crypt
-Coralee_HardRock Love
-Porphyria_Pool Shark
-Clem_Zebra
-Zippo_Ravishing
-SooniaMai_Queen of Darkness
-Mimmi_Industrial
-Seraphim_Mesh
-Anemona_Blue Girl Blue
-Bastet_Hot Blue
-Anemona_Classic Camera
-Fatal_Purple Haze
-Kimika_Red Armchair
-Jasper_Date with the Writing Grid
-Tanky_Trigger Finger
-Rain_Tequila
-Krissy_In Control
-Charm_Violin
-Yin_Smoker
-Smitten_Caged
-Ragdoll_Morning Lust
-Hellany_Darkest Angel
-Neyrissa_I Saw Red
-Fractal_The Medic
-Stormy_Under the Bridge
-Aphobia_A Classic Girl
-Misery_Confession Room
-Blue_Deadly Forest
-Devilyn_Cheetah Skin
-Voltaire_Zoo
-Rose_Lady
-multiple_Liquidfun
-Seraphim_Shy
-Marla_Chef
-Dia_Martini
-Valerie_Macabre
-Anais_aeon flux
-http://suicidegirls.com/girls/Vertebra/photos/Green+Vice/
-http://suicidegirls.com/girls/Aku/photos/Nymphetamine/
-
--}
 class ShowTuple a where
   showT :: a -> [String]
 
