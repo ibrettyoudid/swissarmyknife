@@ -35,9 +35,6 @@ import MyPretty2
 
 -- import Html hiding (cd)
 
--- vs2019 personal access token
--- didpzsidwjah2uuyxcx5bpw6qqy6gr3ginp6t2cv7h73hko3235q
-
 -- deleteFile = Win32.deleteFile
 linux = True
 
