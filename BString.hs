@@ -7,6 +7,7 @@ module BString where
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as LB
 import Data.List qualified as L
+import Data.Text qualified as T
 import Favs qualified as F
 import Prelude hiding (String, drop, find, head, length, null, (++))
 import Prelude qualified as P
@@ -88,6 +89,30 @@ instance BStringC Word8 B.ByteString where
   isSuffixOf = B.isSuffixOf
   isInfixOf = B.isInfixOf
 
+instance BString T.Text where
+  empty = T.empty
+  tail = T.tail
+  (++) = T.append
+  drop = T.drop
+  inits = T.inits
+  tails = T.tails
+  null = T.null
+  length = T.length
+  intercalate = T.intercalate
+
+instance BStringC Char T.Text where
+  cons = T.cons
+  head = T.head
+  (!!) = T.index
+  find = T.find
+  elem = T.elem
+  notElem c s = not $ T.elem c s
+
+  stripPrefix = T.stripPrefix
+  isPrefixOf = T.isPrefixOf
+  isSuffixOf = T.isSuffixOf
+  isInfixOf = T.isInfixOf
+
 concat xs = foldr (++) empty xs
 
 split sep = splitWith (stripPrefix sep)
@@ -118,6 +143,12 @@ instance ConvertString P.String LB.ByteString where
 
 instance ConvertString LB.ByteString P.String where
   convertString = map (chr . fromIntegral) . LB.unpack
+
+instance ConvertString P.String T.Text where
+  convertString = T.pack
+
+instance ConvertString T.Text P.String where
+  convertString = T.unpack
 
 class ConvertChar a b where
   convertChar :: a -> b

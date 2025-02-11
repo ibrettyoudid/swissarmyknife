@@ -1,5 +1,4 @@
 -- Copyright 2025 Brett Curtis
--- Copyright 2025 Brett Curtis
 {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE TupleSections #-}
 {-# HLINT ignore "Use zipWith" #-}
@@ -50,6 +49,8 @@ import Data.ByteString qualified as B
 import Data.Fixed
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -95,14 +96,14 @@ artistmp3s a = mp3s $ artistd ++ a
 tagTree = unsafePerformIO . tagTreeM
 tagTreeM d = concat <$> tagTreeM1 d
 tagTreeM1 d =
-  mapM (\f -> map (\fr -> ((name fr, show $ drop 3 $ pathParts f), val fr)) . justText <$> readTagM (readSomeAudio 4) f) $
+  mapM (\f -> map (\fr -> ((frid fr, show $ drop 3 $ pathParts f), val fr)) . justText <$> readTagM (readSomeAudio 4) f) $
     mp3s d
 
-test = afl . ta . tagTree2
+-- test = afl . ta . tagTree2
 
 afl = arrayFromList (ByteStr "")
 
-ta = concat . zipWith (\n -> map (\fr -> ((name fr, n), val fr))) [1 ..]
+ta = concat . zipWith (\n -> map (\fr -> ((frid fr, n), val fr))) [1 ..]
 
 tagTree2 = unsafePerformIO . tagTreeM2
 
@@ -122,36 +123,31 @@ type MyString = B.ByteString
 data Frame
   = Header {id3 :: MyString, verMajor :: Int, verMinor :: Int, unsync :: Bool, extHdr :: Bool, experi :: Bool, footer :: Bool, tagSize :: Int}
   | Frame {frameID :: MyString, frameSize :: Int, flags :: Frame, contents :: B.ByteString}
-  | FrameText {frid :: FrameID, val :: MyString}
+  | FrameText {frid :: FrameID, val :: T.Text}
   | FrameFlags {tagAltPrsv :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool}
+  | MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString}
   | FrameTruncated
   | Invalid B.ByteString
   | Bytes Int
   | Nowt
   deriving (Eq, Ord, Show, Read, Generic)
 
-data MPEGFrame
-  = MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString}
-  | MPEGInvalid B.ByteString
+data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico}
 
 data Meta = Meta
-  { byId :: M.Map FrameID Dynamic 
+  { byId :: M.Map FrameID Dynamic
   , isDir :: Bool
-  , path :: MyString
-  , audio :: MyString
-  , artist :: MyString
-  , album :: MyString
-  , albumartist :: MyString
-  , track :: MyString
-  , song :: MyString
+  , path :: T.Text
+  , audio :: T.Text
+  , artist :: T.Text
+  , album :: T.Text
+  , albumartist :: T.Text
+  , track :: T.Text
+  , song :: T.Text
   , year :: Int
-  , genre :: MyString
-  , created :: Pico
-  , written :: Pico
-  , accessed :: Pico
-  , createdorig :: Pico
-  , writtenorig :: Pico
-  , accessedorig :: Pico
+  , genre :: T.Text
+  , times :: FileTimes
+  , orig :: FileTimes
   }
 
 n = track
@@ -165,13 +161,14 @@ test1a = commonSubsequencesList $ fileTree $ unsharedd ++ "Portion Control/2007 
 
 test2 db = play $ map path $ filter (album $= "Paradise Lost") $ tl db
 
+{-
 fixalbumname = do
   db <- loadDB
   let fs = filter (album $= "Symbol of Life") $ tl db
   let fs1 = map (\m -> m{album = "Symbol Of Life"}) fs
   return $ updateDB1 db fs1
-
-timeFrame = mpegFrameTime . mpegFrame
+-}
+timeFrame = mpegFrameTime . getMPEGFrame
 
 a $$ b = a . map b
 
@@ -241,12 +238,8 @@ isfixed id = case id of
   AlbumArtist -> True
   Song -> True
   Year -> True
-  Bcreated -> True
-  Bwritten -> True
-  Baccessed -> True
-  Bcreatedorig -> True
-  Bwrittenorig -> True
-  Baccessedorig -> True
+  Btimes -> True
+  Borig -> True
   _ -> False
 
 setField id val meta = case id of
@@ -260,12 +253,8 @@ setField id val meta = case id of
   Song -> meta{song = fromDyn1 val}
   Year -> meta{year = fromDyn1 val}
   Genre -> meta{genre = fromDyn1 val}
-  Bcreated -> meta{created = fromDyn1 val}
-  Bwritten -> meta{written = fromDyn1 val}
-  Baccessed -> meta{accessed = fromDyn1 val}
-  Bcreatedorig -> meta{createdorig = fromDyn1 val}
-  Bwrittenorig -> meta{writtenorig = fromDyn1 val}
-  Baccessedorig -> meta{accessedorig = fromDyn1 val}
+  Btimes -> meta{times = fromDyn1 val}
+  Borig -> meta{orig = fromDyn1 val}
   _ -> setField1 id val meta
 
 field1 id meta = case id of
@@ -275,28 +264,24 @@ field1 id meta = case id of
   Song -> toDyn $ song meta
   Year -> toDyn $ year meta
   Bpath -> toDyn $ path meta
-  Bcreated -> toDyn $ created meta
 
-fields2 meta =
-  M.fromList
-    [ (Bisdir, toDyn $ isDir meta)
-    , (Bpath, toDyn $ path meta)
-    , (Baudio, toDyn $ audio meta)
-    , (Track, toDyn $ track meta)
-    , (Album, toDyn $ album meta)
-    , (Artist, toDyn $ artist meta)
-    , (AlbumArtist, toDyn $ albumartist meta)
-    , (Song, toDyn $ song meta)
-    , (Year, toDyn $ year meta)
-    , (Genre, toDyn $ genre meta)
-    , (Bcreated, toDyn $ created meta)
-    , (Bwritten, toDyn $ written meta)
-    , (Baccessed, toDyn $ accessed meta)
-    , (Bcreatedorig, toDyn $ createdorig meta)
-    , (Bwrittenorig, toDyn $ writtenorig meta)
-    , (Baccessedorig, toDyn $ accessedorig meta)
-    ]
-    `M.union` byId meta
+fields1 meta =
+  [ (Bisdir, toDyn $ isDir meta)
+  , (Bpath, toDyn $ path meta)
+  , (Baudio, toDyn $ audio meta)
+  , (Track, toDyn $ track meta)
+  , (Album, toDyn $ album meta)
+  , (Artist, toDyn $ artist meta)
+  , (AlbumArtist, toDyn $ albumartist meta)
+  , (Song, toDyn $ song meta)
+  , (Year, toDyn $ year meta)
+  , (Genre, toDyn $ genre meta)
+  , (Btimes, toDyn $ times meta)
+  , (Borig, toDyn $ orig meta)
+  ]
+    ++ M.toList (byId meta)
+
+fields2 meta = M.fromList $ fields1 meta
 
 mapfield name = mapMaybe (\case FrameText name1 val -> ifJust (name == name1) val; x -> Nothing)
 
@@ -512,7 +497,7 @@ diffcheck _ _ = Nothing
 differences2 :: [String] -> [[String]]
 differences2 strs = let delims = commonSubsequencesList strs in map (infoFromString delims) strs
 
-fieldsFromString fields delims str = zipWith FrameText fields $ map String1 $ infoFromString delims str
+fieldsFromString fields delims str = zipWith FrameText fields $ map c $ infoFromString delims str
 
 infoFromString delims str = tail $ infoFromString1 delims str
 
@@ -561,9 +546,9 @@ commonSubsequences2 a b  = let
 dbpath = baseDir ++ "haskelldb.bin"
 
 -- dbroots = map (baseDir ++) ["Artists/Paradise Lost/2015 - The Plague Within"]
-dbroots = map (artistd ++) ["Paradise Lost" "Isis"] :: [String]
+dbroots = map (artistd ++) ["Paradise Lost", "Isis"] :: [T.Text]
 
-type DB = M.Map String Meta
+type DB = M.Map T.Text Meta
 type FS = Meta
 
 newDB :: DB
@@ -578,7 +563,7 @@ saveDB = writeFile dbpath . show
 -- readDB1 = decodeFile dbpath
 
 -- writeDB1 = encodeFile dbpath
-updateDB :: M.Map MyString Meta -> IO (M.Map MyString Meta)
+updateDB :: M.Map T.Text Meta -> IO (M.Map T.Text Meta)
 updateDB db = do
   dbnew <- updateDB1 db <$> readDB db dbroots
   putStrLn "Writing..."
@@ -605,12 +590,8 @@ blankMeta =
     , song = empty
     , year = empty
     , genre = empty
-    , created = 0
-    , written = 0
-    , accessed = 0
-    , createdorig = 0
-    , writtenorig = 0
-    , accessedorig = 0
+    , times = FileTimes 0 0 0
+    , orig = FileTimes 0 0 0
     }
 makeDir k = blankMeta{isDir = True, path = k}
 
@@ -634,9 +615,7 @@ myJoinWith f new old = (M.intersectionWith f new old, new M.\\ old, old M.\\ new
 
 newkeys f m = M.fromList $ map (\(k, a) -> (f a, a)) $ M.toList m
 
-newdataoldtimes new old = new{createdorig = createdorig old, writtenorig = writtenorig old, accessedorig = accessedorig old}
-settimes [c, w, a] f = f{created = c, written = w, accessed = a}
-setotimes [c, w, a] f = f{createdorig = c, writtenorig = w, accessedorig = a}
+newdataoldtimes new old = new{orig = orig old}
 
 {-
 picosecondsToDiffTime :: Integer -> DiffTime
@@ -644,33 +623,35 @@ picosecondsToDiffTime :: Integer -> DiffTime
 diffTimeToPicoseconds :: DiffTime -> Integer
 -}
 c = convertString
-readFS :: M.Map MyString Meta -> Meta -> IO [Meta]
+readFS :: M.Map T.Text Meta -> Meta -> IO [Meta]
 readFS db f
   | isDir f = do
       putStrLn ("DIR " ++ c $ path f)
       let path1 = c $ path f ++ "/"
-      (times1, otimes1) <- readFileTimes f -- otimes1 is only different for a new dir
+      (times1, orig1) <- readFileTimes f -- otimes1 is only different for a new dir
       -- if field "FT.Current.Written" times1 > field "FT.Current.Written" f
       putStrLn "hello"
-      if times1 !! 1 > written f
+      if on (>) written times1 (times f)
         then do
           rdir <- map c <$> listDirectory path1
-          rnew <- mapM (\p -> do d <- doesDirectoryExist p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir
+          rnew <- mapM (\p -> do d <- doesDirectoryExist $ c p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir
           let withnew = M.union (inDir path1 db) $ M.fromList $ mapfxx path rnew
           updated <- mapM (readFS db) withnew -- recurse into subdirectories and files
-          return $ settimes times1 f : concat updated -- otimes1 is only updated if it's a new dir
+          return $ f{times = times1} : concat updated -- otimes1 is only updated if it's a new dir
         else do
           putStrLn "UH OH"
           updated <- mapM (readFSD db) $ inDir path1 db -- recurse into subdirectories only
-          return $ settimes times1 f : concat updated
+          return $ f{times = times1} : concat updated
   | otherwise = do
       putStrLn $ c $ path f
       let path1 = path f
-      (times1, otimes1) <- readFileTimes f
-      if times1 !! 1 > written f
+      (times1, orig1) <- readFileTimes f
+      -- if on (>) written times1 (times f)
+      if ((>) `on` written) times1 (times f)
+        -- if times1 `on (>) written` times f
         then do
           rfr <- readTagM (readSomeAudio 8) path1
-          return [settimes times1 $ setotimes otimes1 rfr]
+          return [metaOfFrames False path1 times1 orig1 rfr]
         else
           return [f]
 
@@ -716,14 +697,14 @@ readFileTimes fs = do
   let fadw = fti $ modificationTimeHiRes fst -- written
   let fada = fti $ accessTimeHiRes fst -- accessed
   now <- fti <$> getPOSIXTime
-  let times1 = [fadc, fadw, fada]
+  let times1 = FileTimes fadc fadw fada
   -- notice this only set otimes1 to what it's just read if FT.Original.Written is 0
   -- ie. its a new file/dir
-  let otimes1 = if writtenorig fs == 0 then [fadc, fadw, now] else [createdorig fs, writtenorig fs, accessedorig fs]
+  let otimes1 = if written (orig fs) == 0 then FileTimes fadc fadw now else orig fs
   -- let otimes1 = if zeroTime == zeroTime then getFileTimes1 fadc fadw now "Original" else otimes fs
   return (times1, otimes1)
 
-xylistFromFS = concatMap (\f -> map (\fr -> ((path f, name fr), val fr)) f)
+-- xylistFromFS = concatMap (\f -> map (\fr -> ((path f, frid fr), val fr)) f)
 
 decapitate = filter (\case Header{} -> False; _ -> True)
 justText = filter (\case FrameText{} -> True; _ -> False)
@@ -765,7 +746,7 @@ readTagM readAudio f1 = do
           --            mapM_ print m
           let t = parseFrames (verMajor hd) rest1
           let audioSize = fromInteger fileSize - tagSize hd - 10
-          return $ hd : map decodeFrame1 t ++ combineMPEGFrames audioSize (mpegFrames m)
+          return $ hd : map decodeFrame1 t ++ combineMPEGFrames audioSize (getMPEGFrames m)
       | otherwise -> do
           hClose h
           return []
@@ -838,8 +819,8 @@ readSomeAudio1 h pos = do
 
 middle l = l !! (length l `div` 2)
 
-mpegFrame :: [Frame] -> Frame
-mpegFrame fs = head $ mpegFrames fs
+getMPEGFrame :: [Frame] -> Frame
+getMPEGFrame fs = head $ getMPEGFrames fs
 
 emptyMPEGFrame = MPEGFrame 0 0 0 0 0 0 BString.empty
 
@@ -863,13 +844,15 @@ combineMPEGFrames totalBytes frs =
     readSamps = sum $ map framesamps frs
     sampRate = realToFrac readBytes / realToFrac readSamps :: Double
    in
-    [ FrameText "MPEG Ver" $ Int1 $ mode $ map version frs
-    , FrameText "MPEG Layer" $ Int1 $ mode $ map layer frs
-    , FrameText "Bitrate" $ Int1 $ round bitRate
-    , FrameText "Audio bytes" $ Int1 totalBytes
-    , FrameText "Time" $ NDiffTime $ secondsToNominalDiffTime $ realToFrac totalTime
-    , FrameText "Sample rate" $ Int1 $ round sampRate
+    [ FrameText "MPEG Ver" $ c $ show $ mode $ map version frs
+    , FrameText "MPEG Layer" $ c $ show $ mode $ map layer frs
+    , FrameText "Bitrate" $ c $ show $ round bitRate
+    , FrameText "Audio bytes" $ c $ show totalBytes
+    , FrameText "Time" $ c $ show $ realToFrac totalTime
+    , FrameText "Sample rate" $ c $ show $ round sampRate
     ]
+
+getMPEGFrames = filter (\case MPEGFrame{} -> True; _ -> False)
 
 {-
 combineMPEGFrames2 fs []  = emptyMPEGFrame
@@ -896,9 +879,25 @@ combineMPEGFrames3 fs = combineMPEGFrames2 fs . filter (\case { FrameMPEG {} -> 
 -}
 framesamps fr = fromIntegral (sampRate fr) * mpegFrameTime fr
 
-alternateChars [] = []
-alternateChars [a] = [a]
-alternateChars (a : b : rest) = a : alternateChars rest
+metaOfFrames isDir1 path1 times1 orig1 frs =
+  let
+    byId1 = M.fromList $ mapfxx frid frs
+   in
+    Meta
+      { isDir = isDir1
+      , path = path1
+      , audio = ""
+      , albumartist = val $ fromMaybe "" $ M.lookup AlbumArtist byId1
+      , artist = val $ fromMaybe "" $ M.lookup Artist byId1
+      , album = val $ fromMaybe "" $ M.lookup Album byId1
+      , track = val $ fromMaybe "" $ M.lookup Track byId1
+      , song = val $ fromMaybe "" $ M.lookup Song byId1
+      , year = readInt $ c $ val $ fromMaybe "" $ M.lookup Year byId1
+      , genre = val $ fromMaybe "" $ M.lookup Genre byId1
+      , times = times1
+      , orig = orig1
+      , byId = M.fromList $ mapMaybe (\fr -> ifJust (frid fr `notElem` [AlbumArtist, Artist, Album, Track, Song, Year, Genre]) (frid fr, toDyn $ val fr)) frs
+      }
 
 decodeFrame1 = decodeFrame2 . decodeFrame
 
@@ -908,14 +907,14 @@ decodeFrame fr@(Frame{})
   | otherwise =
       fr
  where
-  res = FrameText id $ c text
-  idj = M.lookup (frameID fr) idMap
+  res = FrameText id text
+  idj = M.lookup (c $ frameID fr) textIdMap
   id = id1 $ fromJust idj
   text = decodeText (contents fr)
-
-idMap = M.fromList $ mapfxx id1 frameIDList
-
 decodeFrame fr = fr
+
+textIdMap = M.fromList $ mapfxx textId frameIDList
+idMap = M.fromList $ mapfxx id1 frameIDList
 
 decodeFrame2 fr@(Frame{}) = fr{contents = B.take 64 $ contents fr}
 decodeFrame2 fr = fr
@@ -924,14 +923,13 @@ descOfTextId textId = fromMaybe (error "textId " ++ textId ++ " not found") $ M.
 
 descOfTextIdMap = M.fromList $ map (applyT (textId, desc)) frameIDList
 
-frameIDMap = M.fromList $ mapfxx textID frameIDList
-
 encodeFrame fr@(Frame{}) = fr
 encodeFrame fr@(FrameText name val) = Frame frameID 0 falseFlags $ encodeText $ show1 val
  where
   Just f = find (\x -> x !! 2 == name) frameIDList
   frameID = f !! 1
 
+{-
 decodeText = decodeText1 . map fromIntegral . B.unpack
 
 decodeText1 (0 : iso8859) = map chr iso8859
@@ -949,8 +947,23 @@ decodeLE [] = []
 decodeLE (a : b : rest) = chr (a + b * 0x100) : decodeLE rest
 decodeBE [] = []
 decodeBE (a : b : rest) = chr (a * 0x100 + b) : decodeBE rest
+-}
+decodeText text = case head text of
+  0 -> T.decodeLatin1 $ B.tail text
+  1 -> decodeUCS2 $ B.tail text
+
+decodeUCS2 str = case B.take 2 str of
+  "\255\254" -> T.decodeUtf16LE $ B.drop 2 str
+  "\254\255" -> T.decodeUtf16BE $ B.drop 2 str
+  _ -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
+
+countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off .. length s - 1]
 
 countZero = length . filter (== 0)
+
+alternateChars [] = []
+alternateChars [a] = [a]
+alternateChars (a : b : rest) = a : alternateChars rest
 
 encodeText = B.pack . map fromIntegral . encodeText1
 
@@ -1089,7 +1102,7 @@ parseMPEGFrame audio = do
     AP.Done i r -> r : parseMPEGFrame i
     AP.Partial c -> []
 
-mpegFrameP = AP.try mpegFrameOK <|> (do invalid; mpegFrameP) <|> do AP.endOfInput; return (MPEGInvalid $ B.pack [])
+mpegFrameP = AP.try mpegFrameOK <|> (do invalid; mpegFrameP) <|> do AP.endOfInput; return (Invalid $ B.pack [])
 
 mpegFramesP = AP.manyTill mpegFrameP AP.endOfInput
 
@@ -1100,7 +1113,7 @@ snarf (x : xs) = x : snarf xs
 invalid = do
   w <- AP.anyWord8
   s <- AP.takeWhile (/= 0xFF)
-  return $ MPEGInvalid $ B.append (B.pack [w]) s
+  return $ Invalid $ B.append (B.pack [w]) s
 
 mpegv1 = 1
 
@@ -1213,9 +1226,9 @@ data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, 
          deriving (Generic)
 -}
 
-data FrameIDEntry = FT {sec :: MyString, id1 :: FrameID, textId :: MyString, desc :: MyString, longdesc :: MyString}
+data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
 
-data FrameID = Baudio | Bpath | Bisdir | Bcreated | Bwritten | Baccessed | Bcreatedorig | Bwrittenorig | Baccessedorig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm
+data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
 frameIDList =
   [ FT "4.20 " Aenc "AENC" "Audio encryption" ""
