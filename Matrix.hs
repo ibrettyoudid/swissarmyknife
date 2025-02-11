@@ -83,6 +83,10 @@ invMat m = drop x $ gaussElim $ m <++> identity (y, x)
  where
   (y, x) = gethl m
 
+invMatD m = drop x <$> gaussElimDD (m <++> identity (y, x))
+ where
+  (y, x) = gethl m
+
 -- broyden :: Num a => ([[a]] -> [[a]]) -> a -> [[a]] -> [[a]] -> [[a]] -> [[a]]
 broyden f epsilon findy x0 x1 = loop (identity (k, k)) (f x0) (x1 <-> x0) x1
  where
@@ -172,6 +176,14 @@ diffAux f fx0 x0 i =
 
 gaussElim m = until (null . gaussTrailingTerms) gaussZeroTrailingTerms $ until (null . gaussLeadTerms) gaussZeroLeadTerms m
 
+untilD f g x = if f x then return x else let gx = g x in print gx >> untilD f g gx
+
+untilDD f g x = if f x then return x else do gx <- g x; print gx; untilDD f g gx
+
+gaussElimD m = untilD (null . gaussLeadTerms) gaussZeroLeadTerms m >>= untilD (null . gaussTrailingTerms) gaussZeroTrailingTerms
+
+gaussElimDD m = untilDD (null . gaussLeadTerms) gaussZeroLeadTermsD m >>= untilDD (null . gaussTrailingTerms) gaussZeroTrailingTermsD
+
 gaussLeadTerms m = filter ((> 1) . snd) $ M.toList $ counts1 $ mapMaybe (findIndex (/= 0)) $ transpose m
 
 gaussZeroLeadTerms m =
@@ -187,7 +199,22 @@ gaussZeroLeadTerms m =
    in
     transpose (map (m <!>) ([0 .. height m - 1] \\ rowis) ++ rowp2 : rows2)
 
-gaussTrailingTerms m = filter (\i -> (> 1) $ length $ filter (\row -> row !! i /= 0) m) $ mapMaybe (findIndex (/= 0)) m
+gaussZeroLeadTermsD m =
+  let
+    colis = gaussLeadTerms m
+    (coli, _) = minimum colis
+    rowis = filter (\rowi -> (== Just coli) $ findIndex (/= 0) $ transpose m !! rowi) [0 .. height m - 1]
+    rowpi = snd $ maxOn (gaussAux m coli) rowis
+    rowp = m <!> rowpi
+    rowp2 = map (/ rowp !! coli) rowp
+    rows = map (transpose m !!) $ filter (/= rowpi) rowis
+    rows2 = map (gaussAux2 coli rowp2) rows
+   in
+    do
+      putGrid [["m", "colis", "coli", "rowis", "rowpi", "rowp", "rowp2", "rows", "rows2"], [show $ transpose m, show colis, show coli, show rowis, show rowpi, show rowp, show rowp2, show rows, show rows2]]
+      return $ transpose (map (transpose m !!) ([0 .. height m - 1] \\ rowis) ++ rowp2 : rows2)
+
+gaussTrailingTerms m = filter (\i -> (> 1) $ length $ filter (\row -> row !! i /= 0) $ transpose m) $ mapMaybe (findIndex (/= 0)) $ transpose m
 
 gaussZeroTrailingTerms m =
   let
@@ -201,6 +228,21 @@ gaussZeroTrailingTerms m =
     rows2 = map (gaussAux2 coli rowp2) rows
    in
     transpose (rows2 ++ rowp2 : map (transpose m !!) ([0 .. height m - 1] \\ rowis))
+
+gaussZeroTrailingTermsD m =
+  let
+    colis = gaussTrailingTerms m
+    coli = maximum colis
+    rowis = filter (\rowi -> m !! coli !! rowi /= 0) [0 .. height m - 1]
+    rowpi = head $ filter (\rowi -> (== Just coli) $ findIndex (/= 0) $ m <!> rowi) rowis
+    rowp = transpose m !! rowpi
+    rowp2 = map (/ rowp !! coli) rowp
+    rows = map (transpose m !!) $ filter (/= rowpi) rowis
+    rows2 = map (gaussAux2 coli rowp2) rows
+   in
+    do
+      putGrid [["m", "colis", "coli", "rowis", "rowpi", "rowp", "rowp2", "rows", "rows2"], [show $ transpose m, show colis, show coli, show rowis, show rowpi, show rowp, show rowp2, show rows, show rows2]]
+      return $ transpose (rows2 ++ rowp2 : map (transpose m !!) ([0 .. height m - 1] \\ rowis))
 
 gaussAux m coli rowi =
   let

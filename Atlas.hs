@@ -297,16 +297,18 @@ main1 = do
     on dr leaveNotifyEvent $ liftIO $
        setJam Nothing >> return True
        -}
-    on dr draw $ do
-      -- scale 0.01 0.01
-      scale 0.5 0.5
-      w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth dr)
-      h <- liftIO (fromIntegral <$> widgetGetAllocatedHeight dr)
-      -- jam <- liftIO getJam
-      -- cars <- liftIO getCars
-      -- translate (w/2) (h/2)
-      -- scale (w/drawSide) (h/drawSide)
-      drawGrid1 pixbuf
+    on dr draw $ drawGrid1 pixbuf
+    -- scale 0.01 0.01
+    {-
+    scale 0.3 0.3
+    --w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth dr)
+    --liftIO (fromIntegral <$> widgetGetAllocatedHeight dr)
+    -- jam <- liftIO getJam
+    -- cars <- liftIO getCars
+    -- translate (w/2) (h/2)
+    -- scale (w/drawSide) (h/drawSide)
+    drawGrid1 pixbuf
+    -}
     -- return True
 
     -- af <- aspectFrameNew 0.5 0.5 (Just 1)
@@ -410,22 +412,25 @@ sphOfCart3 [[x, y, z]] =
    in
     [[r, lat, long]]
 
+{-
 cart3OfSph [[r, lat, long]] =
   let
     [[z, greenLen]] = cartOfPol [[r, lat]]
     [[x, y]] = cartOfPol [[greenLen, long]]
    in
     [[x, y, z]]
+-}
+cart3OfSph [[r, lat, long]] = [[r * sin long, -(r * sin lat), r * cos long * cos lat]]
 
 lamaziOfSph (scale, sh, longsh) v = scalesh (scale, sh) $ cartOfPol $ lamaziOfSph1 $ v <+> vec 0 longsh
 sphOfLamazi (scale, sh, longsh) v = (<-> vec 0 longsh) $ sphOfLamazi1 $ polOfCart v
 
-lamaziCart3OfCart [[x, y]] = [[sqrt (1 - r2 / 4) * x, sqrt (1 - r2 / 4) * y, r2 / 2 - 1]]
+lamaziCart3OfCart [[x, y]] = [[sqrt (1 - r2 / 4) * x, sqrt (1 - r2 / 4) * y, 1 - r2 / 2]]
  where
   r2 = x ^ 2 + y ^ 2
 
 lamaziCartOfCart3 q = case q of
-  [[x, y, z]] -> [[sqrt (2 / (1 - z)) * x, sqrt (2 / (1 - z)) * y]]
+  [[x, y, z]] -> [[sqrt (2 / (1 + z)) * x, sqrt (2 / (1 + z)) * y]]
   p -> error $ show p
 
 uns x = case x of
@@ -433,7 +438,9 @@ uns x = case x of
   z -> error ("uns on " ++ show z)
 
 lamazi3 :: [Double] -> [Double] -> [[Double]] -> [[Double]]
-lamazi3 [rotx, rotz] [scalex, scaley, rot, xoff, yoff] d = mapcols (scalerotsh (vec scalex scaley, rot, vec xoff yoff) . lamaziCartOfCart3 . ((rotX (rofd (rotx + 90)) <*> rotZ (rofd rotz)) <*>) . cart3OfSph . rofd3 1) d
+lamazi3 [rotx, rotz] [scalex, scaley, rot, xoff, yoff] d = mapcols (scalerotsh (vec scalex scaley, rot, vec xoff yoff) . lamaziCartOfCart3 . ((rotX (rofd (rotx)) <*> rotY (rofd rotz)) <*>) . cart3OfSph . rofd3 1) d
+
+lamazi4 [rotx, roty] mat d = mapcols ((mat <*>) . add1s . lamaziCartOfCart3 . (rotX (rofd rotx) <*>) . (rotY (rofd roty) <*>) . cart3OfSph . rofd3 1) d
 
 lamaziParams (v0, ll0, v1, ll1) =
   let
@@ -500,18 +507,105 @@ getrsrsD f =
     scales = zipWith2d (/) vs1a vs2b
     scale = vmean scales
     vs2c = mapcols (zipWith2d (*) scale) vs2b
+    vs2d = mapcols (f (hjk (scale, rot, shift))) lls
     -- residuals = zipWith (<->) vs1a vs2c
     residuals = (vs1 <->) $ f (hjk (scale, rot, shift)) lls
    in
     --    (lls, vs1, vs2, ce1, ce2, vs1a, vs2a, shift, rots, rot, vs2b, scales, scale, vs2c, residuals)
 
-    [["lls", "vs1", "vs2", "ce1", "ce2", "vs1a", "vs2a", "shift", "rots", "rot", "vs2b", "rotsb", "rotb", "scales", "scale", "vs2c", "residuals", "scale", "rot", "shift"], [show lls, show vs1, show vs2, show ce1, show ce2, show vs1a, show vs2a, show shift, show rots, show rot, show vs2b, show rotsb, show rotb, show scales, show scale, show vs2c, show residuals, show scale, show rot, show shift]]
+    [["lls", "vs1", "vs2", "ce1", "ce2", "vs1a", "vs2a", "shift", "rots", "rot", "vs2b", "rotsb", "rotb", "scales", "scale", "vs2c", "vs2d", "residuals", "scale", "rot", "shift"], [show lls, show vs1, show vs2, show ce1, show ce2, show vs1a, show vs2a, show shift, show rots, show rot, show vs2b, show rotsb, show rotb, show scales, show scale, show vs2c, show vs2d, show residuals, show scale, show rot, show shift]]
 
 getsrs rr = snd $ getrsrs rr
 
 getres rr = fst $ getrsrs rr
 
 getres1 f = sum $ map (^ 2) $ concat $ getres f
+
+{-
+xo0 = a * xi0 + b * yi0 + p
+xo1 = a * xi1 + b * yi1 + p
+xo2 = a * xi2 + b * yi2 + p
+
+[ xi0 yi0 1 ] [ a ]
+[ xi1 yi1 1 ] [ b ]
+[ xi2 yi2 1 ] [ p ]
+
+[ a b p ] [ xi0 xi1 xi2 ] = [ xo0 xo1 xo2 ]
+[ c d q ] [ yi0 yi1 yi2 ]   [ yo0 yo1 yo2 ]
+          [   1   1   1 ]
+    M    *      I        =       O
+    M                    =       O * I^-1
+
+yo0 = c * xi0 + d * yi0 + q
+yo1 = c * xi1 + d * yi1 + q
+yo2 = c * xi2 + d * yi2 + q
+ -}
+
+add1s = map (++ [1])
+
+t3 = select [0, 2, 3]
+
+nan = 0 / 0
+
+isNaNM m = any (any isNaN) m
+
+getMat i o = if isNaNM i then map2 (const nan) (t3 o) else t3 o <*> invMat (add1s $ t3 i)
+
+getMatD i o = (t3 o <*>) <$> invMatD (add1s $ t3 i)
+
+getresMat rr = residuals $ vs1 <-> lamazi4 rr (getlamaziMat rr) lls
+
+getresMatD rr = do
+  m <- lamaziMatD rr
+  return $ residuals $ vs1 <-> lamazi4 rr m lls
+
+residuals x = sqrt $ mean $ map (^ 2) $ concat x
+
+-- lamaziRR = search (\rr -> getres1 (lamazi3 rr)) [0, 0] [5, 10] 16 30
+
+hjk ([[sx, sy]], r, [[xo, yo]]) = [sx, sy, r, xo, yo]
+
+lamaziSRS = hjk (getsrs (lamazi3 lamaziRR))
+lamaziRR = search getresMat [0, 0] [5, 10] 16 50
+lamaziMat = getlamaziMat lamaziRR
+getlamaziMat rr = getMat (lamazi4 rr [[1, 0], [0, 1], [0, 0]] lls) vs1
+lamaziMatD rr = getMatD (lamazi4 rr [[1, 0], [0, 1], [0, 0]] lls) vs1
+
+-- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
+-- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
+search _ c _ _ 0 = c
+search f c r n i =
+  let
+    xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
+    xs = crossList xs1
+    fxxs = mapfxx f xs
+    min = minimum fxxs
+   in
+    search f (snd min) (map (/ 2) r) n (i - 1)
+
+sh = searchD getresMat [0, 0] [12, 24] 8
+shd = searchDD getresMatD [0, 0] [12, 24] 8
+
+-- sh = searchD (\rr -> getres1 (\init1 ll -> ll)) [0, 0] [12, 24] 8
+
+mapfxxM f xs = flip zip xs <$> mapM f xs
+
+searchD f c r n =
+  let
+    xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
+    xs = crossList xs1
+    fxxs = mapfxx f xs
+    min = minimum fxxs
+   in
+    fromAssocsDA (+) 0 $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
+
+searchDD f c r n =
+  do
+    let xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
+    let xs = crossList xs1
+    fxxs <- mapfxxM f xs
+    let min = minimum fxxs
+    return $ fromAssocsDA (+) 0 $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
 
 altx = sum $ map (4 ^) [0 .. 31]
 alty = altx * 2
@@ -531,58 +625,29 @@ inRange a b x = x >= a && x <= b
 between a b m = M.takeWhileAntitone (<= b) $ M.dropWhileAntitone (< a) m
 
 getRect args@[v0, v1] m = M.filter (inRect args) $ between (interleave v0) (interleave v1) m
-lamaziRR = search (\rr -> getres1 (lamazi3 rr)) [0, 0] [5, 10] 16 30
-
-hjk ([[sx, sy]], r, [[xo, yo]]) = [sx, sy, r, xo, yo]
-
-lamaziSRS = hjk (getsrs (lamazi3 lamaziRR))
-
--- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
--- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
-search _ c _ _ 0 = c
-search f c r n i =
-  let
-    xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
-    xs = crossList xs1
-    fxxs = mapfxx f xs
-    min = minimum fxxs
-   in
-    search f (snd min) (map (/ 2) r) n (i - 1)
-
-sh = searchD (\rr -> getres1 (lamazi3 rr)) [0, 0] [24, 24] 8
-
--- sh = searchD (\rr -> getres1 (\init1 ll -> ll)) [0, 0] [12, 24] 8
-
-searchD f c r n =
-  let
-    xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
-    xs = crossList xs1
-    fxxs = mapfxx f xs
-    min = minimum fxxs
-   in
-    fromAssocsDA (+) 0 $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
 
 drawGrid1 pixbuf = do
+  scale 0.3 0.3
   setSourcePixbuf pixbuf 0 0
   Cairo.paint
   setSourceRGB 1 0 1
-  setLineWidth 100
+  setLineWidth 5
 
   -- let t = lamaziOfSph t1 . rofd2
-  let t = lamazi3 lamaziRR lamaziSRS
+  let t = lamazi4 lamaziRR lamaziMat
   newPath
   sequence_ $ concat $ crossWith (\x y -> do movTo (t [[x, y]]); linTo (t [[x + 1, y]])) [-85, -84 .. 85] [-180, -175 .. 180]
   sequence_ $ concat $ crossWith (\x y -> do movTo (t [[x, y]]); linTo (t [[x, y + 1]])) [-85, -80 .. 85] [-180, -179 .. 180]
   stroke
   setSourceRGB 0 1 0
-  newPath
-  let z = t $ vec 25 -120
-  arc (xofv z) (yofv z) 100 0 (2 * pi)
-  stroke
-  newPath
-  let z = t $ vec 25 -75
-  arc (xofv z) (yofv z) 100 0 (2 * pi)
-  stroke
+  mapM_
+    ( \[lat, long] -> do
+        newPath
+        let z = t $ vec lat long
+        arc (xofv z) (yofv z) 100 0 (2 * pi)
+        stroke
+    )
+    lls
 
 gmv = do
   setCurrentDirectory "/home/brett/Documents/Info/earth"
