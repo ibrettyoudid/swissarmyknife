@@ -9,6 +9,8 @@
 
 {-# HLINT ignore "Use fmap" #-}
 
+module ID3C where
+
 import ApplyTuple
 import BString
 import Favs hiding (range, split, split1With, splitWith)
@@ -69,7 +71,7 @@ unsharedd = baseDir ++ "Unshared/"
 compd = baseDir ++ "Compilations/"
 misc = baseDir ++ "Misc/"
 
-f = ["Artist", "Year", "Album", "#", "Song"]
+f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
 ft = fileTree
 fta = fileTree artistd
@@ -77,7 +79,7 @@ fds = fieldsFromString f d
 down = "/home/brett/Downloads/"
 
 p = play
-play files = runInteractiveProcess "vlc" ("--one-instance" : map c files) Nothing Nothing
+play files = runInteractiveProcess "vlc" ("--one-instance" : files) Nothing Nothing
 pft dir = play $ fileTree dir
 
 low = map toLower
@@ -132,7 +134,7 @@ data Frame
   | Nowt
   deriving (Eq, Ord, Show, Read, Generic)
 
-data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico}
+data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} deriving (Eq, Ord, Show)
 
 data Meta = Meta
   { byId :: M.Map FrameID Dynamic
@@ -148,7 +150,7 @@ data Meta = Meta
   , genre :: T.Text
   , times :: FileTimes
   , orig :: FileTimes
-  }
+  } deriving (Eq, Ord, Show)
 
 n = track
 
@@ -159,7 +161,7 @@ data Encoding = ISO8859 | UCS2
 test1 = differences $ fileTree $ unsharedd ++ "Portion Control/2007 - Onion Jack IV"
 test1a = commonSubsequencesList $ fileTree $ unsharedd ++ "Portion Control/2007 - Onion Jack IV"
 
-test2 db = play $ map path $ filter (album $= "Paradise Lost") $ tl db
+test2 db = play $ map (c . path) $ filter (album $= "Paradise Lost") $ tl db
 
 {-
 fixalbumname = do
@@ -183,19 +185,17 @@ artists1 db =
       -}
 
 artists db =
-  map (applyT (head $$ artist, counts $$ year, countUnique $$ album)) $ -- , sum $$ timeFrame, mode $$ genre))
-  -- \$ sortOn (minimum $$ yearInt)
+  map (applyT (head $$ artist, counts $$ year, countUnique $$ album)) $ -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre))
     groupBy1 artist $
       tl db
 
 artistalbums db =
-  map (applyT (hd $$ artist, hd $$ year, hd $$ album, mode $$ genre)) $ -- sum $$ timeFrame,
-  -- \$ sortOn (minimum $$ yearInt)
+  map (applyT (hd $$ artist, hd $$ year, hd $$ album, mode $$ genre)) $ -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame,
     groupBy1 (applyT (artist, year, album)) $
       tl db
 
 albums db =
-  map (applyT (range $$ year, range $$ album)) $ -- , sum  timeFrame))
+  map (applyT (range $$ year, range $$ album)) $ -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame))
     sortOn (minimum $$ year) $
       groupBy1 album $
         tl db
@@ -313,6 +313,9 @@ instance Zero Term where
 
 instance (Zero a, Zero b) => Zero (a, b) where
   zero = (zero, zero)
+
+instance Zero T.Text where
+  zero = ""
 
 hd [] = zero
 hd (a : as) = a
@@ -582,13 +585,13 @@ blankMeta =
     { isDir = False
     , path = empty
     , audio = empty
-    , byId = empty
+    , byId = M.empty
     , artist = empty
     , album = empty
     , albumartist = empty
     , track = empty
     , song = empty
-    , year = empty
+    , year = 0
     , genre = empty
     , times = FileTimes 0 0 0
     , orig = FileTimes 0 0 0
@@ -605,7 +608,7 @@ updateDB1 bypathold bypathnew =
     -- give up on the remaining unmatched and just add them
     -- leave out nmdirs
 
-    -- we keep everything that matched one way or the other plus new stuff with no audio / nonmatching audio
+    -- we keep everything that matched one way or the other plus new stuff with missing / nonmatching audio
     bypathmatch `M.union` newkeys path byaudiomatch `M.union` bypathnewmiss `M.union` newkeys path byaudionewmiss
 
 updateDBMerge db listnew = M.union (M.fromList $ mapfxx path listnew) db
@@ -626,7 +629,7 @@ c = convertString
 readFS :: M.Map T.Text Meta -> Meta -> IO [Meta]
 readFS db f
   | isDir f = do
-      putStrLn ("DIR " ++ c $ path f)
+      putStrLn ("DIR " ++ c (path f))
       let path1 = c $ path f ++ "/"
       (times1, orig1) <- readFileTimes f -- otimes1 is only different for a new dir
       -- if field "FT.Current.Written" times1 > field "FT.Current.Written" f
@@ -659,7 +662,7 @@ readFSD db f
   | isDir f = readFS db f
   | otherwise = return [f]
 
-writeFS f = writeTag (path f) f
+writeFS f = writeTag (path f) $ framesOfMeta f
 
 zeroTime = DateTime (posixSecondsToUTCTime 0)
 
@@ -670,7 +673,7 @@ inDir d =
   let
     l = length d
    in
-    M.takeWhileAntitone (\x -> isPrefixOf d x && notElem (convertChar '/') (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
+    M.takeWhileAntitone (\x -> isPrefixOf d x && notElem '/' (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
 
 inDir1 d = M.takeWhileAntitone (all (notElem '/') . stripPrefix d) . M.dropWhileAntitone (not . isPrefixOf d)
 
@@ -839,11 +842,15 @@ combineMPEGFrames totalBytes frs =
   let
     readBytes = sum $ map mpegFrameBytes frs
     readTime = sum $ map mpegFrameTime frs
-    bitRate = realToFrac readBytes * 8 / realToFrac readTime :: Double
-    totalTime = fromIntegral totalBytes / bitRate * 8 / 1000
+    bitRate = realToFrac readBytes * 8 / realToFrac readTime
+    totalTime = round $ fromIntegral totalBytes / bitRate * 8 / 1000
     readSamps = sum $ map framesamps frs
-    sampRate = realToFrac readBytes / realToFrac readSamps :: Double
+    sampRate = round $ realToFrac readBytes / realToFrac readSamps
+    mVersion = mode   $ map version        frs
+    mLayer   = mode   $ map layer          frs
    in
+    [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
+    {-
     [ FrameText "MPEG Ver" $ c $ show $ mode $ map version frs
     , FrameText "MPEG Layer" $ c $ show $ mode $ map layer frs
     , FrameText "Bitrate" $ c $ show $ round bitRate
@@ -851,6 +858,7 @@ combineMPEGFrames totalBytes frs =
     , FrameText "Time" $ c $ show $ realToFrac totalTime
     , FrameText "Sample rate" $ c $ show $ round sampRate
     ]
+    -}
 
 getMPEGFrames = filter (\case MPEGFrame{} -> True; _ -> False)
 
@@ -887,17 +895,19 @@ metaOfFrames isDir1 path1 times1 orig1 frs =
       { isDir = isDir1
       , path = path1
       , audio = ""
-      , albumartist = val $ fromMaybe "" $ M.lookup AlbumArtist byId1
-      , artist = val $ fromMaybe "" $ M.lookup Artist byId1
-      , album = val $ fromMaybe "" $ M.lookup Album byId1
-      , track = val $ fromMaybe "" $ M.lookup Track byId1
-      , song = val $ fromMaybe "" $ M.lookup Song byId1
-      , year = readInt $ c $ val $ fromMaybe "" $ M.lookup Year byId1
-      , genre = val $ fromMaybe "" $ M.lookup Genre byId1
+      , albumartist = maybe "" val (M.lookup AlbumArtist byId1)
+      , artist = maybe "" val (M.lookup Artist byId1)
+      , album = maybe "" val (M.lookup Album byId1)
+      , track = maybe "" val $ M.lookup Track byId1
+      , song = maybe "" val $ M.lookup Song byId1
+      , year = readInt $ c $ maybe "" val $ M.lookup Year byId1
+      , genre = maybe "" val $ M.lookup Genre byId1
       , times = times1
       , orig = orig1
       , byId = M.fromList $ mapMaybe (\fr -> ifJust (frid fr `notElem` [AlbumArtist, Artist, Album, Track, Song, Year, Genre]) (frid fr, toDyn $ val fr)) frs
       }
+
+framesOfMeta meta = map (\(frid, dyn) -> FrameText frid $ fromDyn1 dyn) $ fields1 meta
 
 decodeFrame1 = decodeFrame2 . decodeFrame
 
@@ -924,10 +934,10 @@ descOfTextId textId = fromMaybe (error "textId " ++ textId ++ " not found") $ M.
 descOfTextIdMap = M.fromList $ map (applyT (textId, desc)) frameIDList
 
 encodeFrame fr@(Frame{}) = fr
-encodeFrame fr@(FrameText name val) = Frame frameID 0 falseFlags $ encodeText $ show1 val
+encodeFrame fr@(FrameText frid val) = Frame frameID 0 falseFlags $ encodeText $ show1 val
  where
-  Just f = find (\x -> x !! 2 == name) frameIDList
-  frameID = f !! 1
+  Just f = M.lookup frid idMap
+  frameID = c $ textId f
 
 {-
 decodeText = decodeText1 . map fromIntegral . B.unpack

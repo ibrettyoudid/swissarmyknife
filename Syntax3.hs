@@ -1,9 +1,12 @@
+{-# LANGUAGE FlexibleInstances #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LexicalNegation #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Syntax3 where
@@ -87,6 +90,7 @@ and tried to guess the 4 definitions below
 -}
 defineIsomorphisms ''Either
 defineIsomorphisms ''Maybe
+
 {-
 just :: Iso alpha (Maybe alpha)
 just = Iso (Just . Just) id

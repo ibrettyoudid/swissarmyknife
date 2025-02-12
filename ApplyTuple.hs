@@ -1,10 +1,12 @@
 -- Copyright 2025 Brett Curtis
+{-# LANGUAGE FlexibleInstances #-}
+-- Copyright 2025 Brett Curtis
 {-# LANGUAGE FunctionalDependencies #-}
 
 module ApplyTuple where
 
 class ApplyTuple a b c | a -> b c, b c -> a where
-   applyT :: a -> b -> c
+  applyT :: a -> b -> c
 
 instance ApplyTuple (x -> a, x -> b) x (a, b) where applyT (a, b) x = (a x, b x)
 instance ApplyTuple (x -> a, x -> b, x -> c) x (a, b, c) where applyT (a, b, c) x = (a x, b x, c x)

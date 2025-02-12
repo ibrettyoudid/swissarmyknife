@@ -185,7 +185,7 @@ integratei n f a =
 
 percofiq sd iq = integratei 10 normalstd ((iq - 100) / sd)
 
-iqofperc sd perc = falsePos1 (percofiq sd) 0.00000001 perc $ getBrackets1 (percofiq sd) 10 100 90 perc
+iqofperc sd perc = falsePos1 (percofiq sd) 0.00000001 perc $ getBrackets1 (percofiq sd) 100 (percofiq sd 100) 0.5 2 5 90 perc
 
 differentiate f x = (f (x + 0.001) - f x) * 1000
 

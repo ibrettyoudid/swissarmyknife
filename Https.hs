@@ -1,6 +1,7 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Https where
 

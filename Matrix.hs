@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE LexicalNegation #-}

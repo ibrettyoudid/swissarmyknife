@@ -1,6 +1,8 @@
+{-# LANGUAGE FlexibleInstances #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module BString where
 
@@ -149,6 +151,9 @@ instance ConvertString P.String T.Text where
 
 instance ConvertString T.Text P.String where
   convertString = T.unpack
+
+instance ConvertString P.String P.String where
+  convertString = id
 
 class ConvertChar a b where
   convertChar :: a -> b

@@ -55,14 +55,39 @@ extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
 common warnings
-    ghc-options: -Wall
+    default-extensions: ImportQualifiedPost
 
 library
     -- Import common warning flags.
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  MyLib
+    exposed-modules:  
+      ApplyTuple,
+      BString, 
+      Favs,
+      Https, 
+      --ID3C, 
+      MHash, 
+      MHashDynamic, 
+      Matrix, 
+      MyPretty2, 
+      NumberParsers,
+      Parser, 
+      --Poker, 
+      Prob, 
+      Prolog, 
+      Shell, 
+      Show1, 
+      ShowTuple, 
+      Syntax3, 
+      SyntaxCIPU, 
+      SyntaxTH, 
+      Table1,
+      Table1G, 
+      Tree, 
+      Wiki, 
+      WikiG
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -71,7 +96,30 @@ library
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.17.2.1
+    build-depends:    
+      base ^>=4.17.2.1,
+      array,
+      attoparsec,
+      binary,
+      bytestring,
+      concurrent-hashtable,
+      containers,
+      deepseq,
+      directory,
+      http-client,
+      http-client-tls,
+      http-types,
+      mtl,
+      network,
+      network-uri,
+      parsec,
+      process,
+      random,
+      template-haskell,
+      text,
+      time,
+      transformers,
+      unix
 
     -- Directories containing source files.
     hs-source-dirs:   .

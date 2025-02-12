@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -256,9 +257,10 @@ colWidths1 width tab =
     cellwcols = map2 length tab
     colwsF = map maximum cellwcols
     colwsV = map sum cellwcols
+   in
     -- mult      = fromIntegral width / fromIntegral (sum colwsV)
     -- colwsV1   = map (ceiling . (mult*) . fromIntegral) colwsV
-   in
+
     (colWidths1A width, (0, sum colwsV, [], colwsF, colwsV), colWidths1B)
 
 colWidths1A width (wf, wv, _, colwsF, colwsV) =
@@ -543,9 +545,10 @@ showGrid1 colws tab =
              in map (\(lc, cell) -> map (padr lc) $ padLWith1 "" m cell) row
         )
         rows
-        -- in newrows
-        -- in length $ concat $ map2 (intercalate "|") $ map transpose rows2
    in
+    -- in newrows
+    -- in length $ concat $ map2 (intercalate "|") $ map transpose rows2
+
     unlines $ concat $ map2 (intercalate "|") $ map transpose rows2
 
 putGridW w = putStr . showGridW w

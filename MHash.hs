@@ -1,11 +1,14 @@
+{-# LANGUAGE FlexibleContexts #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- {-# LANGUAGE OverlappingInstances #-} -- deprecated
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE RankNTypes #-}
 -- {-# LANGUAGE NoMonomorphismRestriction #-}
 -- {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 -- {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}

@@ -1,4 +1,5 @@
 -- Copyright 2025 Brett Curtis
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Favs (
