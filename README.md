@@ -7,7 +7,7 @@ The one currently in use uses a single specification for both parsing and printi
 using an idea from invertible-syntax and partial-isomorphisms on hackage.com
 This system is in Syntax3, SyntaxCIPU and SyntaxTH
 There is also an older one where the spec is separate, this is in MHash
-Uses MHashDynamic for values
+Uses type Dynamic for values
 
 MHashDynamic
 An extended version of Dynamic from base, with multimethods and automatic conversion, and Eq, Ord and Show instances
