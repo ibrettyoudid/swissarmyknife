@@ -67,7 +67,7 @@ library
       BString, 
       Favs,
       Https, 
-      --ID3C, 
+      ID3C, 
       MHash, 
       MHashDynamic, 
       Matrix, 
