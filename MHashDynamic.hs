@@ -191,6 +191,7 @@ instance Eq NamedValue where
 data Expr
   = Value {etype :: MType, value :: Dynamic}
   | VarRef {etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int}
+  | VarDef {xtype :: Expr, name :: String, frameIndex :: Int, memIndex :: Int}
   | VarRef1 {etype :: MType, name :: String}
   | Lambda {etype :: MType, econstr :: Constr, subexpr :: Expr}
   | Let {etype :: MType, econstr :: Constr, vals :: [Expr], subexpr :: Expr}
@@ -806,6 +807,18 @@ instance Show Multimethod where
 instance Show MultimethodA where
   show (MultimethodA n a) = "name: " ++ n ++ "\n" ++ show a
 
+instance Read Dynamic where
+  readsPrec p s0 =
+    let
+      (i, s1) = unzip $ (readsPrec p :: ReadS Int) s0
+      (d, s2) = unzip $ (readsPrec p :: ReadS Double) s0
+      (b, s3) = unzip $ (readsPrec p :: ReadS Bool) s0
+      (s, s4) = unzip $ (readsPrec p :: ReadS String) s0
+      (c, s5) = unzip $ (readsPrec p :: ReadS Char) s0
+      x r s y = if not $ null r then zip (map toDyn r) s else y
+     in
+      x i s1 $ x d s2 $ x b s3 $ x s s4 $ x c s5 []
+
 deriving instance Show MMEntry
 
 showm :: Multimethod
@@ -847,7 +860,11 @@ valueIso = Iso (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> 
 
 var = "var" <=> variso >$< identifier
 
-vardef = "vardef" <=> text "var" *< identifier >*< ((skipSpace *< text "::" *< skipSpace *< typeExpr) <|> (valueIso >$< Syntax3.pure u))
+vardefiso = Iso (\(n, t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n, t); _ -> Nothing)
+
+vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((skipSpace *< text "::" *< skipSpace *< expr) <|> (valueIso >$< Syntax3.pure u))
+
+typeanno = expr >*< skipSpace *< text "::" *< skipSpace *< expr
 
 mem = Iso (Just . Member u) (\(Member _ n) -> Just n) >$< identifier
 
@@ -855,9 +872,15 @@ varfn (VarRef1 _ v) = Just v
 varfn (VarRef _ v _ _) = Just v
 varfn _ = Nothing
 
+varfnt (VarRef t v _ _) = Just (v, t)
+varfnt (VarRef1 t v) = Just (v, t)
+varfnt _ = Nothing
+
 app (Apply _ l) = l
 
 variso = Iso (Just . VarRef1 u) varfn
+
+varisot = Iso (\(v, t) -> Just $ VarRef1 t v) varfnt
 
 prediso p = Iso (ifPred p) (ifPred p)
 
@@ -926,7 +949,9 @@ applic =
       )
     >$< sepBy term sepSpace
 
-expr10 = "expr10" <=> opl ["@"] applic
+-- a :: A @ b :: B @ c :: C
+
+expr10 = "expr10" <=> opl ["@", "::"] expr10
 
 expr9 = "expr9" <=> opr ["."] expr10
 
@@ -972,13 +997,9 @@ blockSyn =
     >* sepSpace
     >*< expr0
 
-dataSyn = conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace
+dataSyn = valueIso >$< conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace
 
-typeSyn = dataSyn
-
-typeExpr = valueIso >$< typeSyn
-
-expr = ifSyn <|> lambdaSyn <|> blockSyn <|> expr0
+expr = ifSyn <|> lambdaSyn <|> blockSyn <|> dataSyn <|> expr0
 
 data Dimension
   = DimInt {dimLower :: Int, dimUpper :: Int, dimMult :: Int}

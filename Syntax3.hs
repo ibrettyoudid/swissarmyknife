@@ -56,7 +56,7 @@ infix 2 <=>
 infixl 3 <|>
 
 -- infixl 4 <+>
-infix 5 >$<
+infixr 5 >$<
 infixr 6 >*<
 
 class ProductFunctor f where

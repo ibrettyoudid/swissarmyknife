@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE TupleSections #-}
@@ -134,7 +136,7 @@ data Frame
   | Nowt
   deriving (Eq, Ord, Show, Read, Generic)
 
-data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} deriving (Eq, Ord, Show)
+data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} deriving (Eq, Ord, Show, Read)
 
 data Meta = Meta
   { byId :: M.Map FrameID Dynamic
@@ -150,7 +152,8 @@ data Meta = Meta
   , genre :: T.Text
   , times :: FileTimes
   , orig :: FileTimes
-  } deriving (Eq, Ord, Show)
+  }
+  deriving (Eq, Ord, Show, Read)
 
 n = track
 
@@ -630,14 +633,15 @@ readFS :: M.Map T.Text Meta -> Meta -> IO [Meta]
 readFS db f
   | isDir f = do
       putStrLn ("DIR " ++ c (path f))
-      let path1 = c $ path f ++ "/"
+      let path1 = path f ++ "/"
       (times1, orig1) <- readFileTimes f -- otimes1 is only different for a new dir
       -- if field "FT.Current.Written" times1 > field "FT.Current.Written" f
       putStrLn "hello"
       if on (>) written times1 (times f)
         then do
-          rdir <- map c <$> listDirectory path1
-          rnew <- mapM (\p -> do d <- doesDirectoryExist $ c p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir
+          rdir <- listDirectory $ c path1
+          let rdir1 = map c rdir
+          rnew <- mapM (\p -> do d <- doesDirectoryExist $ c p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir1
           let withnew = M.union (inDir path1 db) $ M.fromList $ mapfxx path rnew
           updated <- mapM (readFS db) withnew -- recurse into subdirectories and files
           return $ f{times = times1} : concat updated -- otimes1 is only updated if it's a new dir
@@ -842,23 +846,24 @@ combineMPEGFrames totalBytes frs =
   let
     readBytes = sum $ map mpegFrameBytes frs
     readTime = sum $ map mpegFrameTime frs
-    bitRate = realToFrac readBytes * 8 / realToFrac readTime
-    totalTime = round $ fromIntegral totalBytes / bitRate * 8 / 1000
+    bitRate = round $ realToFrac readBytes * 8 / realToFrac readTime
+    totalTime = realToFrac $ fromIntegral totalBytes / fromIntegral bitRate * 8 / 1000
     readSamps = sum $ map framesamps frs
     sampRate = round $ realToFrac readBytes / realToFrac readSamps
-    mVersion = mode   $ map version        frs
-    mLayer   = mode   $ map layer          frs
+    mVersion = mode $ map version frs
+    mLayer = mode $ map layer frs
    in
     [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
-    {-
-    [ FrameText "MPEG Ver" $ c $ show $ mode $ map version frs
-    , FrameText "MPEG Layer" $ c $ show $ mode $ map layer frs
-    , FrameText "Bitrate" $ c $ show $ round bitRate
-    , FrameText "Audio bytes" $ c $ show totalBytes
-    , FrameText "Time" $ c $ show $ realToFrac totalTime
-    , FrameText "Sample rate" $ c $ show $ round sampRate
-    ]
-    -}
+
+{-
+[ FrameText "MPEG Ver" $ c $ show $ mode $ map version frs
+, FrameText "MPEG Layer" $ c $ show $ mode $ map layer frs
+, FrameText "Bitrate" $ c $ show $ round bitRate
+, FrameText "Audio bytes" $ c $ show totalBytes
+, FrameText "Time" $ c $ show $ realToFrac totalTime
+, FrameText "Sample rate" $ c $ show $ round sampRate
+]
+-}
 
 getMPEGFrames = filter (\case MPEGFrame{} -> True; _ -> False)
 

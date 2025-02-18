@@ -155,6 +155,12 @@ instance ConvertString T.Text P.String where
 instance ConvertString P.String P.String where
   convertString = id
 
+instance ConvertString T.Text B.ByteString where
+  convertString s = convertString (convertString s :: P.String)
+
+instance ConvertString B.ByteString T.Text where
+  convertString s = convertString (convertString s :: P.String)
+
 class ConvertChar a b where
   convertChar :: a -> b
 
