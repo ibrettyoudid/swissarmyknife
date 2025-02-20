@@ -9,7 +9,7 @@
 module Table1G where
 
 import Favs
-import Https
+import HTML
 import MHashDynamic hiding (toList2)
 import MyPretty2
 import NumberParsers
@@ -67,9 +67,10 @@ combine2 fs ts rows =
     frows = map (applyL fs) rows
 
     fcols = transpose frows
+   in
     -- rows2 = map (applyL fs) $ transpose rows
     -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-   in
+
     zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
 
 combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
@@ -81,9 +82,10 @@ combine3 g fs ts rows =
     gf = combine (:) [] $ zip gcol fcols
     x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
     blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
+   in
     -- rows2 = map (applyL fs) $ transpose rows
     -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-   in
+
     blah
 
 readfods = do

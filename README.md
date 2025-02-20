@@ -1,6 +1,6 @@
-## haskell
+# haskell
 
-# MHash
+## MHash
 
 An interpreter for a Haskell like language
 
@@ -14,33 +14,45 @@ There is also an older one where the spec is separate, this is in MHash
 
 Uses type Dynamic for values
 
-# MHashDynamic
+## MHashDynamic
 
-An extended version of Dynamic from base, with multimethods and automatic conversion, and Eq, Ord and Show instances
+An extended version of `Dynamic` from base, with multimethods and automatic conversion, and Eq, Ord and Show instances
 
-Also contains a multidimensional array type (there are too many interdependencies for it to be separate)
+Also contains a multidimensional array type `SubArrayD e` (there are too many interdependencies for it to be separate)
 
-This array type (SubArrayD) can transpose dimensions in O(1) time
+`SubArrayD` can transpose dimensions in O(1) time. This makes it useful for complex maps and folds across dimensions
 
-This makes it useful for complex maps and folds across dimensions
+Each dimension can optionally have a `Dynamic` index (ie. making that dimension work like a Map)
 
-Each dimension can optionally have a Dynamic index (ie. making that dimension work like a Map)
+Uses putGrid to display `SubArrayD`s with as many dimensions as you like
 
-Uses putGrid to display SubArrayDs with as many dimensions as you like
+## MyPretty2
 
-# MyPretty2
+A pretty printer. `putGrid` can adjust column widths of tables (ie. values of type `[[String]]`) automatically to get the best use of space
 
-A pretty printer. Does very nice grids with putGrid
-
-# Parser
+## Parser
 
 An Earley parser
 
-# Prolog
+## Prolog
 
 A very basic Prolog interpreter
 
-# Tree
+## Table1G
 
-A container indexed by Int with O(log n) lookup and update
+An in memory database
 
+## Tree
+
+A container indexed by Int (ie. like an array) with O(log n) lookup and insert (ie. shifting ranges of indices to other places).
+Due to the fact that it's a tree, multiple slightly different versions can share common values
+
+Possible future extension: Use `Tree` as the behind the scenes store for `SubArrayD`, therefore giving it the same properties
+
+## HTML
+
+read/write HTML from the web/a filesystem
+
+## Wiki/WikiG
+
+Uses the `Https` module to scrape data tables from Wikipedia

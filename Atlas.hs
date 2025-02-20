@@ -4,7 +4,7 @@
 module Atlas where
 
 import Favs hiding (on)
-import Https
+import HTML
 import MHashDynamic
 import Matrix hiding ((*), (+), (-))
 import MyPretty2

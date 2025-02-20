@@ -7,7 +7,7 @@
 module Table1 where
 
 import Favs
-import Https
+import HTML
 import MyPretty2
 import NumberParsers
 
