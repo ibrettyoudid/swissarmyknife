@@ -807,17 +807,11 @@ instance Show Multimethod where
 instance Show MultimethodA where
   show (MultimethodA n a) = "name: " ++ n ++ "\n" ++ show a
 
+
 instance Read Dynamic where
-  readsPrec p s0 =
-    let
-      (i, s1) = unzip $ (readsPrec p :: ReadS Int) s0
-      (d, s2) = unzip $ (readsPrec p :: ReadS Double) s0
-      (b, s3) = unzip $ (readsPrec p :: ReadS Bool) s0
-      (s, s4) = unzip $ (readsPrec p :: ReadS String) s0
-      (c, s5) = unzip $ (readsPrec p :: ReadS Char) s0
-      x r s y = if not $ null r then zip (map toDyn r) s else y
-     in
-      x i s1 $ x d s2 $ x b s3 $ x s s4 $ x c s5 []
+  readsPrec p s0 = px (readsPrec p :: ReadS Int) $ px (readsPrec p :: ReadS Double) $ px (readsPrec p :: ReadS Bool) $ px (readsPrec p :: ReadS String) $ px (readsPrec p :: ReadS Char) []
+   where
+    px p y = let (r, s) = unzip $ p s0 in if not $ null r then zip (map toDyn r) s else y
 
 deriving instance Show MMEntry
 

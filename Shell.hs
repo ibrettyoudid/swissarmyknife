@@ -140,6 +140,7 @@ paths1 p = do n <- names1 p
 
 -- unsafe
 upIO = unsafePerformIO
+subdir d s = if last d == '/' then d ++ s else d ++ '/' : s
 
 {-
 filterM m (x:xs) = do y <- m x
@@ -148,10 +149,10 @@ filterM m (x:xs) = do y <- m x
 -- unsafe
 names p = sort $ unsafePerformIO $ listDirectory p
 
-paths p = map ((p ++ "/") ++) $ names p
+paths p = map (subdir p) $ names p
 
-dirNames p = filter (\n -> unsafePerformIO $ doesDirectoryExist (p ++ "/" ++ n)) $ names p
-
+dirNames p = filter (\n -> unsafePerformIO $ doesDirectoryExist (subdir p n)) $ names p
+fileNames p = filter (\n -> unsafePerformIO $ doesFileExist (subdir p n)) $ names p
 dirPaths p = filter (unsafePerformIO . doesDirectoryExist) $ paths p
 filePaths p = filter (unsafePerformIO . doesFileExist) $ paths p
 cdirPaths p = concatMap dirPaths p
@@ -161,8 +162,10 @@ dirExists p = unsafePerformIO $ doesDirectoryExist p
 
 interleave xs = concat $ transpose xs
 
--- get paths and subpaths at p, breadth first (i = subdirs interleaved so as to give equal effort to each)
+-- get paths and subpaths at p
 tree p = paths p ++ (concatMap tree $ dirPaths p)
+
+-- breadth first (i = subdirs interleaved so as to give equal effort to each)
 treei p = paths p ++ (concat $ transpose $ map tree $ dirPaths p)
 
 -- same but only returning dirs
@@ -186,7 +189,7 @@ run1 exe inp = do
   hPutStr inph inp
   hGetContents outh
 
-whereisP file paths = catMaybes <$> mapM (\p -> let f = p ++ "/" ++ file in justIf f <$> doesFileExist f) paths
+whereisP file paths = catMaybes <$> mapM (\p -> let f = subdir p file in justIf f <$> doesFileExist f) paths
 
 whereis file = whereisP file =<< (split ";" <$> getEnv "PATH")
 

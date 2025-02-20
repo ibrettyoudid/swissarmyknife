@@ -5,6 +5,7 @@
 -- {-# LANGUAGE TupleSections #-}
 {-# HLINT ignore "Use zipWith" #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
@@ -39,7 +40,7 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char
-import Data.List hiding (concat, drop, elem, find, groupBy, head, intercalate, isInfixOf, isPrefixOf, isSuffixOf, length, notElem, null, stripPrefix, tail, (!!), (++))
+import Data.List hiding (concat, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
 import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, (!!), (++))
 
 -- import Data.Algorithm.Diff
@@ -64,6 +65,8 @@ import GHC.Generics hiding (Meta)
 -- things to try
 t1 db = putt $ artists db
 t2 = p fta
+t3 = filtree [(inli "apc", "/")] artistd
+t4 = filtree [(inis $= "dt", "/"), (ininis "iaw", "/")] artistd
 
 baseDir = if linux then "/home/brett/Documents/Music/" else "d:/music/"
 
@@ -88,12 +91,43 @@ low = map toLower
 inlow x = isInfixOf (low x) . low
 prelow x = isPrefixOf (low x) . low
 inis x = map head $ split " " $ low x
-isini x y = inis x == low y
+ininis x y = low x `isInfixOf` inis y
+inli x y = inlow x y || ininis x y
+
+-- fm filt = filtree (filt . metaFromString f d)
+
+data Split = Fail | Partial | Match deriving (Eq, Ord, Show)
+sp :: (String -> Bool) -> String -> (String -> Split) -> String -> Split
+sp pred delim cont [] = Partial
+sp pred delim cont str = case split1M delim str of
+  Just (b, a) -> if pred b then cont a else Fail
+  Nothing -> if pred str then Partial else Fail
+
+sp1 pred delim = sp pred delim ok
+
+{-
+splitWith pred = unfoldr (\s -> ifJust (not $ null s) $ split1With pred s)
+
+split1With pred str = firstJustElse (str, []) (zipWith (\a b -> (a,) <$> pred b) (inits str) (tails str))
+
+split1 sep = split1With (stripPrefix sep)
+
+split1M sep = split1WithM (stripPrefix sep)
+
+split1WithM pred str = case catMaybes $ zipWith (\a b -> (a,) <$> pred b) (inits str) (tails str) of
+  [] -> Nothing
+  (x : _) -> Just x
+-}
+
+ok = const Match
+ok2 f s = True
+ok3 a b c = True
+filtree [] p = map (subdir p) (fileNames p) ++ concatMap (filtree [] . subdir p) (dirNames p)
+filtree ((f, d) : fds) p = map (subdir p) (filter f $ fileNames p) ++ concatMap (filtree fds . subdir p) (filter f $ dirNames p)
 artistp a = filter (inlow a) $ dirPaths artistd
 artistt = fileTree . (artistd ++)
 albump a = filter (inlow a) $ cdirPaths $ dirPaths artistd
 ismp3 = (".mp3" `isSuffixOf`) . low
-
 mp3s = filter ismp3 . fileTree
 artistmp3s a = mp3s $ artistd ++ a
 
@@ -137,6 +171,8 @@ data Frame
   deriving (Eq, Ord, Show, Read, Generic)
 
 data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} deriving (Eq, Ord, Show, Read)
+
+blankFT = FileTimes 0 0 0
 
 data Meta = Meta
   { byId :: M.Map FrameID Dynamic
@@ -502,6 +538,9 @@ diffcheck _ _ = Nothing
 
 differences2 :: [String] -> [[String]]
 differences2 strs = let delims = commonSubsequencesList strs in map (infoFromString delims) strs
+
+metaFromString :: [FrameID] -> [String] -> String -> Meta
+metaFromString fields delims str = metaOfFrames False (c str) blankFT blankFT $ fieldsFromString fields delims str
 
 fieldsFromString fields delims str = zipWith FrameText fields $ map c $ infoFromString delims str
 
