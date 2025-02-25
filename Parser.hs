@@ -67,7 +67,7 @@ innershow d (RRang a b) = unwords $ ii d ["[" ++ [a] ++ ".." ++ [b] ++ "]"]
 
 outershow d r@(RSeq  as ) = "Seq " ++ innershow d r
 outershow d r@(RAlt  as ) = "Alt " ++ innershow d r
-outershow d r@(RName a b) = innershow d r ++ " -> " ++ innershow Nothing b
+outershow d r@(RName a b) = unwords $ ii d [a ++ " -> " ++ innershow Nothing b]
 outershow d r@(RChar a  ) = show a
 outershow d r@(RRang a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
 
@@ -120,25 +120,29 @@ expr = RName "expr" $ RAlt [RSeq [expr, RChar '+', expr], RChar 'a']
 p e s = do
   (t, r) <- parseeD e s
   table s r
-  let tr1 = transeq1 t r e
-  putStrLn (show (length tr1) ++ " paths")
-  --let Just (lev, _) = levenshteinMulti tr1
+  let pa = transeq1 t r e
+  putStrLn (show (length pa) ++ " paths")
+  --let Just (lev, _) = levenshteinMulti pa
   --let tr2 = transpose lev
   --putGrid $ map (map (\case Just x -> show x; Nothing -> "")) tr2
-  putGrid $ map2 show tr1
+  putGrid $ map2 show pa
   putStrLn ""
-  let tr = transeq t r e
-  putStrLn (show (length tr) ++ " paths")
-  mapM_ print tr
+  let pp = transeq t r e
+  putStrLn (show (length pp) ++ " path parts")
+  mapM_ print pp
   putStrLn ""
   putStrLn (show (length t) ++ " transitions")
   mapM_ print t
   putStrLn ""
-  putStrLn "splits"
-  mapM_ print $ splits t
+  let sp = splits t
+  putStrLn (show (length sp) ++ " splits")
+  mapM_ print sp
   putStrLn ""
-  putStrLn "joins"
-  mapM_ print $ joins t
+  let jo = joins t
+  putStrLn (show (length jo) ++ " joins")
+  mapM_ print jo
+  putStrLn ""
+  putStrLn "parse forest:"
   return $ tree e r
 
 parseeD e s =
@@ -236,42 +240,7 @@ children allstates (EState r f t n) = do
             then if n2 > 0 then map (s1:) $ children allstates s2 else [[s1]]
          else []
       else []
---children allstates (EState (RAlt as) f t s) = allstates !! t
-{-
-children allstates (EState r@(RName a b) f t n) = do
-   s1@(EState r1 f1 t1 n1) <- S.toList $ allstates !! t
-   if r1 == b && n1 == slength r1
-      then do
-         s2@(EState r2 f2 t2 n2) <- S.toList $ allstates !! f1
-         if r2 == r && f2 == f && n2 == n - 1
-            then if n2 > 0 then map (s1:) $ children allstates s2 else [[s1]]
-         else []
-      else []
--} 
---children allstates (EState (RChar a) f t s) = allstates !! t
 
-{-
-predict ABC = CDE
-predict DE = EF
-predict F = []
-
-queue ABC ABC
-   old = ABC
-   cur = ABC
-   new = CDE
-   new1 = DE
-   res = DE + queue ABC DE
-
-   cur = DE
-   new = EF
-   new1 = F
-   res = F + queue ABCDE
--}
-{-
-table allstates = let
-   a = concat $ zipWith (\s k -> zip (map show $ S.toList s) $ repeat k) allstates [0..]
-   b = map (\(s, k) ->
--}
 data Tree = Tree EState [Tree] | Branch [Tree] deriving (Eq, Ord)
 
 tree start allstates =
