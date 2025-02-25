@@ -31,6 +31,7 @@ class BString s where
 class BStringC c s | s -> c where
   cons :: c -> s -> s
   head :: s -> c
+  last :: s -> c
   (!!) :: s -> Int -> c
   find :: (c -> Bool) -> s -> Maybe c
   elem :: c -> s -> Bool
@@ -58,6 +59,7 @@ instance BString [a] where
 instance (Eq a) => BStringC a [a] where
   cons = (:)
   head = P.head
+  last = P.last
   (!!) = (P.!!)
   find = L.find
   elem = L.elem
@@ -81,6 +83,7 @@ instance BString B.ByteString where
 instance BStringC Word8 B.ByteString where
   cons = B.cons
   head = B.head
+  last = B.last
   (!!) = B.index
   find = B.find
   elem = B.elem
@@ -105,6 +108,7 @@ instance BString T.Text where
 instance BStringC Char T.Text where
   cons = T.cons
   head = T.head
+  last = T.last
   (!!) = T.index
   find = T.find
   elem = T.elem
@@ -152,7 +156,7 @@ instance ConvertString P.String T.Text where
 instance ConvertString T.Text P.String where
   convertString = T.unpack
 
-instance ConvertString P.String P.String where
+instance ConvertString a a where
   convertString = id
 
 instance ConvertString T.Text B.ByteString where
@@ -169,6 +173,9 @@ instance ConvertChar Char Word8 where
 
 instance ConvertChar Word8 Char where
   convertChar = chr . fromIntegral
+
+instance ConvertChar a a where
+  convertChar = id
 
 bytestring :: B.ByteString
 bytestring = "abra"

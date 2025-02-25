@@ -62,6 +62,7 @@ insertWith2 combine zero (k, v) map = M.alter f k map
   f (Just v2) = Just $ combine v v2
 
 mapFromList combine zero list = foldr (insertWith2 combine zero) M.empty list
+
 foldIntoMap = mapFromList
 
 combine f zero list = M.toList $ mapFromList f zero list
@@ -833,6 +834,9 @@ swapMap :: (Ord k, Ord a) => M.Map a k -> M.Map k a
 swapMap = M.fromList . map swap . M.toList
 
 swap (a, b) = (b, a)
+
+data Fuzzy = FuzzyDiff Int Int | FuzzyCommon Int
+--A* = never overestimate
 
 commonSubsequences a b =
   let

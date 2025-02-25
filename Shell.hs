@@ -141,6 +141,8 @@ paths1 p = do n <- names1 p
 -- unsafe
 upIO = unsafePerformIO
 subdir d s = if last d == '/' then d ++ s else d ++ '/' : s
+infixr 5 @
+d @ s = subdir d s
 
 {-
 filterM m (x:xs) = do y <- m x
@@ -149,10 +151,10 @@ filterM m (x:xs) = do y <- m x
 -- unsafe
 names p = sort $ unsafePerformIO $ listDirectory p
 
-paths p = map (subdir p) $ names p
+paths p = map (p @) $ names p
 
-dirNames p = filter (\n -> unsafePerformIO $ doesDirectoryExist (subdir p n)) $ names p
-fileNames p = filter (\n -> unsafePerformIO $ doesFileExist (subdir p n)) $ names p
+dirNames p = filter (\n -> unsafePerformIO $ doesDirectoryExist (p @ n)) $ names p
+fileNames p = filter (\n -> unsafePerformIO $ doesFileExist (p @ n)) $ names p
 dirPaths p = filter (unsafePerformIO . doesDirectoryExist) $ paths p
 filePaths p = filter (unsafePerformIO . doesFileExist) $ paths p
 cdirPaths p = concatMap dirPaths p
@@ -189,7 +191,7 @@ run1 exe inp = do
   hPutStr inph inp
   hGetContents outh
 
-whereisP file paths = catMaybes <$> mapM (\p -> let f = subdir p file in justIf f <$> doesFileExist f) paths
+whereisP file paths = catMaybes <$> mapM (\p -> let f = p @ file in justIf f <$> doesFileExist f) paths
 
 whereis file = whereisP file =<< (split ";" <$> getEnv "PATH")
 

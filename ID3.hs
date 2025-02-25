@@ -19,7 +19,7 @@ import BString
 import Favs hiding (range, split, split1With, splitWith)
 import MHashDynamic hiding (Frame, name, tl, (!), (==))
 import MyPretty2
-import Shell hiding (contents, fields, main, year)
+import Shell hiding (contents, fields, main, year, (@))
 import Show1
 import ShowTuple
 
@@ -40,8 +40,8 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char
-import Data.List hiding (concat, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
-import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, (!!), (++))
+import Data.List hiding (concat, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
+import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
 
 -- import Data.Algorithm.Diff
 import Data.Array.IArray hiding (range)
@@ -68,13 +68,16 @@ t2 = p fta
 t3 = filtree [inli "apc"] artistd
 t4 = filtree [inis $= "dt", ininis "iaw"] artistd
 
-baseDir = if linux then "/home/brett/Documents/Music/" else "d:/music/"
+baseDir = if linux then "/home/brett/Documents/Music" else "d:/music"
 
-backupDir = baseDir ++ "Backup/"
-artistd = baseDir ++ "Artists/"
-unsharedd = baseDir ++ "Unshared/"
-compd = baseDir ++ "Compilations/"
-misc = baseDir ++ "Misc/"
+infixr 5 @
+p @ s = if last p == convertChar '/' then p ++ s else p ++ cons (convertChar '/') s
+
+backupDir = baseDir @ "Backup"
+artistd = baseDir @ "Artists"
+unsharedd = baseDir @ "Unshared"
+compd = baseDir @ "Compilations"
+misc = baseDir @ "Misc"
 
 f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
@@ -122,8 +125,8 @@ split1WithM pred str = case catMaybes $ zipWith (\a b -> (a,) <$> pred b) (inits
 ok = const Match
 ok2 f s = True
 ok3 a b c = True
-filtree [] p = map (subdir p) (fileNames p) ++ concatMap (filtree [] . subdir p) (dirNames p)
-filtree (pred : fds) p = map (subdir p) (filter pred $ fileNames p) ++ concatMap (filtree fds . subdir p) (filter pred $ dirNames p)
+filtree [] p = map (p @) (fileNames p) ++ concatMap (filtree [] . (p @)) (dirNames p)
+filtree (pred : fds) p = map (p @) (filter pred $ fileNames p) ++ concatMap (filtree fds . (p @)) (filter pred $ dirNames p)
 artistp a = filter (inlow a) $ dirPaths artistd
 artistt = fileTree . (artistd ++)
 albump a = filter (inlow a) $ cdirPaths $ dirPaths artistd
@@ -147,12 +150,12 @@ tagTree2 = unsafePerformIO . tagTreeM2
 
 tagTreeM2 d = mapM (\f -> justText <$> readTagM readAllAudio f) $ mp3s d
 
-para = artistd ++ "Paradise Lost/"
-satyr = artistd ++ "Satyricon/"
-super = artistd ++ "Superior/"
-volc = satyr ++ "2002 - Volcano/"
-obsid = para ++ "2020 - Obsidian/"
-tf = obsid ++ "02 Fall from Grace.mp3"
+para = artistd @ "Paradise Lost"
+satyr = artistd @ "Satyricon"
+super = artistd @ "Superior"
+volc = satyr @ "2002 - Volcano"
+obsid = para @ "2020 - Obsidian"
+tf = obsid @ "02 Fall from Grace.mp3"
 
 test3 = decapitate $ parseTag $ unsafePerformIO $ B.readFile tf
 
@@ -197,8 +200,8 @@ data Encoding = ISO8859 | UCS2
   deriving (Eq, Ord, Show)
 
 -- test1 = putGrid $ transpose1 $
-test1 = differences $ fileTree $ unsharedd ++ "Portion Control/2007 - Onion Jack IV"
-test1a = commonSubsequencesList $ fileTree $ unsharedd ++ "Portion Control/2007 - Onion Jack IV"
+test1 = differences $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
+test1a = commonSubsequencesList $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
 
 test2 db = play $ map (c . path) $ filter (album $= "Paradise Lost") $ tl db
 
@@ -588,10 +591,10 @@ commonSubsequences2 a b  = let
    (res, _, _, _) = c !! length a !! length b
    in reverse res
 -}
-dbpath = baseDir ++ "haskelldb.bin"
+dbpath = baseDir @ "haskelldb.bin"
 
 -- dbroots = map (baseDir ++) ["Artists/Paradise Lost/2015 - The Plague Within"]
-dbroots = map (artistd ++) ["Paradise Lost", "Isis"] :: [T.Text]
+dbroots = map (artistd @) ["Paradise Lost", "Isis"] :: [T.Text]
 
 type DB = M.Map T.Text Meta
 type FS = Meta

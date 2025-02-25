@@ -6,6 +6,7 @@ module MyPretty2 (
   parseT,
   reformat,
   format,
+  format1,
   pp,
   findWidth,
   putGrid,
@@ -23,7 +24,7 @@ module MyPretty2 (
   putGridW,
   putGridT,
   width,
-  Term (Int1, Integer1, Double1, String1, Date, DateTime, Bool1, List, NDiffTime, ByteStr),
+  Term (Int1, Integer1, Data, Double1, String1, Date, DateTime, Bool1, List, NDiffTime, ByteStr),
 )
 where
 

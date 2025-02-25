@@ -68,6 +68,7 @@ library
       Favs,
       HTML, 
       ID3, 
+      --Levenshtein,
       MHash, 
       MHashDynamic, 
       Matrix, 
@@ -99,6 +100,7 @@ library
     build-depends:    
       base ^>=4.17.2.1,
       array,
+      astar,
       attoparsec,
       binary,
       bytestring,
@@ -119,7 +121,8 @@ library
       text,
       time,
       transformers,
-      unix
+      unix,
+      unordered-containers
 
     -- Directories containing source files.
     hs-source-dirs:   .
