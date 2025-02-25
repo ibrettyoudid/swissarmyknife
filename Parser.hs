@@ -117,8 +117,15 @@ op = RAlt [RChar '+', RChar '-', RChar '*', RChar '/']
 ident = RName "ident"
 expr = RName "expr" $ RAlt [RSeq [expr, RChar '+', expr], RChar 'a']
 
+test = p expr "a+a+a"
+
 p e s = do
-  (t, r) <- parseeD e s
+   states <- parseeD e s
+   table s states
+   return $ tree e states
+
+pT e s = do
+  (t, r) <- parseeDT e s
   table s r
   let pa = transeq1 t r e
   putStrLn (show (length pa) ++ " paths")
@@ -147,14 +154,25 @@ p e s = do
 
 parseeD e s =
   let
-    states = predict 0 (S.empty, S.singleton $ EState e 0 0 0)
+    states = predict 0 (S.singleton $ EState e 0 0 0)
    in
-    parsee0D [snd states] s states [1 .. length s]
+    parsee0D [states] s states [1 .. length s]
 
-parsee0D allstates _ states [] = return (fst states, allstates)
+parseeDT e s =
+  let
+    states = predictT 0 (S.empty, S.singleton $ EState e 0 0 0)
+   in
+    parsee0DT [snd states] s states [1 .. length s]
+
+parsee0D allstates _ states [] = return allstates
 parsee0D allstates s states (k : ks) = do
   statesnew <- parsee1D allstates s states k
-  parsee0D (allstates ++ [snd statesnew]) s statesnew ks
+  parsee0D (allstates ++ [statesnew]) s statesnew ks
+
+parsee0DT allstates _ states [] = return (fst states, allstates)
+parsee0DT allstates s states (k : ks) = do
+  statesnew <- parsee1DT allstates s states k
+  parsee0DT (allstates ++ [snd statesnew]) s statesnew ks
 
 -- scanM :: Monad m => (m [a] -> b -> m a) -> m [a] -> [b] -> m [a]
 scanM f z = foldl (\a b -> do ra <- a; rr <- f (last ra) b; return $ ra ++ [rr]) (return [z])
@@ -171,35 +189,71 @@ parsee1D allstates s states k = do
       return pred1
     else return comp1
 
+parsee1DT allstates s states k = do
+  let scan1 = scanT k s states
+  putStrLn $ "scan1=" ++ show scan1
+  let comp1 = completeT k allstates scan1
+  putStrLn $ "comp1=" ++ show comp1
+  if k < length s
+    then do
+      let pred1 = predictT k comp1
+      putStrLn $ "pred1=" ++ show pred1
+      return pred1
+    else return comp1
+
 conseq (a : b : cs)
   | a == b = a
   | otherwise = conseq (b : cs)
 
-close f (trans, states) = close1 f trans states states
+close f states = close1 f states states
 
-close1 f oldtrans old new =
+close1 f done current =
+  let
+    new = f current
+    newdone = S.union done new
+    newnew = new S.\\ done
+   in
+    if S.null new then done else close1 f newdone newnew
+
+close2 f states = close3 f states states
+
+close3 f done current =
+  let
+    new = f done current
+    newdone = S.union done new
+    newnew = new S.\\ done
+   in
+    if S.null new then done else close3 f newdone newnew
+
+closeT f (trans, states) = closeT1 f trans states states
+
+closeT1 f oldtrans old new =
   let
     newtrans = f old new S.\\ oldtrans
     oldtrans1 = S.union oldtrans newtrans
     new1 = getStates newtrans S.\\ old
     old1 = S.union old new1
    in
-    if S.null newtrans then (oldtrans, old) else close1 f oldtrans1 old1 new1
+    if S.null newtrans then (oldtrans, old) else closeT1 f oldtrans1 old1 new1
 
 getStates trans = S.map to trans
 
-process1 f current = foldr S.union S.empty $ S.map (S.fromList . f) current
+process f current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
-process phase f new = foldr S.union S.empty $ S.map (\x -> S.fromList $ map (phase x) $ f x) new
+processT phase f new = foldr S.union S.empty $ S.map (\x -> S.fromList $ map (phase x) $ f x) new
 
-predict k = close (\old new -> process EPredict (predict1 k) new)
+predict k = close (process (predict1 k))
+
+predictT k = closeT (\old new -> processT EPredict (predict1 k) new)
 
 predict1 k (EState (RAlt as) j _ 0) = [EState a k k 0 | a <- as]
 predict1 k (EState (RSeq as) j _ d) = [EState (as !! d) k k 0 | d < length as]
 predict1 k (EState (RName a b) j _ 0) = [EState b k k 0]
 predict1 k s = []
 
-scan k s (oldtrans, states) =
+scan k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
+
+scanT k s (oldtrans, states) =
   let
     newtrans = S.fromList $ mapMaybe (\x -> EScan x <$> scan1 k (s !! (k - 1)) x) $ S.toList states
    in
@@ -213,13 +267,15 @@ scanEmpty = map scanEmpty1
 scanEmpty1 (EState REmpt j _ 0) = EState REmpt j j 1
 scanEmpty1 s = s
 
-complete k allstates = close (\old new -> process EComplete (complete1 k (allstates ++ [old])) new)
+complete k allstates = close2 (\old -> process (complete1 k (allstates ++ [old])))
 
-complete1 k allstates (EState y j _ p) = mapMaybe (\(EState x i _ q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EState x i k (q + 1)) $ S.toList $ allstates !! j
+complete1 k allstates (EState y j k1 p) = mapMaybe (\(EState x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EState x i k (q + 1)) $ S.toList $ allstates !! j
 
-complete2 k allstates = close (\old new -> process1 (complete3 k (allstates ++ [old])) new)
+completeT k allstates = closeT (\old -> processT EComplete (complete1 k (allstates ++ [old])))
 
-complete3 k allstates (EState y j _ p) = mapMaybe (\(EState x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState y j k p) (EState x i k (q + 1)) (EState x i j q)) $ S.toList $ allstates !! j
+completeT2 k allstates = closeT (\old -> process (completeT3 k (allstates ++ [old])))
+
+completeT3 k allstates (EState y j k1 p) = mapMaybe (\(EState x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState y j k p) (EState x i k (q + 1)) (EState x i j q)) $ S.toList $ allstates !! j
 
 -- complete3 k allstates (EState y j _ p) = mapMaybe (\(EState x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState x i j q) (EState x i k (q + 1)) (EState y j k p)) $ S.toList $ allstates !! j
 
@@ -380,3 +436,16 @@ taux2 ends m j k sh fill =
           (st + l2, replicate (m - l2) ' ' ++ sh)
 
 mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a > length b then drop (length b) a else drop (length a) b
+
+makelr rule allstates k = predict
+
+-- start from start state
+-- thats your first kernel
+-- close it with predictions (if you have completions there's a problem)
+-- scan all possible tokens into separate states
+-- same token may have multiple meanings, combine them into one state
+-- those are your new kernels
+-- close them with completions and predictions
+-- 
+-- how kernels are compared for equality defines what sort of parser it is
+-- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
