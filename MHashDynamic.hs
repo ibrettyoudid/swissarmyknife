@@ -200,6 +200,7 @@ data Expr
   | If {etype :: MType, clauses :: [(Expr, Expr)]}
   | Case {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
   | Else
+  | Exprs {etype :: MType, exprs1 :: [Expr]}
   deriving (Typeable, Eq)
 
 data Closure = Closure Constr Expr Env deriving (Typeable)
@@ -976,24 +977,19 @@ lambdaSyn =
   Iso
     (\(params, exp) -> Just $ Lambda u (Co "" params) exp)
     (\case Lambda _ (Co _ params) exp -> Just (params, exp); _ -> Nothing)
-    >$< text "\\"
-    *< sepBy mem sepSpace
-    >* text "->"
-    >*< expr0
+    >$< text "\\" *< mem `sepBy` sepSpace >* text "->" >*< expr0
 
 blockSyn =
   Iso
     (\(params, exp) -> Just $ Block u (Co "" params) exp)
     (\case Block _ (Co _ params) exp -> Just (params, exp); _ -> Nothing)
-    >$< text "begin "
-    *< mem
-    `sepBy` sepSpace
-    >* sepSpace
-    >*< expr0
+    >$< text "begin " *< mem `sepBy` sepSpace >* sepSpace >*< expr0
 
 dataSyn = valueIso >$< conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace
 
 expr = ifSyn <|> lambdaSyn <|> blockSyn <|> dataSyn <|> expr0
+
+exprs = groupOf expr
 
 data Dimension
   = DimInt {dimLower :: Int, dimUpper :: Int, dimMult :: Int}

@@ -56,6 +56,12 @@ insertIndex index new list =
    in
     before ++ new : after
 
+modifyIndex index modify list =
+  let
+    (before, x : after) = splitAt index list
+   in
+    before ++ modify x : after
+
 insertWith2 combine zero (k, v) map = M.alter f k map
  where
   f Nothing = Just $ combine v zero
@@ -66,7 +72,8 @@ mapFromList combine zero list = foldr (insertWith2 combine zero) M.empty list
 foldIntoMap = mapFromList
 
 combine f zero list = M.toList $ mapFromList f zero list
-multimapOn f = mapFromList (:) [] . mapfxx f
+multimap = mapFromList (:) []
+multimapOn f = multimap . mapfxx f
 
 for lst fun = map fun lst
 
@@ -492,7 +499,7 @@ intercalate1 sep xs = concat (intersperse1 sep xs)
 -- rmerge = merge a reverse sorted list of reverse sorted lists
 
 headComp f (l1 : ls1) (l2 : ls2) = f l1 l2
-
+{-
 mergeBy1 f [] = []
 mergeBy1 f ((x : xs) : ys) =
   x
@@ -536,7 +543,7 @@ instance (Ord a) => Ord (HCList a) where
 
 rmerge :: (Ord a) => [[a]] -> [a]
 rmerge = mergeBy (headComp (flip compare))
-
+-}
 randChar :: IO Char
 randChar = randomRIO (chr 33, chr 126)
 

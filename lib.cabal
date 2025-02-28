@@ -68,7 +68,7 @@ library
       Favs,
       HTML, 
       ID3, 
-      --Levenshtein,
+      Levenshtein,
       MHash, 
       MHashDynamic, 
       Matrix, 

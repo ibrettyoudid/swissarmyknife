@@ -112,20 +112,25 @@ upper = RRang 'A' 'Z'
 under = RChar '_'
 alpha = RAlt [upper, lower]
 num = RAlt [digit, RSeq [digit, num]]
+alnum = RAlt [alpha, num]
 op = RAlt [RChar '+', RChar '-', RChar '*', RChar '/']
 
-ident = RName "ident"
+ident = RName "ident" $ RSeq [alpha, ident1]
+ident1 = RAlt [alnum, RSeq [alnum, ident1]]
+
 expr = RName "expr" $ RAlt [RSeq [expr, RChar '+', expr], RChar 'a']
 
 test = p expr "a+a+a"
 
-p e s = do
-   states <- parseeD e s
+p e s = tree e $ parseE e s
+
+pD e s = do
+   states <- parseED e s
    table s states
    return $ tree e states
 
 pT e s = do
-  (t, r) <- parseeDT e s
+  (t, r) <- parseEDT e s
   table s r
   let pa = transeq1 t r e
   putStrLn (show (length pa) ++ " paths")
@@ -152,32 +157,50 @@ pT e s = do
   putStrLn "parse forest:"
   return $ tree e r
 
-parseeD e s =
+parseE e s = 
   let
     states = predict 0 (S.singleton $ EState e 0 0 0)
    in
-    parsee0D [states] s states [1 .. length s]
+    parseE0 [states] s states [1 .. length s]
 
-parseeDT e s =
+parseED e s =
+  let
+    states = predict 0 (S.singleton $ EState e 0 0 0)
+   in
+    parseE0D [states] s states [1 .. length s]
+
+parseEDT e s =
   let
     states = predictT 0 (S.empty, S.singleton $ EState e 0 0 0)
    in
-    parsee0DT [snd states] s states [1 .. length s]
+    parseE0DT [snd states] s states [1 .. length s]
 
-parsee0D allstates _ states [] = return allstates
-parsee0D allstates s states (k : ks) = do
-  statesnew <- parsee1D allstates s states k
-  parsee0D (allstates ++ [statesnew]) s statesnew ks
+parseE0 allstates _ states [] = allstates
+parseE0 allstates s states (k : ks) = let
+  statesnew = parseE1 allstates s states k
+  in parseE0 (allstates ++ [statesnew]) s statesnew ks
 
-parsee0DT allstates _ states [] = return (fst states, allstates)
-parsee0DT allstates s states (k : ks) = do
-  statesnew <- parsee1DT allstates s states k
-  parsee0DT (allstates ++ [snd statesnew]) s statesnew ks
+parseE0D allstates _ states [] = return allstates
+parseE0D allstates s states (k : ks) = do
+  statesnew <- parseE1D allstates s states k
+  parseE0D (allstates ++ [statesnew]) s statesnew ks
+
+parseE0DT allstates _ states [] = return (fst states, allstates)
+parseE0DT allstates s states (k : ks) = do
+  statesnew <- parseE1DT allstates s states k
+  parseE0DT (allstates ++ [snd statesnew]) s statesnew ks
 
 -- scanM :: Monad m => (m [a] -> b -> m a) -> m [a] -> [b] -> m [a]
 scanM f z = foldl (\a b -> do ra <- a; rr <- f (last ra) b; return $ ra ++ [rr]) (return [z])
 
-parsee1D allstates s states k = do
+parseE1 allstates s states k = let
+  scan1 = scan k s states
+  comp1 = complete k allstates scan1
+  in if k < length s
+    then predict k comp1
+    else comp1
+
+parseE1D allstates s states k = do
   let scan1 = scan k s states
   putStrLn $ "scan1=" ++ show scan1
   let comp1 = complete k allstates scan1
@@ -189,7 +212,7 @@ parsee1D allstates s states k = do
       return pred1
     else return comp1
 
-parsee1DT allstates s states k = do
+parseE1DT allstates s states k = do
   let scan1 = scanT k s states
   putStrLn $ "scan1=" ++ show scan1
   let comp1 = completeT k allstates scan1
@@ -246,8 +269,8 @@ predict k = close (process (predict1 k))
 
 predictT k = closeT (\old new -> processT EPredict (predict1 k) new)
 
-predict1 k (EState (RAlt as) j _ 0) = [EState a k k 0 | a <- as]
-predict1 k (EState (RSeq as) j _ d) = [EState (as !! d) k k 0 | d < length as]
+predict1 k (EState (RAlt  as ) j _ 0) = [EState a k k 0 | a <- as]
+predict1 k (EState (RSeq  as ) j _ d) = [EState (as !! d) k k 0 | d < length as]
 predict1 k (EState (RName a b) j _ 0) = [EState b k k 0]
 predict1 k s = []
 
@@ -259,7 +282,8 @@ scanT k s (oldtrans, states) =
    in
     (S.union oldtrans newtrans, getStates newtrans)
 
-scan1 k ch (EState (RChar c) j _ 0) = ifJust (c == ch) (EState (RChar c) j k 1)
+scan1 k ch (EState r@(RChar c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
+scan1 k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
 scan1 k ch s = Nothing
 
 scanEmpty = map scanEmpty1
@@ -297,7 +321,7 @@ children allstates (EState r f t n) = do
          else []
       else []
 
-data Tree = Tree EState [Tree] | Branch [Tree] deriving (Eq, Ord)
+data Tree = Tree EState [Tree] | Trees [Tree] deriving (Eq, Ord)
 
 tree start allstates =
   let
@@ -310,7 +334,7 @@ tree1 allstates end = Tree end $ tree2 $ reverse $ map reverse $ map2 (tree1 all
 
 tree2 [x] = x
 
-tree2 xs = map Branch xs
+tree2 xs = map Trees xs
 
 only [x] = x
 
@@ -319,7 +343,7 @@ instance Show Tree where
    
    
 conv (Tree a b) = Data (show a) $ map conv b
-conv (Branch b) = Data "branch" $ map conv b
+conv (Trees b) = Data "TREES" $ map conv b
 {-
 transeq :: Foldable t => S.Set ETrans -> t a -> Rule -> [[ETrans]]
 >>> p expr "a+a+a"
@@ -437,9 +461,27 @@ taux2 ends m j k sh fill =
 
 mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a > length b then drop (length b) a else drop (length a) b
 
-makelr rule allstates k = predict
+makelr allstates rule k = makelr1 allstates (S.singleton $ EState rule 0 0 0) k
 
--- start from start state
+makelr1 allstates states k = predict k states
+{-
+scanlr k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
+scanlr k ch (EState r@(RChar c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
+scanlr k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
+-}
+combinescans c@(RChar cr, cs) d@(RChar dr, ds) = if cr == dr then [(RChar cr, cs ++ ds)] else [c, d]
+combinescans c@(RChar cr, cs) d@(RRang d1 d2, ds) = if cr >= d1 && cr <= d2 then [(RRang d1 (pred cr), ds), (RChar cr, cs ++ ds), (RRang (succ cr) d2, ds)] else [c, d]
+combinescans c@(RRang c1 c2, cs) d@(RRang d1 d2, ds) = 
+  if c2 >= d1 && c1 <= d2 then 
+    let
+      o1 = max c1 d1
+      o2 = min c2 d2
+    in if c1 < d1
+          then [(RRang c1 (pred o1), cs), (RRang o1 o2, cs ++ ds), (RRang (succ o2) d2, ds)]
+          else [(RRang d1 (pred o1), ds), (RRang o1 o2, cs ++ ds), (RRang (succ o2) c2, cs)]
+  else
+    [c, d]
+-- start from start rule
 -- thats your first kernel
 -- close it with predictions (if you have completions there's a problem)
 -- scan all possible tokens into separate states
