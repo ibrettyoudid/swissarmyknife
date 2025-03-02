@@ -1,5 +1,9 @@
 # haskell
 
+## Favs
+
+Functions that have proved useful to me
+
 ## MHash
 
 An interpreter for a Haskell like language
@@ -25,6 +29,10 @@ Also contains a multidimensional array type `SubArrayD e` (there are too many in
 Each dimension can optionally have a `Dynamic` index (ie. making that dimension work like a Map)
 
 Uses putGrid to display `SubArrayD`s with as many dimensions as you like
+
+## Matrix
+
+Matrix arithmetic and some solvers for simultaneous linear equations
 
 ## MyPretty2
 

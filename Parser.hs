@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -15,60 +14,56 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 
 data Rule
-  = RSeq [Rule]
-  | RAlt [Rule]
-  | RName String Rule
-  | RChar Char
+  = Seq [Rule]
+  | Alt [Rule]
+  | RuleName String Rule
+  | Token Char
   | RRang Char Char
-  | REmpt -- epsilon, not used, use an empty RSeq instead
 
 --   EIso   :: Iso alpha beta -> Rule alpha -> Rule beta
 
 instance Eq Rule where
-  RSeq as == RSeq bs = as == bs
-  RAlt as == RAlt bs = as == bs
-  RName a _ == RName b _ = a == b
-  RChar a == RChar b = a == b
+  Seq as == Seq bs = as == bs
+  Alt as == Alt bs = as == bs
+  RuleName a _ == RuleName b _ = a == b
+  Token a == Token b = a == b
   RRang a c == RRang b d = a == b && c == d
-  REmpt == REmpt = True
   _ == _ = False
 
 instance Ord Rule where
-  compare (RSeq as) (RSeq bs) = compare as bs
-  compare (RAlt as) (RAlt bs) = compare as bs
-  compare (RName a _) (RName b _) = compare a b
-  compare (RChar a) (RChar b) = compare a b
+  compare (Seq as) (Seq bs) = compare as bs
+  compare (Alt as) (Alt bs) = compare as bs
+  compare (RuleName a _) (RuleName b _) = compare a b
+  compare (Token a) (Token b) = compare a b
   compare (RRang a c) (RRang b d) = compare (a, c) (b, d)
-  compare (RName{}) _ = LT
-  compare (RSeq{}) (RName{}) = GT
-  compare (RSeq{}) _ = LT
-  compare (RAlt{}) (RName{}) = GT
-  compare (RAlt{}) (RSeq{}) = GT
-  compare (RAlt{}) _ = LT
-  compare (RChar{}) (RName{}) = GT
-  compare (RChar{}) (RSeq{}) = GT
-  compare (RChar{}) (RAlt{}) = GT
-  compare (RChar{}) _ = LT
-  compare (RRang{}) (RName{}) = GT
-  compare (RRang{}) (RSeq{}) = GT
-  compare (RRang{}) (RAlt{}) = GT
-  compare (RRang{}) (RChar{}) = GT
-  compare (RRang{}) _ = LT
-  compare (REmpt{}) _ = GT
+  compare (RuleName{}) _ = LT
+  compare (Seq{}) (RuleName{}) = GT
+  compare (Seq{}) _ = LT
+  compare (Alt{}) (RuleName{}) = GT
+  compare (Alt{}) (Seq{}) = GT
+  compare (Alt{}) _ = LT
+  compare (Token{}) (RuleName{}) = GT
+  compare (Token{}) (Seq{}) = GT
+  compare (Token{}) (Alt{}) = GT
+  compare (Token{}) _ = LT
+  compare (RRang{}) (RuleName{}) = GT
+  compare (RRang{}) (Seq{}) = GT
+  compare (RRang{}) (Alt{}) = GT
+  compare (RRang{}) (Token{}) = GT
 
 instance Show Rule where
   show = outershow Nothing
 
-innershow d (RSeq   as) = unwords $ ii d $ map (innershow Nothing) as
-innershow d (RAlt   as) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
-innershow d (RName a _) = unwords $ ii d [a]
-innershow d (RChar a  ) = unwords $ ii d [show a]
+innershow d (Seq   as) = unwords $ ii d $ map (innershow Nothing) as
+innershow d (Alt   as) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
+innershow d (RuleName a _) = unwords $ ii d [a]
+innershow d (Token a  ) = unwords $ ii d [show a]
 innershow d (RRang a b) = unwords $ ii d ["[" ++ [a] ++ ".." ++ [b] ++ "]"]
 
-outershow d r@(RSeq  as ) = "Seq " ++ innershow d r
-outershow d r@(RAlt  as ) = "Alt " ++ innershow d r
-outershow d r@(RName a b) = unwords $ ii d [a ++ " -> " ++ innershow Nothing b]
-outershow d r@(RChar a  ) = show a
+outershow d r@(Seq  as ) = "Seq " ++ innershow d r
+outershow d r@(Alt  as ) = "Alt " ++ innershow d r
+outershow d r@(RuleName a b) = unwords $ ii d [a ++ " -> " ++ innershow Nothing b]
+outershow d r@(Token a  ) = show a
 outershow d r@(RRang a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
 
 ii (Just d) = insertIndex d "."
@@ -109,16 +104,16 @@ findstate Complete3 = 4
 digit = RRang '0' '9'
 lower = RRang 'a' 'z'
 upper = RRang 'A' 'Z'
-under = RChar '_'
-alpha = RAlt [upper, lower]
-num = RAlt [digit, RSeq [digit, num]]
-alnum = RAlt [alpha, num]
-op = RAlt [RChar '+', RChar '-', RChar '*', RChar '/']
+under = Token '_'
+alpha = Alt [upper, lower]
+num = Alt [digit, Seq [digit, num]]
+alnum = Alt [alpha, num]
+op = Alt [Token '+', Token '-', Token '*', Token '/']
 
-ident = RName "ident" $ RSeq [alpha, ident1]
-ident1 = RAlt [alnum, RSeq [alnum, ident1]]
+ident = RuleName "ident" $ Seq [alpha, ident1]
+ident1 = Alt [alnum, Seq [alnum, ident1]]
 
-expr = RName "expr" $ RAlt [RSeq [expr, RChar '+', expr], RChar 'a']
+expr = RuleName "expr" $ Alt [Seq [expr, Token '+', expr], Token 'a']
 
 test = p expr "a+a+a"
 
@@ -269,9 +264,9 @@ predict k = close (process (predict1 k))
 
 predictT k = closeT (\old new -> processT EPredict (predict1 k) new)
 
-predict1 k (EState (RAlt  as ) j _ 0) = [EState a k k 0 | a <- as]
-predict1 k (EState (RSeq  as ) j _ d) = [EState (as !! d) k k 0 | d < length as]
-predict1 k (EState (RName a b) j _ 0) = [EState b k k 0]
+predict1 k (EState (Alt  as ) j _ 0) = [EState a k k 0 | a <- as]
+predict1 k (EState (Seq  as ) j _ d) = [EState (as !! d) k k 0 | d < length as]
+predict1 k (EState (RuleName a b) j _ 0) = [EState b k k 0]
 predict1 k s = []
 
 scan k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
@@ -282,14 +277,9 @@ scanT k s (oldtrans, states) =
    in
     (S.union oldtrans newtrans, getStates newtrans)
 
-scan1 k ch (EState r@(RChar c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
+scan1 k ch (EState r@(Token c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
 scan1 k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
 scan1 k ch s = Nothing
-
-scanEmpty = map scanEmpty1
-
-scanEmpty1 (EState REmpt j _ 0) = EState REmpt j j 1
-scanEmpty1 s = s
 
 complete k allstates = close2 (\old -> process (complete1 k (allstates ++ [old])))
 
@@ -303,12 +293,12 @@ completeT3 k allstates (EState y j k1 p) = mapMaybe (\(EState x i j1 q) -> ifJus
 
 -- complete3 k allstates (EState y j _ p) = mapMaybe (\(EState x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState x i j q) (EState x i k (q + 1)) (EState y j k p)) $ S.toList $ allstates !! j
 
-caux (RSeq as) q y = as !! q == y
-caux (RAlt as) q y = y `elem` as
-caux (RName a b) q y = b == y
+caux (Seq as) q y = as !! q == y
+caux (Alt as) q y = y `elem` as
+caux (RuleName a b) q y = b == y
 caux _ _ _ = False
 
-slength (RSeq as) = length as
+slength (Seq as) = length as
 slength _ = 1
 
 children allstates (EState r f t n) = do
@@ -466,11 +456,11 @@ makelr allstates rule k = makelr1 allstates (S.singleton $ EState rule 0 0 0) k
 makelr1 allstates states k = predict k states
 {-
 scanlr k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
-scanlr k ch (EState r@(RChar c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
+scanlr k ch (EState r@(Token c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
 scanlr k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
 -}
-combinescans c@(RChar cr, cs) d@(RChar dr, ds) = if cr == dr then [(RChar cr, cs ++ ds)] else [c, d]
-combinescans c@(RChar cr, cs) d@(RRang d1 d2, ds) = if cr >= d1 && cr <= d2 then [(RRang d1 (pred cr), ds), (RChar cr, cs ++ ds), (RRang (succ cr) d2, ds)] else [c, d]
+combinescans c@(Token cr, cs) d@(Token dr, ds) = if cr == dr then [(Token cr, cs ++ ds)] else [c, d]
+combinescans c@(Token cr, cs) d@(RRang d1 d2, ds) = if cr >= d1 && cr <= d2 then [(RRang d1 (pred cr), ds), (Token cr, cs ++ ds), (RRang (succ cr) d2, ds)] else [c, d]
 combinescans c@(RRang c1 c2, cs) d@(RRang d1 d2, ds) = 
   if c2 >= d1 && c1 <= d2 then 
     let
