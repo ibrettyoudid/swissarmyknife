@@ -77,13 +77,6 @@ data EState
   | Complete3
   deriving (Eq)
 
-data ETrans
-  = EPredict   {from :: EState, to :: EState}
-  | EScan      {from :: EState, to :: EState}
-  | EComplete  {from :: EState, to :: EState}
-  | EComplete3 {from :: EState, to :: EState, with :: EState}
-  deriving (Eq, Ord, Show)
-
 instance Show EState where
   show (EState r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k])
   show Predict   = "Predict"
@@ -124,34 +117,6 @@ pD e s = do
    table s states
    return $ tree e states
 
-pT e s = do
-  (t, r) <- parseEDT e s
-  table s r
-  let pa = transeq1 t r e
-  putStrLn (show (length pa) ++ " paths")
-  --let Just (lev, _) = levenshteinMulti pa
-  --let tr2 = transpose lev
-  --putGrid $ map (map (\case Just x -> show x; Nothing -> "")) tr2
-  putGrid $ map2 show pa
-  putStrLn ""
-  let pp = transeq t r e
-  putStrLn (show (length pp) ++ " path parts")
-  mapM_ print pp
-  putStrLn ""
-  putStrLn (show (length t) ++ " transitions")
-  mapM_ print t
-  putStrLn ""
-  let sp = splits t
-  putStrLn (show (length sp) ++ " splits")
-  mapM_ print sp
-  putStrLn ""
-  let jo = joins t
-  putStrLn (show (length jo) ++ " joins")
-  mapM_ print jo
-  putStrLn ""
-  putStrLn "parse forest:"
-  return $ tree e r
-
 parseE e s = 
   let
     states = predict 0 (S.singleton $ EState e 0 0 0)
@@ -164,12 +129,6 @@ parseED e s =
    in
     parseE0D [states] s states [1 .. length s]
 
-parseEDT e s =
-  let
-    states = predictT 0 (S.empty, S.singleton $ EState e 0 0 0)
-   in
-    parseE0DT [snd states] s states [1 .. length s]
-
 parseE0 allstates _ states [] = allstates
 parseE0 allstates s states (k : ks) = let
   statesnew = parseE1 allstates s states k
@@ -179,11 +138,6 @@ parseE0D allstates _ states [] = return allstates
 parseE0D allstates s states (k : ks) = do
   statesnew <- parseE1D allstates s states k
   parseE0D (allstates ++ [statesnew]) s statesnew ks
-
-parseE0DT allstates _ states [] = return (fst states, allstates)
-parseE0DT allstates s states (k : ks) = do
-  statesnew <- parseE1DT allstates s states k
-  parseE0DT (allstates ++ [snd statesnew]) s statesnew ks
 
 -- scanM :: Monad m => (m [a] -> b -> m a) -> m [a] -> [b] -> m [a]
 scanM f z = foldl (\a b -> do ra <- a; rr <- f (last ra) b; return $ ra ++ [rr]) (return [z])
@@ -203,18 +157,6 @@ parseE1D allstates s states k = do
   if k < length s
     then do
       let pred1 = predict k comp1
-      putStrLn $ "pred1=" ++ show pred1
-      return pred1
-    else return comp1
-
-parseE1DT allstates s states k = do
-  let scan1 = scanT k s states
-  putStrLn $ "scan1=" ++ show scan1
-  let comp1 = completeT k allstates scan1
-  putStrLn $ "comp1=" ++ show comp1
-  if k < length s
-    then do
-      let pred1 = predictT k comp1
       putStrLn $ "pred1=" ++ show pred1
       return pred1
     else return comp1
@@ -243,26 +185,9 @@ close3 f done current =
    in
     if S.null new then done else close3 f newdone newnew
 
-closeT f (trans, states) = closeT1 f trans states states
-
-closeT1 f oldtrans old new =
-  let
-    newtrans = f old new S.\\ oldtrans
-    oldtrans1 = S.union oldtrans newtrans
-    new1 = getStates newtrans S.\\ old
-    old1 = S.union old new1
-   in
-    if S.null newtrans then (oldtrans, old) else closeT1 f oldtrans1 old1 new1
-
-getStates trans = S.map to trans
-
 process f current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
-processT phase f new = foldr S.union S.empty $ S.map (\x -> S.fromList $ map (phase x) $ f x) new
-
 predict k = close (process (predict1 k))
-
-predictT k = closeT (\old new -> processT EPredict (predict1 k) new)
 
 predict1 k (EState (Alt  as ) j _ 0) = [EState a k k 0 | a <- as]
 predict1 k (EState (Seq  as ) j _ d) = [EState (as !! d) k k 0 | d < length as]
@@ -271,12 +196,6 @@ predict1 k s = []
 
 scan k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
 
-scanT k s (oldtrans, states) =
-  let
-    newtrans = S.fromList $ mapMaybe (\x -> EScan x <$> scan1 k (s !! (k - 1)) x) $ S.toList states
-   in
-    (S.union oldtrans newtrans, getStates newtrans)
-
 scan1 k ch (EState r@(Token c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
 scan1 k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
 scan1 k ch s = Nothing
@@ -284,12 +203,6 @@ scan1 k ch s = Nothing
 complete k allstates = close2 (\old -> process (complete1 k (allstates ++ [old])))
 
 complete1 k allstates (EState y j k1 p) = mapMaybe (\(EState x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EState x i k (q + 1)) $ S.toList $ allstates !! j
-
-completeT k allstates = closeT (\old -> processT EComplete (complete1 k (allstates ++ [old])))
-
-completeT2 k allstates = closeT (\old -> process (completeT3 k (allstates ++ [old])))
-
-completeT3 k allstates (EState y j k1 p) = mapMaybe (\(EState x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState y j k p) (EState x i k (q + 1)) (EState x i j q)) $ S.toList $ allstates !! j
 
 -- complete3 k allstates (EState y j _ p) = mapMaybe (\(EState x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState x i j q) (EState x i k (q + 1)) (EState y j k p)) $ S.toList $ allstates !! j
 
@@ -338,78 +251,6 @@ conv (Trees b) = Data "TREES" $ map conv b
 transeq :: Foldable t => S.Set ETrans -> t a -> Rule -> [[ETrans]]
 >>> p expr "a+a+a"
 -}
-
-splits alltrans = filter (\(x, y) -> length y > 1) $ M.toList $ mapFromList (:) [] $ map (\x -> (from x, to x)) $ S.toList alltrans
-
-joins alltrans = filter (\(x, y) -> length y > 1) $ M.toList $ mapFromList (:) [] $ map (\x -> (to x, from x)) $ S.toList alltrans
-
-transeq alltrans allstates startrule =
-  let
-    transmap = multimapOn to $ S.toList alltrans
-    start = EState startrule 0 0 0
-    end = EState startrule 0 (length allstates - 1) (slength startrule)
-    splits1 = S.insert start $ S.fromList $ map fst $ splits alltrans
-    joins1 = S.insert end $ S.fromList $ map fst $ joins alltrans
-    stops = S.union splits1 joins1
-   in
-    sort $ concatMap (\x -> ts2 transmap startrule [x] stops x) $ S.toList stops
-
-{-
-[. expr 0 0 0,Predict,. expr + expr | a 0 0 0]
-[. expr + expr | a 0 0 0,Predict,. expr + expr 0 0 0,Predict,. expr 0 0 0]
-[. expr + expr | a 0 0 0,Predict,. a 0 0 0,Scan,a . 0 1 1,Complete,expr + expr | a . 0 1 1,Complete,expr . 0 1 1,Complete,expr . + expr 0 1 1,Predict,. + 1 1 0,Scan,+ . 1 2 1,Complete,expr + . expr 0 2 2,Predict,. expr 2 2 0]
-[. expr 2 2 0,Predict,. expr + expr | a 2 2 0]
-[. expr + expr | a 2 2 0,Predict,. expr + expr 2 2 0,Predict,. expr 2 2 0]
-[. expr + expr | a 2 2 0,Predict,. a 2 2 0,Scan,a . 2 3 1,Complete,expr + expr | a . 2 3 1,Complete,expr . 2 3 1]
-[expr . 2 3 1,Complete,expr + expr . 0 3 3,Complete,expr + expr | a . 0 3 1,Complete,expr . 0 3 1,Complete,expr . + expr 0 3 1,Predict,. + 3 3 0]
-[expr . 2 3 1,Complete,expr . + expr 2 3 1,Predict,. + 3 3 0]
-[. + 3 3 0,Scan,+ . 3 4 1]
-[+ . 3 4 1,Complete,expr + . expr 0 4 2,Predict,. expr 4 4 0]
-[+ . 3 4 1,Complete,expr + . expr 2 4 2,Predict,. expr 4 4 0]
-[. expr 4 4 0,Predict,. expr + expr | a 4 4 0]
-[. expr + expr | a 4 4 0,Predict,. expr + expr 4 4 0,Predict,. expr 4 4 0]
-[. expr + expr | a 4 4 0,Predict,. a 4 4 0,Scan,a . 4 5 1,Complete,expr + expr | a . 4 5 1,Complete,expr . 4 5 1]
-[expr . 4 5 1,Complete,expr + expr . 2 5 3,Complete,expr + expr | a . 2 5 1,Complete,expr . 2 5 1]
-
-
-[expr . 2 5 1,Complete,expr + expr . 0 5 3]
-[expr . 4 5 1,Complete,expr + expr . 0 5 3]
-[expr + expr . 0 5 3,Complete,expr + expr | a . 0 5 1,Complete,expr . 0 5 1]
--}
-
-transeq1 alltrans allstates start =
-  let
-    transmap = multimapOn to $ S.toList alltrans
-    end = EState start 0 (length allstates - 1) (slength start)
-   in
-    ts3 transmap start [end] S.empty end
-
-ts1 transmap start done stops s0 = do
-  tr <- transmap M.! s0
-  let s1@(EState r i j k) = with tr
-  if
-    | S.member s1 stops -> [s1 : done]
-    | otherwise -> ts2 transmap start (s1 : done) stops s1
-
-ts2 transmap start done stops s0 = do
-  tr <- transmap M.! s0
-  let s1@(EState r i j k) = from tr
-  if
-    | S.member s1 stops -> [tsaux tr done]
-    | otherwise -> ts2 transmap start (tsaux tr done) stops s1
-
-ts3 transmap start done set s0 = do
-  tr <- transmap M.! s0
-  let s1@(EState r i j k) = from tr
-  if
-    | r == start && j == 0 -> [tsaux tr done]
-    | S.member s1 set -> []
-    | otherwise -> ts3 transmap start (tsaux tr done) (S.insert s1 set) s1
-
-tsaux (EPredict from to) done = from : Predict : done
-tsaux (EScan from to) done = from : Scan : done
-tsaux (EComplete from to) done = from : Complete : done
-tsaux (EComplete3 from to with) done = from : with : Complete3 : done
 
 table str allstates =
   let
