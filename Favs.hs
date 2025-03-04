@@ -330,12 +330,12 @@ f3 xs ys = f2 xs $ f2 ys []
 -- crossWithL :: (a -> a -> a) -> [a] -> [a] -> [[a]]
 crossWithL f xs ys = (0 : xs) : for ys (\y -> y : for xs (`f` y))
 
-crossWith f xs ys = map (\y -> map (\x -> f x y) xs) ys
-crossWith3 f xs ys zs = map (\z -> map (\y -> map (\x -> f x y z) xs) ys) zs
-crossWith4 f ws xs ys zs = map (\z -> map (\y -> map (\x -> map (\w -> f w x y z) ws) xs) ys) zs
-crossWith5 f vs ws xs ys zs = map (\z -> map (\y -> map (\x -> map (\w -> map (\v -> f v w x y z) vs) ws) xs) ys) zs
-crossWith6 f us vs ws xs ys zs = map (\z -> map (\y -> map (\x -> map (\w -> map (\v -> map (\u -> f u v w x y z) us) vs) ws) xs) ys) zs
-crossWith7 f ts us vs ws xs ys zs = map (\z -> map (\y -> map (\x -> map (\w -> map (\v -> map (\u -> map (\t -> f t u v w x y z) ts) us) vs) ws) xs) ys) zs
+crossWith f xs ys = map (\x -> map (f x) ys) xs
+crossWith3 f xs ys zs = map (\x -> map (\y -> map (f x y) zs) ys) xs
+crossWith4 f ws xs ys zs = map (\w -> map (\x -> map (\y -> map (f w x y) zs) ys) xs) ws
+crossWith5 f vs ws xs ys zs = map (\v -> map (\w -> map (\x -> map (\y -> map (f v w x y) zs) ys) xs) ws) vs
+crossWith6 f us vs ws xs ys zs = map (\u -> map (\v -> map (\w -> map (\x -> map (\y -> map (f u v w x y) zs) ys) xs) ws) vs) us
+crossWith7 f ts us vs ws xs ys zs = map (\t -> map (\u -> map (\v -> map (\w -> map (\x -> map (\y -> map (f t u v w x y) zs) ys) xs) ws) vs) us) ts
 
 crossWithR f xs ys = map (\x -> map (f x) ys) xs
 
@@ -879,7 +879,7 @@ levenshtein a b =
   let
     c = crossWith commonSubsequencesA [0 .. length a] [0 .. length b]
     commonSubsequencesA an bn
-      | an == 0 || bn == 0 = 0
+      | an == 0 || bn == 0 = max an bn
       | otherwise =
           let
             al = c !! (an - 1) !! bn
