@@ -50,6 +50,7 @@ instance Ord Rule where
   compare (RRang{}) (Seq{}) = GT
   compare (RRang{}) (Alt{}) = GT
   compare (RRang{}) (Token{}) = GT
+--  compare (RRang{}) _ = LT
 
 instance Show Rule where
   show = outershow Nothing
@@ -69,30 +70,15 @@ outershow d r@(RRang a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
 ii (Just d) = insertIndex d "."
 ii Nothing = id
 
-data EState
-  = EState { r::Rule, f::Int, t::Int, n::Int }
-  | Predict
-  | Scan
-  | Complete
-  | Complete3
+data State
+  = State { r::Rule, f::Int, t::Int, n::Int }
   deriving (Eq)
 
-instance Show EState where
-  show (EState r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k])
-  show Predict   = "Predict"
-  show Scan      = "Scan"
-  show Complete  = "Complete"
-  show Complete3 = "Complete3"
+instance Show State where
+  show (State r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k])
 
-instance Ord EState where
-  compare (EState e1 j1 k1 d1) (EState e2 j2 k2 d2) = compare (j1, k1, d1, e1) (j2, k2, d2, e2)
-  compare a b = compare (findstate a) (findstate b)
-
-findstate (EState{}) = 0
-findstate Predict = 1
-findstate Scan = 2
-findstate Complete = 3
-findstate Complete3 = 4
+instance Ord State where
+  compare (State e1 j1 k1 d1) (State e2 j2 k2 d2) = compare (j1, k1, d1, e1) (j2, k2, d2, e2)
 
 digit = RRang '0' '9'
 lower = RRang 'a' 'z'
@@ -119,13 +105,13 @@ pD e s = do
 
 parseE e s = 
   let
-    states = predict 0 (S.singleton $ EState e 0 0 0)
+    states = predict 0 (S.singleton $ State e 0 0 0)
    in
     parseE0 [states] s states [1 .. length s]
 
 parseED e s =
   let
-    states = predict 0 (S.singleton $ EState e 0 0 0)
+    states = predict 0 (S.singleton $ State e 0 0 0)
    in
     parseE0D [states] s states [1 .. length s]
 
@@ -189,22 +175,22 @@ process f current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
 predict k = close (process (predict1 k))
 
-predict1 k (EState (Alt  as ) j _ 0) = [EState a k k 0 | a <- as]
-predict1 k (EState (Seq  as ) j _ d) = [EState (as !! d) k k 0 | d < length as]
-predict1 k (EState (RuleName a b) j _ 0) = [EState b k k 0]
+predict1 k (State (Alt  as ) j _ 0) = [State a k k 0 | a <- as]
+predict1 k (State (Seq  as ) j _ d) = [State (as !! d) k k 0 | d < length as]
+predict1 k (State (RuleName a b) j _ 0) = [State b k k 0]
 predict1 k s = []
 
 scan k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
 
-scan1 k ch (EState r@(Token c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
-scan1 k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
+scan1 k ch (State r@(Token c  ) j _ 0) = ifJust (ch == c) (State r j k 1)
+scan1 k ch (State r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (State r j k 1)
 scan1 k ch s = Nothing
 
 complete k allstates = close2 (\old -> process (complete1 k (allstates ++ [old])))
 
-complete1 k allstates (EState y j k1 p) = mapMaybe (\(EState x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EState x i k (q + 1)) $ S.toList $ allstates !! j
+complete1 k allstates (State y j k1 p) = mapMaybe (\(State x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ State x i k (q + 1)) $ S.toList $ allstates !! j
 
--- complete3 k allstates (EState y j _ p) = mapMaybe (\(EState x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EState x i j q) (EState x i k (q + 1)) (EState y j k p)) $ S.toList $ allstates !! j
+-- complete3 k allstates (State y j _ p) = mapMaybe (\(State x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (State x i j q) (State x i k (q + 1)) (State y j k p)) $ S.toList $ allstates !! j
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
@@ -214,21 +200,21 @@ caux _ _ _ = False
 slength (Seq as) = length as
 slength _ = 1
 
-children allstates (EState r f t n) = do
-   s1@(EState r1 f1 t1 n1) <- S.toList $ allstates !! t
+children allstates (State r f t n) = do
+   s1@(State r1 f1 t1 n1) <- S.toList $ allstates !! t
    if caux r (n - 1) r1 && n1 == slength r1
       then do
-         s2@(EState r2 f2 t2 n2) <- S.toList $ allstates !! f1
+         s2@(State r2 f2 t2 n2) <- S.toList $ allstates !! f1
          if r2 == r && f2 == f && n2 == n - 1
             then if n2 > 0 then map (s1:) $ children allstates s2 else [[s1]]
          else []
       else []
 
-data Tree = Tree EState [Tree] | Trees [Tree] deriving (Eq, Ord)
+data Tree = Tree State [Tree] | Trees [Tree] deriving (Eq, Ord)
 
 tree start allstates =
   let
-    end = EState start 0 (length allstates - 1) (slength start)
+    end = State start 0 (length allstates - 1) (slength start)
     success = S.member end $ last allstates
    in
       tree1 allstates end
@@ -270,7 +256,7 @@ taux str maxes s k =
    in
     (max1, mergeStrs num tok, fmts)
 
-taux1 ends max1 k state@(EState e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
+taux1 ends max1 k state@(State e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
 
 taux2 ends m j k sh fill =
   if
@@ -292,13 +278,13 @@ taux2 ends m j k sh fill =
 
 mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a > length b then drop (length b) a else drop (length a) b
 
-makelr allstates rule k = makelr1 allstates (S.singleton $ EState rule 0 0 0) k
+makelr allstates rule k = makelr1 allstates (S.singleton $ State rule 0 0 0) k
 
 makelr1 allstates states k = predict k states
 {-
 scanlr k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
-scanlr k ch (EState r@(Token c  ) j _ 0) = ifJust (ch == c) (EState r j k 1)
-scanlr k ch (EState r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (EState r j k 1)
+scanlr k ch (State r@(Token c  ) j _ 0) = ifJust (ch == c) (State r j k 1)
+scanlr k ch (State r@(RRang c d) j _ 0) = ifJust (ch >= c && ch <= d) (State r j k 1)
 -}
 combinescans c@(Token cr, cs) d@(Token dr, ds) = if cr == dr then [(Token cr, cs ++ ds)] else [c, d]
 combinescans c@(Token cr, cs) d@(RRang d1 d2, ds) = if cr >= d1 && cr <= d2 then [(RRang d1 (pred cr), ds), (Token cr, cs ++ ds), (RRang (succ cr) d2, ds)] else [c, d]
