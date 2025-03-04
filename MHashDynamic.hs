@@ -612,7 +612,7 @@ crd = realToFrac :: Double -> Rational
 convertm =
   createMultimethod2
     "convert"
-    [ toDyn cie
+    ([ toDyn cie
     , toDyn cei
     , toDyn cde
     , toDyn ced
@@ -628,9 +628,7 @@ convertm =
     , toDyn (round :: Double -> Int)
     , toDyn (realToFrac :: Double -> Rational)
     , toDyn (realToFrac :: Rational -> Double)
-    , toDyn (singleton :: Char -> String)
-    , toDyn (show :: Double -> String)
-    ]
+    ] ++ showl)
 
 showAny :: (Typeable a) => a -> String
 showAny = showDyn . toDyn
@@ -819,7 +817,9 @@ deriving instance Show MMEntry
 showm :: Multimethod
 showm =
   createMultimethod1
-    "show"
+    "show" showl
+
+showl =    
     [ toDyn (show :: Int -> String)
     , toDyn (show :: Integer -> String)
     , toDyn (show :: String -> String)
