@@ -72,7 +72,9 @@ nobels1 m = findClasses "mw-parser-output" $ getNested m $ wiki "List of Nobel l
 
 nato m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 2, ())) $ drop 1 $ cGridH $ getWikiTable m "Member states of NATO"
 
-gdp m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 0, readInt $ extractText $ row !! 2)) $ drop 3 $ cGridH $ getWikiTable m "List of countries by GDP (nominal)"
+europe m = by (? "country") $ fromGridH1 ["country", "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
+
+gdp m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 0, readInt $ extractText $ row !! 2)) $ drop 3 $ cGridH $ getWikiTable m "List of countries by GDP (PPP)"
 
 cpop m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 1, readInt $ extractText $ row !! 2)) $ drop 1 $ cGridH $ getWikiTable m "List of countries and dependencies by population"
 
@@ -80,7 +82,7 @@ area m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 1, readI
 
 mileq m =
   by (? "country")
-    $ fromGrid1 ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
+    $ fromGridH1 ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
     $ map
       ( \row ->
           (toDyn $ extractText $ findType "a" $ row !! 0)
@@ -88,8 +90,12 @@ mileq m =
             : (map (toDyn . readInt . extractText) $ init $ drop 3 row)
       )
     $ drop 1
-    $ wikiGrid m "List of countries by level of military equipment"
+    $ wikiGridH m "List of countries by level of military equipment"
 
+eumil m = let
+  me = mileq m
+  eu = europe m
+  in Table1G.join (toDyn "") eu me
 -- milper m = fromGridN 0 $ map (\row -> (extractText $ findType "a" $ row !! 1) : (map extractText $ drop 2 row)) $ convertGridH $ wikiTable m "List of countries by number of military and paramilitary personnel"
 
 text1 t =

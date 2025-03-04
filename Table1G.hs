@@ -2,8 +2,7 @@
 {-# HLINT ignore "Use second" #-}
 {-# LANGUAGE FunctionalDependencies #-}
 -- Copyright 2025 Brett Curtis
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverlappingInstances #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Table1G where
@@ -202,6 +201,8 @@ unrec (Rec r) = r
 instance (Show a) => Show (Table String a Dynamic) where
   show = showTable
 
+instance {-# OVERLAPPING #-} (Show i, Show r) => Show (Table String i r) where
+  show = showTable1
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (map show . uncurry (:)) $ M.toList $ records t
 
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (\(i, r) -> show i : map (\(j, t) -> show t) r) $ M.toList $ (\(Recs r) -> r) $ tgroup t
@@ -281,7 +282,9 @@ putTable = putStr . showTable
 -- join f l r = Table (M.fromList $ zip (fieldsUT l ++ fieldsUT r) [0..]) $ M.map (\v -> (v ++) $ values $ lookupt (f $ Record (fields l) v) r) $ records l
 
 -- joinMulti f l r = Table (M.fromList $ zip (fieldsUT l ++ fieldsUT r) [0..]) $ M.map (\v -> (v ++) $ singleton $ Table1 $ map (r !) (f $ Record (fields l) v)) $ records l
-appendRec shift (Rec l) (Rec r) = Rec $ T.union l $ shift r
+appendRec shift (Rec  l) (Rec  r) = Rec $ T.union l $ shift r
+appendRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ T.union l1 $ shift r1) (T.toElems l) (T.toElems r)
+appendRec shift l        r        = error $ "appendRec called with "++show l++" and "++show r
 
 join z (Table fl (INode rl)) (Table fr (INode rr)) =
   let
@@ -294,8 +297,10 @@ join z (Table fl (INode rl)) (Table fr (INode rr)) =
    in
     Table flr $ INode $ joinFuzzy (appendL shift z fr, appendRec shift, appendR shift z fl) rl rr
 
-appendL shift z fr (Rec rl) = Rec $ T.union rl $ shift (blankRec z fr)
-appendR shift z fl (Rec rr) = Rec $ T.union (blankRec z fl) $ shift rr
+appendL shift z fr (Rec  rl) = Rec  $ T.union rl $ shift (blankRec z fr)
+appendL shift z fr (Recs rl) = Recs $ T.map (appendL shift z fr) rl
+appendR shift z fl (Rec  rr) = Rec  $ T.union (blankRec z fl) $ shift rr
+appendR shift z fl (Recs rr) = Recs $ T.map (appendR shift z fl) rr
 
 showKey (k, v) = (k, show k, v)
 
@@ -315,7 +320,7 @@ joinFuzzy (fl, fi, fr) l r =
     levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Lev (levenshtein ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
     (l2, i2, r2) = foldr (joinFuzzyAux 4) (l1, i, r1) levs
    in
-    M.map fl l2 `M.union` i2 `M.union` M.map fr r2
+    M.map fl l2 `M.union` i2 {- `M.union` M.map fr r2 -}
 
 joinFuzzyAux maxDist (Lev dist lk rk a) (lks, res, rks) =
   if dist <= maxDist && M.member lk lks && M.member rk rks
@@ -379,8 +384,6 @@ delField fieldName t = if head (fields t) == fieldName
       Just fieldN = elemIndex fieldName $ fields t
       in Table (deleteIndex fieldN $ fields t) $ M.fromList $ map (\(k, v) -> (k, deleteIndex (fieldN-1) v)) $ M.toList $ records t
 -}
-deleteIndex i l = let (b, d : a) = splitAt i l in b ++ a
-
 class LookupR a b c | a b -> c, c -> b where
   (!) :: a -> b -> c
 
