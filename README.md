@@ -48,7 +48,8 @@ A very basic Prolog interpreter
 
 ## Table1G
 
-An in memory database
+An in memory database. Uses a `Tree` for each record to join records in constant time. Can do fuzzy joins. Can do maps and folds (such as sum) over 
+`Table`s. The folds follow the structure of the index, so that an index on two fields has subtotals as well as totals
 
 ## Tree
 
