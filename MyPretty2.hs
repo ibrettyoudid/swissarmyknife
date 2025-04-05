@@ -48,7 +48,7 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Text.ParserCombinators.Parsec.Token qualified as T
 
-width = 533
+width = 662
 
 findWidth n = mapM_ putStrLn $ transpose $ padcol0 $ map show [1 .. n]
 
@@ -581,6 +581,18 @@ randGrid y x seed = runStateGen_ (mkStdGen seed) (replicateM y . replicateM x . 
 
 randGridS y x seed = map2 (`replicate` 'x') $ randGrid y x seed
 
+readGrid str = map (map trim . transpose . map snd) 
+  $ filter (fst . head) 
+  $ groupBy (on (==) fst) 
+  $ mapfxx (null . dropWhile (== ' ')) 
+  $ transposez ' ' $ lines str
+
+
+groupCols [] = []
+groupCols e = let
+  (left, _):filled = dropWhile snd e
+  (right, _):empty = dropWhile (not . snd) filled
+  in (left, right - 1):groupCols empty
 {-
 finding the best column widths seems to be exponential in the number of columns
 

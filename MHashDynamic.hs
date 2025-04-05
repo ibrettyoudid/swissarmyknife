@@ -195,7 +195,7 @@ data Expr
   | VarRef1 {etype :: MType, name :: String}
   | Lambda {etype :: MType, econstr :: Constr, subexpr :: Expr}
   | Let {etype :: MType, econstr :: Constr, vals :: [Expr], subexpr :: Expr}
-  | Block {etype :: MType, econstr :: Constr, subexpr :: Expr}
+  | Block {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
   | Apply {etype :: MType, subexprs :: [Expr]}
   | If {etype :: MType, clauses :: [(Expr, Expr)]}
   | Case {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
@@ -363,10 +363,11 @@ myTypeOf a = Data.Typeable.typeOf a
 
 tiRational = htype "Rational" []
 tiInteger = htype "Integer" [tiRational]
-tiDouble = htype "Double" [tiRational, tiString]
+tiDouble = htype "Double" [tiRational]
 tiInt = htype "Int" [tiInteger, tiDouble]
 tiFloat = htype "Float" [tiDouble]
-tiString = htype "String" []
+tiString = htype "String" [tiRational]
+tiList = htype "List" []
 tiChar = htype "Char" [tiString]
 tiOrdering = htype "Ordering" []
 tiDay = htype "Day" []
@@ -378,6 +379,7 @@ tiBool = htype "Bool" []
 tiVoid = htype "Void" []
 tiDynamic = htype "Dynamic" []
 tiMaybe = htype "Maybe Dynamic" []
+tiNamedValue = htype "NamedValue" []
 
 unknown = htype "Unknown" []
 
@@ -397,6 +399,7 @@ typeList =
   , (myTypeOf (z :: Double), tiDouble)
   , (myTypeOf (z :: Rational), tiRational)
   , (myTypeOf (z :: String), tiString)
+  , (myTypeOf (z :: [Dynamic]), tiList)
   , (myTypeOf (z :: Ordering), tiOrdering)
   , (myTypeOf (z :: TC), tiTC)
   , (myTypeOf (z :: Day), tiDay)
@@ -408,6 +411,7 @@ typeList =
   , (myTypeOf (z :: ()), tiVoid)
   , (myTypeOf (z :: Dynamic), tiDynamic)
   , (myTypeOf (z :: Maybe Dynamic), tiMaybe)
+  , (myTypeOf (z :: NamedValue), tiNamedValue)
   ]
 
 void = Constr "void" (TypeLink [] []) []
@@ -628,6 +632,8 @@ convertm =
     , toDyn (round :: Double -> Int)
     , toDyn (realToFrac :: Double -> Rational)
     , toDyn (realToFrac :: Rational -> Double)
+    , toDyn (read :: String -> Rational)
+    , toDyn (realToFrac :: Int -> Rational)
     ] ++ showl)
 
 showAny :: (Typeable a) => a -> String
@@ -665,9 +671,7 @@ showTerm b a l d = case fromDynamic d :: Maybe String of
           p = fromMaybe l $ elemIndex '.' s
          in
           (p, l - p, 0, replicate (b - p) ' ' ++ s ++ replicate (a - (l - p)) ' ')
-      Nothing -> case fromDynamic d :: Maybe Day of
-        Just d -> let s = show d in (length s, 0, 0, padr l s)
-        Nothing -> error "fail"
+      Nothing -> let s = show d in (length s, 0, 0, padr l s)
 
 showColD col =
   let
@@ -808,7 +812,7 @@ instance Show MultimethodA where
 
 
 instance Read Dynamic where
-  readsPrec p s0 = px (readsPrec p :: ReadS Int) $ px (readsPrec p :: ReadS Double) $ px (readsPrec p :: ReadS Bool) $ px (readsPrec p :: ReadS String) $ px (readsPrec p :: ReadS Char) []
+  readsPrec p s0 = px (readsPrec p :: ReadS Int) $ px (readsPrec p :: ReadS Double) $ px (readsPrec p :: ReadS Bool) $ px (readsPrec p :: ReadS String) $ px (readsPrec p :: ReadS Char) [(toDyn s0, "")]
    where
     px p y = let (r, s) = unzip $ p s0 in if not $ null r then zip (map toDyn r) s else y
 
@@ -826,6 +830,8 @@ showl =
     , toDyn (show :: Bool -> String)
     , toDyn (singleton :: Char -> String)
     , toDyn ((\d -> showFFloat (Just 8) d "") :: Double -> String)
+    , toDyn ((\d -> showFFloat (Just 4) d "") :: Float -> String)
+    , toDyn (show :: Rational -> String)
     , toDyn (show :: () -> String)
     , toDyn (show :: Maybe Dynamic -> String)
     , toDyn (show :: [Dynamic] -> String)
@@ -983,7 +989,7 @@ blockSyn =
   Iso
     (\(params, exp) -> Just $ Block u (Co "" params) exp)
     (\case Block _ (Co _ params) exp -> Just (params, exp); _ -> Nothing)
-    >$< text "begin " *< mem `sepBy` sepSpace >* sepSpace >*< expr0
+    >$< text "begin " *< mem `sepBy` sepSpace >* sepSpace >*< groupOf expr0
 
 dataSyn = valueIso >$< conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace
 

@@ -52,7 +52,7 @@ cTextGridH = map2 extractText . cGridH
 
 html h b = Tag "html" [] [Tag "head" [] h, Tag "body" [] b]
 
-textGridH = gridH . map2 (\cell -> Tag "td" [] $ [Text cell])
+textGridH = gridH . map2 (\cell -> Tag "td" [] [Text cell])
 textGrid = textGridH . transpose
 
 putTextGrid = putGrid . cTextGrid
@@ -61,6 +61,7 @@ putTextFile = putTextGrid . readNested
 
 -- convertGridH tag = map (getTags ["td", "th"] . subTags) $ filter (("tr" ==) . tagType) $ subTags tag
 extractText = trim . squash . concatMap tagText . findTrees isText
+extractTexts htmls = trim $ squash $ concatMap tagText htmls
 
 extractLink = head . extractLinks
 extractLinks t = map (tagAttrib "href") $ findTypes "a" t
@@ -189,7 +190,7 @@ urlToFileName url =
   let
     s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
    in
-    last s
+    ".cache/"++last s
 
 writeHTTP m url = do
   let fileName = urlToFileName url
@@ -871,7 +872,8 @@ discImage m name =
   tagAttrib "src" $
     subTag $
       findType "img" $
-        findClass "link_1ctor link_33If6" $ -- (classIs "image_3rzgk bezel_2NSgk")
+        findClass "link_1ctor link_33If6" $ -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk") -- (classIs "image_3rzgk bezel_2NSgk")
+           -- (classIs "image_3rzgk bezel_2NSgk")
           getNestedReq m $
             addUserAgent $
               (\url -> getRequest ("https://www.discogs.com" ++ url)) $

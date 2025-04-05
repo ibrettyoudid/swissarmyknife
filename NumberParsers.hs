@@ -27,7 +27,7 @@ parse1 p filename txt = case parse p filename txt of
 --only succeed if it can't be an integer
 forceFloating :: Stream s m Char => ParsecT s u m Double
 forceFloating =         do f <- sign
-                           n <- decimal
+                           n <- decimal digit
                            fract <- option Nothing (Just <$> fraction)
                            expo  <- option Nothing (Just <$> exponent')
                            guard (isJust fract || isJust expo)
@@ -35,7 +35,7 @@ forceFloating =         do f <- sign
 
 floating :: Stream s m Char => ParsecT s u m Double
 floating =              do s <- sign
-                           n <- decimal
+                           n <- decimal digit
                            fract <- option 0.0 fraction
                            expo  <- option 1.0 exponent'
                            return (s (fromInteger n + fract) * expo)
@@ -54,7 +54,7 @@ fraction =
 exponent' :: Stream s m Char => ParsecT s u m Double
 exponent' = do oneOf "eE"
                s <- sign
-               e <- decimal <?> "exponent"
+               e <- decimal digit <?> "exponent"
                return $ power $ s e
 
          <?> "exponent"
@@ -67,7 +67,11 @@ exponent' = do oneOf "eE"
 integer :: Stream s m Char => ParsecT s u m Integer
 integer =
                   do f <- sign
-                     f <$> nat
+                     f <$> nat digit
+
+integerC :: Stream s m Char => ParsecT s u m Integer
+integerC =        do f <- sign
+                     f <$> nat digitOrComma
 
 sign :: (Stream s m Char, Num n) => ParsecT s u m (n -> n)
 sign =
@@ -75,16 +79,16 @@ sign =
                   <|>      (char '+' >> return id)
                   <|>      return id
 
-nat :: Stream s m Char => ParsecT s u m Integer
-nat =                zeroNumber <|> decimal
+nat :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
+nat digitType =      zeroNumber digitType <|> decimal digitType
 
-zeroNumber :: Stream s m Char => ParsecT s u m Integer
-zeroNumber =      do char '0'
-                     hexadecimal <|> octal <|> decimal <|> return 0
-               <?> ""
+zeroNumber :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
+zeroNumber digitType =     do char '0'
+                              hexadecimal <|> octal <|> decimal digit <|> return 0
+                       <?> ""
 
-decimal :: Stream s m Char => ParsecT s u m Integer
-decimal =            baseInteger 10 digit
+decimal :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
+decimal digitType = baseInteger 10 digitType
 
 hexadecimal :: Stream s m Char => ParsecT s u m Integer
 hexadecimal     = do oneOf "xX"
@@ -102,7 +106,8 @@ baseInteger base baseDigit
         let n = foldl (\x d -> x*base + toInteger (digitToInt d)) 0 digits
         seq n (return n)
 
-
+digitOrComma :: Stream s m Char => ParsecT s u m Char
+digitOrComma = do many (oneOf ","); digit
 {- 
 
 in Parsec.Token

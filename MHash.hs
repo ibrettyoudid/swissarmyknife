@@ -91,10 +91,15 @@ repl1 env = do
   putStrLn "formatting"
   putStrLn $ S3.format ex2a
   putStrLn ""
-  (ex3, env3) <- case ex1 of
-    Block _ constr exinner -> do fr <- makeFrame constr; return (exinner, fr : env)
-    _ -> return (ex1, env)
-  res <- eval env3 ex3
+  (res, env3) <- case ex1 of
+    Block _ constr exprs -> do
+      fr <- makeFrame constr
+      let env2 = fr : env
+      res <- eval2 env2 exprs
+      return (res, env2)
+    _ -> do
+      res <- eval env ex1
+      return (res, env)
   putDynLn res
   repl1 env3
 
@@ -130,9 +135,9 @@ eval1 env expr = case expr of
     let newenv = newfr : env
     zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
     eval newenv stat
-  Block t co stat -> do
+  Block t co exprs -> do
     newfr <- makeFrame co
-    eval (newfr : env) stat
+    eval2 (newfr : env) exprs
  where
   evalIf [] = return $ toDyn ()
   evalIf ((cond, then1) : rest) = do
@@ -148,6 +153,10 @@ eval1 env expr = case expr of
     if caseval == whenval
       then eval env then1
       else evalCase caseval others
+
+eval2 env exprs = do
+  res <- mapM (eval env) exprs
+  return $ last res
 
 makeFrame co = do
   newvals <- replicateM (length $ members co) (newIORef $ toDyn ())
@@ -247,11 +256,11 @@ deepseq1 a = deepseq a a
 deriving instance NFData (State [Constr] Expr)
 
 wrapBlock :: Expr -> State [Constr] Expr
-wrapBlock stat = do
+wrapBlock expr = do
   push $ Co "" []
-  sres <- deepseq1 $ doVars stat
+  sres <- deepseq1 $ doVars expr
   fnew <- pop
-  return $ Block u fnew sres
+  return $ Block u fnew [expr]
 
 {-}
   error "hello"

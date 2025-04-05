@@ -1,8 +1,6 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE LexicalNegation #-}
 
-module Atlas where
-
 import Favs hiding (on)
 import HTML
 import MHashDynamic
@@ -255,94 +253,25 @@ small =
     )
     [2, 4 .. 434]
 
-itype (ImageY8 i) = "Y8"
-itype (ImageY16 i) = "Y16"
-itype (ImageY32 i) = "Y32"
-itype (ImageYF i) = "YF"
-itype (ImageYA8 i) = "YA8"
-itype (ImageYA16 i) = "YA16"
-itype (ImageRGB8 i) = "RGB8"
-itype (ImageRGB16 i) = "RGB16"
-itype (ImageRGBA8 i) = "RGBA8"
+itype (ImageY8     i) = "Y8"
+itype (ImageY16    i) = "Y16"
+itype (ImageY32    i) = "Y32"
+itype (ImageYF     i) = "YF"
+itype (ImageYA8    i) = "YA8"
+itype (ImageYA16   i) = "YA16"
+itype (ImageRGB8   i) = "RGB8"
+itype (ImageRGB16  i) = "RGB16"
+itype (ImageRGBA8  i) = "RGBA8"
 itype (ImageRGBA16 i) = "RGBA16"
-itype (ImageRGBF i) = "RGBF"
+itype (ImageRGBF   i) = "RGBF"
 itype (ImageYCbCr8 i) = "YCbCr8"
-itype (ImageCMYK8 i) = "CMYK8"
+itype (ImageCMYK8  i) = "CMYK8"
 itype (ImageCMYK16 i) = "CMYK16"
 
 test = do
   setCurrentDirectory "/home/brett/Documents/Info/Atlas"
   Right i <- readImage "pic001.png"
   putStrLn $ itype i
-
-main1 = do
-  initGUI
-
-  mainWindow <- windowNew
-  drawingArea <- drawingAreaNew
-
-  pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/6262/060.png"
-  track <- do
-    let dr = drawingArea
-    {-
-    widgetAddEvents dr [PointerMotionMask]
-    on dr motionNotifyEvent $ do
-       (r,t) <- eventPolarCoordinates
-       liftIO $ if (0.8<r && r<1.2)
-          then setJam (Just t)
-          else setJam Nothing
-       liftIO $ widgetQueueDraw dr
-       return True
-
-    on dr leaveNotifyEvent $ liftIO $
-       setJam Nothing >> return True
-       -}
-    on dr draw $ drawGrid1 pixbuf
-    -- scale 0.01 0.01
-    {-
-    scale 0.3 0.3
-    --w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth dr)
-    --liftIO (fromIntegral <$> widgetGetAllocatedHeight dr)
-    -- jam <- liftIO getJam
-    -- cars <- liftIO getCars
-    -- translate (w/2) (h/2)
-    -- scale (w/drawSide) (h/drawSide)
-    drawGrid1 pixbuf
-    -}
-    -- return True
-
-    -- af <- aspectFrameNew 0.5 0.5 (Just 1)
-    -- frameSetShadowType af ShadowNone
-    -- containerAdd af dr
-    return dr
-
-  -- 'layout' is a widget that contains all interface elements
-  -- properly arranged.
-
-  layout <- do
-    vb <- vBoxNew False 0
-    hb <- hBoxNew False 0
-    xoff <- hScaleNewWithRange -3500 3500 10
-    yoff <- hScaleNewWithRange -2500 2500 10
-    boxPackStart vb xoff PackNatural 0
-    boxPackStart vb yoff PackNatural 0
-    boxPackStart hb vb PackNatural 0
-    boxPackStart hb track PackGrow 0
-    return hb
-
-  set
-    mainWindow
-    [ windowTitle := "S.A.R.A.H."
-    , windowDefaultWidth := 400
-    , windowDefaultHeight := 400
-    ]
-  on mainWindow objectDestroy mainQuit
-  containerAdd mainWindow layout
-  widgetShowAll mainWindow
-
-  --   resume
-
-  mainGUI
 
 {-
 lamconOfSph lam0 phi0 phi1 phi2 rad [[lat, long]] = [[rho * sin (n * (long - lam0)), rho0 - rho * cos (n * (long - lam0))]]
@@ -420,7 +349,7 @@ cart3OfSph [[r, lat, long]] =
    in
     [[x, y, z]]
 -}
-cart3OfSph [[r, lat, long]] = [[r * sin long, -(r * sin lat), r * cos long * cos lat]]
+cart3OfSph [[r, lat, long]] = [[r * sin long, -(r * sin lat),  r * cos long * cos lat]]
 
 lamaziOfSph (scale, sh, longsh) v = scalesh (scale, sh) $ cartOfPol $ lamaziOfSph1 $ v <+> vec 0 longsh
 sphOfLamazi (scale, sh, longsh) v = (<-> vec 0 longsh) $ sphOfLamazi1 $ polOfCart v
@@ -440,7 +369,7 @@ uns x = case x of
 lamazi3 :: [Double] -> [Double] -> [[Double]] -> [[Double]]
 lamazi3 [rotx, rotz] [scalex, scaley, rot, xoff, yoff] d = mapcols (scalerotsh (vec scalex scaley, rot, vec xoff yoff) . lamaziCartOfCart3 . ((rotX (rofd (rotx)) <*> rotY (rofd rotz)) <*>) . cart3OfSph . rofd3 1) d
 
-lamazi4 [rotx, roty] mat d = mapcols ((mat <*>) . add1s . lamaziCartOfCart3 . (rotX (rofd rotx) <*>) . (rotY (rofd roty) <*>) . cart3OfSph . rofd3 1) d
+lamazi4 [rotx, roty] mat d = mapcols ((mat <*>) . add1s . lamaziCartOfCart3 . (rotY (rofd roty) <*>) . (rotX (rofd rotx) <*>) . cart3OfSph . rofd3 1) d
 
 lamaziParams (v0, ll0, v1, ll1) =
   let
@@ -539,11 +468,22 @@ xo2 = a * xi2 + b * yi2 + p
 yo0 = c * xi0 + d * yi0 + q
 yo1 = c * xi1 + d * yi1 + q
 yo2 = c * xi2 + d * yi2 + q
+
+[ a b c d e p ] [ xi0     xi1     xi2     ] = [ xo0 xo1 xo2 ]
+[ f g h i j q ] [ yi0     yi1     yi2     ]   [ yo0 yo1 yo2 ]
+                [ xi0^2   xi1^2   xi2^2   ]
+                [ yi0^2   yi1^2   yi2^2   ]
+                [ xi0*yi0 xi1*yi1 xi2*yi2 ]
+                [   1       1       1     ]
  -}
 
 add1s = map (++ [1])
 
+--add1s xs = map (\[x, y] -> [x, y, x^2, y^2, x*y, 1]) xs
+
 t3 = select [0, 2, 3]
+
+id3 = [[1, 0], [0, 1], [0, 0]] --, [0, 0], [0, 0], [0, 0]]
 
 nan = 0 / 0
 
@@ -566,10 +506,11 @@ residuals x = sqrt $ mean $ map (^ 2) $ concat x
 hjk ([[sx, sy]], r, [[xo, yo]]) = [sx, sy, r, xo, yo]
 
 lamaziSRS = hjk (getsrs (lamazi3 lamaziRR))
-lamaziRR = search getresMat [0, 0] [5, 10] 16 50
+--lamaziRR = search getresMat [0, 0] [5, 10] 16 50
+lamaziRR = [35, -95]
 lamaziMat = getlamaziMat lamaziRR
-getlamaziMat rr = getMat (lamazi4 rr [[1, 0], [0, 1], [0, 0]] lls) vs1
-lamaziMatD rr = getMatD (lamazi4 rr [[1, 0], [0, 1], [0, 0]] lls) vs1
+getlamaziMat rr = getMat (lamazi4 rr id3 lls) vs1
+lamaziMatD rr = getMatD (lamazi4 rr id3 lls) vs1
 
 -- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
 -- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
@@ -626,18 +567,89 @@ between a b m = M.takeWhileAntitone (<= b) $ M.dropWhileAntitone (< a) m
 
 getRect args@[v0, v1] m = M.filter (inRect args) $ between (interleave v0) (interleave v1) m
 
-drawGrid1 pixbuf = do
+main = do
+  initGUI
+
+  mainWindow <- windowNew
+  drawingArea <- drawingAreaNew
+
+  pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/6262/060.png"
+  let dr = drawingArea
+  {-
+  widgetAddEvents dr [PointerMotionMask]
+  on dr motionNotifyEvent $ do
+      (r,t) <- eventPolarCoordinates
+      liftIO $ if (0.8<r && r<1.2)
+        then setJam (Just t)
+        else setJam Nothing
+      liftIO $ widgetQueueDraw dr
+      return True
+
+  on dr leaveNotifyEvent $ liftIO $
+      setJam Nothing >> return True
+      -}
+  -- scale 0.01 0.01
+  {-
+  scale 0.3 0.3
+  --w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth dr)
+  --liftIO (fromIntegral <$> widgetGetAllocatedHeight dr)
+  -- jam <- liftIO getJam
+  -- cars <- liftIO getCars
+  -- translate (w/2) (h/2)
+  -- scale (w/drawSide) (h/drawSide)
+  drawGrid1 pixbuf
+  -}
+  -- return True
+
+  -- af <- aspectFrameNew 0.5 0.5 (Just 1)
+  -- frameSetShadowType af ShadowNone
+  -- containerAdd af dr
+
+  -- 'layout' is a widget that contains all interface elements
+  -- properly arranged.
+
+
+  vb <- vBoxNew False 0
+  hb <- hBoxNew False 0
+  lat <- hScaleNewWithRange -180 180 10
+  long <- hScaleNewWithRange -180 180 10
+  boxPackStart vb lat PackGrow 0
+  boxPackStart vb long PackGrow 0
+  boxPackStart hb vb PackGrow 0
+  boxPackStart hb dr PackGrow 0
+
+  set
+    mainWindow
+    [ windowTitle := "S.A.R.A.H."
+    , windowDefaultWidth := 400
+    , windowDefaultHeight := 400
+    ]
+  on dr draw $ drawGrid1 pixbuf lat long
+  on mainWindow objectDestroy mainQuit
+  on lat  changeValue $ \a b -> do widgetQueueDraw dr; return False
+  on long changeValue $ \a b -> do widgetQueueDraw dr; return False
+  containerAdd mainWindow hb
+  widgetShowAll mainWindow
+
+  --   resume
+
+  mainGUI
+
+drawGrid1 pixbuf lat long = do
   scale 0.3 0.3
   setSourcePixbuf pixbuf 0 0
   Cairo.paint
   setSourceRGB 1 0 1
-  setLineWidth 5
+  setLineWidth 2
 
   -- let t = lamaziOfSph t1 . rofd2
-  let t = lamazi4 lamaziRR lamaziMat
+  lat1  <- liftIO $ rangeGetValue lat
+  long1 <- liftIO $ rangeGetValue long
+  let ll = [ lat1, long1 ]
+  let t = lamazi4 ll $ getlamaziMat ll
   newPath
-  sequence_ $ concat $ crossWith (\x y -> do movTo (t [[x, y]]); linTo (t [[x + 1, y]])) [-85, -84 .. 85] [-180, -175 .. 180]
-  sequence_ $ concat $ crossWith (\x y -> do movTo (t [[x, y]]); linTo (t [[x, y + 1]])) [-85, -80 .. 85] [-180, -179 .. 180]
+  sequence_ $ concat $ crossWith (\x y -> do movTo (t [[x, y]]); linTo (t [[x + 5, y]])) [-85, -80 .. 85] [-180, -175 .. 180]
+  sequence_ $ concat $ crossWith (\x y -> do movTo (t [[x, y]]); linTo (t [[x, y + 5]])) [-85, -80 .. 85] [-180, -175 .. 180]
   stroke
   setSourceRGB 0 1 0
   mapM_
@@ -655,7 +667,7 @@ gmv = do
   --  sequence $ concat $ crossWith (\y x -> callCommand ("mv earth6_" ++ fmt 2 y ++ "_" ++ fmt 3 (x - if x > 180 then 360 else 0) ++ ".png earth6_" ++ fmt 2 y ++ "_" ++ fmt1 3 x ++ ".png")) [-75, -50 .. 50] [30, 60]
   sequence $ concat $ crossWith (\y x -> callCommand ("mv earth6_" ++ fmt 2 y ++ "_" ++ fmt1 3 x ++ ".png earth6_" ++ fmt1 3 (y + 100) ++ "_" ++ fmt1 3 x ++ ".png")) [-75, -50 .. 50] [0, 30 .. 330]
 
-main =
+main1 =
   mapM_
     ( \n -> do
         setCurrentDirectory "/home/brett/Documents/Info/Atlas"
@@ -685,11 +697,14 @@ lvs =
   , [50, -125, 839, 346]
   , [50, -95, 3271, 734]
   , [50, -70, 5309, 419]
+  , [35, -120, 704, 2324]
+  , [35, -95, 3292, 2666]
+  , [35, -70, 5872, 2266]
   ]
 
-lls = take 6 $ map (take 2) lvs
+lls = take 9 $ map (take 2) lvs
 
-vs1 = take 6 $ map (drop 2) lvs
+vs1 = take 9 $ map (drop 2) lvs
 
 {-
 419, 3603 = 120W 25N
