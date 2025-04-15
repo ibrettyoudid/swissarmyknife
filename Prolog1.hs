@@ -1,7 +1,8 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiWayIf #-}
 
-module Prolog where
+module Prolog1 where -- one environment
 
 import Control.Concurrent.STM
 import Control.Monad.State
@@ -10,9 +11,20 @@ import Data.Map qualified as M
 import Data.IntMap qualified as I
 import Data.List
 
-data Expr = Apply [Expr] | E | I Int | Sym String | Str String | Var (TVar Expr) | Name String | List [Expr] | Imp [Expr] Expr deriving (Eq, Ord, Show)
+data Expr = 
+  Apply [Expr]
+   | E
+   | I Int
+   | Sym String 
+   | Str String 
+   | Var (TVar Expr)
+   | Name String 
+   | List [Expr] 
+   | Imp [Expr] Expr
+   | Branch [(Int, Expr)]
+   deriving (Eq, Ord, Show)
 
-data Env1 = Env1 Env Int deriving (Eq, Ord, Show)
+data Env1 = Env1 { eenv :: Env, evar :: Int, ebranch :: Int } deriving (Eq, Ord, Show)
 
 type Env = I.IntMap Expr
 
@@ -32,26 +44,26 @@ run db goal =
         new <- instantiate goal
         doOr db new
     )
-    $ Env1 I.empty 0
+    $ Env1 I.empty 0 0
 
 doClause db goal clause = do
   new <- instantiate clause
   let Apply (head1 : newgoals) = new
-  Env1 env vn <- get
+  Env1 env vn br <- get
   case execStateT (unify goal head1) env of
     Nothing -> lift []
     Just newenv -> do
-      put $ Env1 newenv vn
+      put $ Env1 newenv vn br
       doAnd db newgoals
 
-inst goal = runStateT (instantiate goal) $ Env1 I.empty 0
+inst goal = runStateT (instantiate goal) $ Env1 I.empty 0 0
 
 instantiate goal = do
-  Env1 env vn <- get
+  Env1 env vn br <- get
   let names = getNames goal
-  let vars = replicateM (length names) (newTVar E)
-  let new = rename (M.fromList $ zip names [vn ..]) goal
-  put $ Env1 env $ vn + length names
+  vars <- replicateM (length names) (newTVar E)
+  let new = rename (M.fromList $ zip names vars) goal
+  put $ Env1 env (vn + length names) br
   return new
 
 {-
@@ -88,7 +100,7 @@ expandTerm1 (Apply xs) a b = Apply (xs ++ [a, b])
 
 contractEnv env = I.map (contractSym . (`contractList` env)) env
 
-contractEnv1 (Env1 env _) = contractEnv env
+contractEnv1 (Env1 env _ _) = contractEnv env
 
 contractEList = map contractEnv1
 
@@ -119,7 +131,7 @@ rename env (Name n) = Var $ env M.! n
 rename env (Apply as) = Apply $ map (rename env) as
 rename _ x = x
 
-setv var val = modify (\env -> I.insert (getvarref var env) val env)
+setv var val = do writeTVar var val; return True
 
 getvarstate var = gets (getvar var)
 
@@ -146,23 +158,42 @@ Nothing
 Apply [Apply [Sym "append",Sym "nil",Name "Bs",Name "Bs"]]
 -}
 
-unify :: Expr -> Expr -> StateT Env Maybe ()
-unify (I      a) (I      b) = assert $ a == b
-unify (Sym    a) (Sym    b) = assert $ a == b
-unify (Str    a) (Str    b) = assert $ a == b
-unify (Apply as) (Apply bs) = do assert $ length as == length bs; zipWithM_ unify as bs
-unify (Var    a) (Var    b) = do
-  a1 <- getvarstate a
+
+
+unifyList bra brb as bs = 
+  if | null as && null bs -> return True
+     | null as || null bs -> return False
+     | otherwise -> do 
+          next <- unify bra brb (head as) (head bs)
+          if next
+            then unifyList bra brb (tail as) (tail bs)
+            else return False
+
+unifyList1 bra brb as bs = foldl (\done (a, b) -> do d <- done; if d then unify bra brb a b else return False) (return True) $ zip as bs
+
+--unifyList bra brb as bs = foldM (\done (a, b) -> do d <- done; if d then unify bra brb a b else return False) (return True) $ zip as bs
+
+unify :: Int -> Int -> Expr -> Expr -> STM Bool
+unify _   _   (I      a) (I      b) = return $ a == b
+unify _   _   (Sym    a) (Sym    b) = return $ a == b
+unify _   _   (Str    a) (Str    b) = return $ a == b
+unify bra brb (Apply as) (Apply bs) = do 
+  if length as /= length bs 
+    then return False 
+    else unifyList bra brb as bs
+
+unify bra brb (Var    a) (Var    b) = do
+  a1 <- readTVar a
   case a1 of
-    Nothing -> setv a (Var b)
-    Just a2 -> do
-      b1 <- getvarstate b
+    E -> setv a (Var b)
+    a2 -> do
+      b1 <- readTVar b
       case b1 of
-        Nothing -> setv b a2
-        Just b2 -> unify a2 b2
-unify (Var a) b = do a1 <- getvarstate a; case a1 of Nothing -> setv a b; Just a2 -> unify a2 b
-unify a (Var b) = do b1 <- getvarstate b; case b1 of Nothing -> setv b a; Just b2 -> unify a b2
-unify _ _ = assert False
+        E -> setv b a2
+        b2 -> unify bra brb a2 b2
+unify bra brb (Var a) b = do a1 <- readTVar a; case a1 of E -> setv a b; a2 -> unify bra brb a2 b
+unify bra brb a (Var b) = do b1 <- readTVar b; case b1 of E -> setv b a; b2 -> unify bra brb a b2
+unify bra brb _ _ = return False
 
 {- The result is a list of var assignments for each thread
  -
@@ -189,20 +220,34 @@ unify _ _ = assert False
  - is not a valid answer
  -
 
-{ a(X); b(X) }, { c(Y), d(Y) }
-
 sent --> np, vp.
 
 np --> det, n.
 
-det --> "a"
+det --> [a]
 
-det --> "the"
+det --> [the]
 
-n --> "car"
+n --> [car]
 
-n --> "bus"
+n --> [bus]
 
 vp --> vit
+
+det(E1, E2) :- E1 = [the | E2]
+det(E3, E4) :- E3 = [a   | E4]
+n  (E5, E6) :- E5 = [bus | E6]
+n  (E7, E8) :- E7 = [car | E8]
+np (EA, EC) :- det(EA, EB), n(EB, EC)
+
+? phrase([the,bus], X)
+
+np(X, [])
+det(X=EA, EB)
+det(X=EA=E1, EB=E2)
+det(X=EA=E1=[the|E2], EB=E2)
+
+
+
  - -}
 

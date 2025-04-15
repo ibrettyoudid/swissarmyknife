@@ -61,6 +61,10 @@ mmap a b = b >>= (return . a)
 instance Functor (State s) where
    fmap a b = do b1 <- b; return (a b1)
 -}
+untilM done action seed = do
+  new <- action seed
+  if done new then return new else untilM done action new
+
 main = repl
 
 repl :: IO ()
@@ -68,15 +72,24 @@ repl = do
   env <- convEnv env1
   repl1 [env]
 
+x = (:) <$> getLine
+
 repl1 :: Env -> IO ()
 repl1 env = do
   putStr "M#> "
   -- ex <- parseH <$> getLine
   hSetBinaryMode stdin True
   li <- getLine
-  putStrLn li
+  li2 <- if li == "\\"
+    then let 
+      aux = do
+        l <- getLine
+        if null l then return [] else do r <- aux; return (l:r)
+      in unlines <$> aux 
+    else return li
+  putStrLn li2
   putStrLn "parsing"
-  let ex = head $ S3.parse expr li
+  let ex = head $ S3.parse expr li2
   putStrLn "doing vars"
   let ex1 = runDoVars ex (map fconstr env)
   putStrLn "print ex"
@@ -268,7 +281,7 @@ wrapBlock expr = do
     Constr _ _ [] -> sres
     fnew1 -> Block u fnew1 sres
 -}
-findWithIndex p xs = withxfx (xs !!) <$> findIndex p xs
+findWithIndex p xs = find (p . snd) $ zip [0..] xs
 
 doVars :: Expr -> State [Constr] Expr
 doVars stat = case stat of

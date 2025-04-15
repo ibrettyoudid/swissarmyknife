@@ -201,7 +201,7 @@ data Expr
   | Case {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
   | Else
   | Exprs {etype :: MType, exprs1 :: [Expr]}
-  deriving (Typeable, Eq)
+  deriving (Typeable, Eq, Show)
 
 data Closure = Closure Constr Expr Env deriving (Typeable)
 
@@ -795,9 +795,6 @@ toIntegerm =
     , toDyn (round :: Rational -> Integer)
     ]
 
-instance Show Expr where
-  show = fromJust . fp expr
-
 instance Show Closure where
   show (Closure constr expr env) = "{" ++ show (Lambda u constr expr) ++ "}"
 
@@ -851,6 +848,7 @@ showl =
     , toDyn (show :: Day -> String)
     , toDyn (show :: Expr -> String)
     , toDyn (show :: Closure -> String)
+    , toDyn (fromJust . fp expr)
     ]
 
 u = unknown
@@ -952,7 +950,7 @@ applic =
 
 -- a :: A @ b :: B @ c :: C
 
-expr10 = "expr10" <=> opl ["@", "::"] expr10
+expr10 = "expr10" <=> opl ["@", "::"] applic
 
 expr9 = "expr9" <=> opr ["."] expr10
 
@@ -987,13 +985,13 @@ lambdaSyn =
 
 blockSyn =
   Iso
-    (\(params, exp) -> Just $ Block u (Co "" params) exp)
-    (\case Block _ (Co _ params) exp -> Just (params, exp); _ -> Nothing)
-    >$< text "begin " *< mem `sepBy` sepSpace >* sepSpace >*< groupOf expr0
+    (\exp -> Just $ Block u (Co "" []) exp)
+    (\case Block _ _ exp -> Just exp; _ -> Nothing)
+    >$< groupOf expr0
 
 dataSyn = valueIso >$< conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace
 
-expr = ifSyn <|> lambdaSyn <|> blockSyn <|> dataSyn <|> expr0
+expr = ifSyn <|> lambdaSyn <|> expr0
 
 exprs = groupOf expr
 

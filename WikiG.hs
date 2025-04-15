@@ -1,6 +1,6 @@
 {-# HLINT ignore "Move brackets to avoid $" #-}
 {-# HLINT ignore "Use head" #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
 -- Copyright 2025 Brett Curtis
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -21,17 +21,21 @@ import Data.Char
 import Data.List
 import Data.Map qualified as M
 
-import Control.Monad
+import Control.Monad hiding (join)
 
 -- wikiTable m i u = fromGrid i $ textGrid $ wikiTable m u
 
 wikiTable m = cTextTableH . getWikiTable m
+wikiTableD m = cTextTableHD . getWikiTable m
 wikiTables m = cTextTablesH . getWikiTables m
+wikiTablesD m = cTextTablesHD . getWikiTables m
 
 cTextTable = fromGrid . cTextGrid
 cTextTableH = fromGridH . cTextGridH
+cTextTableHD = fromGridHD . cTextGridH
 cTextTables = map cTextTable
 cTextTablesH = map cTextTableH
+cTextTablesHD = map cTextTableHD
 
 wikiTextGrid m = cTextGrid . getWikiTable m
 wikiTextGridH m = cTextGridH . getWikiTable m
@@ -44,7 +48,7 @@ wikiGrids m = map cGrid . getWikiTables m
 wikiGridsH m = map cGridH . getWikiTables m
 
 getWikiTable m = head . getWikiTables m
-getWikiTables m title = filterWikiTables $ getNested m $ wiki title
+getWikiTables m title = filterWikiTables $ readNestedUrl m $ wiki title
 filterWikiTables = findTrees (\t -> tagType t == "table" && classCon "wikitable" t)
 
 wiki title = "https://en.wikipedia.org/wiki/" ++ spacesToUnders title
@@ -68,17 +72,24 @@ wikiHist m p =
 
 wikiHist1 m p = putGrid $ transpose1 $ map showT $ wikiHist m p
 
+a -= b = join jInner (toDyn "") a b
+
 nobels1 m = findClasses "mw-parser-output" $ getNested m $ wiki "List of Nobel laureates by country"
 
 nato m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 2, ())) $ drop 1 $ cGridH $ getWikiTable m "Member states of NATO"
 
-europe m = by (? "country") $ fromGridH1 ["country", "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
+cont m = by (? "country") $ setFields ["country", "geo", "inter", "continent"] $ wikiTableD m "List of countries and territories by the United Nations geoscheme"
 
-gdp m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 0, readInt $ extractText $ row !! 2)) $ drop 3 $ cGridH $ getWikiTable m "List of countries by GDP (PPP)"
+europe m = byl [(? "country")]
+  $ fromGridH1 ["country", "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
 
-cpop m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 1, readInt $ extractText $ row !! 2)) $ drop 1 $ cGridH $ getWikiTable m "List of countries and dependencies by population"
+gdp m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (nominal)"
 
-area m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 1, readInt $ extractText $ row !! 2)) $ drop 1 $ cGridH $ getWikiTable m "List of countries and dependencies by area"
+gdp1 m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (PPP)"
+
+cpop m = by (? "Location") $ wikiTableD m "List of countries and dependencies by population"
+
+area m = by (? "country") $ setFields ["rank", "country", "area", "land area", "water area", "%water", "blah"] $ wikiTableD m "List of countries and dependencies by area"
 
 mileq m =
   by (? "country")
@@ -92,10 +103,22 @@ mileq m =
     $ drop 1
     $ wikiGridH m "List of countries by level of military equipment"
 
-eumil m = let
-  me = mileq m
-  eu = europe m
-  in Table1G.join (toDyn "") eu me
+milper m = by (? "Country") $ wikiTableD m "List of countries by number of military and paramilitary personnel"
+
+join2 xs = foldl1 (joinCollectMisses jLeft (toDyn "")) xs
+
+stats m = foldl1 (join jLeft (toDyn "")) [cont m, fst $ gdph m, fst $ gdph1 m, cpop m, area m, mileq m, milper m]
+
+gdph m = foldl1 (joinCollectMisses jLeft (toDyn "")) $ map (miss . by (? "country") . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
+
+gdph1 m = foldl1 (joinCollectMisses jLeft (toDyn "")) $ map (miss . by (? "country") . setFields ["country"])$ take 5 $ wikiTablesD m "List of countries by past and projected GDP (PPP)"
+
+
+
+eustats m = foldSubTable3 sum
+  $ byl [(? "isRussia"), (? "country")]
+  $ addCalcField "isRussia" (\r -> toDyn (r ? "country" == toDyn "Russia")) 
+  $ join jInner (toDyn "") (europe m) (stats m)
 -- milper m = fromGridN 0 $ map (\row -> (extractText $ findType "a" $ row !! 1) : (map extractText $ drop 2 row)) $ convertGridH $ wikiTable m "List of countries by number of military and paramilitary personnel"
 
 text1 t =
@@ -302,7 +325,7 @@ u = "Comparison_of_HTML_editors"
 
 wikiJoin m url = putGrid $ transpose $ joinTLists "" $ map init $ wikiTextGridsH m url
 
-writeCsv file grid = writeFileBinary file $ HTML.bsofs $ unlines $ map (intercalate "," . map quote) grid
+writeCsv file grid = writeFileBinary file $ HTML.bsofs $ unlines $ map (intercalate "," . map show) grid
 
 huge m = do
   let url = wiki "Lists of sovereign states and dependent territories.html"
@@ -318,10 +341,10 @@ huge m = do
     concat
       <$> mapM
         ( \n -> do
-            putStrLn $ show n
+            print n
             g <- readNestedUrl1 m $ links1 !! n
             let g1 = map cTextGridH $ filterWikiTables g
-            mapM (putGrid . transpose) g1
+            mapM_ (putGrid . transpose) g1
             let g2 = map (tmofl1 (links0 !! n)) g1
             return g2
         )
@@ -345,9 +368,11 @@ huge1 m = do
   let links0 = reverse $ concat links
   let links1 = map (relTo url) links0
   putStrLn $ show (length links1) ++ " pages to get"
+  
   res <- foldM (cjpage m) ([], M.empty) links0
   writeCsv "countries.csv" $ loftm1 ("", "") res
   return res
+  
 
 cjpage m tm url = do
   h <- readNestedUrl1 m url
@@ -361,6 +386,7 @@ cjpage m tm url = do
   foldM cjgrid2 tm gs3
 
 gd g = show (length $ (\(h : _) -> h) g) ++ "x" ++ show (length g)
+
 tmd (f, r) = show (length f) ++ "x" ++ show (M.size r)
 
 cjgrid1 u g =
@@ -374,16 +400,38 @@ cjgrid2 tm1 g2 = do
   putStrLn $ "grid=" ++ tmd g2 ++ " accum=" ++ tmd res ++ " fields=" ++ show (let f = fst g2 in map fst (take 1 f) ++ map snd f)
   return res
 
+hugeA m = do
+  let url = wiki "states0.html"
+  index <- readNestedUrl1 m url
+  let lists = concatMap (findTypes "li") $ findTypes "ul" index
+  let names = map extractText lists
+  let links = map extractLinks lists
+  putGrid $ names : transposez "" links
+  let links0 = concat links
+  let links1 = map (relTo url) links0
+  putStrLn $ show (length links1) ++ " pages to get"
+  (res, miss) <- foldM (cjpageA m) (stats m, []) links0
+  --writeCsv "countries.csv" $ loftm1 ("", "") res
+  writeFile "countriesbig.csv" $ toCsv res
+  writeFile "misses.csv" $ concatMap toCsv miss
+
+cjpageA m tm url = do
+  h <- readNestedUrl1 m url
+  let gs1 = filterWikiTables h
+  putStrLn $ show (length gs1) ++ " grids"
+  let gs2 = map miss $ mapMaybe (cjgridA1 url) gs1
+  foldM cjgridA2 tm gs2
+
 cjgridA1 u g =
   let
     tg = cTextGridH g
    in
-    ifJust (not $ classCon "mw-collapsed" g) $ fromGridHD u tg
+    ifJust (not $ classCon "mw-collapsed" g) $ fromGridHD tg
 
-cjgridA2 tm1 g2 = do
-  let res = Table1G.join (toDyn "") tm1 g2
+cjgridA2 (g1, miss1) (g2, miss2) = do
+  let (res, miss) = joinCollectMisses jInner (toDyn "") (g1, miss1) (g2, miss2)
   putStrLn $ "res=" ++ showTableMeta res
-  return res
+  return (res, miss)
 
 toElems (fs, rs) = sort $ concat $ crossWith (\f (i, r) -> ((i, fs !! f), r !! f)) [0 .. length fs - 1] $ M.toList rs
 fromElems ifcs =

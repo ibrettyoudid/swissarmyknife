@@ -3,14 +3,13 @@
 
 module Prolog where
 
-import Control.Concurrent.STM
 import Control.Monad.State
 import Data.Char
 import Data.Map qualified as M
 import Data.IntMap qualified as I
 import Data.List
 
-data Expr = Apply [Expr] | E | I Int | Sym String | Str String | Var (TVar Expr) | Name String | List [Expr] | Imp [Expr] Expr deriving (Eq, Ord, Show)
+data Expr = Apply [Expr] | I Int | Sym String | Str String | Var Int | Name String | List [Expr] | Imp [Expr] Expr deriving (Eq, Ord, Show)
 
 data Env1 = Env1 Env Int deriving (Eq, Ord, Show)
 
@@ -49,7 +48,6 @@ inst goal = runStateT (instantiate goal) $ Env1 I.empty 0
 instantiate goal = do
   Env1 env vn <- get
   let names = getNames goal
-  let vars = replicateM (length names) (newTVar E)
   let new = rename (M.fromList $ zip names [vn ..]) goal
   put $ Env1 env $ vn + length names
   return new
@@ -188,21 +186,4 @@ unify _ _ = assert False
  - Y = "hello"
  - is not a valid answer
  -
-
-{ a(X); b(X) }, { c(Y), d(Y) }
-
-sent --> np, vp.
-
-np --> det, n.
-
-det --> "a"
-
-det --> "the"
-
-n --> "car"
-
-n --> "bus"
-
-vp --> vit
  - -}
-

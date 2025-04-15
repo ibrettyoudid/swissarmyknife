@@ -80,6 +80,9 @@ class (IsoFunctor delta, ProductFunctor delta, Alternative delta) => Syntax delt
   groupOf :: delta alpha -> delta [alpha]
   (<=>) :: String -> delta alpha -> delta alpha
 
+class SyntaxP f where
+  (>><) :: f b c -> f a b -> f a c
+
 class (Syntax delta) => SyntaxA string delta where
   textA :: string -> delta ()
 
@@ -209,21 +212,21 @@ occur. It accepts arbitrary space while parsing, and produces
 no space while printing.
 -}
 skipSpace :: (Syntax delta) => delta ()
-skipSpace = ignore [] >$< many (text " ")
+skipSpace = ignore [] >$< many (satisfy isSpace >$< token)
 
 {- | `optSpace` marks a position where whitespace is desired to occur.
 It accepts arbitrary space while parsing, and produces a
 single space character while printing.
 -}
 optSpace :: (Syntax delta) => delta ()
-optSpace = ignore [()] >$< many (text " ")
+optSpace = ignore " " >$< many (satisfy isSpace >$< token)
 
 {- | `sepSpace` marks a position where whitespace is required to
 occur. It requires one or more space characters while parsing,
 and produces a single space character while printing.
 -}
 sepSpace :: (Syntax delta) => delta ()
-sepSpace = text " " >* skipSpace
+sepSpace = ignore " " >$< many1 (satisfy isSpace >$< token)
 
 -------------------------------------------------------------------------------
 {-
@@ -308,8 +311,8 @@ instance Syntax Parser where
       ( \s ->
           case mode s of
             First -> p s{mode = Inner, indent = column s}
-            Next -> if column s == indent s then p s{mode = Inner} else []
-            Inner -> if column s > indent s then p s else []
+            Next  -> if column s == indent s then p s{mode = Inner} else []
+            Inner -> if column s >  indent s then p s else []
       )
 
   -- groupOf (Parser p) = Parser (\s -> groupOf1 p s { mode = First })
@@ -329,19 +332,14 @@ groupOfLB p = groupOfL p <|> groupOfB p
 
 groupOfB p = text "{" *< (cons >$< p >*< many (text ";" *< p {- >* text ";" -})) >* text "}"
 
-groupOfL p =
-  Parser
-    ( \s ->
-        let
-          Parser p1 =
-            cons
-              >$< setMode First
-              *< p
-              >*< many (setMode Next *< p)
-              >* setState (\s2 -> s2{mode = mode s, column = column s})
-         in
-          p1 s
-    )
+groupOfL p = Parser (\s -> let
+                  Parser p1 = cons 
+                      >$< setMode First 
+                      *< p 
+                      >*< many (setMode Next *< p)
+                      >* setState (\s2 -> s2{mode = mode s, column = column s})
+                  
+                  in p1 s)
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Atto
@@ -594,8 +592,8 @@ text1 t = "text " ++ t <=> text1a t
 
 lexi l = optSpace *< l
 
-letter = subset isLetter >$< token
-digit = subset isDigit >$< token
+letter = satisfy isLetter >$< token
+digit = satisfy isDigit >$< token
 
 -- identifier = cons >$< letter >*< many (letter <|> digit)
 identifier = many1 letter
@@ -637,7 +635,7 @@ rep p 0 = pure []
 rep p n = total (uncurry (:)) (\(a : b) -> (a, b)) >$< p >*< rep p (n - 1)
 
 frame23 =
-  subset (\(a, (b, (c, d))) -> length d == b)
+  satisfy (\(a, (b, (c, d))) -> length d == b)
     >$< rep token 4
     >*< int4 0x100
     >*< int2 0x100
@@ -769,8 +767,8 @@ match1 x =
 
 -- restricted to elements matching the predicate.
 
-subset :: (alpha -> Bool) -> Iso alpha alpha
-subset p = Iso f f
+satisfy :: (alpha -> Bool) -> Iso alpha alpha
+satisfy p = Iso f f
  where
   f x | p x = Just x | otherwise = Nothing
 
