@@ -1150,3 +1150,5 @@ dist-newstyle/cache/source-hashes
 dist-newstyle/cache/up-to-date
 countries.csv
 Atlas
+dist-newstyle/cache/compiler
+dist-newstyle/cache/config
