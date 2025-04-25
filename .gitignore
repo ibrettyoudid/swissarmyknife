@@ -1152,3 +1152,4 @@ countries.csv
 Atlas
 dist-newstyle/cache/compiler
 dist-newstyle/cache/config
+dist/build
