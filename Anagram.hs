@@ -2,12 +2,18 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# LANGUAGE TupleSections #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
+
+module Anagram where
+
 import Favs
 import MyPretty2
 import Shell
 
+import Debug.Trace
+
 import qualified Data.Set as S
 import qualified Data.Map as M
+import qualified Data.Map.Internal as M
 import System.Directory
 import System.IO.Unsafe
 import Data.Char
@@ -20,7 +26,7 @@ import Control.Monad.Trans.State.Lazy
 --path = "d:/code/bcb/anagram/words/"
 path = "/mnt/sol/Code/BCB/Anagram/words/"
 
-vocab = vocab0
+vocab = vocab3
 
 -- filter reversible words (argument is a list of words)
 vocabr v = let forwards  = S.fromList v
@@ -32,6 +38,8 @@ vocab0 = voc 100
 vocab1 = filter (notElem '\'') $ words $ map toLower $ readFileU "d:/code/bcb/anagram/words/english-words.50"
 
 vocab2 = words $ map toLower $ readFileU (path ++ "scrabble.35")
+
+vocab3 = words $ map toLower $ readFileU "/home/brett/swissarmyknife/scrabble.txt"
 
 -- list english words up to a particular number
 voc n = nubSet $ (["a","i","o"]++) $ concatMap vocf $ filter (vf n) $ names path
@@ -62,6 +70,8 @@ type Subgrams = M.Map (M.Map Char Integer) [(String, M.Map Char Integer)]
 newtype Dag = Dag [(String, Dag)]
 
 letters = "quginhrjbtvco"
+
+reversible = S.toList (S.fromList vocab  `S.intersection` S.fromList (map reverse vocab))
 
 mm l = mapFromList (+) 0 $ map (,1) l
 
@@ -123,19 +133,31 @@ newtype Tree = Tree (M.Map (M.Map Char Int) Tree)
 
 untree (Tree t) = t
 
+anagrams le = 1
+
 anagramsmwc le = let
    lm = mm le
-   sl = subletters lm
-   li = S.toList sl
-   ma = M.fromList $ mapxfx (\m -> Tree $ M.fromList $ mapxfx ((ma M.!) . fromJust . subtract1 m) $ S.toList $ subgrams1 m) li
+   ma = M.fromList 
+      $ mapxfx 
+         (\m -> Tree 
+            $ M.fromList 
+            $ mapxfx (fromJust . (`M.lookup` ma) . fromJust . subtract2 m) 
+            $ S.toList 
+            $ subgrams1 m)
+      $ S.toList
+      $ subletters lm
    in anagramsmwc1 (ma M.! lm) lm lm []
 
-anagramsmwc1 (Tree ma) mi ml w
-   | M.size ml == 0 = [w]
-   | otherwise = let
-      --s1 = snd $ M.split mi $ untree $ ma M.! ml
-
-      in concatMap (\(m, tr) -> anagramsmwc1 tr m (fromJust $ subtract1 ml m) (unmm m : w)) $ M.toList $ snd $ M.split mi ma
+anagramsmwc1 (Tree branch) split left done
+   | M.size left == 0 = done
+   | otherwise = concatMap (\(next, newtree) -> anagramsmwc1 
+                                             newtree
+                                             next
+                                             (fromJust $ subtract2 left next)
+                                             (unmm next : done)) 
+      $ M.toList 
+      $ snd 
+      $ M.split split branch
 
 anagramsmwd1 s m w
    | M.size m == 0 = return [w]
@@ -143,7 +165,7 @@ anagramsmwd1 s m w
       print w
       let s1 = S.intersection s $ subletters m
 
-      concat <$> (mapM (\m1 -> anagramsmwd1 s1 (fromJust $ subtract1 m m1) (w ++ [unmm m1])) $ {- rsortBy length $ -} S.toList s1)
+      concat <$> (mapM (\m1 -> anagramsmwd1 s1 (fromJust $ subtract2 m m1) (w ++ [unmm m1])) $ {- rsortBy length $ -} S.toList s1)
 
 subletters l = let
    l1 = M.toList l
@@ -166,21 +188,24 @@ subgrams2 l = mapMaybe (subtract1 l)
 
 --subtract2 a b = 
 
+some = or .: map
+
 subtract2 a b = let
    i = M.intersectionWith (-) a b
-   d1 = M.difference a b
-   d2 = M.difference b a
-   in if d2 == M.empty && all ((>= 0) . snd) (M.toList i)
-         then Just $ M.union i d1
+   amb = M.difference a b
+   bma = M.difference b a
+   ns = map snd $ M.toList i
+   in if bma == M.empty && all (>= 0) ns
+         then Just $ M.union i amb
          else Nothing
 
 subtract1 a b = let
-   r = M.mergeWithKey combine2 id (M.map negate) a b
-   in if all ((> 0) . snd) (M.toList r) then Just r else Nothing
+   r = M.merge M.preserveMissing M.dropMissing (M.zipWithMaybeMatched combine2) a b
+   in if all ((>= 0) . snd) (M.toList r) then Just r else Nothing
 
 subtracts a b = unmm1 $ fromJust $ subtract1 (mm a) (mm b)
 
-combine2 k a b = predJust (/= 0) $ a - b
+combine2 k a b = ifPred (/= 0) $ a - b
 
 newtype Memo k a r = Memo (k -> State (Memo k a r, k, M.Map k a) r)
 
