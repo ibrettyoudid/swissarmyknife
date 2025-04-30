@@ -1153,3 +1153,4 @@ Atlas
 dist-newstyle/cache/compiler
 dist-newstyle/cache/config
 .vscode/settings.json
+dist/build
