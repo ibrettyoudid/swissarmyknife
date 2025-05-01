@@ -37,21 +37,24 @@ askPlayer = do
 askComputer = toEnum <$> randomRIO (0, 2) :: IO Play
 
 askComputer1 history = do
-    let (lastp, lastc, result, winning) = unzip4 history
+    let (lastp, lastc, result, winning) = unzip4 $ take 20 history
     let l = length winning
     if
         | l == 0 -> askComputer
         | l == 1 -> return $ beats $ beats $ head winning
         -- | l == 2 -> return $ beats $ toEnum $ mod (fromEnum (head winning) + difference (head winning) (winning !! 1)) 3
         | l >= 2 -> return $ beats $ snd $ maximum
-                [ predict winning lastp
-                , predict lastp   lastp
-                , predict lastc   lastp
+                [ predict  winning lastp
+                , predict  lastp   lastp
+                , predict  lastc   lastp
+                , predict3 winning lastp
+                , predict3 lastp   lastp
+                , predict3 lastc   lastp
                 ]
 
 predict inp out = let
     z = zipWith3 predict1 (tail inp) out inp
-    in (sum $ map fst $ filter snd $ zip (iterate (*0.7) 1) $ take 10 $ zipWith (==) (tail z) out, head z)
+    in (sum $ map fst $ filter snd $ zip (iterate (*0.5) 0.5) $ zipWith (==) (tail z) out, head z)
 
 predict1 inp2 out1 inp1 = toEnum $ mod (fromEnum inp1 + difference out1 inp2) 3
 
@@ -63,7 +66,7 @@ predict2 inp out = let
 
 predict3 inp out = let
     --p = M.map (combine (+) 0 . flip zip (iterate (*0.5) 1)) $ multimap $ zip (tail inp) out
-    pat = M.toList $ M.map (certainty . map tflip . combine (+) 0 . flip zip (iterate (*0.5) 1)) $ multimap $ zip (tail inp) out
+    pat = M.toList $ M.map (certainty . map tflip . combine (+) 0 . flip zip (iterate (*0.7) 0.3)) $ multimap $ zip (tail inp) out
     prob = sum $ map (fst . snd) pat
     pred = lookup (head inp) pat
     in case pred of
@@ -92,7 +95,8 @@ gameLogic player computer = if
         
 beats play = if play == Scissors then Rock else succ play
 
-game history = do
+game history scores@(playerScore, computerScore) = do
+    putStrLn $ "player " ++ show playerScore ++ " computer " ++ show computerScore
     playerAct <- askPlayer
     computer <- askComputer1 history
 
@@ -102,16 +106,20 @@ game history = do
             putStrLn $ "computer plays " ++ show computer
             let result = gameLogic player computer
             print result
+            let newscores = case result of
+                    PlayerWin   -> (playerScore + 1, computerScore)
+                    ComputerWin -> (playerScore, computerScore + 1)
+                    _           -> scores
             let winning = case result of
                     PlayerWin   -> player
                     ComputerWin -> computer
                     Draw        -> player
-            game ((player, computer, result, winning):history)
+            game ((player, computer, result, winning):history) newscores
                 
         Unknown -> do
             putStrLn "i don't understand"
-            game history
+            game history scores
 
         Exit -> return ()
 
-main = game []
+main = game [] (0, 0)
