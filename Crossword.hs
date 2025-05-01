@@ -1,6 +1,9 @@
 -- Copyright 2025 Brett Curtis
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
+
+module Crossword where
+
 import Favs
 import MyPretty2
 import Shell
@@ -15,13 +18,25 @@ import Data.Maybe
 import Control.Parallel.Strategies
 
 --path = "d:/code/bcb/anagram/words/"
-path = "/mnt/sol/Code/BCB/Anagram/words/"
+--path = "/mnt/sol/Code/BCB/Anagram/words/"
+path = "/home/brett"
 
 palindromes = filter isPalindrome vocab
-
+{-
+>>> palindromes
+["aa","aba","abba","acca","aga","aha","aia","aka","ala","alula","ama","ana","anana","anna","araara","ataata","aua","ava","awa","ayaya","bib",
+"bob","boob","bub","civic","dad","deed","degged","deified","deked","deled","denned","dered","dewed","did","dod","dud","ecce","ee","eke","eme",
+"ene","ere","esse","eve","ewe","eye","gag","gig","goog","hadedah","hah","hajjah","halalah","hallah","heh","hoh","huh","iwi","kaiak","kak",
+"kayak","keek","kook","lahal","laval","lemel","level","madam","malam","mallam","mam","marram","mem","mim","minim","mm","mmm","mom","mum",
+"naan","nan","non","noon","nun","obo","oho","ono","oo","oppo","otto","oxo","pap","peep","pep","pip","poop","pop","pullup","pup","qajaq",
+"radar","redder","refer","reifier","repaper","reviver","rotator","rotavator","rotor","sagas","samas","sedes","sees","seities","seles",
+"selles","sememes","semes","senes","seres","serres","sesses","sexes","shahs","simis","siris","sis","slahals","solos","sos","stats","stets",
+"stots","succus","sulus","sus","susus","tallat","tat","tenet","terret","tet","tirrit","tit","toot","torot","tot","tut","ulu","umu","utu",
+"vav","waw","wow","yay","ziz","zuz","zzz"]
+-}
 isPalindrome w = w == reverse w
 
-vocab = vocab0
+vocab = vocabl
 
 vocabr = vocabrf vocab
 
@@ -34,7 +49,7 @@ vocab0 = voc 95
 
 vocab1 = filter (notElem '\'') $ words $ map toLower $ readFileU "d:/code/bcb/anagram/words/english-words.50"
 
-vocabl = words $ map toLower $ readFileU "d:/code/bcb/anagram/words/scrabble.50"
+vocabl = words $ map toLower $ readFileU "/home/brett/swissarmyknife/scrabble.txt"
 
 -- list english words up to a particular number
 voc n = ("biden":) $ nubSet $ concatMap vocf $ filter (vf n) $ paths path
