@@ -321,7 +321,7 @@ jRight = (False, True , True )
 jOuter = (True , True , True )
 
 join include empty l r =
-  let 
+  let
     (flr, j1) = joinClear empty l r
   in
     Table flr $ INode $ joinInclude include j1
@@ -357,6 +357,9 @@ joinAux empty (Table fieldsl (INode rl)) (Table fieldsr (INode rr)) =
     i = M.intersectionWith fi rl rr
   in
     (fieldslr, l1, i, r1, fl, fi, fr)
+
+--index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Rec $ T.fromElems [toDyn ""]) xs
+index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs $ tz [Rec $ T.fromElems [toDyn ""]]) xs
 
 appendFields fieldsl fieldsr = uniquify $ M.toList fieldsl ++ M.toList fieldsr
 
@@ -462,7 +465,7 @@ appendRec2 l r = Record (appendFields2 (fieldsr l) (fieldsr r)) $ T.append 0 (va
 insertWith3 (k, v) m = M.insert (forFJ ("" : map show [2 ..]) (\n -> let k1 = reverse (dropWhile isDigit $ reverse k) ++ n in case M.lookup k1 m of Nothing -> Just k1; Just _ -> Nothing)) v m
 
 insertWith4 (k, v) m = case M.lookup k m of
-  Just j -> let 
+  Just j -> let
     k1 = takeWhile (/= '_') k -- reverse (dropWhile isDigit $ reverse k)
     n1 = readInt $ '0' : drop (length k1 + 1) k
     {-
@@ -471,7 +474,7 @@ insertWith4 (k, v) m = case M.lookup k m of
     -}
     in let
       k3 = head $ mapMaybe (\n2 -> let
-        k2 = k1 ++ '_' : show n2 
+        k2 = k1 ++ '_' : show n2
         in case M.lookup k2 m of
             Just j2 -> Nothing
             Nothing -> Just k2) [n1+1..]
@@ -537,4 +540,4 @@ lookupr k r = let n = fieldsr r M.! k in case values r T.! n of
 (?) = flip lookupr
 
 --(??) :: (Ord [f]) => Record [f] t -> [f] -> t
-r ?? k = fromJust $ (values r T.!) $ snd $ fromJust $ find (isInfixOf k . map toLower . fst) $ M.toList $ fieldsr r 
+r ?? k = fromJust $ (values r T.!) $ snd $ fromJust $ find (isInfixOf k . map toLower . fst) $ M.toList $ fieldsr r

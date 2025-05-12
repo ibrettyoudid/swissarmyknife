@@ -121,6 +121,8 @@ eustats m = foldSubTable3 sum
   $ join jInner (toDyn "") (europe m) (stats m)
 -- milper m = fromGridN 0 $ map (\row -> (extractText $ findType "a" $ row !! 1) : (map extractText $ drop 2 row)) $ convertGridH $ wikiTable m "List of countries by number of military and paramilitary personnel"
 
+ip m = join jInner (toDyn "") (index $ map toDyn ["India", "Pakistan"]) $ stats m
+
 text1 t =
   let
     as = findTypes "a" t

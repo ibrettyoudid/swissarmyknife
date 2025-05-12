@@ -47,12 +47,13 @@ vocabrf v = let forwards  = S.fromList v
 
 vocab0 = voc 95
 
-vocab1 = filter (notElem '\'') $ words $ map toLower $ readFileU "d:/code/bcb/anagram/words/english-words.50"
+vocab1 = filter (notElem '\'') $ words $ map toLower $ readFileU "words/english-words.50"
 
-vocabl = words $ map toLower $ readFileU "/home/brett/swissarmyknife/scrabble.txt"
+vocabl = words $ map toLower $ readFileU "scrabble.txt"
+--vocabl = words $ map toLower $ readFileU "/home/brett/swissarmyknife/scrabble.txt"
 
 -- list english words up to a particular number
-voc n = ("biden":) $ nubSet $ concatMap vocf $ filter (vf n) $ paths path
+voc n = ("biden":) $ nubSet $ concatMap vocf $ filter (vf n) $ paths "."
 
 vf n f = let lst = split "." f in case lst of 
                                          -- [a, b]    -> readInt b <= n
@@ -126,14 +127,17 @@ fmt [] = return ()
 fmt r  = do 
    let x0   = length $ head $ head r
    let x1   = (x0 + 1) * 2 + 3
-   let n    = min (length r) $ width `div` x1
+   let n    = width `div` x1
+   mapM_ (fmt0 n) $ groupN n r
+
+fmt0 n [] = return ()
+fmt0 n r  = do
    let nrh  = take n r
    let nrv  = map transpose nrh
    let nrht = transpose nrh
    let nrvt = transpose nrv
    putLines $ map concat $ zipWith (zipWith (\h v -> h ++ " " ++ v ++ "    ")) nrht nrvt
    putStrLn ""
-   fmt $ drop n r
 
 fmt1 r = mapM_ formatResult r
 
