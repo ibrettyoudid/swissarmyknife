@@ -24,10 +24,10 @@ data Rule
 --    EIso    :: Iso alpha beta -> Rule alpha -> Rule beta
 
 instance Eq Rule where
-   Seq as == Seq bs = as == bs
-   Alt as == Alt bs = as == bs
-   Name a _ == Name b _ = a == b
-   Token a == Token b = a == b
+   Seq   as  == Seq   bs  = as == bs
+   Alt   as  == Alt   bs  = as == bs
+   Name  a _ == Name  b _ = a == b
+   Token a   == Token b   = a == b
    Range a c == Range b d = a == b && c == d
    _ == _ = False
 

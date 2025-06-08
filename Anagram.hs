@@ -24,9 +24,10 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
 
 --path = "d:/code/bcb/anagram/words/"
-path = "/mnt/sol/Code/BCB/Anagram/words/"
+path = "words/"
+--path = "/mnt/sol/Code/BCB/Anagram/words/"
 
-vocab = vocab3
+vocab = vocab0
 
 -- filter reversible words (argument is a list of words)
 vocabr v = let forwards  = S.fromList v
@@ -141,7 +142,7 @@ anagramsmwc le = let
       $ mapxfx 
          (\m -> Tree 
             $ M.fromList 
-            $ mapxfx (fromJust . (`M.lookup` ma) . fromJust . subtract2 m) 
+            $ mapxfx (fromJust . (`M.lookup` ma) . fromJust . subtract1 m) 
             $ S.toList 
             $ subgrams1 m)
       $ S.toList
@@ -153,7 +154,7 @@ anagramsmwc1 (Tree branch) split left done
    | otherwise = concatMap (\(next, newtree) -> anagramsmwc1 
                                              newtree
                                              next
-                                             (fromJust $ subtract2 left next)
+                                             (fromJust $ subtract1 left next)
                                              (unmm next : done)) 
       $ M.toList 
       $ snd 
@@ -165,7 +166,7 @@ anagramsmwd1 s m w
       print w
       let s1 = S.intersection s $ subletters m
 
-      concat <$> (mapM (\m1 -> anagramsmwd1 s1 (fromJust $ subtract2 m m1) (w ++ [unmm m1])) $ {- rsortBy length $ -} S.toList s1)
+      concat <$> (mapM (\m1 -> anagramsmwd1 s1 (fromJust $ subtract1 m m1) (w ++ [unmm m1])) $ {- rsortBy length $ -} S.toList s1)
 
 subletters l = let
    l1 = M.toList l
@@ -205,7 +206,7 @@ subtract1 a b = let
 
 subtracts a b = unmm1 $ fromJust $ subtract1 (mm a) (mm b)
 
-combine2 k a b = ifPred (/= 0) $ a - b
+combine2 k a b = Just $ a - b
 
 newtype Memo k a r = Memo (k -> State (Memo k a r, k, M.Map k a) r)
 

@@ -19,11 +19,38 @@ import Control.Parallel.Strategies
 
 --path = "d:/code/bcb/anagram/words/"
 --path = "/mnt/sol/Code/BCB/Anagram/words/"
-path = "/home/brett"
+path = "/home/brett/swissarmyknife/words/"
 
 palindromes = filter isPalindrome vocab
 {-
 >>> palindromes
+["a","aa","aaa","aaaa","aaaaaa","aba","ababa","abba","acca","ada","adda","addda","adinida","aea","aeaea","aenea","afa","affa","aga","aha",
+"aia","aja","ajaja","aka","akka","ala","alala","alla","alula","ama","amma","ana","anana","anna","anona","aoa","apa","ara","arara","ardra",
+"asa","ata","atta","aua","ava","aviva","awa","axa","aziza","b","bab","bb","bbb","bcb","beeb","bib","bob","boob","bub","c","cac","camac",
+"capac","cbc","cc","ccc","cdc","cec","cfc","cic","civic","cmc","cnc","coc","cpc","crc","csc","ctc","cttc","cwc","cyc","d","dad","dcd","dd",
+"ddd","deced","ded","deed","deedeed","degged","deified","deked","deled","denned","dered","dewed","dfd","did","divid","dmd","dod","drd","dsd",
+"dtd","dud","dvd","e","ecce","ece","ede","ee","eee","eke","ele","eleele","elle","eme","ene","enone","eoe","ere","ese","esse","eve","ewe",
+"exe","eye","f","ff","fsf","g","gag","gbg","gcg","gg","gig","gog","goog","h","hagigah","hah","halalah","hallah","hannah","harrah","heh",
+"hh","hih","hoh","hrh","hsh","huh","i","ici","idi","igigi","ihi","ii","iii","imi","immi","ipi","iri","isi","issi","j","jj","k","kaiak",
+"kakkak","kanak","kassak","kayak","kazak","keek","kelek","kerek","keyek","kinnikinnik","kkk","kodok","kook","l","lal","lasal","laval",
+"lbl","lccl","lcl","ldl","lemel","level","lil","ll","lpl","ltl","lwl","m","ma'am","maam","madam","malam","malayalam","mallam","mam","marram",
+"mbm","mdm","mem","mesem","mfm","mgm","mim","minim","mm","mmm","mmmm","mom","mrsrm","msm","mtm","mum","murdrum","mwm","mym","n","naan",
+"naman","nan","nauruan","nefen","neven","nitin","non","noon","noxon","noyon","npn","ntn","nun","o","oao","obo","oco","odo","oeo","ofo",
+"ogo","oho","ono","oo","oooo","oppo","oruro","oso","oto","ottetto","otto","oxo","oyo","p","pap","pcp","pdp","peep","peeweep","pep","pip",
+"plp","pnp","poop","pop","pp","ppp","prp","psp","ptp","pullup","pup","pvp","q","qq","r","racecar","radar","rar","redder","refer","reger",
+"reifier","remer","remmer","renner","repaper","retter","rever","reviver","rexer","rmr","rnr","rotator","rotavator","rotor","rr","rsfsr",
+"rsr","rtr","s","s's","sagas","salas","samas","sas","sbs","sccs","scs","sds","sedes","sees","seities","seles","selles","sememes","semes",
+"semmes","senones","seres","serres","ses","sesses","sexes","shahs","simis","sinis","siris","sis","sls","sms","solos","sooloos","sos",
+"sotos","sps","srs","ss","sss","ssttss","stats","stets","stots","sts","succus","sulus","sus","susus","svs","svvs","sws","sxs","sys","t",
+"tallat","tat","tct","tdt","tebbet","tebet","teet","tenet","terret","tet","tevet","tft","tgt","tibbit","tipit","tirrit","tit","tkt","tnt",
+"toot","torot","tot","tpt","trt","tsst","tst","tt","tut","twt","txt","tyt","u","ulu","ululu","umu","upu","uru","usu","uttu","utu","uu","v",
+"vav","viv","vv","w","waw","wnw","wow","wsw","ww","www","x","xanax","xix","xx","xxx","y","yaray","yay","yoy","yy","z","ziz","zuz","zz","zzz"]
+
+
+
+
+
+
 ["aa","aba","abba","acca","aga","aha","aia","aka","ala","alula","ama","ana","anana","anna","araara","ataata","aua","ava","awa","ayaya","bib",
 "bob","boob","bub","civic","dad","deed","degged","deified","deked","deled","denned","dered","dewed","did","dod","dud","ecce","ee","eke","eme",
 "ene","ere","esse","eve","ewe","eye","gag","gig","goog","hadedah","hah","hajjah","halalah","hallah","heh","hoh","huh","iwi","kaiak","kak",
@@ -34,9 +61,10 @@ palindromes = filter isPalindrome vocab
 "stots","succus","sulus","sus","susus","tallat","tat","tenet","terret","tet","tirrit","tit","toot","torot","tot","tut","ulu","umu","utu",
 "vav","waw","wow","yay","ziz","zuz","zzz"]
 -}
+
 isPalindrome w = w == reverse w
 
-vocab = vocabl
+vocab = vocab0
 
 vocabr = vocabrf vocab
 
@@ -53,7 +81,7 @@ vocabl = words $ map toLower $ readFileU "scrabble.txt"
 --vocabl = words $ map toLower $ readFileU "/home/brett/swissarmyknife/scrabble.txt"
 
 -- list english words up to a particular number
-voc n = ("biden":) $ nubSet $ concatMap vocf $ filter (vf n) $ paths "."
+voc n = ("biden":) $ nubSet $ concatMap vocf $ filter (vf n) $ paths path
 
 vf n f = let lst = split "." f in case lst of 
                                          -- [a, b]    -> readInt b <= n
