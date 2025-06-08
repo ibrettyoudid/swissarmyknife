@@ -1016,7 +1016,9 @@ falsePos1 f epsilon findy = loop
     x = (lx * ry - rx * ly) / (ry - ly)
     y = f x - findy
 
-itp1 f epsilon findy lx rx = itp2 0.1 2 1 f epsilon findy ((lx, f lx), (rx, f rx))
+itp f epsilon findy = itp1 f epsilon findy $ getBrackets f findy
+
+itp1 = itp2 0.1 2 1 
 
 itp2 k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
  where
