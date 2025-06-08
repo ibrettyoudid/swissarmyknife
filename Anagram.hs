@@ -24,7 +24,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
 
 --path = "d:/code/bcb/anagram/words/"
-path = "/mnt/sol/Code/BCB/Anagram/words/"
+path = "/home/brett/haskell/swissarmyknife/"
 
 vocab = vocab3
 
@@ -39,7 +39,7 @@ vocab1 = filter (notElem '\'') $ words $ map toLower $ readFileU "d:/code/bcb/an
 
 vocab2 = words $ map toLower $ readFileU (path ++ "scrabble.35")
 
-vocab3 = words $ map toLower $ readFileU "/home/brett/swissarmyknife/scrabble.txt"
+vocab3 = words $ map toLower $ readFileU "/home/brett/code/haskell/swissarmyknife/scrabble.txt"
 
 -- list english words up to a particular number
 voc n = nubSet $ (["a","i","o"]++) $ concatMap vocf $ filter (vf n) $ names path
