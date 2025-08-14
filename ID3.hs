@@ -81,6 +81,26 @@ misc = baseDir @ "Misc"
 
 f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
+m = do
+  AP.string baseDir
+  ar <- upto "/"
+  yr <- upto " - "
+  al <- upto "/"
+  tr <- upto " - "
+  so <- upto "."
+  return (ar, yr, al, tr, so)
+{-
+m1 = do
+  tod Artist
+  to Year " - "
+  tod Album
+  to Track " - "
+  to Song "."
+  toe Ext
+-}
+
+upto x = AP.manyTill AP.anyWord8 $ AP.string x
+to x y = AP.manyTill AP.anyWord8 $ AP.string y
 ft = fileTree
 fta = fileTree artistd
 fds = fieldsFromString f d
@@ -103,8 +123,8 @@ data Split = Fail | Partial | Match deriving (Eq, Ord, Show)
 sp :: (String -> Bool) -> String -> (String -> Split) -> String -> Split
 sp pred delim cont [] = Partial
 sp pred delim cont str = case split1M delim str of
-  Just (b, a) -> if pred b then cont a else Fail
-  Nothing -> if pred str then Partial else Fail
+  Just (b, a) -> if pred b   then cont a  else Fail
+  Nothing     -> if pred str then Partial else Fail
 
 sp1 pred delim = sp pred delim ok
 

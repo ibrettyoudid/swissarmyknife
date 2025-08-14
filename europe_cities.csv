@@ -1,0 +1,642 @@
+city,city_ascii,lat,lng,country,iso2,iso3,admin_name,capital,population,id,CONTINENT
+Moscow,Moscow,55.7506,37.6175,Russia,RU,RUS,Moskva,primary,17332000,1643318494,E
+London,London,51.5072,-0.1275,United Kingdom,GB,GBR,"London, City of",primary,11262000,1826645935,E
+Paris,Paris,48.8567,2.3522,France,FR,FRA,Île-de-France,primary,11060000,1250015082,E
+Madrid,Madrid,40.4169,-3.7033,Spain,ES,ESP,Madrid,primary,6211000,1724616994,E
+Saint Petersburg,Saint Petersburg,59.9375,30.3086,Russia,RU,RUS,Sankt-Peterburg,admin,5597763,1643616350,E
+Barcelona,Barcelona,41.3833,2.1833,Spain,ES,ESP,Catalonia,admin,4800000,1724594040,E
+Berlin,Berlin,52.52,13.405,Germany,DE,DEU,Berlin,primary,4679500,1276451290,E
+Athens,Athens,37.9842,23.7281,Greece,GR,GRC,Attikí,primary,3059764,1300715560,E
+Kyiv,Kyiv,50.45,30.5233,Ukraine,UA,UKR,"Kyiv, Misto",primary,2952301,1804382913,E
+Stuttgart,Stuttgart,48.7775,9.18,Germany,DE,DEU,Baden-Württemberg,admin,2787724,1276171358,E
+Rome,Rome,41.8931,12.4828,Italy,IT,ITA,Lazio,primary,2748109,1380382862,E
+Munich,Munich,48.1375,11.575,Germany,DE,DEU,Bavaria,admin,2606021,1276692352,E
+Birmingham,Birmingham,52.48,-1.9025,United Kingdom,GB,GBR,Birmingham,,2590363,1826423213,E
+Hamburg,Hamburg,53.55,10,Germany,DE,DEU,Hamburg,admin,2496600,1276041799,E
+Bucharest,Bucharest,44.4325,26.1039,Romania,RO,ROU,Bucureşti,primary,2412530,1642414442,E
+Vienna,Vienna,48.2083,16.3725,Austria,AT,AUT,Wien,primary,2223236,1040261752,E
+Warsaw,Warsaw,52.23,21.0111,Poland,PL,POL,Mazowieckie,primary,2028000,1616024847,E
+Tilburg,Tilburg,51.5572,5.0911,Netherlands,NL,NLD,Noord-Brabant,minor,1944588,1528817379,E
+Budapest,Budapest,47.4983,19.0408,Hungary,HU,HUN,Budapest,primary,1686222,1348611435,E
+Novosibirsk,Novosibirsk,55.05,82.95,Russia,RU,RUS,Novosibirskaya Oblast’,admin,1633851,1643399240,E
+Valencia,Valencia,39.47,-0.3764,Spain,ES,ESP,Valencia,admin,1595000,1724981666,E
+Amsterdam,Amsterdam,52.3728,4.8936,Netherlands,NL,NLD,Noord-Holland,primary,1477213,1528355309,E
+Yekaterinburg,Yekaterinburg,56.8356,60.6128,Russia,RU,RUS,Sverdlovskaya Oblast’,admin,1468833,1643582706,E
+Kharkiv,Kharkiv,49.9925,36.2311,Ukraine,UA,UKR,Kharkivska Oblast,admin,1421125,1804588111,E
+Prague,Prague,50.0875,14.4214,Czechia,CZ,CZE,Praha,primary,1384732,1203744823,E
+Copenhagen,Copenhagen,55.6805,12.5615,Denmark,DK,DNK,Hovedstaden,primary,1366301,1208763942,E
+Helsinki,Helsinki,60.1708,24.9375,Finland,FI,FIN,Uusimaa,primary,1360075,1246177997,E
+Milan,Milan,45.4669,9.19,Italy,IT,ITA,Lombardy,admin,1354196,1380724377,E
+Kazan,Kazan,55.7964,49.1089,Russia,RU,RUS,Tatarstan,admin,1259173,1643101260,E
+Brussels,Brussels,50.8467,4.3525,Belgium,BE,BEL,Brussels-Capital Region,primary,1249597,1056469830,E
+Nizhniy Novgorod,Nizhniy Novgorod,56.3269,44.0075,Russia,RU,RUS,Nizhegorodskaya Oblast’,admin,1204985,1643012126,E
+Belgrade,Belgrade,44.8178,20.4569,Serbia,RS,SRB,Beograd,primary,1197714,1688374696,E
+Chelyabinsk,Chelyabinsk,55.1547,61.3758,Russia,RU,RUS,Chelyabinskaya Oblast’,admin,1177058,1643224011,E
+Samara,Samara,53.2028,50.1408,Russia,RU,RUS,Samarskaya Oblast’,admin,1156659,1643205757,E
+Krasnodar,Krasnodar,45.0333,38.9667,Russia,RU,RUS,Krasnodarskiy Kray,admin,1138654,1643438227,E
+Rostov,Rostov,47.2225,39.71,Russia,RU,RUS,Rostovskaya Oblast’,admin,1135968,1643013518,E
+Ufa,Ufa,54.7261,55.9475,Russia,RU,RUS,Bashkortostan,admin,1128787,1643722928,E
+Omsk,Omsk,54.9833,73.3667,Russia,RU,RUS,Omskaya Oblast’,admin,1104485,1643360863,E
+Sevilla,Sevilla,37.39,-5.99,Spain,ES,ESP,Andalusia,admin,1100000,1724991838,E
+Krasnoyarsk,Krasnoyarsk,56.0089,92.8719,Russia,RU,RUS,Krasnoyarskiy Kray,admin,1092851,1643544975,E
+Cologne,Cologne,50.9364,6.9528,Germany,DE,DEU,North Rhine-Westphalia,,1087353,1276015998,E
+Voronezh,Voronezh,51.6717,39.2106,Russia,RU,RUS,Voronezhskaya Oblast’,admin,1051995,1643811064,E
+Perm,Perm,58,56.3167,Russia,RU,RUS,Permskiy Kray,admin,1026908,1643294442,E
+Odesa,Odesa,46.492,30.7081,Ukraine,UA,UKR,Odeska Oblast,admin,1010537,1804178102,E
+Volgograd,Volgograd,48.7086,44.5147,Russia,RU,RUS,Volgogradskaya Oblast’,admin,1004763,1643577201,E
+Stockholm,Stockholm,59.3275,18.0547,Sweden,SE,SWE,Stockholm,primary,995574,1752425602,E
+Bordeaux,Bordeaux,44.84,-0.58,France,FR,FRA,Nouvelle-Aquitaine,admin,994920,1250449238,E
+Dnipro,Dnipro,48.4675,35.04,Ukraine,UA,UKR,Dnipropetrovska Oblast,admin,968502,1804152933,E
+Málaga,Malaga,36.7194,-4.42,Spain,ES,ESP,Andalusia,minor,967250,1724397372,E
+Naples,Naples,40.8358,14.2486,Italy,IT,ITA,Campania,admin,913462,1380646673,E
+Donetsk,Donetsk,48.0028,37.8053,Ukraine,UA,UKR,Donetska Oblast,admin,901645,1804963805,E
+Marseille,Marseille,43.2964,5.37,France,FR,FRA,Provence-Alpes-Côte d’Azur,admin,877215,1250774071,E
+Tyumen,Tyumen,57.15,65.5333,Russia,RU,RUS,Tyumenskaya Oblast’,admin,861100,1643040435,E
+Portsmouth,Portsmouth,50.8058,-1.0872,United Kingdom,GB,GBR,Portsmouth,,855679,1826964096,E
+Southampton,Southampton,50.9025,-1.4042,United Kingdom,GB,GBR,Southampton,,855569,1826602892,E
+Turin,Turin,45.0792,7.6761,Italy,IT,ITA,Piedmont,admin,841600,1380244627,E
+Saratov,Saratov,51.53,46.035,Russia,RU,RUS,Saratovskaya Oblast’,admin,838042,1643556540,E
+Kraków,Krakow,50.0614,19.9372,Poland,PL,POL,Małopolskie,admin,804237,1616172264,E
+Thessaloníki,Thessaloniki,40.6403,22.9356,Greece,GR,GRC,Kentrikí Makedonía,admin,802572,1300397999,E
+Frankfurt,Frankfurt,50.1106,8.6822,Germany,DE,DEU,Hesse,minor,775790,1276054552,E
+Bilbao,Bilbao,43.2569,-2.9236,Spain,ES,ESP,Basque Country,minor,775000,1724331267,E
+Zagreb,Zagreb,45.8131,15.9772,Croatia,HR,HRV,"Zagreb, Grad",primary,767131,1191233290,E
+Gdańsk,Gdansk,54.3475,18.6453,Poland,PL,POL,Pomorskie,admin,749786,1616406372,E
+Lviv,Lviv,49.8425,24.0322,Ukraine,UA,UKR,Lvivska Oblast,admin,717273,1804939658,E
+Zaporizhzhia,Zaporizhzhia,47.85,35.1175,Ukraine,UA,UKR,Zaporizka Oblast,admin,710052,1804644752,E
+Oslo,Oslo,59.9133,10.7389,Norway,NO,NOR,Oslo,primary,709037,1578324706,E
+Bristol,Bristol,51.4536,-2.5975,United Kingdom,GB,GBR,"Bristol, City of",,707412,1826921049,E
+Zaragoza,Zaragoza,41.65,-0.8833,Spain,ES,ESP,Aragon,admin,686986,1724907391,E
+Gothenburg,Gothenburg,57.7075,11.9675,Sweden,SE,SWE,Västra Götaland,admin,674529,1752059374,E
+Wrocław,Wroclaw,51.11,17.0325,Poland,PL,POL,Dolnośląskie,admin,672929,1616108520,E
+Murcia,Murcia,37.9861,-1.1303,Spain,ES,ESP,Murcia,admin,672773,1724107739,E
+Łódź,Lodz,51.7769,19.4547,Poland,PL,POL,Łódzkie,admin,670642,1616832750,E
+Tolyatti,Tolyatti,53.5089,49.4222,Russia,RU,RUS,Samarskaya Oblast’,,667956,1643256295,E
+Rotterdam,Rotterdam,51.92,4.48,Netherlands,NL,NLD,Zuid-Holland,minor,664311,1528892850,E
+Makhachkala,Makhachkala,42.9825,47.505,Russia,RU,RUS,Dagestan,admin,662660,1643580480,E
+Tallinn,Tallinn,59.4372,24.7453,Estonia,EE,EST,Tallinn,primary,638076,1233260021,E
+Las Palmas,Las Palmas,28.1258,-15.4353,Spain,ES,ESP,Canary Islands,admin,635000,1724501748,E
+Düsseldorf,Dusseldorf,51.2256,6.7767,Germany,DE,DEU,North Rhine-Westphalia,admin,631217,1276615258,E
+Palermo,Palermo,38.1157,13.3613,Italy,IT,ITA,Sicilia,admin,630167,1380428434,E
+Glasgow,Glasgow,55.8611,-4.25,United Kingdom,GB,GBR,Glasgow City,,626410,1826836462,E
+Bazal’tove,Bazal'tove,50.6765,26.16,Ukraine,UA,UKR,Rivnenska Oblast,,625543,1804864050,E
+Irkutsk,Irkutsk,52.2892,104.28,Russia,RU,RUS,Irkutskaya Oblast’,admin,623736,1643439037,E
+Barnaul,Barnaul,53.3486,83.7764,Russia,RU,RUS,Altayskiy Kray,admin,623057,1643318931,E
+Leipzig,Leipzig,51.34,12.375,Germany,DE,DEU,Saxony,minor,619879,1276563678,E
+Izhevsk,Izhevsk,56.8333,53.1833,Russia,RU,RUS,Udmurtiya,admin,618776,1643983138,E
+Khabarovsk,Khabarovsk,48.4833,135.0833,Russia,RU,RUS,Khabarovskiy Kray,admin,615570,1643175363,E
+Ulyanovsk,Ulyanovsk,54.3167,48.3667,Russia,RU,RUS,Ul’yanovskaya Oblast’,admin,613334,1643668944,E
+Riga,Riga,56.9475,24.1069,Latvia,LV,LVA,Rīga,primary,605273,1428586192,E
+Kryvyi Rih,Kryvyi Rih,47.91,33.39,Ukraine,UA,UKR,Dnipropetrovska Oblast,minor,603904,1804544901,E
+Dortmund,Dortmund,51.5139,7.4653,Germany,DE,DEU,North Rhine-Westphalia,minor,595471,1276562886,E
+Dublin,Dublin,53.3497,-6.2603,Ireland,IE,IRL,Dublin,primary,592713,1372595407,E
+Vladivostok,Vladivostok,43.115,131.8853,Russia,RU,RUS,Primorskiy Kray,admin,591628,1643832017,E
+Essen,Essen,51.4508,7.0131,Germany,DE,DEU,North Rhine-Westphalia,minor,586608,1276769247,E
+Vilnius,Vilnius,54.6872,25.28,Lithuania,LT,LTU,Vilniaus Miestas,primary,581475,1440887149,E
+Bremen,Bremen,53.0758,8.8072,Germany,DE,DEU,Bremen,admin,577026,1276376509,E
+Yaroslavl,Yaroslavl,57.6167,39.85,Russia,RU,RUS,Yaroslavskaya Oblast’,admin,567443,1643338528,E
+Dresden,Dresden,51.05,13.74,Germany,DE,DEU,Saxony,admin,566222,1276561036,E
+Antwerp,Antwerp,51.2178,4.4003,Belgium,BE,BEL,Flanders,minor,565039,1056168623,E
+Genoa,Genoa,44.4072,8.934,Italy,IT,ITA,Liguria,admin,558745,1380716540,E
+Braunschweig,Braunschweig,52.2667,10.5167,Germany,DE,DEU,Lower Saxony,minor,551000,1276941443,E
+Palma,Palma,39.5667,2.65,Spain,ES,ESP,Balearic Islands,admin,550000,1724728111,E
+Lisbon,Lisbon,38.7122,-9.134,Portugal,PT,PRT,Lisboa,primary,548703,1620619017,E
+The Hague,The Hague,52.08,4.31,Netherlands,NL,NLD,Zuid-Holland,primary,548320,1528799905,E
+Hannover,Hannover,52.3667,9.7167,Germany,DE,DEU,Lower Saxony,admin,548186,1276457707,E
+Sevastopol,Sevastopol,44.605,33.5225,Ukraine,UA,UKR,"Sevastopol, Misto",admin,547820,1804806030,E
+Manchester,Manchester,53.479,-2.2452,United Kingdom,GB,GBR,Manchester,,547627,1826246335,E
+Poznań,Poznan,52.4083,16.9336,Poland,PL,POL,Wielkopolskie,admin,546859,1616725607,E
+Tomsk,Tomsk,56.5,84.9667,Russia,RU,RUS,Tomskaya Oblast’,admin,545391,1643258928,E
+Kemerovo,Kemerovo,55.3667,86.0667,Russia,RU,RUS,Kemerovskaya Oblast’,admin,544600,1643216311,E
+Naberezhnyye Chelny,Naberezhnyye Chelny,55.6833,52.3167,Russia,RU,RUS,Tatarstan,,544383,1643008493,E
+Santa Cruz,Santa Cruz,28.4667,-16.25,Spain,ES,ESP,Canary Islands,admin,538000,1724813158,E
+Orenburg,Orenburg,51.7833,55.1,Russia,RU,RUS,Orenburgskaya Oblast’,admin,536862,1643685056,E
+Leeds,Leeds,53.7975,-1.5436,United Kingdom,GB,GBR,Leeds,,536280,1826343963,E
+Novokuznetsk,Novokuznetsk,53.7667,87.1333,Russia,RU,RUS,Kemerovskaya Oblast’,,531186,1643628717,E
+Balashikha,Balashikha,55.8167,37.9667,Russia,RU,RUS,Moskovskaya Oblast’,minor,530311,1643989845,E
+Nuremberg,Nuremberg,49.4539,11.0775,Germany,DE,DEU,Bavaria,minor,526091,1276166609,E
+Lyon,Lyon,45.76,4.84,France,FR,FRA,Auvergne-Rhône-Alpes,admin,520774,1250196189,E
+Ryazan,Ryazan,54.63,39.7425,Russia,RU,RUS,Ryazanskaya Oblast’,admin,520509,1643205787,E
+Sheffield,Sheffield,53.3808,-1.4703,United Kingdom,GB,GBR,Sheffield,,518090,1826289852,E
+Liverpool,Liverpool,53.4072,-2.9917,United Kingdom,GB,GBR,Liverpool,,513441,1826558678,E
+Toulouse,Toulouse,43.6045,1.444,France,FR,FRA,Occitanie,admin,511684,1250258110,E
+Duisburg,Duisburg,51.4347,6.7625,Germany,DE,DEU,North Rhine-Westphalia,minor,503707,1276977172,E
+Lipetsk,Lipetsk,52.6167,39.6,Russia,RU,RUS,Lipetskaya Oblast’,admin,496403,1643772906,E
+Cheboksary,Cheboksary,56.15,47.2333,Russia,RU,RUS,Chuvashiya,admin,496350,1643163382,E
+Kaliningrad,Kaliningrad,54.7003,20.4531,Russia,RU,RUS,Kaliningradskaya Oblast’,admin,489584,1643178106,E
+Penza,Penza,53.2,45,Russia,RU,RUS,Penzenskaya Oblast’,admin,488299,1643492830,E
+Edinburgh,Edinburgh,55.95,-3.1833,United Kingdom,GB,GBR,"Edinburgh, City of",,488050,1826492520,E
+Valletta,Valletta,35.8983,14.5125,Malta,MT,MLT,Valletta,primary,480134,1470574399,E
+Bratislava,Bratislava,48.1447,17.1128,Slovakia,SK,SVK,Bratislava,primary,475503,1703195001,E
+Worthing,Worthing,50.8147,-0.3714,United Kingdom,GB,GBR,West Sussex,,474485,1826936965,E
+Kirov,Kirov,58.6,49.6833,Russia,RU,RUS,Kirovskaya Oblast’,admin,471754,1643106064,E
+Mykolaiv,Mykolaiv,46.975,31.995,Ukraine,UA,UKR,Mykolaivska Oblast,admin,470011,1804398395,E
+Tula,Tula,54.2,37.6167,Russia,RU,RUS,Tul’skaya Oblast’,admin,466609,1643255206,E
+Astrakhan,Astrakhan,46.35,48.035,Russia,RU,RUS,Astrakhanskaya Oblast’,admin,465524,1643407929,E
+Leicester,Leicester,52.6361,-1.1331,United Kingdom,GB,GBR,Leicester,,464395,1826431946,E
+Stavropol,Stavropol,45.05,41.9833,Russia,RU,RUS,Stavropol’skiy Kray,admin,450680,1643947228,E
+Zürich,Zurich,47.3744,8.5411,Switzerland,CH,CHE,Zürich,admin,448664,1756539143,E
+Piraeus,Piraeus,37.943,23.6469,Greece,GR,GRC,Attikí,minor,448051,1300458367,E
+Sochi,Sochi,43.5853,39.7203,Russia,RU,RUS,Krasnodarskiy Kray,minor,444989,1643009782,E
+Ulan-Ude,Ulan-Ude,51.8333,107.6,Russia,RU,RUS,Buryatiya,admin,439128,1643774900,E
+Kursk,Kursk,51.7167,36.1833,Russia,RU,RUS,Kurskaya Oblast’,admin,436678,1643011077,E
+Aves,Aves,41.3703,-8.4101,Portugal,PT,PRT,Porto,,425411,1620507201,E
+Tver,Tver,56.8625,35.9242,Russia,RU,RUS,Tverskaya Oblast’,admin,424969,1643456559,E
+Skopje,Skopje,41.9961,21.4317,North Macedonia,MK,MKD,Skopje,primary,422540,1807600615,E
+Tirana,Tirana,41.3272,19.8186,Albania,AL,ALB,Tiranë,primary,418495,1008162156,E
+Magnitogorsk,Magnitogorsk,53.3833,59.0333,Russia,RU,RUS,Chelyabinskaya Oblast’,minor,408715,1643987830,E
+Brno,Brno,49.1925,16.6083,Czechia,CZ,CZE,Jihomoravský Kraj,admin,400566,1203676514,E
+Luhansk,Luhansk,48.5678,39.3031,Ukraine,UA,UKR,Luhanska Oblast,admin,397677,1804688214,E
+Szczecin,Szczecin,53.4325,14.5481,Poland,PL,POL,Zachodniopomorskie,admin,396168,1616256546,E
+Surgut,Surgut,61.25,73.4333,Russia,RU,RUS,Khanty-Mansiyskiy Avtonomnyy Okrug-Yugra,minor,395900,1643007475,E
+Bologna,Bologna,44.4939,11.3428,Italy,IT,ITA,Emilia-Romagna,admin,387971,1380202039,E
+Sintra,Sintra,38.7974,-9.3904,Portugal,PT,PRT,Lisboa,minor,385606,1620848791,E
+Bryansk,Bryansk,53.2425,34.3667,Russia,RU,RUS,Bryanskaya Oblast’,admin,373310,1643208827,E
+Bochum,Bochum,51.4819,7.2158,Germany,DE,DEU,North Rhine-Westphalia,minor,366385,1276227288,E
+Coventry,Coventry,52.4081,-1.5106,United Kingdom,GB,GBR,Coventry,,362690,1826979198,E
+Ivanovo,Ivanovo,56.9967,40.9819,Russia,RU,RUS,Ivanovskaya Oblast’,admin,361644,1643297945,E
+Caerdydd,Caerdydd,51.4817,-3.1792,United Kingdom,GB,GBR,Cardiff,,361469,1826362422,E
+Florence,Florence,43.7714,11.2542,Italy,IT,ITA,Tuscany,admin,360930,1380726561,E
+Malmö,Malmo,55.5833,13.0333,Sweden,SE,SWE,Skåne,admin,360249,1752705818,E
+Utrecht,Utrecht,52.0908,5.1217,Netherlands,NL,NLD,Utrecht,admin,359370,1528871692,E
+Wuppertal,Wuppertal,51.2667,7.1833,Germany,DE,DEU,North Rhine-Westphalia,minor,358938,1276004611,E
+Alicante,Alicante,38.3453,-0.4831,Spain,ES,ESP,Valencia,minor,358720,1724923163,E
+Vinnytsia,Vinnytsia,49.2333,28.4833,Ukraine,UA,UKR,Vinnytska Oblast,admin,356303,1804658571,E
+Nice,Nice,43.7034,7.2663,France,FR,FRA,Provence-Alpes-Côte d’Azur,minor,353701,1250774553,E
+Vladimir,Vladimir,56.1286,40.4058,Russia,RU,RUS,Vladimirskaya Oblast’,admin,352347,1643712167,E
+Arkhangelsk,Arkhangelsk,64.5431,40.5375,Russia,RU,RUS,Arkhangel’skaya Oblast’,admin,351488,1643797198,E
+Belfast,Belfast,54.5967,-5.93,United Kingdom,GB,GBR,Belfast,,345006,1826325087,E
+Makiivka,Makiivka,48.0556,37.9611,Ukraine,UA,UKR,Donetska Oblast,minor,338968,1804926154,E
+Bielefeld,Bielefeld,52.0211,8.5347,Germany,DE,DEU,North Rhine-Westphalia,minor,338410,1276112885,E
+Bydgoszcz,Bydgoszcz,53.1219,18.0003,Poland,PL,POL,Kujawsko-Pomorskie,admin,337666,1616454014,E
+Reading,Reading,51.4542,-0.9731,United Kingdom,GB,GBR,Reading,,337108,1826869043,E
+Bonn,Bonn,50.7353,7.1022,Germany,DE,DEU,North Rhine-Westphalia,minor,335789,1276807850,E
+Lublin,Lublin,51.25,22.5667,Poland,PL,POL,Lubelskie,admin,334681,1616953501,E
+Tampere,Tampere,61.4981,23.76,Finland,FI,FIN,Pirkanmaa,admin,334112,1246964318,E
+Chita,Chita,52.05,113.4667,Russia,RU,RUS,Zabaykal’skiy Kray,admin,333159,1643036673,E
+Simferopol,Simferopol,44.9519,34.1022,Ukraine,UA,UKR,"Krym, Avtonomna Respublika",admin,332317,1804665958,E
+Kaluga,Kaluga,54.55,36.2833,Russia,RU,RUS,Kaluzhskaya Oblast’,admin,331842,1643161747,E
+Nizhniy Tagil,Nizhniy Tagil,57.9167,59.9667,Russia,RU,RUS,Sverdlovskaya Oblast’,minor,330507,1643992310,E
+Finglas,Finglas,53.3892,-6.2969,Ireland,IE,IRL,Dublin,,330506,1372023005,E
+Nantes,Nantes,47.2181,-1.5528,France,FR,FRA,Pays de la Loire,admin,325070,1250091495,E
+Córdoba,Cordoba,37.89,-4.78,Spain,ES,ESP,Andalusia,minor,323763,1724706440,E
+Münster,Munster,51.9625,7.6256,Germany,DE,DEU,North Rhine-Westphalia,minor,322904,1276714504,E
+Mannheim,Mannheim,49.4878,8.4661,Germany,DE,DEU,Baden-Württemberg,minor,316877,1276150104,E
+Bari,Bari,41.1253,16.8667,Italy,IT,ITA,Puglia,admin,316015,1380991126,E
+Espoo,Espoo,60.2056,24.6556,Finland,FI,FIN,Uusimaa,minor,314821,1246357316,E
+Kingston upon Hull,Kingston upon Hull,53.7444,-0.3325,United Kingdom,GB,GBR,"Kingston upon Hull, City of",,314018,1826028894,E
+Catania,Catania,37.5027,15.0873,Italy,IT,ITA,Sicilia,minor,311584,1380562508,E
+Karlsruhe,Karlsruhe,49.0092,8.404,Germany,DE,DEU,Baden-Württemberg,minor,309964,1276923210,E
+Montpellier,Montpellier,43.6119,3.8772,France,FR,FRA,Occitanie,minor,307101,1250819356,E
+Kaunas,Kaunas,54.9,23.9333,Lithuania,LT,LTU,Kauno Miestas,admin,305120,1440302852,E
+Vila Nova de Gaia,Vila Nova de Gaia,41.1333,-8.6167,Portugal,PT,PRT,Porto,minor,303824,1620040225,E
+Augsburg,Augsburg,48.3689,10.8978,Germany,DE,DEU,Bavaria,minor,303150,1276314100,E
+Valladolid,Valladolid,41.6528,-4.7236,Spain,ES,ESP,Castille-Leon,admin,300618,1724133771,E
+Newcastle,Newcastle,54.978,-1.6102,United Kingdom,GB,GBR,Newcastle upon Tyne,,300196,1826292220,E
+Stockport,Stockport,53.4083,-2.1494,United Kingdom,GB,GBR,Stockport,,294773,1826228303,E
+Białystok,Bialystok,53.1353,23.1456,Poland,PL,POL,Podlaskie,admin,294242,1616443575,E
+Vigo,Vigo,42.2314,-8.7124,Spain,ES,ESP,Galicia,,293977,1724045676,E
+Bradford,Bradford,53.8,-1.75,United Kingdom,GB,GBR,Bradford,,293277,1826687116,E
+Graz,Graz,47.0708,15.4386,Austria,AT,AUT,Steiermark,admin,292630,1040184559,E
+Strasbourg,Strasbourg,48.5833,7.7458,France,FR,FRA,Grand Est,admin,291709,1250789140,E
+Bergen,Bergen,60.3925,5.3233,Norway,NO,NOR,Vestland,admin,291189,1578465701,E
+Aarhus,Aarhus,56.1572,10.2107,Denmark,DK,DNK,Midtjylland,minor,290598,1208841031,E
+Nottingham,Nottingham,52.9561,-1.1512,United Kingdom,GB,GBR,Nottingham,,289301,1826122597,E
+Cluj-Napoca,Cluj-Napoca,46.7667,23.5833,Romania,RO,ROU,Cluj,admin,286598,1642503974,E
+Katowice,Katowice,50.2625,19.0217,Poland,PL,POL,Śląskie,admin,285711,1616798495,E
+Wiesbaden,Wiesbaden,50.0825,8.24,Germany,DE,DEU,Hesse,admin,285522,1276652118,E
+Bolton,Bolton,53.5783,-2.43,United Kingdom,GB,GBR,Bolton,,285372,1826628353,E
+Ostrava,Ostrava,49.8356,18.2925,Czechia,CZ,CZE,Moravskoslezský Kraj,admin,284765,1203687206,E
+Ljubljana,Ljubljana,46.0514,14.5061,Slovenia,SI,SVN,Ljubljana,primary,284293,1705917455,E
+Chernihiv,Chernihiv,51.4939,31.2947,Ukraine,UA,UKR,Chernihivska Oblast,admin,282747,1804565996,E
+Poltava,Poltava,49.5894,34.5514,Ukraine,UA,UKR,Poltavska Oblast,admin,279593,1804547489,E
+Kherson,Kherson,46.6425,32.625,Ukraine,UA,UKR,Khersonska Oblast,admin,279131,1804514036,E
+Sunderland,Sunderland,54.906,-1.381,United Kingdom,GB,GBR,Sunderland,,277417,1826736387,E
+Khmelnytskyi,Khmelnytskyi,49.4167,27,Ukraine,UA,UKR,Khmelnytska Oblast,admin,274452,1804347108,E
+Iaşi,Iasi,47.1622,27.5889,Romania,RO,ROU,Iaşi,admin,271692,1642367695,E
+Cherkasy,Cherkasy,49.4444,32.0597,Ukraine,UA,UKR,Cherkaska Oblast,admin,269836,1804459212,E
+Mönchengladbach,Monchengladbach,51.2,6.4333,Germany,DE,DEU,North Rhine-Westphalia,minor,268943,1276982173,E
+Gijón,Gijon,43.5333,-5.7,Spain,ES,ESP,Asturias,,268561,1724170659,E
+Plymouth,Plymouth,50.3714,-4.1422,United Kingdom,GB,GBR,Plymouth,,267918,1826947183,E
+Gelsenkirchen,Gelsenkirchen,51.5167,7.1,Germany,DE,DEU,North Rhine-Westphalia,minor,265885,1276788537,E
+Gent,Gent,51.0536,3.7253,Belgium,BE,BEL,Flanders,minor,265086,1056062897,E
+Milton Keynes,Milton Keynes,52.04,-0.76,United Kingdom,GB,GBR,Milton Keynes,,264349,1826291745,E
+Chernivtsi,Chernivtsi,48.3,25.9333,Ukraine,UA,UKR,Chernivetska Oblast,admin,264298,1804652872,E
+Constanţa,Constanta,44.1667,28.6333,Romania,RO,ROU,Constanţa,admin,263707,1642851858,E
+Zhytomyr,Zhytomyr,50.25,28.6667,Ukraine,UA,UKR,Zhytomyrska Oblast,admin,261624,1804540656,E
+Novi Sad,Novi Sad,45.2542,19.8425,Serbia,RS,SRB,Novi Sad,admin,260438,1688169087,E
+Vitoria-Gasteiz,Vitoria-Gasteiz,42.85,-2.6833,Spain,ES,ESP,Basque Country,admin,257968,1724975338,E
+Sumy,Sumy,50.9119,34.8028,Ukraine,UA,UKR,Sumska Oblast,admin,256474,1804489982,E
+Verona,Verona,45.4386,10.9928,Italy,IT,ITA,Veneto,minor,255588,1380324879,E
+Derby,Derby,52.9247,-1.478,United Kingdom,GB,GBR,Derby,,255394,1826333435,E
+Westminster,Westminster,51.4947,-0.1353,United Kingdom,GB,GBR,Westminster,,255324,1826759011,E
+Aachen,Aachen,50.7756,6.0836,Germany,DE,DEU,North Rhine-Westphalia,minor,252769,1276805572,E
+Wolverhampton,Wolverhampton,52.5833,-2.1333,United Kingdom,GB,GBR,Wolverhampton,,250970,1826636841,E
+Timişoara,Timisoara,45.7597,21.23,Romania,RO,ROU,Timiş,admin,250849,1642603121,E
+Chemnitz,Chemnitz,50.8333,12.9167,Germany,DE,DEU,Saxony,minor,250681,1276519956,E
+Venice,Venice,45.4397,12.3319,Italy,IT,ITA,Veneto,admin,250369,1380660414,E
+A Coruña,A Coruna,43.365,-8.41,Spain,ES,ESP,Galicia,minor,249261,1724417375,E
+Kiel,Kiel,54.3233,10.1394,Germany,DE,DEU,Schleswig-Holstein,admin,248873,1276305306,E
+Vantaa,Vantaa,60.2944,25.0403,Finland,FI,FIN,Uusimaa,minor,248199,1246957545,E
+Abertawe,Abertawe,51.6167,-3.95,United Kingdom,GB,GBR,Swansea,,246700,1826574888,E
+Győr,Gyor,47.6842,17.6344,Hungary,HU,HUN,Győr-Moson-Sopron,admin,246159,1348507878,E
+Gdynia,Gdynia,54.5175,18.54,Poland,PL,POL,Pomorskie,minor,245222,1616385189,E
+Barnsley,Barnsley,53.5547,-1.4791,United Kingdom,GB,GBR,Barnsley,,245199,1826597621,E
+Stoke-on-Trent,Stoke-on-Trent,53.0255,-2.1761,United Kingdom,GB,GBR,Stoke-on-Trent,,245000,1826799578,E
+Rivne,Rivne,50.6192,26.2519,Ukraine,UA,UKR,Rivnenska Oblast,admin,243873,1804144712,E
+Eindhoven,Eindhoven,51.4344,5.4842,Netherlands,NL,NLD,Noord-Brabant,minor,243730,1528636212,E
+Elche,Elche,38.2669,-0.6983,Spain,ES,ESP,Valencia,,243128,1724611437,E
+Halle,Halle,51.4828,11.9697,Germany,DE,DEU,Saxony-Anhalt,minor,242172,1276167077,E
+Magdeburg,Magdeburg,52.1317,11.6392,Germany,DE,DEU,Saxony-Anhalt,admin,240114,1276418236,E
+Horlivka,Horlivka,48.3,38.05,Ukraine,UA,UKR,Donetska Oblast,minor,239828,1804235146,E
+Lille,Lille,50.6278,3.0583,France,FR,FRA,Hauts-de-France,admin,238695,1250071961,E
+Ivano-Frankivsk,Ivano-Frankivsk,48.9228,24.7106,Ukraine,UA,UKR,Ivano-Frankivska Oblast,admin,238196,1804208152,E
+Braşov,Brasov,45.6667,25.6167,Romania,RO,ROU,Braşov,admin,237589,1642328429,E
+Freiburg im Breisgau,Freiburg im Breisgau,47.995,7.85,Germany,DE,DEU,Baden-Württemberg,minor,237244,1276371228,E
+Limassol,Limassol,34.6747,33.0442,Cyprus,CY,CYP,Lemesós,admin,235056,1196136222,E
+Craiova,Craiova,44.3333,23.8167,Romania,RO,ROU,Dolj,admin,234140,1642859458,E
+Groningen,Groningen,53.2167,6.5667,Netherlands,NL,NLD,Groningen,admin,233273,1528295161,E
+Granada,Granada,37.1781,-3.6008,Spain,ES,ESP,Andalusia,minor,232717,1724929320,E
+Porto,Porto,41.1495,-8.6108,Portugal,PT,PRT,Porto,admin,231800,1620356810,E
+Košice,Kosice,48.7167,21.25,Slovakia,SK,SVK,Košice,admin,229040,1703452690,E
+Tarrasa,Tarrasa,41.57,2.013,Spain,ES,ESP,Catalonia,,228708,1724377964,E
+Krefeld,Krefeld,51.3333,6.5667,Germany,DE,DEU,North Rhine-Westphalia,minor,228550,1276149829,E
+Rennes,Rennes,48.1147,-1.6794,France,FR,FRA,Bretagne,admin,227830,1250363682,E
+Badalona,Badalona,41.4489,2.2461,Spain,ES,ESP,Catalonia,,227083,1724090334,E
+Kamianske,Kamianske,48.5167,34.6133,Ukraine,UA,UKR,Dnipropetrovska Oblast,minor,226845,1804033242,E
+Ternopil,Ternopil,49.5667,25.6,Ukraine,UA,UKR,Ternopilska Oblast,admin,225004,1804000146,E
+Mainz,Mainz,49.9994,8.2736,Germany,DE,DEU,Rhineland-Palatinate,admin,222889,1276801317,E
+Cork,Cork,51.9,-8.4731,Ireland,IE,IRL,Cork,admin,222333,1372221853,E
+Týrnavos,Tyrnavos,39.7333,22.2833,Greece,GR,GRC,Thessalía,minor,222280,1300449251,E
+Swindon,Swindon,51.56,-1.78,United Kingdom,GB,GBR,Swindon,,222193,1826498106,E
+Sabadell,Sabadell,41.5486,2.1075,Spain,ES,ESP,Catalonia,,222177,1724348384,E
+Lutsk,Lutsk,50.75,25.3358,Ukraine,UA,UKR,Volynska Oblast,admin,220986,1804014744,E
+Oviedo,Oviedo,43.36,-5.845,Spain,ES,ESP,Asturias,admin,220543,1724090743,E
+Prizren,Prizren,42.2139,20.7397,Kosovo,XK,XKS,Prizren,admin,220128,1901360309,E
+Cartagena,Cartagena,37.6019,-0.9842,Spain,ES,ESP,Murcia,,219777,1724143241,E
+Kropyvnytskyi,Kropyvnytskyi,48.5,32.2667,Ukraine,UA,UKR,Kirovohradska Oblast,admin,219676,1804374492,E
+Lübeck,Lubeck,53.8697,10.6864,Germany,DE,DEU,Schleswig-Holstein,minor,219044,1276852342,E
+Messina,Messina,38.1936,15.5542,Italy,IT,ITA,Sicilia,minor,218786,1380622386,E
+Galaţi,Galati,45.4233,28.0425,Romania,RO,ROU,Galaţi,admin,217851,1642571620,E
+Zielona Góra,Zielona Gora,51.9333,15.5,Poland,PL,POL,Lubuskie,admin,216781,1616050904,E
+Kremenchuk,Kremenchuk,49.0631,33.4039,Ukraine,UA,UKR,Poltavska Oblast,minor,215271,1804343754,E
+Oulu,Oulu,65.0142,25.4719,Finland,FI,FIN,Pohjois-Pohjanmaa,admin,214814,1246093273,E
+Almere,Almere,52.3667,5.2167,Netherlands,NL,NLD,Flevoland,minor,214715,1528683566,E
+Cascais,Cascais,38.6972,-9.4217,Portugal,PT,PRT,Lisboa,minor,214158,1620824685,E
+Jerez de la Frontera,Jerez de la Frontera,36.6817,-6.1378,Spain,ES,ESP,Andalusia,,213688,1724866806,E
+Norwich,Norwich,52.6286,1.2928,United Kingdom,GB,GBR,Norfolk,,213166,1826688051,E
+Częstochowa,Czestochowa,50.8,19.1167,Poland,PL,POL,Śląskie,minor,213107,1616881632,E
+Luton,Luton,51.8783,-0.4147,United Kingdom,GB,GBR,Luton,,213052,1826630574,E
+Trondheim,Trondheim,63.44,10.4,Norway,NO,NOR,Trøndelag,minor,212660,1578633461,E
+Linz,Linz,48.3058,14.2864,Austria,AT,AUT,Oberösterreich,admin,211944,1040261171,E
+Irákleio,Irakleio,35.3403,25.1344,Greece,GR,GRC,Kríti,admin,211370,1300777854,E
+Oberhausen,Oberhausen,51.4967,6.8706,Germany,DE,DEU,North Rhine-Westphalia,minor,211099,1276448936,E
+Rostock,Rostock,54.0833,12.1333,Germany,DE,DEU,Mecklenburg-Western Pomerania,,210795,1276210265,E
+Móstoles,Mostoles,40.3333,-3.8667,Spain,ES,ESP,Madrid,,209639,1724412875,E
+Pamplona,Pamplona,42.8167,-1.65,Spain,ES,ESP,Navarre,admin,207777,1724483329,E
+Bila Tserkva,Bila Tserkva,49.7989,30.1153,Ukraine,UA,UKR,Kyivska Oblast,minor,207273,1804758853,E
+Solihull,Solihull,52.413,-1.778,United Kingdom,GB,GBR,Solihull,,206674,1826720500,E
+Padova,Padova,45.4064,11.8778,Italy,IT,ITA,Veneto,minor,206496,1380964615,E
+Islington,Islington,51.544,-0.1027,United Kingdom,GB,GBR,Islington,,206125,1826267810,E
+Kassel,Kassel,51.3158,9.4979,Germany,DE,DEU,Hesse,minor,204687,1276791686,E
+Charleroi,Charleroi,50.4167,4.4442,Belgium,BE,BEL,Wallonia,minor,204322,1056263311,E
+Geneva,Geneva,46.2017,6.1469,Switzerland,CH,CHE,Genève,admin,203840,1756810813,E
+Almería,Almeria,36.8417,-2.4639,Spain,ES,ESP,Andalusia,minor,202675,1724745640,E
+Turku,Turku,60.4517,22.2669,Finland,FI,FIN,Varsinais-Suomi,admin,202250,1246456609,E
+Debrecen,Debrecen,47.53,21.6392,Hungary,HU,HUN,Hajdú-Bihar,admin,201704,1348460698,E
+Loures,Loures,38.8309,-9.1684,Portugal,PT,PRT,Lisboa,minor,201632,1620042113,E
+Radom,Radom,51.4036,21.1567,Poland,PL,POL,Mazowieckie,minor,201601,1616327727,E
+Aberdeen,Aberdeen,57.15,-2.11,United Kingdom,GB,GBR,Aberdeen City,,200680,1826324306,E
+Lochau,Lochau,47.5167,9.75,Austria,AT,AUT,Vorarlberg,,200000,1040573398,E
+Pristina,Pristina,42.6666,21.1724,Kosovo,XK,XKS,Prishtinë,primary,198897,1901760068,E
+Trieste,Trieste,45.6503,13.7703,Italy,IT,ITA,Friuli Venezia Giulia,admin,198417,1380102581,E
+Toruń,Torun,53.0222,18.6111,Poland,PL,POL,Kujawsko-Pomorskie,admin,198273,1616267221,E
+Alcalá de Henares,Alcala de Henares,40.4667,-3.3667,Spain,ES,ESP,Madrid,,196888,1724663253,E
+Parma,Parma,44.8015,10.328,Italy,IT,ITA,Emilia-Romagna,minor,196764,1380655938,E
+Brescia,Brescia,45.5389,10.2203,Italy,IT,ITA,Lombardy,minor,196446,1380432555,E
+Rzeszów,Rzeszow,50.0333,22,Poland,PL,POL,Podkarpackie,admin,195871,1616879570,E
+Prato,Prato,43.8808,11.0966,Italy,IT,ITA,Tuscany,minor,195736,1380751753,E
+Liège,Liege,50.6397,5.5706,Belgium,BE,BEL,Wallonia,minor,195278,1056513284,E
+Leganés,Leganes,40.3281,-3.7644,Spain,ES,ESP,Madrid,,194084,1724900225,E
+Peterborough,Peterborough,52.5661,-0.2364,United Kingdom,GB,GBR,Peterborough,,194000,1826626144,E
+Sosnowiec,Sosnowiec,50.2833,19.1333,Poland,PL,POL,Śląskie,minor,193660,1616057255,E
+Croydon,Croydon,51.3727,-0.1099,United Kingdom,GB,GBR,Croydon,,192064,1826126675,E
+Fuenlabrada,Fuenlabrada,40.2833,-3.8,Spain,ES,ESP,Madrid,,190790,1724000348,E
+Hagen,Hagen,51.3667,7.4833,Germany,DE,DEU,North Rhine-Westphalia,minor,190490,1276389303,E
+Getafe,Getafe,40.3047,-3.7311,Spain,ES,ESP,Madrid,,189906,1724750196,E
+Donostia,Donostia,43.3214,-1.9856,Spain,ES,ESP,Basque Country,minor,189093,1724910555,E
+Taranto,Taranto,40.4711,17.2431,Italy,IT,ITA,Puglia,minor,188098,1380707445,E
+Bournemouth,Bournemouth,50.72,-1.88,United Kingdom,GB,GBR,"Bournemouth, Christchurch and Poole",,187503,1826769743,E
+Potsdam,Potsdam,52.4006,13.0592,Germany,DE,DEU,Brandenburg,admin,187119,1276395100,E
+Kielce,Kielce,50.8742,20.6333,Poland,PL,POL,Świętokrzyskie,admin,186894,1616176351,E
+Basildon,Basildon,51.58,0.49,United Kingdom,GB,GBR,Essex,,185900,1826481004,E
+Plzeň,Plzen,49.7475,13.3775,Czechia,CZ,CZE,Plzeňský Kraj,admin,185599,1203402469,E
+Seixal,Seixal,38.6428,-9.1061,Portugal,PT,PRT,Setúbal,minor,184269,1620870397,E
+Modena,Modena,44.6458,10.9257,Italy,IT,ITA,Emilia-Romagna,minor,184153,1380306270,E
+Breda,Breda,51.5875,4.775,Netherlands,NL,NLD,Noord-Brabant,minor,184126,1528921549,E
+Saarbrücken,Saarbrucken,49.2333,7,Germany,DE,DEU,Saarland,admin,183509,1276419711,E
+Saint Helens,Saint Helens,53.4542,-2.7361,United Kingdom,GB,GBR,St. Helens,,183248,1826775771,E
+Niš,Nis,43.3192,21.8961,Serbia,RS,SRB,Niš,admin,183164,1688661068,E
+Oradea,Oradea,47.0722,21.9211,Romania,RO,ROU,Bihor,admin,183105,1642066626,E
+Odense,Odense,55.4004,10.3833,Denmark,DK,DNK,Syddanmark,minor,182387,1208194249,E
+Braga,Braga,41.5503,-8.42,Portugal,PT,PRT,Braga,admin,181494,1620949401,E
+Toulon,Toulon,43.1258,5.9306,France,FR,FRA,Provence-Alpes-Côte d’Azur,minor,180834,1250541629,E
+Hamm,Hamm,51.6833,7.8167,Germany,DE,DEU,North Rhine-Westphalia,minor,180761,1276808737,E
+Ploieşti,Ploiesti,44.9411,26.0225,Romania,RO,ROU,Prahova,admin,180539,1642169731,E
+Castellón de la Plana,Castellon de la Plana,39.9831,-0.0331,Spain,ES,ESP,Valencia,minor,180379,1724579885,E
+Reims,Reims,49.2628,4.0347,France,FR,FRA,Grand Est,minor,178478,1250608730,E
+Nijmegen,Nijmegen,51.8425,5.8528,Netherlands,NL,NLD,Gelderland,minor,177659,1528136727,E
+Almada,Almada,38.6803,-9.1583,Portugal,PT,PRT,Setúbal,minor,177238,1620388276,E
+Ludwigshafen,Ludwigshafen,49.4811,8.4353,Germany,DE,DEU,Rhineland-Palatinate,minor,176110,1276912330,E
+Burgos,Burgos,42.35,-3.7067,Spain,ES,ESP,Castille-Leon,minor,175895,1724993285,E
+Uppsala,Uppsala,59.8498,17.6389,Sweden,SE,SWE,Uppsala,admin,174982,1752953686,E
+Oldenburg,Oldenburg,53.1439,8.2139,Germany,DE,DEU,Lower Saxony,minor,174629,1276946953,E
+Albacete,Albacete,38.9956,-1.8558,Spain,ES,ESP,Castille-La Mancha,minor,174137,1724000069,E
+Santander,Santander,43.4628,-3.805,Spain,ES,ESP,Cantabria,admin,174101,1724247413,E
+Gliwice,Gliwice,50.2833,18.6667,Poland,PL,POL,Śląskie,minor,174016,1616311376,E
+Alcorcón,Alcorcon,40.35,-3.8333,Spain,ES,ESP,Madrid,,173625,1724318578,E
+Pátra,Patra,38.25,21.7333,Greece,GR,GRC,Dytikí Elláda,admin,173600,1300201099,E
+Basel,Basel,47.5606,7.5906,Switzerland,CH,CHE,Basel-Stadt,admin,173552,1756731313,E
+Mülheim,Mulheim,51.4275,6.8825,Germany,DE,DEU,North Rhine-Westphalia,minor,173255,1276676856,E
+Saint-Étienne,Saint-Etienne,45.4347,4.3903,France,FR,FRA,Auvergne-Rhône-Alpes,minor,172569,1250000540,E
+Matosinhos,Matosinhos,41.1867,-8.6844,Portugal,PT,PRT,Porto,minor,172557,1620049442,E
+Podgorica,Podgorica,42.4414,19.2628,Montenegro,ME,MNE,Podgorica,primary,172139,1499454516,E
+Oeiras,Oeiras,38.697,-9.3017,Portugal,PT,PRT,Lisboa,minor,171658,1620375757,E
+Amadora,Amadora,38.75,-9.2333,Portugal,PT,PRT,Lisboa,minor,171454,1620896557,E
+Reggio di Calabria,Reggio di Calabria,38.1144,15.65,Italy,IT,ITA,Calabria,minor,170951,1380630212,E
+Olsztyn,Olsztyn,53.7778,20.4792,Poland,PL,POL,Warmińsko-Mazurskie,admin,170225,1616383275,E
+Reggio Emilia,Reggio Emilia,44.7,10.6333,Italy,IT,ITA,Emilia-Romagna,minor,169545,1380487033,E
+Bielsko-Biała,Bielsko-Biala,49.8225,19.0444,Poland,PL,POL,Śląskie,minor,169089,1616302636,E
+Ilford,Ilford,51.5575,0.0858,United Kingdom,GB,GBR,Redbridge,,168168,1826381000,E
+Osnabrück,Osnabruck,52.2833,8.05,Germany,DE,DEU,Lower Saxony,minor,166960,1276554949,E
+Le Havre,Le Havre,49.49,0.1,France,FR,FRA,Normandie,minor,166462,1250775297,E
+Leverkusen,Leverkusen,51.0333,6.9833,Germany,DE,DEU,North Rhine-Westphalia,minor,166414,1276002465,E
+Warrington,Warrington,53.39,-2.59,United Kingdom,GB,GBR,Warrington,,165456,1826261547,E
+Darmstadt,Darmstadt,49.8722,8.6528,Germany,DE,DEU,Hesse,minor,164792,1276607395,E
+Gondomar,Gondomar,41.15,-8.5333,Portugal,PT,PRT,Porto,minor,164257,1620506259,E
+Arnhem,Arnhem,51.9833,5.9167,Netherlands,NL,NLD,Gelderland,admin,164096,1528862562,E
+Heidelberg,Heidelberg,49.4167,8.7167,Germany,DE,DEU,Baden-Württemberg,minor,162960,1276519742,E
+Huddersfield,Huddersfield,53.645,-1.7798,United Kingdom,GB,GBR,Kirklees,,162949,1826672445,E
+Haarlem,Haarlem,52.3833,4.6333,Netherlands,NL,NLD,Noord-Holland,admin,162543,1528822178,E
+Villeurbanne,Villeurbanne,45.7667,4.8803,France,FR,FRA,Auvergne-Rhône-Alpes,,162207,1250002615,E
+Perugia,Perugia,43.1121,12.3888,Italy,IT,ITA,Umbria,admin,161748,1380939013,E
+Guadalajara,Guadalajara,40.6337,-3.1674,Spain,ES,ESP,Castille-La Mancha,minor,161683,1724317859,E
+Zemun,Zemun,44.85,20.4,Serbia,RS,SRB,Beograd,minor,161596,1688453076,E
+Solingen,Solingen,51.1719,7.0847,Germany,DE,DEU,North Rhine-Westphalia,minor,161545,1276728190,E
+Split,Split,43.51,16.44,Croatia,HR,HRV,Splitsko-Dalmatinska Županija,admin,160577,1191440208,E
+La Laguna,La Laguna,28.4853,-16.3167,Spain,ES,ESP,Canary Islands,,160258,1724625025,E
+Southend,Southend,51.55,0.71,United Kingdom,GB,GBR,Southend-on-Sea,,160257,1826524208,E
+Dijon,Dijon,47.3167,5.0167,France,FR,FRA,Bourgogne-Franche-Comté,admin,159941,1250505606,E
+Enschede,Enschede,52.2225,6.8925,Netherlands,NL,NLD,Overijssel,minor,159732,1528181808,E
+Newport,Newport,51.5886,-2.9978,United Kingdom,GB,GBR,Newport,,159600,1826018889,E
+Regensburg,Regensburg,49.0167,12.0833,Germany,DE,DEU,Bavaria,minor,159465,1276000325,E
+Marbella,Marbella,36.5167,-4.8833,Spain,ES,ESP,Andalusia,,159000,1724685705,E
+Klaipėda,Klaipeda,55.7125,21.135,Lithuania,LT,LTU,Klaipėdos Miestas,admin,158420,1440897790,E
+Zabrze,Zabrze,50.3025,18.7781,Poland,PL,POL,Śląskie,minor,158307,1616784915,E
+Szeged,Szeged,46.25,20.1667,Hungary,HU,HUN,Csongrád-Csanád,admin,157930,1348655615,E
+Herne,Herne,51.55,7.2167,Germany,DE,DEU,North Rhine-Westphalia,minor,157896,1276656117,E
+Angers,Angers,47.4736,-0.5542,France,FR,FRA,Pays de la Loire,minor,157555,1250962174,E
+’s-Hertogenbosch,'s-Hertogenbosch,51.6833,5.3167,Netherlands,NL,NLD,Noord-Brabant,admin,157486,1528012333,E
+Amersfoort,Amersfoort,52.155,5.3875,Netherlands,NL,NLD,Utrecht,minor,157462,1528206992,E
+Zaanstad,Zaanstad,52.4333,4.8167,Netherlands,NL,NLD,Noord-Holland,,156901,1528395473,E
+Enfield,Enfield,51.6522,-0.0808,United Kingdom,GB,GBR,Enfield,,156858,1826362409,E
+Guimarães,Guimaraes,41.445,-8.2908,Portugal,PT,PRT,Braga,minor,156830,1620771539,E
+Girona,Girona,41.9844,2.8211,Spain,ES,ESP,Catalonia,minor,156423,1724386661,E
+Grenoble,Grenoble,45.1715,5.7224,France,FR,FRA,Auvergne-Rhône-Alpes,minor,156389,1250071647,E
+Ravenna,Ravenna,44.4161,12.2017,Italy,IT,ITA,Emilia-Romagna,minor,155751,1380964180,E
+Paderborn,Paderborn,51.7181,8.7542,Germany,DE,DEU,North Rhine-Westphalia,minor,155749,1276339087,E
+Neuss,Neuss,51.2,6.7,Germany,DE,DEU,North Rhine-Westphalia,minor,155163,1276075502,E
+Salzburg,Salzburg,47.8,13.045,Austria,AT,AUT,Salzburg,admin,155021,1040312147,E
+Brăila,Braila,45.2692,27.9575,Romania,RO,ROU,Brăila,admin,154686,1642286806,E
+Durrës,Durres,41.3133,19.4458,Albania,AL,ALB,Durrës,admin,153614,1008173690,E
+Bytom,Bytom,50.3483,18.9156,Poland,PL,POL,Śląskie,minor,153274,1616740907,E
+Livorno,Livorno,43.55,10.3167,Italy,IT,ITA,Tuscany,minor,152914,1380159305,E
+Ipswich,Ipswich,52.0594,1.1556,United Kingdom,GB,GBR,Suffolk,,151562,1826629486,E
+Logroño,Logrono,42.465,-2.4456,Spain,ES,ESP,La Rioja,admin,151164,1724721513,E
+Kragujevac,Kragujevac,44.0142,20.9394,Serbia,RS,SRB,Kragujevac,admin,150623,1688832387,E
+Badajoz,Badajoz,38.8803,-6.9753,Spain,ES,ESP,Extremadura,minor,150570,1724759742,E
+Nîmes,Nimes,43.8383,4.3597,France,FR,FRA,Occitanie,minor,150444,1250417467,E
+Kerch,Kerch,45.3619,36.4711,Ukraine,UA,UKR,"Krym, Avtonomna Respublika",minor,149566,1804437456,E
+Harrow,Harrow,51.5836,-0.3464,United Kingdom,GB,GBR,Harrow,,149246,1826648099,E
+Rimini,Rimini,44.0594,12.5683,Italy,IT,ITA,Emilia-Romagna,minor,149211,1380527853,E
+Melitopol,Melitopol,46.8489,35.3675,Ukraine,UA,UKR,Zaporizka Oblast,minor,148851,1804906240,E
+Dundee,Dundee,56.4606,-2.97,United Kingdom,GB,GBR,Dundee City,,148280,1826581481,E
+Cagliari,Cagliari,39.2167,9.1167,Italy,IT,ITA,Sardegna,admin,148117,1380685705,E
+Odivelas,Odivelas,38.8,-9.1833,Portugal,PT,PRT,Lisboa,minor,148034,1620010482,E
+Aix-en-Provence,Aix-en-Provence,43.5263,5.4454,France,FR,FRA,Provence-Alpes-Côte d’Azur,minor,147933,1250001687,E
+Szombathely,Szombathely,47.2351,16.6219,Hungary,HU,HUN,Vas,admin,147920,1348565183,E
+Jyväskylä,Jyvaskyla,62.2417,25.7417,Finland,FI,FIN,Keski-Suomi,admin,147856,1246938345,E
+Clermont-Ferrand,Clermont-Ferrand,45.7831,3.0824,France,FR,FRA,Auvergne-Rhône-Alpes,minor,147751,1250135509,E
+Kramatorsk,Kramatorsk,48.7392,37.5839,Ukraine,UA,UKR,Donetska Oblast,minor,147145,1804461469,E
+West Bromwich,West Bromwich,52.519,-1.995,United Kingdom,GB,GBR,Sandwell,,146386,1826231773,E
+Stavanger,Stavanger,58.97,5.7314,Norway,NO,NOR,Rogaland,admin,146011,1578801684,E
+Gloucester,Gloucester,51.8653,-2.2458,United Kingdom,GB,GBR,Gloucestershire,,145563,1826932068,E
+Foggia,Foggia,41.4584,15.5519,Italy,IT,ITA,Puglia,minor,145348,1380084447,E
+Le Mans,Le Mans,48.0077,0.1984,France,FR,FRA,Pays de la Loire,minor,145182,1250829671,E
+Arad,Arad,46.175,21.3125,Romania,RO,ROU,Arad,admin,145078,1642996909,E
+Salamanca,Salamanca,40.965,-5.6642,Spain,ES,ESP,Castille-Leon,minor,144866,1724960825,E
+Poole,Poole,50.7167,-1.9833,United Kingdom,GB,GBR,"Bournemouth, Christchurch and Poole",,144800,1826379738,E
+Lleida,Lleida,41.6167,0.6333,Spain,ES,ESP,Catalonia,minor,144739,1724114678,E
+Aalborg,Aalborg,57.0337,9.9166,Denmark,DK,DNK,Nordjylland,admin,143598,1208789278,E
+Miskolc,Miskolc,48.1,20.7833,Hungary,HU,HUN,Borsod-Abaúj-Zemplén,admin,143502,1348668815,E
+Huelva,Huelva,37.25,-6.95,Spain,ES,ESP,Andalusia,minor,143290,1724420824,E
+Telford,Telford,52.6766,-2.4469,United Kingdom,GB,GBR,Telford and Wrekin,,142723,1826968934,E
+Ingolstadt,Ingolstadt,48.7631,11.425,Germany,DE,DEU,Bavaria,minor,142308,1276803150,E
+Preston,Preston,53.83,-2.735,United Kingdom,GB,GBR,Lancashire,,141801,1826018478,E
+York,York,53.96,-1.08,United Kingdom,GB,GBR,York,,141685,1826149980,E
+Lausanne,Lausanne,46.52,6.6333,Switzerland,CH,CHE,Vaud,admin,141418,1756055099,E
+Piteşti,Pitesti,44.8606,24.8678,Romania,RO,ROU,Argeş,admin,141275,1642781938,E
+Tarragona,Tarragona,41.1175,1.2528,Spain,ES,ESP,Catalonia,minor,141151,1724296961,E
+Brest,Brest,48.39,-4.49,France,FR,FRA,Bretagne,minor,140993,1250882453,E
+Coimbra,Coimbra,40.2111,-8.4289,Portugal,PT,PRT,Coimbra,admin,140816,1620166724,E
+Middlesbrough,Middlesbrough,54.5767,-1.2355,United Kingdom,GB,GBR,Redcar and Cleveland,,140545,1826407067,E
+Dos Hermanas,Dos Hermanas,37.2836,-5.9222,Spain,ES,ESP,Andalusia,,140430,1724272711,E
+Pécs,Pecs,46.0708,18.2331,Hungary,HU,HUN,Baranya,admin,140330,1348611992,E
+Reykjavík,Reykjavik,64.1458,-21.9425,Iceland,IS,ISL,Reykjavík,primary,139875,1352327190,E
+Blackpool,Blackpool,53.8142,-3.0503,United Kingdom,GB,GBR,Blackpool,,139305,1826093175,E
+Apeldoorn,Apeldoorn,52.21,5.97,Netherlands,NL,NLD,Gelderland,minor,138945,1528057552,E
+Tours,Tours,47.3936,0.6892,France,FR,FRA,Centre-Val de Loire,minor,138668,1250635972,E
+Vila Franca de Xira,Vila Franca de Xira,38.95,-8.9833,Portugal,PT,PRT,Lisboa,minor,137529,1620859041,E
+Northampton,Northampton,52.2304,-0.8938,United Kingdom,GB,GBR,Northamptonshire,,137467,1826806747,E
+Norrköping,Norrkoping,58.5919,16.1856,Sweden,SE,SWE,Östergötland,minor,137326,1752803583,E
+Bacău,Bacau,46.5833,26.9167,Romania,RO,ROU,Bacău,admin,136087,1642838304,E
+Maia,Maia,41.2333,-8.6167,Portugal,PT,PRT,Porto,minor,134977,1620000072,E
+Parla,Parla,40.2372,-3.7742,Spain,ES,ESP,Madrid,,134833,1724153608,E
+Amiens,Amiens,49.892,2.299,France,FR,FRA,Hauts-de-France,minor,134780,1250794759,E
+Bern,Bern,46.948,7.4474,Switzerland,CH,CHE,Bern,primary,134506,1756374318,E
+Sibiu,Sibiu,45.7928,24.1519,Romania,RO,ROU,Sibiu,admin,134308,1642393086,E
+Brighton,Brighton,50.8208,-0.1375,United Kingdom,GB,GBR,Brighton and Hove,,134293,1826609057,E
+Sale,Sale,53.424,-2.322,United Kingdom,GB,GBR,Trafford,,134022,1826016049,E
+Famalicão,Famalicao,41.4144,-8.5222,Portugal,PT,PRT,Braga,minor,133832,1620202480,E
+Ruda Śląska,Ruda Slaska,50.2628,18.8536,Poland,PL,POL,Śląskie,minor,133793,1616148566,E
+Rybnik,Rybnik,50.0833,18.55,Poland,PL,POL,Śląskie,minor,133772,1616092098,E
+Peristéri,Peristeri,38.0167,23.6833,Greece,GR,GRC,Attikí,minor,133630,1300302779,E
+Uppsala,Uppsala,59.8601,17.64,Sweden,SE,SWE,Stockholm,,133117,1752330831,E
+Schaarbeek,Schaarbeek,50.8675,4.3736,Belgium,BE,BEL,Brussels-Capital Region,,132799,1056091146,E
+Luxembourg,Luxembourg,49.6117,6.1319,Luxembourg,LU,LUX,Luxembourg,primary,132780,1442262731,E
+Fürth,Furth,49.4667,11,Germany,DE,DEU,Bavaria,minor,132032,1276580165,E
+Västerås,Vasteras,59.6173,16.5422,Sweden,SE,SWE,Västmanland,admin,131643,1752826955,E
+Annecy,Annecy,45.916,6.133,France,FR,FRA,Auvergne-Rhône-Alpes,minor,131272,1250551848,E
+Vlorë,Vlore,40.45,19.4833,Albania,AL,ALB,Vlorë,admin,130827,1008276050,E
+Innsbruck,Innsbruck,47.2683,11.3933,Austria,AT,AUT,Tirol,admin,130585,1040038924,E
+Lincoln,Lincoln,53.2283,-0.5389,United Kingdom,GB,GBR,Lincolnshire,,130200,1826312785,E
+Heilbronn,Heilbronn,49.15,9.2167,Germany,DE,DEU,Baden-Württemberg,minor,130093,1276377359,E
+Ulm,Ulm,48.4,9.9833,Germany,DE,DEU,Baden-Württemberg,minor,129942,1276002212,E
+Mataró,Mataro,41.5333,2.45,Spain,ES,ESP,Catalonia,,129870,1724901780,E
+Zwolle,Zwolle,52.5167,6.1,Netherlands,NL,NLD,Overijssel,admin,129840,1528690076,E
+Limoges,Limoges,45.8353,1.2625,France,FR,FRA,Nouvelle-Aquitaine,minor,129754,1250736774,E
+Ferrara,Ferrara,44.8353,11.6199,Italy,IT,ITA,Emilia-Romagna,minor,129340,1380682411,E
+Tottenham,Tottenham,51.5975,-0.0681,United Kingdom,GB,GBR,Haringey,,129237,1826538674,E
+Pforzheim,Pforzheim,48.895,8.705,Germany,DE,DEU,Baden-Württemberg,minor,128992,1276732622,E
+Örebro,Orebro,59.2669,15.1965,Sweden,SE,SWE,Örebro,admin,128658,1752223019,E
+Würzburg,Wurzburg,49.7833,9.9333,Germany,DE,DEU,Bavaria,minor,128246,1276233514,E
+Latina,Latina,41.4672,12.9036,Italy,IT,ITA,Lazio,minor,127564,1380947157,E
+Opole,Opole,50.6667,17.9333,Poland,PL,POL,Opolskie,admin,127387,1616096837,E
+Wolfsburg,Wolfsburg,52.4231,10.7872,Germany,DE,DEU,Lower Saxony,minor,127256,1276033981,E
+Salerno,Salerno,40.6806,14.7594,Italy,IT,ITA,Campania,minor,127186,1380863448,E
+Torrejón de Ardoz,Torrejon de Ardoz,40.4614,-3.4978,Spain,ES,ESP,Madrid,,127132,1724711203,E
+Leiria,Leiria,39.7431,-8.8069,Portugal,PT,PRT,Leiria,admin,126897,1620304777,E
+Kamëz,Kamez,41.3833,19.7667,Albania,AL,ALB,Tiranë,,126777,1008148968,E
+Zoetermeer,Zoetermeer,52.0667,4.5,Netherlands,NL,NLD,Zuid-Holland,minor,125267,1528416914,E
+Algeciras,Algeciras,36.1275,-5.4539,Spain,ES,ESP,Andalusia,,124978,1724355681,E
+Tychy,Tychy,50.1236,18.9867,Poland,PL,POL,Śląskie,minor,124882,1616396493,E
+Leeuwarden,Leeuwarden,53.2,5.7833,Netherlands,NL,NLD,Fryslân,admin,124481,1528992603,E
+Exeter,Exeter,50.7256,-3.5269,United Kingdom,GB,GBR,Devon,,124180,1826840903,E
+Kuopio,Kuopio,62.8925,27.6783,Finland,FI,FIN,Pohjois-Savo,admin,124131,1246334067,E
+Leiden,Leiden,52.16,4.49,Netherlands,NL,NLD,Zuid-Holland,minor,124093,1528966223,E
+Cambridge,Cambridge,52.205,0.1225,United Kingdom,GB,GBR,Cambridgeshire,,123867,1826229713,E
+Giugliano in Campania,Giugliano in Campania,40.9283,14.2011,Italy,IT,ITA,Campania,,123679,1380386690,E
+Romford,Romford,51.5768,0.1801,United Kingdom,GB,GBR,Havering,,122854,1826695421,E
+León,Leon,42.6056,-5.57,Spain,ES,ESP,Castille-Leon,minor,122051,1724907542,E
+Colchester,Colchester,51.8917,0.903,United Kingdom,GB,GBR,Essex,,121859,1826545433,E
+Monza,Monza,45.5836,9.2736,Italy,IT,ITA,Lombardy,minor,121799,1380622727,E
+Metz,Metz,49.1203,6.1778,France,FR,FRA,Grand Est,minor,121695,1250778717,E
+Dordrecht,Dordrecht,51.7958,4.6783,Netherlands,NL,NLD,Zuid-Holland,minor,121434,1528952691,E
+Sassari,Sassari,40.7267,8.5592,Italy,IT,ITA,Sardegna,minor,121021,1380371433,E
+Perpignan,Perpignan,42.6986,2.8956,France,FR,FRA,Occitanie,minor,120996,1250102680,E
+Anderlecht,Anderlecht,50.8333,4.3333,Belgium,BE,BEL,Brussels-Capital Region,,120887,1056297471,E
+Lahti,Lahti,60.9833,25.65,Finland,FI,FIN,Päijät-Häme,admin,120809,1246538847,E
+Göttingen,Gottingen,51.5339,9.9356,Germany,DE,DEU,Lower Saxony,minor,120261,1276211234,E
+High Wycombe,High Wycombe,51.6287,-0.7482,United Kingdom,GB,GBR,Buckinghamshire,,120256,1826609342,E
+Maastricht,Maastricht,50.8667,5.6833,Netherlands,NL,NLD,Limburg,admin,120227,1528563623,E
+Boulogne-Billancourt,Boulogne-Billancourt,48.8352,2.2409,France,FR,FRA,Île-de-France,minor,120205,1250978859,E
+Besançon,Besancon,47.24,6.02,France,FR,FRA,Bourgogne-Franche-Comté,minor,120057,1250182013,E
+Gateshead,Gateshead,54.9556,-1.6,United Kingdom,GB,GBR,Gateshead,,120046,1826635849,E
+Mariupol,Mariupol,47.0958,37.5494,Ukraine,UA,UKR,Donetska Oblast,minor,120000,1804630021,E
+Gorzów Wielkopolski,Gorzow Wielkopolski,52.7333,15.25,Poland,PL,POL,Lubuskie,admin,119964,1616788025,E
+Suceava,Suceava,47.6514,26.2556,Romania,RO,ROU,Suceava,admin,119694,1642721443,E
+Bergamo,Bergamo,45.695,9.67,Italy,IT,ITA,Lombardy,minor,119534,1380253521,E
+Slough,Slough,51.5084,-0.5881,United Kingdom,GB,GBR,Slough,,119070,1826807636,E
+Bottrop,Bottrop,51.5247,6.9228,Germany,DE,DEU,North Rhine-Westphalia,minor,118705,1276473363,E
+Pescara,Pescara,42.4643,14.2142,Italy,IT,ITA,Abruzzo,minor,118657,1380000966,E
+Reutlingen,Reutlingen,48.4833,9.2167,Germany,DE,DEU,Baden-Württemberg,minor,118528,1276256795,E
+Bruges,Bruges,51.2089,3.2242,Belgium,BE,BEL,Flanders,minor,118509,1056953902,E
+Trento,Trento,46.0667,11.1167,Italy,IT,ITA,Trentino-Alto Adige,admin,118046,1380953307,E
+Blackburn,Blackburn,53.748,-2.482,United Kingdom,GB,GBR,Blackburn with Darwen,,117963,1826802533,E
+Erlangen,Erlangen,49.5833,11.0167,Germany,DE,DEU,Bavaria,minor,117806,1276339482,E
+Alcobendas,Alcobendas,40.5333,-3.6333,Spain,ES,ESP,Madrid,,117041,1724354998,E
+Dąbrowa Górnicza,Dabrowa Gornicza,50.3214,19.1872,Poland,PL,POL,Śląskie,minor,116930,1616312023,E
+Linköping,Linkoping,58.4094,15.6257,Sweden,SE,SWE,Östergötland,admin,116851,1752963378,E
+Barcelos,Barcelos,41.5333,-8.6167,Portugal,PT,PRT,Braga,minor,116752,1620850431,E
+Cheltenham,Cheltenham,51.9,-2.0667,United Kingdom,GB,GBR,Gloucestershire,,116447,1826524974,E
+Forlì,Forli,44.2225,12.0408,Italy,IT,ITA,Emilia-Romagna,minor,116440,1380594352,E
+Orléans,Orleans,47.9025,1.909,France,FR,FRA,Centre-Val de Loire,admin,116344,1250441405,E
+Rouen,Rouen,49.4428,1.0886,France,FR,FRA,Normandie,admin,116331,1250372069,E
+Siracusa,Siracusa,37.0692,15.2875,Italy,IT,ITA,Sicilia,minor,116244,1380071816,E
+Târgu-Mureş,Targu-Mures,46.5456,24.5625,Romania,RO,ROU,Mureş,admin,116033,1642875714,E
+Helsingborg,Helsingborg,56.0424,12.721,Sweden,SE,SWE,Skåne,minor,116029,1752789933,E
+Sandvika,Sandvika,59.89,10.5264,Norway,NO,NOR,Viken,minor,115543,1578704639,E
+Uzhhorod,Uzhhorod,48.6239,22.295,Ukraine,UA,UKR,Zakarpatska Oblast,admin,115449,1804851697,E
+Chelmsford,Chelmsford,51.73,0.48,United Kingdom,GB,GBR,Essex,,115369,1826876670,E
+Nyíregyháza,Nyiregyhaza,47.9558,21.7168,Hungary,HU,HUN,Szabolcs-Szatmár-Bereg,admin,115359,1348653343,E
+Koblenz,Koblenz,50.3597,7.5978,Germany,DE,DEU,Rhineland-Palatinate,minor,115298,1276605495,E
+Saint-Denis,Saint-Denis,48.9356,2.3539,France,FR,FRA,Île-de-France,minor,115237,1250935115,E
+Elbląg,Elblag,54.1667,19.4,Poland,PL,POL,Warmińsko-Mazurskie,minor,115220,1616395994,E
+Bremerhaven,Bremerhaven,53.55,8.5833,Germany,DE,DEU,Bremen,,114677,1276991229,E
+Borås,Boras,57.7304,12.92,Sweden,SE,SWE,Västra Götaland,minor,114445,1752555835,E
+Alphen aan den Rijn,Alphen aan den Rijn,52.1333,4.6667,Netherlands,NL,NLD,Zuid-Holland,minor,114182,1528593016,E
+Namur,Namur,50.4667,4.8667,Belgium,BE,BEL,Wallonia,admin,114007,1056954156,E
+Petržalka,Petrzalka,48.1333,17.1167,Slovakia,SK,SVK,Bratislava,,114000,1703430611,E
+Remscheid,Remscheid,51.1833,7.2,Germany,DE,DEU,North Rhine-Westphalia,minor,112970,1276043920,E
+Lárisa,Larisa,39.6417,22.4167,Greece,GR,GRC,Thessalía,admin,112777,1300003141,E
+Jönköping,Jonkoping,57.7713,14.165,Sweden,SE,SWE,Jönköping,admin,112766,1752079041,E
+Trier,Trier,49.7567,6.6414,Germany,DE,DEU,Rhineland-Palatinate,minor,112737,1276211430,E
+Bergisch Gladbach,Bergisch Gladbach,50.9918,7.1303,Germany,DE,DEU,North Rhine-Westphalia,minor,112660,1276074373,E
+Płock,Plock,52.55,19.7,Poland,PL,POL,Mazowieckie,minor,112483,1616954507,E
+Jaén,Jaen,37.7667,-3.7711,Spain,ES,ESP,Andalusia,minor,112074,1724699771,E
+Alkmaar,Alkmaar,52.6333,4.75,Netherlands,NL,NLD,Noord-Holland,minor,111766,1528566376,E
+Recklinghausen,Recklinghausen,51.585,7.1619,Germany,DE,DEU,North Rhine-Westphalia,minor,111693,1276179876,E
+Cádiz,Cadiz,36.535,-6.2975,Spain,ES,ESP,Andalusia,minor,110914,1724502822,E
+Jena,Jena,50.9272,11.5861,Germany,DE,DEU,Thuringia,minor,110791,1276659978,E
+Montreuil,Montreuil,48.8611,2.4436,France,FR,FRA,Île-de-France,,110758,1250689747,E
+Rochdale,Rochdale,53.61,-2.16,United Kingdom,GB,GBR,Rochdale,,110194,1826578106,E
+Wythenshawe,Wythenshawe,53.392,-2.264,United Kingdom,GB,GBR,Manchester,,110000,1826781713,E
+Reus,Reus,41.156,1.108,Spain,ES,ESP,Catalonia,,109930,1724192207,E
+Birkenhead,Birkenhead,53.393,-3.014,United Kingdom,GB,GBR,Wirral,,109848,1826080662,E
+Vicenza,Vicenza,45.55,11.55,Italy,IT,ITA,Veneto,minor,109823,1380072199,E
+Brovary,Brovary,50.5111,30.79,Ukraine,UA,UKR,Kyivska Oblast,minor,109806,1804386597,E
+Doncaster,Doncaster,53.5228,-1.1325,United Kingdom,GB,GBR,Doncaster,,109805,1826979494,E
+Winterthur,Winterthur,47.4992,8.7267,Switzerland,CH,CHE,Zürich,minor,109775,1756362130,E
+Rotherham,Rotherham,53.43,-1.357,United Kingdom,GB,GBR,Rotherham,,109691,1826763937,E
+Maidstone,Maidstone,51.272,0.529,United Kingdom,GB,GBR,Kent,,109490,1826000009,E
+Kecskemét,Kecskemet,46.9075,19.6917,Hungary,HU,HUN,Bács-Kiskun,admin,109450,1348900171,E
+Delft,Delft,52.0117,4.3592,Netherlands,NL,NLD,Zuid-Holland,minor,109435,1528448452,E
+Walthamstow,Walthamstow,51.584,-0.021,United Kingdom,GB,GBR,Waltham Forest,,109424,1826009890,E
+Drammen,Drammen,59.7439,10.2045,Norway,NO,NOR,Viken,minor,109416,1578937195,E
+Roquetas de Mar,Roquetas de Mar,36.7642,-2.6147,Spain,ES,ESP,Andalusia,,109204,1724749177,E
+Baia Mare,Baia Mare,47.6567,23.5719,Romania,RO,ROU,Maramureş,admin,108759,1642459769,E
+Ferizaj,Ferizaj,42.3706,21.1553,Kosovo,XK,XKS,Ferizaj,admin,108610,1901875540,E
+Oxford,Oxford,51.7519,-1.2578,United Kingdom,GB,GBR,Oxfordshire,,108600,1826689568,E
+Caen,Caen,49.1814,-0.3636,France,FR,FRA,Normandie,minor,108398,1250001272,E
+Acharnés,Acharnes,38.0833,23.7333,Greece,GR,GRC,Attikí,minor,108169,1300526257,E
+Liberec,Liberec,50.7667,15.0667,Czechia,CZ,CZE,Liberecký Kraj,admin,107982,1203577727,E
+Rijeka,Rijeka,45.3333,14.4333,Croatia,HR,HRV,Primorsko-Goranska Županija,admin,107964,1191949063,E
+Basingstoke,Basingstoke,51.2667,-1.0876,United Kingdom,GB,GBR,Hampshire,,107355,1826924980,E
+Argenteuil,Argenteuil,48.9478,2.2489,France,FR,FRA,Île-de-France,minor,107135,1250226887,E
+Emmen,Emmen,52.7833,6.9,Netherlands,NL,NLD,Drenthe,minor,107024,1528332075,E
+Crawley,Crawley,51.1092,-0.1872,United Kingdom,GB,GBR,West Sussex,,106597,1826470693,E
+Terni,Terni,42.5667,12.65,Italy,IT,ITA,Umbria,minor,106370,1380323915,E
+Berdiansk,Berdiansk,46.7556,36.7889,Ukraine,UA,UKR,Zaporizka Oblast,minor,106311,1804599785,E
+Tarnów,Tarnow,50.0125,20.9886,Poland,PL,POL,Małopolskie,minor,106259,1616375879,E
+Dagenham,Dagenham,51.5397,0.1422,United Kingdom,GB,GBR,Barking and Dagenham,,106247,1826363543,E
+Bolzano,Bolzano,46.4981,11.3548,Italy,IT,ITA,Trentino-Alto Adige,minor,106107,1380677819,E
+Koszalin,Koszalin,54.2,16.1833,Poland,PL,POL,Zachodniopomorskie,minor,105883,1616258002,E
+Funchal,Funchal,32.65,-16.9167,Portugal,PT,PRT,Madeira,admin,105795,1620995356,E
+Yevpatoriia,Yevpatoriia,45.1939,33.3681,Ukraine,UA,UKR,"Krym, Avtonomna Respublika",minor,105719,1804279364,E
+Moers,Moers,51.4592,6.6197,Germany,DE,DEU,North Rhine-Westphalia,,105606,1276257182,E
+Šabac,Sabac,44.7558,19.6939,Serbia,RS,SRB,Šabac,admin,105432,1688640421,E
+Nikopol,Nikopol,47.5667,34.4,Ukraine,UA,UKR,Dnipropetrovska Oblast,minor,105160,1804000135,E
+Sloviansk,Sloviansk,48.8533,37.625,Ukraine,UA,UKR,Donetska Oblast,,105141,1804877044,E
+Salzgitter,Salzgitter,52.15,10.3333,Germany,DE,DEU,Lower Saxony,minor,105039,1276613066,E
+Mulhouse,Mulhouse,47.75,7.34,France,FR,FRA,Grand Est,minor,104924,1250218452,E
+Ourense,Ourense,42.3364,-7.8633,Spain,ES,ESP,Galicia,minor,104891,1724571895,E
+Włocławek,Wloclawek,52.6592,19.0681,Poland,PL,POL,Kujawsko-Pomorskie,minor,104705,1616143097,E
+Wałbrzych,Walbrzych,50.7667,16.2833,Poland,PL,POL,Dolnośląskie,minor,104401,1616162263,E
+Nancy,Nancy,48.6936,6.1846,France,FR,FRA,Grand Est,minor,104387,1250925250,E
+Šiauliai,Siauliai,55.9281,23.3167,Lithuania,LT,LTU,Šiaulių Miestas,admin,104300,1440593416,E
+Chorzów,Chorzow,50.3,18.95,Poland,PL,POL,Śląskie,minor,104193,1616517871,E
+Gillingham,Gillingham,51.385,0.55,United Kingdom,GB,GBR,Medway,,104157,1826642243,E
+Halifax,Halifax,53.725,-1.863,United Kingdom,GB,GBR,Calderdale,,104100,1826413776,E
+Salford,Salford,53.483,-2.2931,United Kingdom,GB,GBR,Salford,,103886,1826868550,E
+Wigan,Wigan,53.5448,-2.6318,United Kingdom,GB,GBR,Wigan,,103608,1826902223,E
+Roncaglia,Roncaglia,45.0437,9.7957,Italy,IT,ITA,Emilia-Romagna,,103607,1380458833,E
+Buzău,Buzau,45.1531,26.8208,Romania,RO,ROU,Buzău,admin,103481,1642794918,E
+Hounslow,Hounslow,51.4668,-0.375,United Kingdom,GB,GBR,Hounslow,,103337,1826943293,E
+Hanau,Hanau,50.1328,8.9169,Germany,DE,DEU,Hesse,minor,103184,1276550409,E
+Wembley,Wembley,51.5528,-0.2979,United Kingdom,GB,GBR,Brent,,102856,1826635683,E
+Telde,Telde,27.9833,-15.4167,Spain,ES,ESP,Canary Islands,,102769,1724281666,E
+Piacenza,Piacenza,45.05,9.7,Italy,IT,ITA,Emilia-Romagna,minor,102465,1380821832,E
+Gütersloh,Gutersloh,51.9,8.3833,Germany,DE,DEU,North Rhine-Westphalia,minor,102464,1276587494,E
+Hildesheim,Hildesheim,52.15,9.95,Germany,DE,DEU,Lower Saxony,minor,102325,1276244190,E
+Olomouc,Olomouc,49.5939,17.2508,Czechia,CZ,CZE,Olomoucký Kraj,admin,102293,1203328061,E
+Siegen,Siegen,50.8833,8.0167,Germany,DE,DEU,North Rhine-Westphalia,minor,102114,1276268768,E
+San Vicente de Baracaldo,San Vicente de Baracaldo,43.2972,-2.9917,Spain,ES,ESP,Basque Country,,101984,1724451934,E
+Worcester,Worcester,52.1911,-2.2206,United Kingdom,GB,GBR,Worcestershire,,101891,1826393854,E
+Eastbourne,Eastbourne,50.77,0.28,United Kingdom,GB,GBR,East Sussex,,101547,1826356320,E
+Kaiserslautern,Kaiserslautern,49.4447,7.7689,Germany,DE,DEU,Rhineland-Palatinate,minor,101486,1276674534,E
+Pavlohrad,Pavlohrad,48.5167,35.8667,Ukraine,UA,UKR,Dnipropetrovska Oblast,minor,101430,1804162854,E
+Klagenfurt,Klagenfurt,46.6167,14.3,Austria,AT,AUT,Kärnten,admin,101403,1040149651,E
+Novara,Novara,45.45,8.62,Italy,IT,ITA,Piedmont,minor,101257,1380911437,E
+Deventer,Deventer,52.25,6.2,Netherlands,NL,NLD,Overijssel,minor,101236,1528681564,E
+Vaciamadrid,Vaciamadrid,40.3394,-3.5181,Spain,ES,ESP,Madrid,,100250,1724369937,E
+Cottbus,Cottbus,51.7606,14.3342,Germany,DE,DEU,Brandenburg,minor,100010,1276436655,E

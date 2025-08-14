@@ -219,6 +219,10 @@ doVar bra a b = do
             b2 -> unify bra a2 b2
 
 
+   -- it only matters what type of branch the most recent common ancestor is
+   -- if it's an AND then they must unify
+   -- if it's an OR they may both be true but have different values so don't unify (unless rejoining?)
+      -- is there any point recording this event? i don't think so
 common bra brb = let 
    seq1 br = iterate (\(x, y) -> (parent x, S.insert x y)) (br, S.empty) 
    seqa = seq1 bra
@@ -273,9 +277,12 @@ unify bra brb _ _ = return False
  - append([A|As], Bs, [A|Cs]) :- append(As, Bs, Cs).
  -
  - ? append(X, Y, "hello")
+ - append(X=[], Y=Bs1, Bs1="hello")
  - X = ""
  - Y = "hello"
  -
+ - append(X=[A1=h|As1], Y=Bs2, [A1=h|Cs1="ello"])
+ - append(As1=[], Bs2=Bs3, Bs3=Cs1="ello").
  - X = "h"
  - Y = "ello"
  -
@@ -318,6 +325,14 @@ np(X, [])
 det(X=EA, EB)
 det(X=EA=E1, EB=E2)
 det(X=EA=E1=[the|E2], EB=E2)
+
+det(X=EA=
+
+
+
+
+branch(A, a(A, A)).
+branch(B, b(B, B, B)).
 
 
 

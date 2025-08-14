@@ -135,7 +135,7 @@ levenshteinMulti1 xs =
       lens = map length xs
       ch = 1
       indices = zipWith (\x -> mapFromList (:) [] . (`zip` map (x,) [1..]) . map (take ch) . init . tails) [0..nseq1] xs
-      index = M.filter ((> 1) . length) $ foldr (M.unionWith (++)) M.empty $ indices
+      index = M.filter ((> 1) . length) $ foldr (M.unionWith (++)) M.empty indices
       steps = mapfxx ((nseq -) . sum) $ tail $ crossList $ replicate nseq [0, 1]
       --nexts from = HS.fromList $ map (zipWith (+) from . snd) steps
 

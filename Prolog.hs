@@ -1,5 +1,7 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 module Prolog where
 
@@ -58,14 +60,31 @@ instantiate goal = do
 
 (MonadState Env (t []), MonadTrans t) => t [] ()
 
-use lift to bting list monad stuff into the state monad
+use lift to bring list monad stuff into the state monad
 -}
 
 doAnd db = mapM_ (doOr db)
 
 doOr db newgoal = lift db >>= doClause db newgoal
 
+visitPost f (Apply xs) = f $ Apply $ map (visitPost f) xs
+visitPost f (List  xs) = f $ List  $ map (visitPost f) xs
+visitPost f other      = f other
+
+visitPre f x = case f x of
+  Apply xs -> Apply $ map (visitPre f) xs
+  List  xs -> List  $ map (visitPre f) xs
+  other    -> other
+
 expandList xs = foldr (\x y -> Apply [Sym "cons", x, y]) (Sym "nil") xs
+
+expandList1 xs y = foldr (\x y -> Apply [Sym "cons", x, y]) y xs
+
+expandList2 (List xs  ) = expandList  xs
+expandList2 (Imp  xs y) = expandList1 xs y
+expandList2 other       = other
+
+expandLists x = visitPost expandList2 x
 
 expandSym = expandList . map (Sym . singleton)
 
@@ -83,6 +102,7 @@ Apply [Sym "-->",Apply [Sym "np",Name "ET1",Name "ET3"],Apply [Sym "adj",Name "E
 
 expandTerm1 s@(Sym {}) a b = Apply [s, a, b]
 expandTerm1 (Apply xs) a b = Apply (xs ++ [a, b])
+expandTerm1 (List  xs) a b = Apply [Sym "=", a, Imp xs b]
 
 contractEnv env = I.map (contractSym . (`contractList` env)) env
 
