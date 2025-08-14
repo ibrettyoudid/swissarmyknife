@@ -433,8 +433,41 @@ corner ml n = concatMap (\q -> map (q :) $ corner (ml-1) (n-q)) [0..n]
 
 shift s cs = map sum $ transpose $ zipWith (\c -> reverse . zipWith (*) (iterate (*s) 1) . map ((*c) . fromIntegral)) cs pascal
 
-poly x c = sum $ zipWith (*) c $ iterate (*x) 1
+poly c x = sum $ zipWith (*) c $ iterate (*x) 1
 
+newtype Poly a = Poly [a]
+
+instance (Eq a, Num a) => Eq (Poly a) where
+   a == b = polyempty (a - b)
+
+instance (Eq a, Num a) => Num (Poly a) where
+   Poly as * Poly bs = Poly $ map sum $ zipWith (\a z -> replicate z 0 ++ map (a*) bs) as [0..]
+   Poly as + Poly bs = Poly $ snarf $ zerozip (+) as bs 
+   Poly as - Poly bs = Poly $ snarf $ zerozip (-) as bs 
+   fromInteger a = Poly [fromInteger a]
+   abs (Poly as) = Poly $ map abs as
+   
+polydiv (/) n@(Poly ns) d@(Poly ds) = let 
+   ln = length ns
+   ld = length ds
+   q = Poly $ replicate (ln - ld) 0 ++ [last ns / last ds]
+   r = n - q * d
+   (q1, r1) = polydiv (/) r d
+   in if ln >= ld then (q + q1, r1) else (Poly [], n)
+
+snarf as = reverse $ dropWhile (==0) $ reverse as
+
+zerozip f a b = let
+   [a1, b1] = padRWith 0 [a, b]
+   in zipWith f a1 b1
+
+polyempty (Poly as) = null as
+
+at (Poly as) = poly as
+
+root r = Poly [-r, 1]
+
+withRoots rs = product $ map root rs
 {-
 x^2+x+1
 
@@ -449,3 +482,4 @@ x=y+5
 (y+10)^3
 (y^3+300y^2
 -}
+main = putStrLn "hello world"
