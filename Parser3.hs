@@ -78,6 +78,7 @@ instance Show a => Show (Rule a) where
    show = outershow Nothing
 
 --innershow d (Seqd  a b) = unwords $ ii d [innershow Nothing a, innershow Nothing b]
+innershow d (Seq   as ) = unwords $ ii d $ map (innershow Nothing) as
 innershow d (Alt   as ) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
 innershow d (Name  a _) = unwords $ ii d [a]
 innershow d (Token a  ) = unwords $ ii d [show a]
@@ -126,7 +127,7 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 
 expr = Name "expr" $ Alt [Seq [expr, Token '+', expr], Token 'a']
 
-test = p expr "a+a+a"
+test = pD expr "a+a+a"
 
 p e s = tree e $ parseE e s
 
@@ -197,21 +198,21 @@ process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
 predict = closure (process predict1)
 
---predict1 (State r j _ d) = [State a j j 0 | a <- paux r d]
+predict1 (State r j k d) = [State a k k 0 | a <- paux r d]
 
-predict1Y (State2 j _ (Item d r)) = [State2 j j (Item 0 a) | a <- paux r d]
+predict1Y (State2 j k (Item d r)) = [State2 k k (Item 0 a) | a <- paux r d]
 
 paux (Seq  as ) q = [as !! q | q < length as]
 paux (Alt  as ) 0 = as
 paux (Name a b) 0 = [b]
 paux _ _ = []
 
-
+{-}
 predict1 (State r@(Alt as) j _ 0) = [State  a        j j 0 | a <-       as]
 predict1 (State r@(Seq as) j _ d) = [State (as !! d) j j 0 | d < length as]
 predict1 (State (Name a b) j _ 0) = [State  b        j j 0                ]
 predict1 s = []
-{-
+
 predict1Z (State2 j _ (Item 0 (Alt   as  ))) = [State2 j j (Item 0  a       ) | a <-       as]
 predict1Z (State2 j _ (Item d (Seq   as  ))) = [State2 j j (Item 0 (as !! d)) | d < length as]
 predict1Z (State2 j _ (Item 0 (Name  a  b))) = [State2 j j (Item 0  b       )                ]
@@ -232,7 +233,11 @@ saux _ _ = False
 
 complete states = closure (\old -> process (complete1 (states ++ [old])) old)
 
-complete1 states (State y j k p) = mapMaybe (\(State x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ State x i k (q + 1)) $ S.toList $ states !! j
+complete1 states (State y j k p) = mapMaybe 
+   (\(State x i j1 q) -> 
+      ifJust (p == slength y && q < slength x && caux x q y) 
+         $ State x i k (q + 1)
+   ) $ S.toList $ states !! j
 
 complete12 states (State2 j k (Item p y)) =
    mapMaybe (\(State2 i j1 (Item q x)) ->
@@ -404,7 +409,7 @@ taux str maxes s k =
     in
       (max1, Parser3.mergeStrs num tok, fmts)
 
-taux1 ends max1 k state@(State e j _ d) = taux2 ends max1 j k (let s = "hello" {-show state-} in if j < k then s else "(" ++ s ++ ")") '-'
+taux1 ends max1 k state@(State e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
 
 taux2 ends m j k sh fill =
    if
