@@ -3,12 +3,13 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Redundant multi-way if" #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 module Parser3 where
 
 import Favs
 import MyPretty2 hiding (format)
-import MHashDynamic hiding (Apply)
+import MHashDynamic hiding (Apply, expr)
 import SyntaxCIPU
 --import Syntax3 hiding (foldl, foldr)
 
@@ -57,19 +58,19 @@ instance Ord a => Ord (Rule a) where
    compare (Name  a _) (Name  b _) = compare a b
    compare (Token a  ) (Token b  ) = compare a b
    compare (Range a b) (Range c d) = compare (a, b) (c, d)
-   compare (Name{}) _ = LT
-   compare (Seq{}) (Name{}) = GT
-   compare (Seq{}) _ = LT
-   compare (Alt{}) (Name{}) = GT
-   compare (Alt{}) (Seq{}) = GT
-   compare (Alt{}) _ = LT
-   compare (Token{}) (Name{}) = GT
-   compare (Token{}) (Seq{}) = GT
-   compare (Token{}) (Alt{}) = GT
-   compare (Token{}) _ = LT
-   compare (Range{}) (Name{}) = GT
-   compare (Range{}) (Seq{}) = GT
-   compare (Range{}) (Alt{}) = GT
+   compare (Name {}) _         = LT
+   compare (Seq  {}) (Name {}) = GT
+   compare (Seq  {}) _         = LT
+   compare (Alt  {}) (Name {}) = GT
+   compare (Alt  {}) (Seq  {}) = GT
+   compare (Alt  {}) _         = LT
+   compare (Token{}) (Name {}) = GT
+   compare (Token{}) (Seq  {}) = GT
+   compare (Token{}) (Alt  {}) = GT
+   compare (Token{}) _         = LT
+   compare (Range{}) (Name {}) = GT
+   compare (Range{}) (Seq  {}) = GT
+   compare (Range{}) (Alt  {}) = GT
    compare (Range{}) (Token{}) = GT
 --   compare (Range{}) _ = LT
 
@@ -106,7 +107,7 @@ data State x
    deriving (Eq)
 
 instance Show z => Show (State z) where
-   show (State r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k])
+   show (State r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k, d])
 
 instance Ord z => Ord (State z) where
    compare (State e1 j1 k1 d1) (State e2 j2 k2 d2) = compare (j1, k1, d1, e1) (j2, k2, d2, e2)
@@ -123,9 +124,9 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 --ident = Name "ident" $ cons (Alt [alpha, under]) ident1
 --ident1 = Many (Alt [alpha, under, digit])
 
---expr = Name "expr" $ Alt [Seq [expr, Token '+', expr], Token 'a']
+expr = Name "expr" $ Alt [Seq [expr, Token '+', expr], Token 'a']
 
---test = p expr "a+a+a"
+test = p expr "a+a+a"
 
 p e s = tree e $ parseE e s
 
@@ -196,38 +197,38 @@ process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
 predict = closure (process predict1)
 
-predict1 (State r j _ d) = [State a j j 0 | a <- paux r d]
+--predict1 (State r j _ d) = [State a j j 0 | a <- paux r d]
 
 predict1Y (State2 j _ (Item d r)) = [State2 j j (Item 0 a) | a <- paux r d]
-{-
+
+paux (Seq  as ) q = [as !! q | q < length as]
+paux (Alt  as ) 0 = as
+paux (Name a b) 0 = [b]
+paux _ _ = []
+
+
 predict1 (State r@(Alt as) j _ 0) = [State  a        j j 0 | a <-       as]
 predict1 (State r@(Seq as) j _ d) = [State (as !! d) j j 0 | d < length as]
 predict1 (State (Name a b) j _ 0) = [State  b        j j 0                ]
 predict1 s = []
--}
-
+{-
 predict1Z (State2 j _ (Item 0 (Alt   as  ))) = [State2 j j (Item 0  a       ) | a <-       as]
 predict1Z (State2 j _ (Item d (Seq   as  ))) = [State2 j j (Item 0 (as !! d)) | d < length as]
 predict1Z (State2 j _ (Item 0 (Name  a  b))) = [State2 j j (Item 0  b       )                ]
 predict1Z s = []
-
-paux r@(Seq  as ) q = [as !! q | q < slength r]
-paux   (Alt  as ) 0 = as
-paux   (Name a b) 0 = [b]
-paux _ _ = []
+-}
 
 scan k s items = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList items
 
-scan1 k ch (State r j _ 0) = ifJust (scan9 ch r) (State r j k 1)
+scan1 k ch (State r j _ 0) = ifJust (saux ch r) (State r j k 1)
 scan1 k ch s = Nothing
 
-scan1Z k ch (State2 j _ (Item 0 r)) | scan9 ch r = Just $ State2 j k (Item 1 r)
-                                    | otherwise  = Nothing
+scan1Z k ch (State2 j _ (Item 0 r)) = ifJust (saux ch r) (State2 j k (Item 1 r))
 scan1Z k ch _ = Nothing
 
-scan9 ch (Token c  ) = ch == c
-scan9 ch (Range c d) = ch >= c && ch <= d
-scan9 _ _ = False
+saux ch (Token c  ) = ch == c
+saux ch (Range c d) = ch >= c && ch <= d
+saux _ _ = False
 
 complete states = closure (\old -> process (complete1 (states ++ [old])) old)
 
@@ -239,7 +240,7 @@ complete12 states (State2 j k (Item p y)) =
          State2 i k (Item (q + 1) x)
    ) $ S.toList $ states !! j
 
-complete3 states items = foldl complete4 states items
+complete3  states items = foldl complete4 states items
 
 complete32 states items = foldl complete42 states items
 
@@ -403,7 +404,7 @@ taux str maxes s k =
     in
       (max1, Parser3.mergeStrs num tok, fmts)
 
-taux1 ends max1 k state@(State e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
+taux1 ends max1 k state@(State e j _ d) = taux2 ends max1 j k (let s = "hello" {-show state-} in if j < k then s else "(" ++ s ++ ")") '-'
 
 taux2 ends m j k sh fill =
    if

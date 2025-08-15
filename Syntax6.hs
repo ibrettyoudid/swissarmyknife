@@ -9,7 +9,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module Syntax3 where
+module Syntax6 where
 
 import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 
