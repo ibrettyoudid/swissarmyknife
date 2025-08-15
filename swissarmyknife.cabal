@@ -135,6 +135,7 @@ library
         NumberParsers,
         Parser, 
         Parser2,
+        Parser3,
         --Poker, 
         Prob, 
         Prolog, 

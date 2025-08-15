@@ -34,26 +34,28 @@ parse (Ignore a) =
 format (Token a) = a
 -}
 --    EIso    :: Iso alpha beta -> Rule alpha -> Rule beta
-tod f x = dynApply (toDyn f) x
+tod :: (Typeable a, Typeable b) => (a -> Maybe b) -> Dynamic -> Maybe Dynamic
+tod f x = toDyn <$> f (fromDyn1 x)
 
+isod :: (Typeable a, Typeable b) => (a -> Maybe b) -> (b -> Maybe a) -> Iso Dynamic Dynamic
 isod a b = Iso (tod a) (tod b)
 
-icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
+--icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
 
-instance Eq (Rule a) where
+instance Eq a => Eq (Rule a) where
 --   Seqd  a b == Seqd c d = (a, b) == (c, d)
-   Seq   as  == Seq  bs  = as     == bs
-   Alt   as  == Alt  bs  = as     == bs
+   Seq   as  == Seq   bs  = as     == bs
+   Alt   as  == Alt   bs  = as     == bs
    Name  a _ == Name  b _ = a == b
    Token a   == Token b   = a == b
    Range a b == Range c d = (a, b) == (c, d)
    _ == _ = False
 
-instance Ord (Rule a) where
+instance Ord a => Ord (Rule a) where
 --   compare (Seqd a b) (Seqd c d) = compare (a, b) (c, d)
-   compare (Alt as ) (Alt bs ) = compare as bs
-   compare (Name a _) (Name b _) = compare a b
-   compare (Token a) (Token b) = compare a b
+   compare (Alt   as ) (Alt   bs ) = compare as bs
+   compare (Name  a _) (Name  b _) = compare a b
+   compare (Token a  ) (Token b  ) = compare a b
    compare (Range a b) (Range c d) = compare (a, b) (c, d)
    compare (Name{}) _ = LT
    compare (Seq{}) (Name{}) = GT
@@ -71,10 +73,9 @@ instance Ord (Rule a) where
    compare (Range{}) (Token{}) = GT
 --   compare (Range{}) _ = LT
 
-instance Show (Rule a) where
+instance Show a => Show (Rule a) where
    show = outershow Nothing
 
-innershow :: Maybe Int -> Rule a -> [Char]
 --innershow d (Seqd  a b) = unwords $ ii d [innershow Nothing a, innershow Nothing b]
 innershow d (Alt   as ) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
 innershow d (Name  a _) = unwords $ ii d [a]
@@ -95,20 +96,20 @@ data Item r = Item Int (Rule r) deriving (Eq, Ord)
 
 type ItemSet r = S.Set (Item r)
 
-instance Show (Item r) where
+instance Show r => Show (Item r) where
    show (Item d r) = outershow (Just d) r
 
-data EItem2 r = EItem2 Int Int (Item r) deriving (Eq, Ord)
+data State2 r = State2 Int Int (Item r) deriving (Eq, Ord)
 
-data EItem x
-   = EItem { r::Rule x, f::Int, t::Int, n::Int }
+data State x
+   = State { r::Rule x, f::Int, t::Int, n::Int }
    deriving (Eq)
 
-instance Show (EItem z) where
-   show (EItem r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k])
+instance Show z => Show (State z) where
+   show (State r j k d) = outershow (Just d) r ++ " " ++ unwords (map show [j, k])
 
-instance Ord (EItem z) where
-   compare (EItem e1 j1 k1 d1) (EItem e2 j2 k2 d2) = compare (j1, k1, d1, e1) (j2, k2, d2, e2)
+instance Ord z => Ord (State z) where
+   compare (State e1 j1 k1 d1) (State e2 j2 k2 d2) = compare (j1, k1, d1, e1) (j2, k2, d2, e2)
 
 digit = Range '0' '9'
 lower = Range 'a' 'z'
@@ -135,13 +136,13 @@ pD e s = do
 
 parseE e s =
    let
-      items = predict (S.singleton $ EItem e 0 0 0)
+      items = predict (S.singleton $ State e 0 0 0)
     in
       parseE0 [items] s items [1 .. length s]
 
 parseED e s =
    let
-      items = predict (S.singleton $ EItem e 0 0 0)
+      items = predict (S.singleton $ State e 0 0 0)
     in
       parseE0D [items] s items [1 .. length s]
 
@@ -195,35 +196,73 @@ process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
 predict = closure (process predict1)
 
-predict1 (EItem (Alt  as  ) j _ 0) = [EItem  a        j j 0 | a <-       as]
-predict1 (EItem (Seq  as  ) j _ d) = [EItem (as !! d) j j 0 | d < length as]
-predict1 (EItem (Name a  b) j _ 0) = [EItem  b        j j 0                ]
-predict1 s = []
+predict1 (State r j _ d) = [State a j j 0 | a <- paux r d]
 
-predict1a (EItem2 j _ (Item 0 (Alt   as  ))) = [EItem2 j j (Item 0  a       ) | a <-       as]
-predict1a (EItem2 j _ (Item d (Seq   as  ))) = [EItem2 j j (Item 0 (as !! d)) | d < length as]
-predict1a (EItem2 j _ (Item 0 (Name  a  b))) = [EItem2 j j (Item 0  b       )                ]
-predict1a s = []
+predict1Y (State2 j _ (Item d r)) = [State2 j j (Item 0 a) | a <- paux r d]
+{-
+predict1 (State r@(Alt as) j _ 0) = [State  a        j j 0 | a <-       as]
+predict1 (State r@(Seq as) j _ d) = [State (as !! d) j j 0 | d < length as]
+predict1 (State (Name a b) j _ 0) = [State  b        j j 0                ]
+predict1 s = []
+-}
+
+predict1Z (State2 j _ (Item 0 (Alt   as  ))) = [State2 j j (Item 0  a       ) | a <-       as]
+predict1Z (State2 j _ (Item d (Seq   as  ))) = [State2 j j (Item 0 (as !! d)) | d < length as]
+predict1Z (State2 j _ (Item 0 (Name  a  b))) = [State2 j j (Item 0  b       )                ]
+predict1Z s = []
+
+paux r@(Seq  as ) q = [as !! q | q < slength r]
+paux   (Alt  as ) 0 = as
+paux   (Name a b) 0 = [b]
+paux _ _ = []
 
 scan k s items = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList items
 
-scan1 k ch (EItem r@(Token c   ) j _ 0) = ifJust (ch == c) (EItem r j k 1)
-scan1 k ch (EItem r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (EItem r j k 1)
+scan1 k ch (State r j _ 0) = ifJust (scan9 ch r) (State r j k 1)
 scan1 k ch s = Nothing
+
+scan1Z k ch (State2 j _ (Item 0 r)) | scan9 ch r = Just $ State2 j k (Item 1 r)
+                                    | otherwise  = Nothing
+scan1Z k ch _ = Nothing
+
+scan9 ch (Token c  ) = ch == c
+scan9 ch (Range c d) = ch >= c && ch <= d
+scan9 _ _ = False
 
 complete states = closure (\old -> process (complete1 (states ++ [old])) old)
 
-complete1 states (EItem y j k p) = mapMaybe (\(EItem x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EItem x i k (q + 1)) $ S.toList $ states !! j
+complete1 states (State y j k p) = mapMaybe (\(State x i j1 q) -> ifJust (p == slength y && q < slength x && caux x q y) $ State x i k (q + 1)) $ S.toList $ states !! j
 
-complete3 :: [S.Set (EItem z)] -> S.Set (EItem z) -> [S.Set (EItem z)]
+complete12 states (State2 j k (Item p y)) =
+   mapMaybe (\(State2 i j1 (Item q x)) ->
+      ifJust (p == slength y && q < slength x && caux x q y) $
+         State2 i k (Item (q + 1) x)
+   ) $ S.toList $ states !! j
+
 complete3 states items = foldl complete4 states items
 
-complete4 states (EItem y j k p) = foldl (complete5 p y) states $ S.toList $ states !! j
+complete32 states items = foldl complete42 states items
 
-complete5 p y states (EItem x i j1 q) = states ++ 
-   [ S.singleton $ EItem x i (length states) (q + 1) 
+complete4 states (State y j k p) = foldl (complete5 p y) states $ S.toList $ states !! j
+
+complete42 states (State2 j k (Item p y)) = foldl (complete52 p y) states $ S.toList $ states !! j
+
+complete5 p y states (State x i j1 q) = states ++
+   [ S.singleton $ State x i (length states) (q + 1)
    | p == slength y && q < slength x && caux x q y ]
--- complete3 k states (EItem y j _ p) = mapMaybe (\(EItem x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (EItem x i j q) (EItem x i k (q + 1)) (EItem y j k p)) $ S.toList $ states !! j
+
+complete52 p y states (State2 i j1 (Item q x)) = states ++
+   [ S.singleton $ State2 i (length states) (Item (q + 1) x)
+   | p == slength y && q < slength x && caux x q y ]
+-- complete3 k states (State y j _ p) = mapMaybe (\(State x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (State x i j q) (State x i k (q + 1)) (State y j k p)) $ S.toList $ states !! j
+
+caux (Seq as) q y = as !! q == y
+caux (Alt as) q y = y `elem` as
+caux (Name a b) q y = b == y
+caux _ _ _ = False
+
+slength (Seq as) = length as
+slength _ = 1
 
 {-
 predict3 k (Item (Alt  as  ) 0) = [Item a 0 | a <- as]
@@ -232,7 +271,7 @@ predict3 k (Item (Name a  b) 0) = [Item b 0]
 predict3 k s = []
 -}
 makeLR e = let
-   items = predict (S.singleton $ EItem e 0 0 0)
+   items = predict (S.singleton $ State e 0 0 0)
    in makeLRa [items] [items]
 
 makeLRa old [] = old
@@ -246,7 +285,7 @@ makeLRa old current = let
 
 core = S.map core1
 
-core1 (EItem r j k d) = Item d r
+core1 (State r j k d) = Item d r
 
 makeLRb states items = let
    states1 = scan2 (length states) items
@@ -275,7 +314,7 @@ makeLRd items states token = let
       else states ++ [newstate]
    -}
    in (states ++) $ map predict $ complete3 states newstate
-   
+
 data NumSet a b = NumSet (I.IntMap a) (S.Set b) (a -> b)
 
 size (NumSet a b f) = fst $ fromJust $ I.lookupMax a
@@ -284,7 +323,7 @@ add a ns@(NumSet sa sb sf) = let
    b = sf a
    there = S.member b sb
    s = size ns
-   in (not there, if not there 
+   in (not there, if not there
                      then NumSet (I.insert s a sa) (S.insert b sb) sf
                      else ns)
 {-
@@ -300,38 +339,30 @@ scan2a k items = let
    toks = S.toList $ M.fromList $ mapMaybe (uncurry scan4) $ zip [k..] $ S.toList items
    map 
 -}
-scan3 (EItem r@(Token c   ) j _ 0) = Just c
---scan3 k (EItem r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (EItem r j k 1)
+scan3 (State r@(Token c   ) j _ 0) = Just c
+--scan3 k (State r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (State r j k 1)
 scan3 s = Nothing
 
-scan4 k (EItem r@(Token c   ) j _ 0) = Just (c, EItem r j k 1)
---scan3 k (EItem r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (EItem r j k 1)
+scan4 k (State r@(Token c   ) j _ 0) = Just (c, State r j k 1)
+--scan3 k (State r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (State r j k 1)
 scan4 k s = Nothing
 
 
-caux (Seq as) q y = as !! q == y
-caux (Alt as) q y = y `elem` as
-caux (Name a b) q y = b == y
-caux _ _ _ = False
-
-slength (Seq as) = length as
-slength _ = 1
-
-children states (EItem r f t n) = do
-    s1@(EItem r1 f1 t1 n1) <- S.toList $ states !! t
+children states (State r f t n) = do
+    s1@(State r1 f1 t1 n1) <- S.toList $ states !! t
     if caux r (n - 1) r1 && n1 == slength r1
          then do
-             s2@(EItem r2 f2 t2 n2) <- S.toList $ states !! f1
+             s2@(State r2 f2 t2 n2) <- S.toList $ states !! f1
              if r2 == r && f2 == f && n2 == n - 1
                   then if n2 > 0 then map (s1:) $ children states s2 else [[s1]]
              else []
          else []
 
-data Tree z = Tree (EItem z) [Tree z] | Trees [Tree z] deriving (Eq, Ord)
+data Tree z = Tree (State z) [Tree z] | Trees [Tree z] deriving (Eq, Ord)
 
 tree start states =
    let
-      end = EItem start 0 (length states - 1) (slength start)
+      end = State start 0 (length states - 1) (slength start)
       success = S.member end $ last states
     in
          tree1 states end
@@ -344,9 +375,8 @@ tree2 xs = map Trees xs
 
 only [x] = x
 
-instance Show (Tree z) where
+instance Show z => Show (Tree z) where
     show tree = format1 1 $ convTree tree
-
 
 convTree (Tree a b) = Data (show a) $ map convTree b
 convTree (Trees b) = Data "TREES" $ map convTree b
@@ -373,7 +403,7 @@ taux str maxes s k =
     in
       (max1, Parser3.mergeStrs num tok, fmts)
 
-taux1 ends max1 k state@(EItem e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
+taux1 ends max1 k state@(State e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
 
 taux2 ends m j k sh fill =
    if
@@ -395,16 +425,22 @@ taux2 ends m j k sh fill =
 
 mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a > length b then drop (length b) a else drop (length a) b
 
-makelr states rule k = makelr1 states (S.singleton $ EItem rule 0 0 0) k
+makelr states rule k = makelr1 states (S.singleton $ State rule 0 0 0) k
 
 makelr1 states items k = predict items
 {-
 scanlr k s states = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList states
-scanlr k ch (EItem r@(Token c   ) j _ 0) = ifJust (ch == c) (EItem r j k 1)
-scanlr k ch (EItem r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (EItem r j k 1)
+scanlr k ch (State r@(Token c   ) j _ 0) = ifJust (ch == c) (State r j k 1)
+scanlr k ch (State r@(Range c d) j _ 0) = ifJust (ch >= c && ch <= d) (State r j k 1)
 -}
-combinescans c@(Token cr, cs) d@(Token dr, ds) = if cr == dr then [(Token cr, cs ++ ds)] else [c, d]
-combinescans c@(Token cr, cs) d@(Range d1 d2, ds) = if cr >= d1 && cr <= d2 then [(Range d1 (pred cr), ds), (Token cr, cs ++ ds), (Range (succ cr) d2, ds)] else [c, d]
+combinescans c@(Token cr, cs) d@(Token dr, ds) =
+   if cr == dr
+      then [(Token cr, cs ++ ds)]
+      else [c, d]
+combinescans c@(Token cr, cs) d@(Range d1 d2, ds) =
+   if cr >= d1 && cr <= d2
+      then [(Range d1 (pred cr), ds), (Token cr, cs ++ ds), (Range (succ cr) d2, ds)]
+      else [c, d]
 combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
    if c2 >= d1 && c1 <= d2 then
       let
