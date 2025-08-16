@@ -26,8 +26,11 @@ data Rule tok =
    | Token tok
    | Range tok tok
    | Many (Rule tok)
+   | ManyTill (Rule tok) (Rule tok)
    | Apply (Iso Dynamic Dynamic) (Rule tok)
    | StrRes String Dynamic
+   | Not (Rule tok)
+   | And (Rule tok)
 
 {-
 parse (Token a) = a
@@ -94,7 +97,18 @@ outershow d r@(Range a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
 ii (Just d) = insertIndex d "."
 ii Nothing = id
 
-data Item r = Item Int (Rule r) deriving (Eq, Ord)
+data Result = Running | Fail | Success deriving (Eq, Ord)
+
+data Item r = Item Int (Rule r)
+            | ISeq   (Rule r) Result Int 
+            | IAlt   (Rule r) Result
+            | IName  (Rule r) Result
+            | IToken (Rule r) Result
+            | IRange (Rule r) Result
+            | IMany  (Rule r) Result
+            | INot   (Rule r) Result
+            | IAnd   (Rule r) Result
+            deriving (Eq, Ord)
 
 type ItemSet r = S.Set (Item r)
 
@@ -134,6 +148,7 @@ p e s = tree e $ parseE e s
 pD e s = do
     states <- parseED e s
     table s states
+    table s $ map (S.filter isComplete) states
     return $ tree e states
 
 parseE e s =
@@ -205,6 +220,7 @@ predict1Y (State2 j k (Item d r)) = [State2 k k (Item 0 a) | a <- paux r d]
 paux (Seq  as ) q = [as !! q | q < length as]
 paux (Alt  as ) 0 = as
 paux (Name a b) 0 = [b]
+paux (ManyTill a b) 0 = [a, b]
 paux _ _ = []
 
 {-}
@@ -265,11 +281,13 @@ complete52 p y states (State2 i j1 (Item q x)) = states ++
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
 caux (Name a b) q y = b == y
+caux (ManyTill a b) q y = a == y
 caux _ _ _ = False
 
 slength (Seq as) = length as
 slength _ = 1
 
+isComplete (State r _ _ d) = d == slength r
 {-
 predict3 k (Item (Alt  as  ) 0) = [Item a 0 | a <- as]
 predict3 k (Item (Seq  as  ) d) = [Item (as !! d) 0 | d < length as]
@@ -397,7 +415,7 @@ table str states =
       axis = Data.List.foldr Parser3.mergeStrs "" axes
     in
       do
-         putStrLn $ unlines $ axis : concat fmts ++ [axis]
+         putStrLn $ unlines $ axis : map (' ':) (concat fmts) ++ [axis]
          return maxes
 
 taux str maxes s k =
@@ -405,7 +423,7 @@ taux str maxes s k =
       (ends, fmts) = unzip $ map (taux1 maxes max1 k) $ S.toList s
       (end1, num) = taux2 maxes max1 k k (show k) ' '
       (end2, tok) = if k > 0 then taux2 maxes max1 (k - 1) k (singleton $ str !! (k - 1)) ' ' else (end1, num)
-      max1 = maximum (end1 : end2 : ends) + 4
+      max1 = maximum (end1 : end2 : ends) + 5
     in
       (max1, Parser3.mergeStrs num tok, fmts)
 
@@ -418,7 +436,7 @@ taux2 ends m j k sh fill =
                st = ends !! (j + 1)
                l1 = m - st - length sh
                l2 = div l1 2
-               l3 = l1 - l2
+               l3 = l1 - l2 - 1
              in
                (st + length sh, replicate st ' ' ++ replicate l2 fill ++ sh ++ replicate l3 fill)
       | j == k ->

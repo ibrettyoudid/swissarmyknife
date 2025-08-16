@@ -141,6 +141,7 @@ library
         Prolog, 
         Prolog1,
         RPS,
+        Rule,
         Shell, 
         Show1, 
         ShowTuple, 
