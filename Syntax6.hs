@@ -8,6 +8,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Replace case with maybe" #-}
 
 module Syntax6 where
 
@@ -408,6 +410,22 @@ compile (Or a) = A.choice $ map compile a
 compile (Seq (a:as)) = do
    (ac, asc) <- compile $ Then a (Seq as)
    return $ ac:asc
+
+compile (Pure a) = return a
+
+compile (Name a b) = compile b
+
+compile (Apply a b) = do
+   bc <- compile b
+   case apply a bc of
+      Just  j -> return j
+      Nothing -> mzero
+
+compile (Count (Lens a2b ba2a) a b) = do
+   ac <- compile a
+   bc <- A.count (a2b ac) $ compile b
+   return (ac, bc)
+
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Earley
 -------------------------------------------------------------------------------
