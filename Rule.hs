@@ -2,6 +2,8 @@ module Rule where
 
 import SyntaxCIPU
 
+newtype Ig a = Ig a
+
 data Rule res where
    Many     ::  Rule a     -> Rule [a]
    Seq      :: [Rule a]    -> Rule [a]
@@ -15,5 +17,6 @@ data Rule res where
    Token    ::  Rule a  
    ManyThen ::  Rule a     -> Rule  b -> Rule [a]
    Name     :: String      -> Rule  a -> Rule a
-
- 
+   Get      :: String      -> Rule  a
+   Set      :: String      -> Rule  a -> Rule a
+   Ignore   ::  Rule a     -> Rule (Ig a)

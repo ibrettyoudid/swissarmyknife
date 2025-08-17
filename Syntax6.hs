@@ -24,10 +24,12 @@ import Prelude qualified
 
 import Control.Category
 import Control.Monad
+import Control.Monad.State.Lazy
 import Data.Bits
 import Data.Char
 import Data.Kind
 import Data.List qualified as L
+import Data.Map qualified as M
 
 {-}
 import Text.Syntax
@@ -388,9 +390,9 @@ instance SyntaxA B.ByteString A.Parser where
    textA t = do A.string t; return ()
 
 
-compile8  Token     = A.anyWord8
+compile8  Token     = lift A.anyWord8
 
-compile :: Rule res -> A.Parser res
+compile :: Rule res -> StateT (M.Map String String) A.Parser res
 compile (Then a b) = do
    case a of
       Many a1 -> do
@@ -426,6 +428,12 @@ compile (Count (Lens a2b ba2a) a b) = do
    bc <- A.count (a2b ac) $ compile b
    return (ac, bc)
 
+compile2 :: Rule r -> StateT (M.Map String String) A.Parser String
+compile2 (Get name) = do
+   vars <- get
+   return $ vars M.! name 
+
+--compile (Set name rule) = compile rule
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Earley
 -------------------------------------------------------------------------------
