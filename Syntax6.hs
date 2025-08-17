@@ -1,6 +1,8 @@
 {- Most of this is from partial-isomorphisms and invertible-syntax on hackage.com -}
 {- Additions by Brett Curtis -}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE IncoherentInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
@@ -8,6 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Replace case with maybe" #-}
 
@@ -18,6 +21,7 @@ import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 import SyntaxCIPU
 import SyntaxTH
 import Rule
+import MHashDynamic hiding (Apply)
 
 import Prelude hiding (foldl, foldr, id, iterate, print, pure, (*<), (.), (>$<), (>*), (>*<))
 import Prelude qualified
@@ -27,10 +31,11 @@ import Control.Monad
 import Control.Monad.State.Lazy
 import Data.Bits
 import Data.Char
+import Data.Word
 import Data.Kind
 import Data.List qualified as L
 import Data.Map qualified as M
-
+import Text.Parsec qualified as P
 {-}
 import Text.Syntax
 import Text.Syntax.Parser.Naive
@@ -138,13 +143,14 @@ right =
            Right x -> Just x
      )
 -}
+{-
 instance Category Iso where
    g . f =
       Iso
          (apply f >=> apply g)
          (unapply g >=> unapply f)
    id = Iso Just Just
-
+-}
 -- derived combinators
 many :: (Syntax delta) => delta alpha -> delta [alpha]
 many p =
@@ -389,11 +395,18 @@ instance Syntax A.Parser where
 instance SyntaxA B.ByteString A.Parser where
    textA t = do A.string t; return ()
 
+{-}
+class Compile a b where
+   compile :: Rule b -> a b 
 
-compile8  Token     = lift A.anyWord8
+instance {-# OVERLAPPING #-} Compile A.Parser Word8 where
+   compile Token = A.anyWord8
+   compile x     = compile1 x
 
-compile :: Rule res -> StateT (M.Map String String) A.Parser res
-compile (Then a b) = do
+instance Compile A.Parser res where
+   compile = compile1
+
+compile1 (Then a b) = do
    case a of
       Many a1 -> do
          let b1 = compile b
@@ -405,9 +418,97 @@ compile (Then a b) = do
          rb <- compile b
          return (ra, rb)
 
-compile (Many a) = A.many' $ compile a
+compile1 (Many a) = A.many' $ compile a
 
-compile (Or a) = A.choice $ map compile a
+compile1 (Or a) = A.choice $ map compile a
+
+compile1 (Seq (a:as)) = do
+   (ac, asc) <- compile $ Then a (Seq as)
+   return $ ac:asc
+
+compile1 (Pure a) = return a
+
+compile1 (Name a b) = compile b
+
+compile1 (Apply a b) = do
+   bc <- compile b
+   case apply a bc of
+      Just  j -> return j
+      Nothing -> mzero
+
+compile1 (Count (Lens a2b ba2a) a b) = do
+   ac <- compile a
+   bc <- A.count (a2b ac) $ compile b
+   return (ac, bc)
+{-}
+compile2 :: Rule r -> StateT (M.Map String String) A.Parser String
+compile2 (Get name) = do
+   vars <- get
+   return $ vars M.! name 
+-}
+-}
+--compile (Set name rule) = compile rule
+-------------------------------------------------------------------------------
+------------------------------------------------------------------------------- PARSEC
+-------------------------------------------------------------------------------
+type Psr = P.ParsecT String (M.Map String Dynamic) IO
+
+instance ProductFunctor Psr where
+   a >*< b = do
+      ra <- a
+      rb <- b
+      return (ra, rb)
+
+instance Alternative Psr where
+   a <|> b = a P.<|> b
+   empty = mzero
+
+instance IsoFunctor Psr where
+   f >$< a = do
+      ra <- a
+      case apply f ra of
+         Just j -> return j
+         Nothing -> empty
+
+instance Syntax Psr where
+  -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
+  -- (>*<)   ::  A.Parser alpha -> A.Parser beta  -> A.Parser (alpha, beta)
+  -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
+  -- empty   ::  A.Parser alpha
+   pure = return
+   token = P.anyChar
+
+instance SyntaxA String Psr where
+   textA t = do P.string t; return ()
+{-}
+class Compile a b where
+   compile :: Rule b -> a b 
+
+instance {-# OVERLAPPING #-} Compile Psr Char where
+   compile Token = P.anyChar
+   compile x     = compile1 x
+
+instance Compile Psr res where
+   compile = compile1
+
+compile1 :: (Compile f a, MonadPlus f, Compile f b) => Rule a -> f a
+-}
+compile :: Rule a -> Psr a
+compile (Then a b) = do
+   case a of
+      Many a1 -> do
+         let bc = compile b
+         ra <- P.manyTill (compile a1) bc
+         rb <- bc
+         return (ra, rb)
+      _ -> do
+         ra <- compile a
+         rb <- compile b
+         return (ra, rb)
+
+compile (Many a) = P.many $ compile a
+
+compile (Or a) = P.choice $ map compile a
 
 compile (Seq (a:as)) = do
    (ac, asc) <- compile $ Then a (Seq as)
@@ -425,13 +526,20 @@ compile (Apply a b) = do
 
 compile (Count (Lens a2b ba2a) a b) = do
    ac <- compile a
-   bc <- A.count (a2b ac) $ compile b
+   bc <- P.count (a2b ac) $ compile b
    return (ac, bc)
 
+compile (Set name rule) = do
+   rc <- compile rule
+   lift $ putStr "hello"
+   return rc
+
+{-}
 compile2 :: Rule r -> StateT (M.Map String String) A.Parser String
 compile2 (Get name) = do
    vars <- get
    return $ vars M.! name 
+-}
 
 --compile (Set name rule) = compile rule
 -------------------------------------------------------------------------------
