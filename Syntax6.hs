@@ -108,7 +108,7 @@ instance IsoFunctor Rule where
 
 instance Syntax Rule where
    pure = Pure
-   token = Token
+--   token = Token
 
 {-
 \*********************************************************************************
@@ -480,7 +480,7 @@ instance Syntax Psr where
 
 instance SyntaxA String Psr where
    textA t = do P.string t; return ()
-{-}
+{-
 class Compile a b where
    compile :: Rule b -> a b 
 
@@ -490,49 +490,62 @@ instance {-# OVERLAPPING #-} Compile Psr Char where
 
 instance Compile Psr res where
    compile = compile1
-
-compile1 :: (Compile f a, MonadPlus f, Compile f b) => Rule a -> f a
 -}
-compile :: Rule a -> Psr a
-compile (Then a b) = do
+--compile1 = compile2
+test = Many AnyToken `Then` Token '.'-- `Then` Apply (satisfy (== '.')) Token `Then` Many Token
+
+compile1 :: Rule a -> Psr a
+compile1 AnyToken = P.anyChar
+
+compile1 (Token c) = P.char c
+
+compile1 (Then a b) = do
    case a of
       Many a1 -> do
-         let bc = compile b
-         ra <- P.manyTill (compile a1) bc
+         let ac = compile1 a1
+         let bc = compile1 b
+         lift $ putStrLn "manyTill"
+         ra <- many (do P.notFollowedBy (do bc; return ()); ac)
          rb <- bc
          return (ra, rb)
       _ -> do
-         ra <- compile a
-         rb <- compile b
+         ra <- compile1 a
+         rb <- compile1 b
          return (ra, rb)
 
-compile (Many a) = P.many $ compile a
+compile1 (Many a) = P.many $ compile1 a
 
-compile (Or a) = P.choice $ map compile a
+compile1 (Alt a) = P.choice $ map compile1 a
 
-compile (Seq (a:as)) = do
-   (ac, asc) <- compile $ Then a (Seq as)
+compile1 (Seq (a:as)) = do
+   (ac, asc) <- compile1 $ Then a (Seq as)
    return $ ac:asc
 
-compile (Pure a) = return a
+compile1 (Pure a) = return a
 
-compile (Name a b) = compile b
+compile1 (Name a b) = compile1 b
 
-compile (Apply a b) = do
-   bc <- compile b
+compile1 (Apply a b) = do
+   bc <- compile1 b
    case apply a bc of
       Just  j -> return j
-      Nothing -> mzero
+      Nothing -> fail "isomorphism didn't pass"
 
-compile (Count (Lens a2b ba2a) a b) = do
-   ac <- compile a
-   bc <- P.count (a2b ac) $ compile b
+compile1 (Try a) = P.try $ compile1 a
+
+compile1 (Count (Lens a2b ba2a) a b) = do
+   ac <- compile1 a
+   bc <- P.count (a2b ac) $ compile1 b
    return (ac, bc)
 
-compile (Set name rule) = do
-   rc <- compile rule
-   lift $ putStr "hello"
+compile1 (Set name rule) = do
+   rc <- compile1 rule
+   P.modifyState $ M.insert name $ toDyn rc
    return rc
+
+compile1 (Get name) = do
+   s <- P.getState
+   return $ s M.! name
 
 {-}
 compile2 :: Rule r -> StateT (M.Map String String) A.Parser String

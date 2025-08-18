@@ -11,6 +11,7 @@ import Favs
 import MyPretty2 hiding (format)
 import MHashDynamic hiding (Apply, expr)
 import SyntaxCIPU
+import Rule
 --import Syntax3 hiding (foldl, foldr)
 
 import Control.Monad
@@ -18,7 +19,7 @@ import Data.List
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.IntMap qualified as I
-
+{-
 data Rule tok =
    Seq [Rule tok]
    | Alt [Rule tok]
@@ -31,7 +32,7 @@ data Rule tok =
    | StrRes String Dynamic
    | Not (Rule tok)
    | And (Rule tok)
-
+-}
 {-
 parse (Token a) = a
 parse (Ignore a) = 
@@ -97,14 +98,13 @@ outershow d r@(Range a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
 ii (Just d) = insertIndex d "."
 ii Nothing = id
 
-data Result = Running | Fail | Success deriving (Eq, Ord)
+data Result = Running | Fail | Pass deriving (Eq, Ord)
 
-data Item r = Item Int (Rule r)
+data Item r = Item   (Rule r) Int 
             | ISeq   (Rule r) Result Int 
             | IAlt   (Rule r) Result
             | IName  (Rule r) Result
-            | IToken (Rule r) Result
-            | IRange (Rule r) Result
+            | ITerm  (Rule r) Result --used for all terminal level ops
             | IMany  (Rule r) Result
             | INot   (Rule r) Result
             | IAnd   (Rule r) Result
@@ -113,7 +113,7 @@ data Item r = Item Int (Rule r)
 type ItemSet r = S.Set (Item r)
 
 instance Show r => Show (Item r) where
-   show (Item d r) = outershow (Just d) r
+   show (Item r n) = outershow (Just n) r
 
 data State2 r = State2 Int Int (Item r) deriving (Eq, Ord)
 
@@ -215,34 +215,47 @@ predict = closure (process predict1)
 
 predict1 (State r j k d) = [State a k k 0 | a <- paux r d]
 
-predict1Y (State2 j k (Item d r)) = [State2 k k (Item 0 a) | a <- paux r d]
+predict1Y (State2 j k (ISeq (Seq as) s n)) = [State2 k k (start a) | a <- [as !! n]]
 
-paux (Seq  as ) q = [as !! q | q < length as]
+paux :: Rule a -> Int -> [Rule a]
+--paux (Seq  as ) q = [as !! q | q < length as]
 paux (Alt  as ) 0 = as
 paux (Name a b) 0 = [b]
-paux (ManyTill a b) 0 = [a, b]
+--paux (ManyTill a b) 0 = [a, b]
 paux _ _ = []
 
+start r@(Seq   a  ) = ISeq  r Running 0
+start r@(Alt   a  ) = IAlt  r Running
+start r@(Name  a b) = IName r Running
+start r@(Token a  ) = ITerm r Running
+
 {-}
-predict1 (State r@(Alt as) j _ 0) = [State  a        j j 0 | a <-       as]
-predict1 (State r@(Seq as) j _ d) = [State (as !! d) j j 0 | d < length as]
-predict1 (State (Name a b) j _ 0) = [State  b        j j 0                ]
+predict1 (State r@(Alt as) j k 0) = [State  a        k k 0 | a <-       as]
+predict1 (State r@(Seq as) j k d) = [State (as !! d) k k 0 | d < length as]
+predict1 (State (Name a b) j k 0) = [State  b        k k 0                ]
 predict1 s = []
 
-predict1Z (State2 j _ (Item 0 (Alt   as  ))) = [State2 j j (Item 0  a       ) | a <-       as]
-predict1Z (State2 j _ (Item d (Seq   as  ))) = [State2 j j (Item 0 (as !! d)) | d < length as]
-predict1Z (State2 j _ (Item 0 (Name  a  b))) = [State2 j j (Item 0  b       )                ]
+predict1Z (State2 j k (Item (Alt   as  ) 0)) = [State2 k k (Item  a        0) | a <-       as]
+predict1Z (State2 j k (Item (Seq   as  ) d)) = [State2 k k (Item (as !! d) 0) | d < length as]
+predict1Z (State2 j k (Item (Name  a  b) 0)) = [State2 k k (Item  b        0)                ]
 predict1Z s = []
 -}
 
-scan k s items = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList items
+--scan k s items = S.fromList $ mapMaybe (scan1 k (s !! (k - 1))) $ S.toList items
+scan k s items = let
+   sc    = map (scan1 k (s !! (k - 1))) $ S.toList items
+   scf f = map snd $ filter (f . fst) sc
+   in (scf id, scf not)
 
-scan1 k ch (State r j _ 0) = ifJust (saux ch r) (State r j k 1)
-scan1 k ch s = Nothing
+--scan1 k ch (State r j _ 0) = ifJust (saux ch r) (State r j k 1)
+--scan1 k ch s = Nothing
 
-scan1Z k ch (State2 j _ (Item 0 r)) = ifJust (saux ch r) (State2 j k (Item 1 r))
+scan1 k ch (State r j k1 n) = let pass = n == 0 && saux ch r in (pass, if pass then State r j k 1 else State r j k1 n)
+
+scan1Z k ch (State2 j _ (ITerm r Running)) = Just $ State2 j k (ITerm r (if saux ch r then Pass else Fail))
 scan1Z k ch _ = Nothing
 
+saux :: Char -> Rule res -> Bool
 saux ch (Token c  ) = ch == c
 saux ch (Range c d) = ch >= c && ch <= d
 saux _ _ = False
@@ -255,10 +268,10 @@ complete1 states (State y j k p) = mapMaybe
          $ State x i k (q + 1)
    ) $ S.toList $ states !! j
 
-complete12 states (State2 j k (Item p y)) =
-   mapMaybe (\(State2 i j1 (Item q x)) ->
+complete12 states (State2 j k (Item y p)) =
+   mapMaybe (\(State2 i j1 (Item x q)) ->
       ifJust (p == slength y && q < slength x && caux x q y) $
-         State2 i k (Item (q + 1) x)
+         State2 i k (Item x (q + 1))
    ) $ S.toList $ states !! j
 
 complete3  states items = foldl complete4 states items
@@ -267,23 +280,24 @@ complete32 states items = foldl complete42 states items
 
 complete4 states (State y j k p) = foldl (complete5 p y) states $ S.toList $ states !! j
 
-complete42 states (State2 j k (Item p y)) = foldl (complete52 p y) states $ S.toList $ states !! j
+complete42 states (State2 j k (Item y p)) = foldl (complete52 p y) states $ S.toList $ states !! j
 
 complete5 p y states (State x i j1 q) = states ++
    [ S.singleton $ State x i (length states) (q + 1)
    | p == slength y && q < slength x && caux x q y ]
 
-complete52 p y states (State2 i j1 (Item q x)) = states ++
-   [ S.singleton $ State2 i (length states) (Item (q + 1) x)
+complete52 p y states (State2 i j1 (Item x q)) = states ++
+   [ S.singleton $ State2 i (length states) (Item x (q + 1))
    | p == slength y && q < slength x && caux x q y ]
 -- complete3 k states (State y j _ p) = mapMaybe (\(State x i j q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (State x i j q) (State x i k (q + 1)) (State y j k p)) $ S.toList $ states !! j
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
 caux (Name a b) q y = b == y
-caux (ManyTill a b) q y = a == y
+--caux (ManyTill a b) q y = a == y
 caux _ _ _ = False
 
+slength :: Rule res -> Int
 slength (Seq as) = length as
 slength _ = 1
 
@@ -309,7 +323,7 @@ makeLRa old current = let
 
 core = S.map core1
 
-core1 (State r j k d) = Item d r
+core1 (State r j k d) = Item r d
 
 makeLRb states items = let
    states1 = scan2 (length states) items
