@@ -22,6 +22,7 @@ import Data.Set qualified as S
 import Data.IntMap qualified as I
 import Shell (ch)
 {-
+{-
 data Rule tok =
    Seq [Rule tok]
    | Alt [Rule tok]
@@ -844,3 +845,4 @@ cauxF _ _ _ = False
 slengthF (Seq as) = length as
 slengthF _ = 1
 
+-}
