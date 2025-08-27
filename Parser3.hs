@@ -21,7 +21,7 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.IntMap qualified as I
 import Shell (ch)
-{-
+
 {-
 data Rule tok =
    Seq [Rule tok]
