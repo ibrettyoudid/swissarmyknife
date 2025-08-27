@@ -25,26 +25,26 @@ import Control.Monad hiding (join)
 
 -- wikiTable m i u = fromGrid i $ textGrid $ wikiTable m u
 
-wikiTable m = cTextTableH . getWikiTable m
-wikiTableD m = cTextTableHD . getWikiTable m
-wikiTables m = cTextTablesH . getWikiTables m
+wikiTable   m = cTextTableH   . getWikiTable  m
+wikiTableD  m = cTextTableHD  . getWikiTable  m
+wikiTables  m = cTextTablesH  . getWikiTables m
 wikiTablesD m = cTextTablesHD . getWikiTables m
 
-cTextTable = fromGrid . cTextGrid
-cTextTableH = fromGridH . cTextGridH
+cTextTable   = fromGrid   . cTextGrid
+cTextTableH  = fromGridH  . cTextGridH
 cTextTableHD = fromGridHD . cTextGridH
-cTextTables = map cTextTable
-cTextTablesH = map cTextTableH
+cTextTables   = map cTextTable
+cTextTablesH  = map cTextTableH
 cTextTablesHD = map cTextTableHD
 
-wikiTextGrid m = cTextGrid . getWikiTable m
-wikiTextGridH m = cTextGridH . getWikiTable m
-wikiTextGrids m = map cTextGrid . getWikiTables m
+wikiTextGrid   m = cTextGrid  . getWikiTable m
+wikiTextGridH  m = cTextGridH . getWikiTable m
+wikiTextGrids  m = map cTextGrid  . getWikiTables m
 wikiTextGridsH m = map cTextGridH . getWikiTables m
 
-wikiGrid m = cGrid . getWikiTable m
-wikiGridH m = cGridH . getWikiTable m
-wikiGrids m = map cGrid . getWikiTables m
+wikiGrid   m = cGrid  . getWikiTable m
+wikiGridH  m = cGridH . getWikiTable m
+wikiGrids  m = map cGrid  . getWikiTables m
 wikiGridsH m = map cGridH . getWikiTables m
 
 getWikiTable m = head . getWikiTables m
@@ -112,8 +112,6 @@ stats m = foldl1 (join jLeft (toDyn "")) [cont m, fst $ gdph m, fst $ gdph1 m, c
 gdph m = foldl1 (joinCollectMisses jLeft (toDyn "")) $ map (miss . by (? "country") . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
 
 gdph1 m = foldl1 (joinCollectMisses jLeft (toDyn "")) $ map (miss . by (? "country") . setFields ["country"])$ take 5 $ wikiTablesD m "List of countries by past and projected GDP (PPP)"
-
-
 
 eustats m = foldSubTable3 sum
   $ byl [(? "isRussia"), (? "country")]
