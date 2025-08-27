@@ -37,7 +37,7 @@ data Rule tok =
 parse (Token a) = a
 parse (Ignore a) = 
 format (Token a) = a
--}
+
 --    EIso    :: Iso alpha beta -> Rule alpha -> Rule beta
 tod :: (Typeable a, Typeable b) => (a -> Maybe b) -> Dynamic -> Maybe Dynamic
 tod f x = toDyn <$> f (fromDyn1 x)
@@ -499,3 +499,4 @@ combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
 -- 
 -- how kernels are compared for equality defines what sort of parser it is
 -- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
+-}
