@@ -1,6 +1,13 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Fuse foldr/map" #-}
+{-# HLINT ignore "Eta reduce" #-}
 module Sound where
 
 import Favs
+import Data.List
+import Data.Map qualified as M
+import Data.Set qualified as S
+import Data.Ratio
 
 freq1 (c0:c1:c2:_) = let
    d1 = c2+c0-2*c1 -- (c2-c1)-(c1-c0)
@@ -73,9 +80,149 @@ freq2 = do
 {-
 Although this is probably easy for a Maths professor I worked this all out myself
 
-how to work out the frequency, amplitude and phase of a sine wave using just 3 equally spaced non-zero values
+how to work out the frequency, amplitude and phase of a sine wave using just 3 equally spaced (in time) samples as long as the middle one is not zero
 
 treat the wave as if it's one element of a 2-vector which is being rotated
+
+[ p  q][ p  q] = [p^2-q^2 2pq    ]
+[-q  p][-q  p]   [-2pq    p^2-q^2]
+
+[ p  q][p^2-q^2 2pq    ] = [p^3-pq^2-2pq^2  2p^2q+p^2q-q^3] = [p^3-3pq^2 3p^2q-q^3]
+[-q  p][-2pq    p^2-q^2]   [-p^2q+q^3-2p^2q p^3-pq^2-2pq^2]   [q^3-3p^2q p^3-3pq^2]
+
+[ p  q][p^3-3pq^2 3p^2q-q^3] = [p^4-6p^2q^2+q^4 4p^3q-4pq^3    ]
+[-q  p][q^3-3p^2q p^3-3pq^2]   [4pq^3-4p^3q     p^4-6p^2q^2+q^4]
+
+[ p  q][p^4-6p^2q^2+q^4 4p^3q-4pq^3    ] = [p^5-6p^3q^2+pq^4+4pq^4
+[-q  p][4pq^3-4p^3q     p^4-6p^2q^2+q^4]
+
+tn=wn+xn+yn+zn
+t0=w0+x0+y0+z0
+
+[p^2-q^2 2pq    ][x0] = [x2] 
+[-2pq    p^2-q^2][y0]   [y2]
+
+(p^2-q^2)x2-2pqy2 = x0
+
+(p^2-q^2)x2+2pqy2 = x4
+
+p^2+q^2 = 1
+r^2+s^2 = 1
+
+t5 = (p^2-q^2)x3+2pqy3 + (r^2-s^2)w3+2rsz3
+t4 = px3+qy3 + rw3+sz3
+t2 = px3-qy3 + rw3-sz3
+t4+t2 = 2px3 + 2rw3
+t4-t2 = 2qy3 + 2sz3
+
+t1 = (p^2-q^2)x3-2pqy3 + (r^2-s^2)w3-2rsz3
+
+t5+t1 = 2(p^2-q^2)x3 + 2(r^2-s^2)w3
+t5-t1 = 4pqy3  + 4rsz3
+
+t6 = (p^3-3pq^2)x3 + (3p^2q-q^3)y3 + (r^3-3rs^2)w3 + (3r^2s-s^3)z3
+t0 = (p^3-3pq^2)x3 - (3p^2q-q^3)y3 + (r^3-3rs^2)w3 - (3r^2s-s^3)z3
+
+t6+t0 = 2(p^3-3pq^2)x3 + 2(r^3-3rs^2)w3
+t6-t0 = 2(3p^2q-q^3)y3 + 2(3r^2s-s^3)z3
+
+t6+t0 = 2(p^3-3pq^2)x3 + 2(r^3-3rs^2)w3 
+t5+t1 = 2(p^2-q^2)  x3 + 2(r^2-s^2)  w3
+t4+t2 = 2p          x3 + 2r          w3
+
+t6+t0 = 2(p^3-3p(1-p^2))x3 + 2(r^3-3r(1-r^2)w3 
+t6+t0 = 2(-3p-2p^3))x3 + 2(-3r-2r^3)w3 
+t6+t0 = (-4p^3 - 6p)x3 + (-4r^3 - 6r)w3 
+
+q^2 = 1-p^2
+
+p^2-q^2+p^2+q^2 = p^2-q^2+1 = 2p^2
+p^2-q^2 = 2p^2 - 1
+t5+t1 = 2(2p^2-1)  x3 + 2(2r^2-1)  w3
+
+t6+t0 = (-4p^3-6p)x3 + (-4r^3 - 6r)w3 
+t5+t1 = (4p^2-2)x3 + (4r^2-2)w3
+t4+t2 = 2p          x3 + 2r          w3
+t3    = x3 + w3
+-4p^3x3 -4r^3w3 = 3(t4+t2)+(t6+t0) 
+ 4p^2x3 +4r^2w3 = t5+t1+2*t3       
+ 2p  x3 +2r  w3 = t4+t2            
+     x3 +    w3 = t3               
+                                        
+-4p^3x -4r^3w  = 3(t4+t2)+(t6+t0) 
+ 4p^2x +4r^2w  = t5+t1+2*t3       
+ 2p  x +2r  w  = t4+t2            
+     x +    w  = t3               
+
+a = 3*(t4+t2)+(t6+t0)
+b = t5+t1+2*t3
+c = t4+t2
+d = t3
+
+sq = 4*a^2*d^2+12*a*b*c*d-8*a*c^3+4*b^3*d-3*b^2*c^2
+   = 64*(p^6x^2+r^6w^2+2p^3r^3xw)*(x^2+w^2+2xw)+12*(-16p^5x^2-16r^5w^2
+
+a = -4p^3x -4r^3w
+b =  4p^2x +4r^2w
+c =  2p  x +2r  w
+d =      x +    w
+
+b*p     =  4p^3x +4pr^2w
+c*p^2*2 =  4p^3x +4p^2rw
+d*p^3*4 =  4p^3x +4p^3 w
+
+bp+a     = 4pr^2w-4r^3w  = e
+bp-2cp^2 = -4p^2rw+4pr^2w = f
+bp-4dp^3 = -4p^3w+4pr^2w  = g
+
+e-f = -4r^3w+4p^2rw
+e-g = 4(p^3-r^3)w
+f-g = -4p^2rw+4p^3w
+
+f*p = -4p^3rw+4p^2r^2w
+e*p^2 = 4p^3r^2w-4p^2r^3w
+
+e*p^2-f*p = 4p^2wr(r+1)(pw-rw)
+
+a+c*p^2 = 
+
+
+
+ 2p^2x +2pr w  = (t4+t2) * p      
+ 2p  x +2r^2w  = (t4+t2) * r      
+ 2p^3x +2p^2rw = (t4+t2) * p^2     
+ 2pr^2x+2r^3w  = (t4+t2) * r^2
+
+
+ 8pxrw+4p^2x^2+4r^2w^2 = (t4+t2)^2
+ -4p^6x^2
+    px +   pw  = t * p 
+    rx +   rw  = t * r
+    pw +   rx  = t * (p + r) - (t4+t2)/2
+
+     x3 +    w3 = t3               
+
+
+w3 = t3-x3
+
+3(t4+t2)+(t6+t0) = -4p^3x3 -4r^3(t3-x3)
+t5+t1+2*t3       =  4p^2x3 +4r^2(t3-x3)
+t4+t2            =  2p  x3 +2r  (t3-x3)
+
+3(t4+t2)+(t6+t0) = (-4p^3 +4r^3)x3 -4r^3t3
+t5+t1+2*t3       = ( 4p^2 -4r^2)x3 +4r^2t3
+t4+t2            = ( 2p   -2r  )x3 +2r  t3
+
+
+r^2 = 2(t4+t2)/w3
+p = (t4+t2-rw3)/2x3
+
+(t4+t2)pr = 2p^2rx3 + 2pr^2w3
+(t4-t2)qs = 2q^2sy3 + 2qs^2z3
+
+[x5] = [p^3x2-3pq^2x2]
+[y5]   [
+
 
 [ p  q][x0]=[x1]
 [-q  p][y0]=[y1]
@@ -103,12 +250,28 @@ x2=-x0+2px1
 x2+x0=2px1
 (x2+x0)/2x1=p
 
+b*p     =  4p^3x +4pr^2w
+c*p^2*2 =  4p^3x +4p^2rw
+d*p^3*4 =  4p^3x +4p^3 w
+
+bp+a     = 4pr^2w-4r^3w  = e
+bp-2cp^2 = -4p^2rw+4pr^2w = f
+bp-4dp^3 = -4p^3w+4pr^2w  = g
+
+e-f = -4r^3w+4p^2rw
+e-g = 4(p^3-r^3)w
+f-g = -4p^2rw+4p^3w
+
+f*p = -4p^3rw+4p^2r^2w
+e*p^2 = 4p^3r^2w-4p^2r^3w
+
+e*p^2-f*p = 4p^2wr(r+1)(pw-rw)
 -}
 -- frequency of a sine wave (in a list) in radians/sample
 freq (x0:x1:x2:_) = acos ((x2+x0)/(2*x1))
 
 -- frequency, amplitude and phase (at first sample) of a sine wave
-waveParams (x0:x1:x2:_) = let
+paramsOfWave (x0:x1:x2:_) = let
    p     = (x2+x0)/(2*x1)
    q     = sqrt (1 - p^2)
    freq  = acos p
@@ -116,6 +279,197 @@ waveParams (x0:x1:x2:_) = let
    amp   = sqrt (x0^2+y0^2)
    phase = atan2 x0 y0
    in (freq, amp, phase)
+
+waveOfParams (freq, amp, phase) = map ((*amp) . sin) [phase, phase+freq ..]
+
+wop = waveOfParams
+pow = paramsOfWave
+
+wop2 a b = zipWith (+) (wop a) (wop b)
+pow2 xs = paramsOfWave2 xs
+pow2a = paramsOfWave2a
+
+paramsOfWave2 xs = let
+  (t0:t1:t2:t3:t4:t5:t6:_) = map id xs
+  in M.toList <$>
+    solvepolys [
+                Poly [([3,1,0,0],-4), ([0,0,3,1], -4), ([0,0,0,0], -(t6+3*t4+3*t2+t0))], 
+                Poly [([2,1,0,0], 4), ([0,0,2,1],  4), ([0,0,0,0], -(t5+2*t3+t1))],
+                Poly [([1,1,0,0], 2), ([0,0,1,1],  2), ([0,0,0,0], -(t4+t2))],
+                Poly [([0,1,0,0], 1), ([0,0,0,1],  1), ([0,0,0,0], -t3)]
+    ]
+
+solvepolys polys = {- buchberger compare $ reorder compare $ -} buchbergerD grevlex $ M.fromList $ mapfxx (leading grevlex) polys
+
+buchberger order polys = buchberger1 order polys polys
+
+buchberger1 order old current = let
+  new = M.fromList $ mapfxx (leading order) $ concat $ crossWith (mvd order) (map snd $ M.toList old) (map snd $ M.toList current)
+  all = M.union old new
+  newnew = new M.\\ old
+  in if all == old then old else buchberger1 order all newnew
+
+buchbergerD order polys = buchberger1D order polys polys
+
+buchberger1D order old current = do
+  let oldl = map snd $ M.toList old
+  putStrLn $ replicate 80 '='
+  mapM_ print oldl
+  bl <- sequence $ concat $ crossWith (\x y -> mvdD order x y >>= reduce order oldl) oldl (map snd $ M.toList current)
+  let new = M.fromList $ mapfxx (leading order) $ filter (/= zero) bl 
+  let all = M.union new old
+  let newnew = new M.\\ old
+  if all == old then return old else buchberger1D order all newnew
+{-
+buchberger2 order polys = buchberger1 order polys polys
+
+buchberger3 order old current = let
+  new = S.fromList $ concat $ crossWith (mvd order) (S.toList old) (S.toList current)
+  all = S.union new old
+  newnew = new S.\\ old
+  in if all == old then old else buchberger1 order all newnew
+-}
+grevlex (a,_) (b,_) = case compare (sum b) (sum a) of
+                LT -> LT
+                GT -> GT
+                EQ -> compare b a
+
+reorder order polys = M.fromList $ mapfxx (leading order) $ map snd $ M.toList polys
+
+type Mono coeff = ([Int], coeff)
+
+newtype Poly coeff = Poly { terms :: [Mono coeff] }
+
+instance (Show coeff, Num coeff, Ord coeff) => Show (Poly coeff) where
+  show p@(Poly ms) = if p == zero then "0" else concatMap (showm "") ms
+
+instance Eq coeff => Eq (Poly coeff) where
+  Poly a == Poly b = a == b
+
+instance Ord coeff => Ord (Poly coeff) where
+  compare (Poly a) (Poly b) = compare a b
+
+showm ch (pi,  0) = "+0"
+showm ch (pi,  1) = "+"                     ++ concat (zipWith showz pi "pxrw")       
+showm ch (pi, -1) = "-"                     ++ concat (zipWith showz pi "pxrw")       
+showm ch (pi, ci) | ci > 0 = "+" ++ show ci ++ concat (zipWith showz pi "pxrw") ++ ch 
+               | otherwise =        show ci ++ concat (zipWith showz pi "pxrw") ++ ch 
+
+showz pi c | pi == 0 = ""
+           | pi == 1 = [c]
+           | pi >  1 = [c] ++ "^" ++ show pi
+
+lcmm (pi, ci) (pj, cj) = (zipWith max pi pj, ci*cj)
+
+divm (pi, ci) (pj, cj) = (zipWith (-) pi pj, ci/cj)
+
+mulm (pi, ci) (pj, cj) = (zipWith (+) pi pj, ci*cj)
+
+negm (pi, ci) = (pi, negate ci)
+
+mulpm (Poly xs) m = Poly $ map (mulm m) xs
+
+mulpp p (Poly xs) = foldr addpp (Poly []) $ map (mulpm p) xs
+
+addpp (Poly hi) (Poly hj) = Poly $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
+
+subpp (Poly hi) (Poly hj) = Poly $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
+
+sortp order (Poly p) = Poly $ sortBy order p
+
+nonzero (Poly []) = False
+nonzero _ = True
+
+zero = Poly []
+
+leading order (Poly p) = minimumBy order p
+
+mvd order fi fj = let
+  gi = leading order fi
+  gj = leading order fj
+  aij = lcmm gi gj
+  mi = divm aij gi
+  mj = divm aij gj
+  hi = sortp order $ mulpm fi mi 
+  hj = sortp order $ mulpm fj mj 
+  sij = sortp order $ subpp hi hj
+  in sij
+
+mvdD order fi fj = do
+  let gi = leading order fi
+  let gj = leading order fj
+  let aij = lcmm gi gj
+  let mi = divm aij gi
+  let mj = negm $ divm aij gj
+  let hi = sortp order $ mulpm fi mi 
+  let hj = sortp order $ mulpm fj mj 
+  let sij = sortp order $ addpp hi hj
+  putStrLn ""
+  putStrLn $ showm "*" mi ++ "( " ++ show fi ++ " ) " ++ showm "*" mj ++ "( " ++ show fj ++ ")"
+  putStrLn $ "= " ++ show sij
+  return sij
+
+reduce order polys fi = if fi == zero then return zero else reducelead order polys fi >>= reduce0 order polys
+
+reducelead order polys fi = if fi == zero then return zero else reducelead1 order polys fi polys
+
+reducelead1 _ _ fi [] = return fi
+reducelead1 order polys fi (fj:fjs) = do
+  let gi = leading order fi
+  let gj = leading order fj
+  let mj = negm $ divm gi gj
+  let sij = sortp order $ addpp fi (mulpm fj mj)
+  if all (>= 0) $ fst mj 
+    then do
+      putStrLn "reducelead"
+      putStrLn $ showm "*" mj ++ "( " ++ show fj ++ " )"
+      putStrLn $ "= " ++ show sij
+      reducelead order polys sij 
+    else reducelead1 order polys fi fjs
+
+reduce0 order polys fi = reduce1 order polys fi polys
+
+reduce1 order polys fi [] = return fi
+reduce1 order polys fi fjs = reduce2 order polys fi fjs
+
+reduce2 order polys fi [] = return fi
+reduce2 order polys fi fjs = reduce3 order polys fi fjs $ terms fi
+
+reduce3 order polys fi (fj:fjs) [] = reduce2 order polys fi fjs 
+reduce3 order polys fi (fj:fjs) (gi:gis) = do
+  let gj = leading order fj
+  let mj = divm gi gj
+  let sij = sortp order $ subpp fi (mulpm fj mj)
+  if all (>= 0) $ fst mj 
+    then do
+      putStrLn "reduce"
+      putStrLn $ "- " ++ showm "*" mj ++ show fj
+      putStrLn $ "= " ++ show sij
+      reduce order polys sij 
+    else reduce3 order polys fi (fj:fjs) gis
+
+rinse xs = filter ((/= 0) . snd) xs
+{-
+-4p^3x -4r^3w  = 3(t4+t2)+(t6+t0) 
+ 4p^2x +4r^2w  = t5+t1+2*t3       
+ 2p  x +2r  w  = t4+t2            
+     x +    w  = t3               
+-}
+paramsOfWave2a (t0:t1:t2:t3:t4:t5:t6:_) = let
+  a = t6+3*t4+3*t2+t0
+  b = t5+2*t3+t1
+  c = t4+t2
+  d = t3
+
+  sq = 4*a^2*d^2+12*a*b*c*d-8*a*c^3+4*b^3*d-3*b^2*c^2
+  sqrt1 = sqrt sq
+  p = (2*a*d+b*c - sqrt1) / (4*(c^2-b*d))
+  r = (2*a*d+b*c + sqrt1) / (4*(c^2-b*d))
+  in (acos p, r)
+
+pow2b (x0:x1:x2:x3:x4:x5:_) = [pow [x0,x1,x2], pow [x1,x2,x3], pow [x2,x3,x4], pow[x3,x4,x5], pow[x0,x2,x4], pow[x1,x3,x5]]
+
+stagger f xs = map f $ tails xs
 {-
 x1=px0+sqrt(1-p^2)y0
 x2=(2p^2-1)x0+2psqrt(1-p^2)y0
@@ -236,3 +590,4 @@ pdiff xs = aux $ peaks xs
       aux [] = []
       aux [x0] = []
       aux (x0:x1:xs) = (x1-x0) : aux (x1:xs)
+

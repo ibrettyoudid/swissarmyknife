@@ -15,6 +15,7 @@
 {-# HLINT ignore "Replace case with maybe" #-}
 
 module Syntax6 where
+{-
 
 import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 
@@ -36,23 +37,23 @@ import Data.Kind
 import Data.List qualified as L
 import Data.Map qualified as M
 import Text.Parsec qualified as P
-{-}
+
 import Text.Syntax
 import Text.Syntax.Parser.Naive
 import Text.Syntax.Printer.Naive
 
 import qualified GHC.Cmm as Text.Syntax.Parser
 
--}
 -- module Text.Syntax.Classes where
 
 -- import qualified Language.Haskell.TH as Control.Isomorphism.Partial
 -- import qualified GHC.Runtime.Eval as Control.Isomorphism.Partial
-{-
+
 import Control.Isomorphism.Partial
 import Control.Isomorphism.Partial.Unsafe
 import Control.Isomorphism.Partial.TH
--}
+
+
 import Data.Bool (Bool, otherwise)
 import Data.Either (Either (Left, Right))
 import Data.Maybe (Maybe (Just, Nothing))
@@ -1221,4 +1222,5 @@ ctype qid = do
    return (i, c bt)
 
 ctypeni = do (_, t) <- ctype (return ()); return t
+-}
 -}
