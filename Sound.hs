@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Fuse foldr/map" #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Move filter" #-}
 module Sound where
 
 import Favs
@@ -8,11 +9,12 @@ import Data.List
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Ratio
+import Numeric
 
 freq1 (c0:c1:c2:_) = let
    d1 = c2+c0-2*c1 -- (c2-c1)-(c1-c0)
-   in sqrt(-d1/c1)
-   
+   in sqrt (-d1/c1)
+
 wave f = map sin [0,f..]
 
 test w = map (\n -> freq $ drop n w) [0..]
@@ -73,10 +75,10 @@ freq2 = do
    let d2 = (c3-c2)-(c2-c1)
    let d3 = (c4-c3)-(c3-c2)
    -}
-   putStrLn ("ff="++showFF 10 (ff)++" (gga1-ggc1+d1)/a1="++showFF 10 ((gg*a1-gg*c1+d1)/a1))
-   putStrLn ("ff="++showFF 10 (ff)++" (gga2-ggc2+d2)/a2="++showFF 10 ((gg*a2-gg*c2+d2)/a2))
-   putStrLn ("gg="++showFF 10 (gg)++" (d2a1-d1a2)/(c2a1-c1a2)="++showFF 10 ((d2*a1-d1*a2)/(c2*a1-c1*a2)))
-   
+   putStrLn ("ff="++showFF 10 ff++" (gga1-ggc1+d1)/a1="++showFF 10 ((gg*a1-gg*c1+d1)/a1))
+   putStrLn ("ff="++showFF 10 ff++" (gga2-ggc2+d2)/a2="++showFF 10 ((gg*a2-gg*c2+d2)/a2))
+   putStrLn ("gg="++showFF 10 gg++" (d2a1-d1a2)/(c2a1-c1a2)="++showFF 10 ((d2*a1-d1*a2)/(c2*a1-c1*a2)))
+
 {-
 Although this is probably easy for a Maths professor I worked this all out myself
 
@@ -162,10 +164,16 @@ d = t3
 sq = 4*a^2*d^2+12*a*b*c*d-8*a*c^3+4*b^3*d-3*b^2*c^2
    = 64*(p^6x^2+r^6w^2+2p^3r^3xw)*(x^2+w^2+2xw)+12*(-16p^5x^2-16r^5w^2
 
-a = -4p^3x -4r^3w
-b =  4p^2x +4r^2w
-c =  2p  x +2r  w
-d =      x +    w
+A =  16p^4x+16r^4w
+a =  -4p^3x -4r^3w
+b =   4p^2x +4r^2w
+c =   2p  x +2r  w
+d =       x +    w
+
+-4*p*a   = 16p^4x+16p  r^3w
+4*p^2*b  = 16p^4x+16p^2r^2w
+8*p^3*c  = 16p^4x+16p^3rw
+16*p^4*d = 16p^4x+16p^4w
 
 b*p     =  4p^3x +4pr^2w
 c*p^2*2 =  4p^3x +4p^2rw
@@ -249,23 +257,6 @@ x2=2p^2x0-x0+2px1-2p^2x0
 x2=-x0+2px1
 x2+x0=2px1
 (x2+x0)/2x1=p
-
-b*p     =  4p^3x +4pr^2w
-c*p^2*2 =  4p^3x +4p^2rw
-d*p^3*4 =  4p^3x +4p^3 w
-
-bp+a     = 4pr^2w-4r^3w  = e
-bp-2cp^2 = -4p^2rw+4pr^2w = f
-bp-4dp^3 = -4p^3w+4pr^2w  = g
-
-e-f = -4r^3w+4p^2rw
-e-g = 4(p^3-r^3)w
-f-g = -4p^2rw+4p^3w
-
-f*p = -4p^3rw+4p^2r^2w
-e*p^2 = 4p^3r^2w-4p^2r^3w
-
-e*p^2-f*p = 4p^2wr(r+1)(pw-rw)
 -}
 -- frequency of a sine wave (in a list) in radians/sample
 freq (x0:x1:x2:_) = acos ((x2+x0)/(2*x1))
@@ -280,6 +271,7 @@ paramsOfWave (x0:x1:x2:_) = let
    phase = atan2 x0 y0
    in (freq, amp, phase)
 
+waveOfParams :: (Floating b, Enum b) => (b, b, b) -> [b]
 waveOfParams (freq, amp, phase) = map ((*amp) . sin) [phase, phase+freq ..]
 
 wop = waveOfParams
@@ -289,17 +281,24 @@ wop2 a b = zipWith (+) (wop a) (wop b)
 pow2 xs = paramsOfWave2 xs
 pow2a = paramsOfWave2a
 
-paramsOfWave2 xs = let
-  (t0:t1:t2:t3:t4:t5:t6:_) = map id xs
-  in M.toList <$>
-    solvepolys [
-                Poly [([3,1,0,0],-4), ([0,0,3,1], -4), ([0,0,0,0], -(t6+3*t4+3*t2+t0))], 
-                Poly [([2,1,0,0], 4), ([0,0,2,1],  4), ([0,0,0,0], -(t5+2*t3+t1))],
-                Poly [([1,1,0,0], 2), ([0,0,1,1],  2), ([0,0,0,0], -(t4+t2))],
-                Poly [([0,1,0,0], 1), ([0,0,0,1],  1), ([0,0,0,0], -t3)]
+test1 = solvepolys [
+                Poly "pxrwabcd" [([3,1,0,0,0,0,0,0],-4), ([0,0,3,1,0,0,0,0], -4), ([0,0,0,0,1,0,0,0], 1)],
+                Poly "pxrwabcd" [([2,1,0,0,0,0,0,0], 4), ([0,0,2,1,0,0,0,0],  4), ([0,0,0,0,0,1,0,0], 1)],
+                Poly "pxrwabcd" [([1,1,0,0,0,0,0,0], 2), ([0,0,1,1,0,0,0,0],  2), ([0,0,0,0,0,0,1,0], 1)],
+                Poly "pxrwabcd" [([0,1,0,0,0,0,0,0], 1), ([0,0,0,1,0,0,0,0],  1), ([0,0,0,0,0,0,0,1], 1::Ratio Integer)]
     ]
 
-solvepolys polys = {- buchberger compare $ reorder compare $ -} buchbergerD grevlex $ M.fromList $ mapfxx (leading grevlex) polys
+paramsOfWave2 xs = let
+  (t0:t1:t2:t3:t4:t5:t6:_) = map realToFrac xs
+  in solvepolys [
+                Poly "pxrw" [([4,1,0,0], 16), ([0,0,4,1], 16)],
+                Poly "pxrw" [([3,1,0,0], -4), ([0,0,3,1], -4), ([0,0,0,0], -(t6+3*t4+3*t2+t0))],
+                Poly "pxrw" [([2,1,0,0],  4), ([0,0,2,1],  4), ([0,0,0,0], -(t5+2*t3+t1))],
+                Poly "pxrw" [([1,1,0,0],  2), ([0,0,1,1],  2), ([0,0,0,0], -(t4+t2))],
+                Poly "pxrw" [([0,1,0,0],  1), ([0,0,0,1],  1), ([0,0,0,0], -t3::Ratio Integer)]
+    ]
+
+solvepolys polys = {- buchberger compare $ reorder compare $ -} buchberger2D grevlex polys
 
 buchberger order polys = buchberger1 order polys polys
 
@@ -315,11 +314,42 @@ buchberger1D order old current = do
   let oldl = map snd $ M.toList old
   putStrLn $ replicate 80 '='
   mapM_ print oldl
+  getLine
   bl <- sequence $ concat $ crossWith (\x y -> mvdD order x y >>= reduce order oldl) oldl (map snd $ M.toList current)
-  let new = M.fromList $ mapfxx (leading order) $ filter (/= zero) bl 
+  let new = M.fromList $ mapfxx (leading order) $ filter (/= zero) bl
   let all = M.union new old
   let newnew = new M.\\ old
   if all == old then return old else buchberger1D order all newnew
+
+buchberger2D order polysl = do
+  let polys = M.fromList $ map (\(x, y) -> (fst x, y)) $ mapfxx (leading order) polysl
+  putStrLn $ replicate 80 '='
+  mapM_ print polysl
+  getLine
+  let t1 = filter (uncurry (>)) $ concat $ crossWith (,) polysl polysl
+  t2 <- firstM (buchberger3D order polys) $ map (\(x, y) -> mvdD order x y >>= reduce order polysl) t1
+  case t2 of
+    Nothing             -> return polysl
+    Just (key, newpoly) -> buchberger2D order $ map snd $ M.toList $ M.insert key newpoly polys
+
+buchberger3D order polys newpoly =
+  if newpoly == zero
+      then Nothing
+      else let key = fst $ leading order newpoly
+            in case M.lookup key polys of
+                  Just  j -> ifJust (j /= newpoly) (key, newpoly)
+                  Nothing -> Just (key, newpoly)
+
+triang f xs = map (\(x:xs) -> map (f x) xs) (init $ tails xs)
+
+
+firstM f [] = return Nothing
+firstM f (m:ms) = do
+  r <- m
+  case f r of
+    j@(Just _) -> return j
+    Nothing    -> firstM f ms
+
 {-
 buchberger2 order polys = buchberger1 order polys polys
 
@@ -338,28 +368,28 @@ reorder order polys = M.fromList $ mapfxx (leading order) $ map snd $ M.toList p
 
 type Mono coeff = ([Int], coeff)
 
-newtype Poly coeff = Poly { terms :: [Mono coeff] }
+data Poly coeff = Poly {  vars :: String, terms :: [Mono coeff] }
 
-instance (Show coeff, Num coeff, Ord coeff) => Show (Poly coeff) where
-  show p@(Poly ms) = if p == zero then "0" else concatMap (showm "") ms
+instance (Show coeff, Num coeff, Ord coeff, Real coeff) => Show (Poly coeff) where
+  show p@(Poly z ms) = if p == zero then "0" else concatMap (showm z "") ms
 
 instance Eq coeff => Eq (Poly coeff) where
-  Poly a == Poly b = a == b
+  Poly z a == Poly zz b = a == b
 
 instance Ord coeff => Ord (Poly coeff) where
-  compare (Poly a) (Poly b) = compare a b
+  compare (Poly _ a) (Poly _ b) = compare a b
 
-showm ch (pi,  0) = "+0"
-showm ch (pi,  1) = "+"                     ++ concat (zipWith showz pi "pxrw")       
-showm ch (pi, -1) = "-"                     ++ concat (zipWith showz pi "pxrw")       
-showm ch (pi, ci) | ci > 0 = "+" ++ show ci ++ concat (zipWith showz pi "pxrw") ++ ch 
-               | otherwise =        show ci ++ concat (zipWith showz pi "pxrw") ++ ch 
+showm z ch (pi,  0) = "+0" ++ ch
+showm z ch (pi,  1) = "+"                     ++ concat (zipWith showz pi z) ++ if any (> 0) pi then ch else ""
+showm z ch (pi, -1) = "-"                     ++ concat (zipWith showz pi z) ++ if any (> 0) pi then ch else ""
+showm z ch (pi, ci) | ci > 0 = "+" ++ showFF 10 (realToFrac ci) ++ concat (zipWith showz pi z) ++ ch
+                    | otherwise =     showFF 10 (realToFrac ci) ++ concat (zipWith showz pi z) ++ ch
 
 showz pi c | pi == 0 = ""
            | pi == 1 = [c]
            | pi >  1 = [c] ++ "^" ++ show pi
 
-lcmm (pi, ci) (pj, cj) = (zipWith max pi pj, ci*cj)
+lcmm (pi, ci) (pj, cj) = (zipWith max pi pj, 1)
 
 divm (pi, ci) (pj, cj) = (zipWith (-) pi pj, ci/cj)
 
@@ -367,22 +397,24 @@ mulm (pi, ci) (pj, cj) = (zipWith (+) pi pj, ci*cj)
 
 negm (pi, ci) = (pi, negate ci)
 
-mulpm (Poly xs) m = Poly $ map (mulm m) xs
+mulpm (Poly z xs) m = Poly z $ map (mulm m) xs
 
-mulpp p (Poly xs) = foldr addpp (Poly []) $ map (mulpm p) xs
+mulpp p (Poly z xs) = foldr addpp (Poly z []) $ map (mulpm p) xs
 
-addpp (Poly hi) (Poly hj) = Poly $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
+addpp (Poly z hi) (Poly _ hj) = Poly z $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
 
-subpp (Poly hi) (Poly hj) = Poly $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
+subpp (Poly z hi) (Poly _ hj) = Poly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
 
-sortp order (Poly p) = Poly $ sortBy order p
+sortp order (Poly z p) = Poly z $ sortBy order p
 
-nonzero (Poly []) = False
+rinse xs = filter ((/= 0) . snd) xs
+
+nonzero (Poly z []) = False
 nonzero _ = True
 
-zero = Poly []
+zero = Poly "" []
 
-leading order (Poly p) = minimumBy order p
+leading order (Poly _ p) = minimumBy order p
 
 mvd order fi fj = let
   gi = leading order fi
@@ -390,23 +422,24 @@ mvd order fi fj = let
   aij = lcmm gi gj
   mi = divm aij gi
   mj = divm aij gj
-  hi = sortp order $ mulpm fi mi 
-  hj = sortp order $ mulpm fj mj 
+  hi = sortp order $ mulpm fi mi
+  hj = sortp order $ mulpm fj mj
   sij = sortp order $ subpp hi hj
   in sij
 
 mvdD order fi fj = do
+  --putStrLn $ replicate 80 '-'
   let gi = leading order fi
   let gj = leading order fj
   let aij = lcmm gi gj
   let mi = divm aij gi
   let mj = negm $ divm aij gj
-  let hi = sortp order $ mulpm fi mi 
-  let hj = sortp order $ mulpm fj mj 
+  let hi = sortp order $ mulpm fi mi
+  let hj = sortp order $ mulpm fj mj
   let sij = sortp order $ addpp hi hj
-  putStrLn ""
-  putStrLn $ showm "*" mi ++ "( " ++ show fi ++ " ) " ++ showm "*" mj ++ "( " ++ show fj ++ ")"
-  putStrLn $ "= " ++ show sij
+  --putStrLn ""
+  --putStrLn $ showm (vars fi) "*" mi ++ "( " ++ show fi ++ " ) " ++ showm (vars fj) "*" mj ++ "( " ++ show fj ++ ")"
+  --putStrLn $ "= " ++ show sij
   return sij
 
 reduce order polys fi = if fi == zero then return zero else reducelead order polys fi >>= reduce0 order polys
@@ -419,12 +452,12 @@ reducelead1 order polys fi (fj:fjs) = do
   let gj = leading order fj
   let mj = negm $ divm gi gj
   let sij = sortp order $ addpp fi (mulpm fj mj)
-  if all (>= 0) $ fst mj 
+  if fi /= fj && all (>= 0) (fst mj) && logBase (realToFrac $ snd mj) 10 > -300
     then do
-      putStrLn "reducelead"
-      putStrLn $ showm "*" mj ++ "( " ++ show fj ++ " )"
-      putStrLn $ "= " ++ show sij
-      reducelead order polys sij 
+      --putStrLn "reducelead"
+      --putStrLn $ showm (vars fi) "*" mj ++ "( " ++ show fj ++ " )"
+      --putStrLn $ "= " ++ show sij
+      reducelead order polys sij
     else reducelead1 order polys fi fjs
 
 reduce0 order polys fi = reduce1 order polys fi polys
@@ -435,20 +468,19 @@ reduce1 order polys fi fjs = reduce2 order polys fi fjs
 reduce2 order polys fi [] = return fi
 reduce2 order polys fi fjs = reduce3 order polys fi fjs $ terms fi
 
-reduce3 order polys fi (fj:fjs) [] = reduce2 order polys fi fjs 
+reduce3 order polys fi (fj:fjs) [] = reduce2 order polys fi fjs
 reduce3 order polys fi (fj:fjs) (gi:gis) = do
   let gj = leading order fj
   let mj = divm gi gj
   let sij = sortp order $ subpp fi (mulpm fj mj)
-  if all (>= 0) $ fst mj 
+  if fi /= fj && all (>= 0) (fst mj) && logBase (realToFrac $ snd mj) 10 > -300
     then do
-      putStrLn "reduce"
-      putStrLn $ "- " ++ showm "*" mj ++ show fj
-      putStrLn $ "= " ++ show sij
-      reduce order polys sij 
+      --putStrLn "reduce"
+      --putStrLn $ "- " ++ showm (vars fj) "*" mj ++ show fj
+      --putStrLn $ "= " ++ show sij
+      reduce order polys sij
     else reduce3 order polys fi (fj:fjs) gis
 
-rinse xs = filter ((/= 0) . snd) xs
 {-
 -4p^3x -4r^3w  = 3(t4+t2)+(t6+t0) 
  4p^2x +4r^2w  = t5+t1+2*t3       
@@ -467,10 +499,58 @@ paramsOfWave2a (t0:t1:t2:t3:t4:t5:t6:_) = let
   r = (2*a*d+b*c + sqrt1) / (4*(c^2-b*d))
   in (acos p, r)
 
-pow2b (x0:x1:x2:x3:x4:x5:_) = [pow [x0,x1,x2], pow [x1,x2,x3], pow [x2,x3,x4], pow[x3,x4,x5], pow[x0,x2,x4], pow[x1,x3,x5]]
+pow2b (x0:x1:x2:x3:x4:x5:_) = [pow [x0,x1,x2], pow [x1,x2,x3], pow [x2,x3,x4], pow [x3,x4,x5], pow [x0,x2,x4], pow [x1,x3,x5]]
 
 stagger f xs = map f $ tails xs
 {-
+t6 = (p^2-q^2)x4+2pqy4 + (r^2-s^2)w4+2rsz4
+t5 = px4+qy4 + rw3+sz3
+t3 = px4-qy4 + rw3-sz3
+t5+t3 = 2px4 + 2rw4
+t5-t3 = 2qy4 + 2sz4
+
+t2 = (p^2-q^2)x4-2pqy4 + (r^2-s^2)w4-2rsz4
+
+t6+t2 = 2(p^2-q^2)x4 + 2(r^2-s^2)w4
+t6-t2 = 4pqy4  + 4rsz4
+
+t7 = (p^3-3pq^2)x3 + (3p^2q-q^3)y3 + (r^3-3rs^2)w3 + (3r^2s-s^3)z3
+t1 = (p^3-3pq^2)x3 - (3p^2q-q^3)y3 + (r^3-3rs^2)w3 - (3r^2s-s^3)z3
+
+t7+t1 = 2(p^3-3pq^2)x4 + 2(r^3-3rs^2)w4
+t7-t1 = 2(3p^2q-q^3)y4 + 2(3r^2s-s^3)z4
+
+t8+t0 = 2(p^4-6p^2q^2+q^4)x4 + 2(r^4-6r^2s^2+s^4)w4
+t7+t1 = 2(p^3-3pq^2)x4       + 2(r^3-3rs^2)w4 
+t6+t2 = 2(p^2-q^2)  x4       + 2(r^2-s^2)  w4
+t5+t3 = 2p          x4       + 2r          w4
+t4    =             x4       +             w4
+
+t8+t0           = 2(p^4-6p^2(1-p^2)+(1-p^2)^2)x4 + 2(r^4-6r^2s^2+s^4)w4
+t8+t0           = 2(p^4-6p^2+6p^4+p^4-2p^2+1)x4  + 2(r^4-6r^2s^2+s^4)w4
+t8+t0           = 2(8p^4-8p^2+1)x4               + 2(8r^4-8r^2+1)w4
+t8+t0+8*(t5+t3) = 2(8p^4+1)x4                    + 2(8r^4+1)w4
+t8+t0+8*(t5+t3)-2t4 = 16p^4x4                    + 16r^4w4
+t7+t1+3*(t5+t3)
+
+t7+t1 = 2(p^3-3p(1-p^2))x4 + 2(r^3-3r(1-r^2)w4
+t7+t1 = 2(-3p-2p^3))x4 + 2(-3r-2r^3)w4
+t7+t1 = (-4p^3 - 6p)x4 + (-4r^3 - 6r)w4 
+
+[ p  q][p^3-3pq^2 3p^2q-q^3] = [p^4-6p^2q^2+q^4 4p^3q-4pq^3    ]
+[-q  p][q^3-3p^2q p^3-3pq^2]   [4pq^3-4p^3q     p^4-6p^2q^2+q^4]
+
+q^2 = 1-p^2
+
+p^2-q^2+p^2+q^2 = p^2-q^2+1 = 2p^2
+p^2-q^2 = 2p^2 - 1
+t5+t1 = 2(2p^2-1)  x3 + 2(2r^2-1)  w3
+
+t6+t0 = (-4p^3-6p)x3 + (-4r^3 - 6r)w3 
+t5+t1 = (4p^2-2)x3 + (4r^2-2)w3
+t4+t2 = 2p          x3 + 2r          w3
+t3    = x3 + w3
+
 x1=px0+sqrt(1-p^2)y0
 x2=(2p^2-1)x0+2psqrt(1-p^2)y0
 x2+x0=2p^2x0+2psqrt(1-p^2)y0
@@ -582,11 +662,11 @@ peaks xs = aux xs 0 where
    aux [] _ = []
    aux [x0] _ = []
    aux [x0,x1] _ = []
-   aux (x0:x1:x2:xs) n = 
+   aux (x0:x1:x2:xs) n =
       (if x1 > x0 && x1 >= x2 then (n:) else id) $ aux (x1:x2:xs) (n+1)
-      
+
 pdiff xs = aux $ peaks xs
-   where 
+   where
       aux [] = []
       aux [x0] = []
       aux (x0:x1:xs) = (x1-x0) : aux (x1:xs)
