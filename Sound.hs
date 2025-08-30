@@ -169,11 +169,123 @@ a =  -4p^3x -4r^3w
 b =   4p^2x +4r^2w
 c =   2p  x +2r  w
 d =       x +    w
+w = d - x
+
+
+b+c+d = (4p^2+2p+1)x+(4r^2+2r+1)(d-x)
+      = 4(p+0.5+0.25)x
+      = ((2p+1/2)^2)x - ((2r+1/2)^2)x + ((2r+1/2)^2+3/4)d
+      = ((2p+1/2)^2)x - ((2r+1/2)^2)x = b+c+d - ((2r+1/2)^2+3/4)d
+b+c+d+((2r = 
+
+      = ((2p+1/2)^2) + ((2r+1/2)^2)(d/x)+3d/4x
+A =  16p^4x+16r^4d-16r^4x
+a =  -4p^3x -4r^3d+4r^3x
+b =   4p^2x +4r^2d-4r^2x
+c =   2p  x +2r  d-2rx
+
+a = 4(r^3-p^3)x - 4r^3d
+b = 4(p^2-r^2)x + 4r^2d
+c = 2(p-r)x     + 2rd
+
+a + 4r^3d = 4(r^3-p^3)x
+b - 4r^2d = 4(p^2-r^2)x
+c - 2rd   = 2(p-r)x    
+
+(a/4 + r^3d)/(r^3-p^3) = x
+(b/4 - r^2d)/(p^2-r^2) = x
+(c/2 - rd  )/(p-r)     = x    
+
+(p^2-r^2)(a/4 + r^3d) = (r^3-p^3)(b/4 - r^2d)
+(p-r)    (a/4 + r^3d) = (r^3-p^3)(c/2 - rd)
+(p^2-r^2)(a/4 + r^3d)/(b/4 - r^2d) = (r^3-p^3)
+(p-r)    (a/4 + r^3d)/(c/2 - rd)   = (r^3-p^3)
+ap^2/4 - ar^2/4 + p^2r^3d - r^5d = br^3/4 - bp^3/4 - r^5d + p^3r^2d
+ap^2/4 - ar^2/4 + p^2r^3d = br^3/4 - bp^3/4 + p^3r^2d
+ap^2/4 - ar^2/4 + p^2r^3d - br^3/4 + bp^3/4 - p^3r^2d
+p^2r^3d - p^3r^2d + ap^2/4 + bp^3/4 - ar^2/4 - br^3/4
+p^2r^3d - p^3r^2d + ap^2/4 - ar^2/4 + bp^3/4 - br^3/4
+p^2r^2(r-p)d = (a+br)r^2/4 - (a+bp)p^2/4
+
+(p-r)(b/4 - r^2d) = (p^2-r^2)(c/2 - rd)
+p(b/4 - r^2d)-r(b/4 - r^2d) = p^2(c/2 - rd)-r^2(c/2 - rd)
+r^2(c/2 - rd)+r(b/4 - r^2d) = -p^2(c/2 - rd)+p(b/4 - r^2d)
+r^2(c/2 - rd)+r(b/4 - r^2d) = p^2(rd - c/2)+p(b/4 - r^2d)
+r^2(c/2 - rd)+rb/4 - r^3d = p^2(rd - c/2)+p(b/4 - r^2d) = p(prd - pc/2 + b/4 - r^2d)
+r(-2r^2d + rc/2 + b/4) = (rd - c/2)*(p+(b/4 - r^2d))^2
+
+r^2(c/2 - rd)+r(b/4 - r^2d) = p((b/4 - r^2d)-p(c/2 - rd))
+cr^2/2 - r^3d+br/4 - r^3d = bp/4 - cp^2/2 + drp(p-r)
+- 2dr^3 + cr^2/2 - br/4 = drp(p-r) - cp^2/2 + bp/4 
+- 2dr^3 + cr^2/2 - br/4 = drp^2 - dr^2p - cp^2/2 + bp/4 
+rd(r^2 - cr/4d + b/8d) = dr^2p/2 - drp^2/2 + cp^2/4 - bp/8
+rd(r - c/8d)^2 - c^2r^2/64d + br/4 = (2c-dr)p^2/4 + (4dr^2-b)p/8
+rd(r - c/8d)^2 - c^2r^2/64d + br/4 = (2c-dr)/4(p^2 + (4dr^2-b)p/(4c-2dr))
+rd(r - c/8d)^2 - c^2r^2/64d + br/4 = (2c-dr)/4(p + (4dr^2-b)/(8c-4dr))^2 - (4dr^2-b)^2/(32c-16dr)
+rd(r - c/8d)^2 - c^2r^2/64d + br/4 + (dr-2c)/4(p + (4dr^2-b)/(8c-4dr))^2 = - (4dr^2-b)^2/(32c-16dr)
+rd(r - c/8d)^2 + (dr-2c)/4(p + (4dr^2-b)/(8c-4dr))^2 = c^2r^2/64d + br/4 - (4dr^2-b)^2/(32c-16dr)
+sqrt(rd)(r - c/8d) + sqrt(dr-2c)/2*(p + (4dr^2-b)/(8c-4dr)) = sqrt(c^2r^2/64d + br/4 - (4dr^2-b)^2/(32c-16dr))
+
+dr^3 - cr^2/4 + br/8              = (2c+dr)/4(p + (4dr^2-b)/(8c+4dr))^2 - (4dr^2-b)^2/(32c+16dr)
+2*sqrt(dr^3 - cr^2/4 + br/8 - (4dr^2-b)^2/(32c+16dr))/sqrt(2c+dr) = (p + (4dr^2-b)/(8c+4dr))
+2*sqrt(dr^3 - cr^2/4 + br/8 - (4dr^2-b)^2/(32c+16dr))/sqrt(2c+dr) - (4dr^2-b)/(8c+4dr) = p 
+
+(b/4 - r^2d)/(c/2 - rd) = (p^2-r^2)/(p-r)
+
+
+
+
+
+2px = c - 2rw
+p  = (c - 2rw)/2x
+x  = (c - 2rw)/2p
+p^2 = (4r^2w^2 + c^2 +2rwc)/4x^2
+p^2 = (b-4r^2w)/4x
+(4r^2w^2 + c^2 +2rwc) = (b-4r^2w)x
+4p^2x = b - 4r^2w
+x  =-(a/4 - r^3w)/p^3
+x  = (b/4 - r^2w)/p^2
+x  = (c/2 - rw)/p
+(b/4 - r^2w)/p^2 = (c/2 - rw)/p
+(b/4 - r^2w)/(c/2 - rw) = p
+-(a/4 - r^3w)/(c/2 - rw) = p^2
+(b/4 - r^2w)^2 = -(a/4 - r^3w)(c/2 - rw)
+b/16 + r^4w^2 - br^2w/2 = -ac/8 - r^4w^2 + cr^3w/2 - arw/4
+2r^4w^2 - cr^3w/2 - br^2w/2 - arw/4 + b/16  + ac/8 = 0
+r^4w^2  - cr^3w/4 - br^2w/8 - arw/8 + ac/16 + b/32 = 0
+
+
+x  = (b - 4r^2(d-x))/4p^2
+b/4p^2-x= 4r^2(d-x)/4p^2
+b-4p^2x/(d-x) = 4r^2
+b/4r^2x-(d-x)/x = p^2/r^2
+b/4r^2w =   p^2x/r^2w +1
+b/4r^2w =   p^2(d-w)/r^2w +1
+b/4r^2w =   p^2(d/w-1)/r^2 +1
+
+x/(a-x) = 1/(a/x)-1
+1/(1-x)= -1/(x-1)
+
+
+ x + 4r^2(d-x)
+ p  = (2rw - c)/2(b-4r^2w)
+ b  = 4p^2x = 4*4r^2(x^2+d^2+2xd)
+
+c/d = 2px+2r(d-x)/(x+w)
+c/d = 2px+2r(d-x))(x-w)/(x^2-w^2)
+c-d = (2p-1)x+(2r-1)w
+
+(c-d)*2p-(b-c) = (4p^2-2p)x+2p(4r^2-2r)w 
+b-c = (4p^2-2p)x+(4r^2-2r)w
+
+
 
 -4*p*a   = 16p^4x+16p  r^3w
 4*p^2*b  = 16p^4x+16p^2r^2w
 8*p^3*c  = 16p^4x+16p^3rw
 16*p^4*d = 16p^4x+16p^4w
+b^2      = 16p^4x^2+16r^4w^2+16p^2r^2xw
+d^2      = x^2+w^2+xw
 
 b*p     =  4p^3x +4pr^2w
 c*p^2*2 =  4p^3x +4p^2rw
