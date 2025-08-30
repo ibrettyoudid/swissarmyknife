@@ -1369,7 +1369,7 @@ showQuarters :: ([[String]], [[String]], [[String]]) -> [[String]]
 showQuarters (xh, yh, a) =
   let
     nw = replicate (length $ head xh) $ replicate (length $ head yh) ""
-    b = zipWith (++) (nw ++ yh) (transpose xh ++ a)
+    b = zipWith (++) (nw ++ yh) (transpose xh ++ transpose a)
    in
     b
 
