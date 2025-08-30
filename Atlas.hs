@@ -2,6 +2,10 @@
 {-# LANGUAGE LexicalNegation #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use when" #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE RecursiveDo #-}
+
+module Atlas where
 
 import Favs hiding (on)
 import HTML
@@ -635,9 +639,9 @@ getrsrsD f = let
 
    [["lls", "vs1", "vs2", "ce1", "ce2", "vs1a", "vs2a", "shift", "rots", "rot", "vs2b", "rotsb", "rotb", "scales", "scale", "vs2c", "vs2d", "residuals", "scale", "rot", "shift"], [show lls, show vs1, show vs2, show ce1, show ce2, show vs1a, show vs2a, show shift, show rots, show rot, show vs2b, show rotsb, show rotb, show scales, show scale, show vs2c, show vs2d, show residuals, show scale, show rot, show shift]]
 
-getsrs rr = snd $ getrsrs rr
+getsrs rotLL = snd $ getrsrs rotLL
 
-getres rr = fst $ getrsrs rr
+getres rotLL = fst $ getrsrs rotLL
 
 getres1 f = sum $ map (^ 2) $ concat $ getres f
 
@@ -684,28 +688,28 @@ nan = 0 / 0
 
 isNaNM m = any (any isNaN) m
 
+hjk ([[sx, sy]], r, [[xo, yo]]) = [sx, sy, r, xo, yo]
+
+lamaziSRS = hjk (getsrs (lamazi3 lamaziLL))
+lamaziLL = search getResMat [0, 0] [22, 88] 4 100
+--lamaziLL = [-37, -95]
+lamaziMat = getLamaziMat lamaziLL
+getLamaziMat rotLL = getMat (lamazi4 rotLL id3 lls) vs1
+lamaziMatD rotLL = getMatD (lamazi4 rotLL id3 lls) vs1
+
 getMat i o = if isNaNM i then map2 (const nan) (t3 o) else t3 o <*> invMat (add1s $ t3 i)
 
 getMatD i o = (t3 o <*>) <$> invMatD (add1s $ t3 i)
 
-getresMat rr = residuals $ vs1 <-> lamazi4 rr (getlamaziMat rr) lls
+getResMat rotLL = residuals $ vs1 <-> lamazi4 rotLL (getLamaziMat rotLL) lls
 
-getresMatD rr = do
-   m <- lamaziMatD rr
-   return $ residuals $ vs1 <-> lamazi4 rr m lls
+getResMatD rotLL = do
+   m <- lamaziMatD rotLL
+   return $ residuals $ vs1 <-> lamazi4 rotLL m lls
 
 residuals x = sqrt $ mean $ map (^ 2) $ concat x
 
--- lamaziRR = search (\rr -> getres1 (lamazi3 rr)) [0, 0] [5, 10] 16 30
-
-hjk ([[sx, sy]], r, [[xo, yo]]) = [sx, sy, r, xo, yo]
-
-lamaziSRS = hjk (getsrs (lamazi3 lamaziRR))
-lamaziRR = search getresMat [0, 0] [89, 179] 4 100
---lamaziRR = [-37, -95]
-lamaziMat = getlamaziMat lamaziRR
-getlamaziMat rr = getMat (lamazi4 rr id3 lls) vs1
-lamaziMatD rr = getMatD (lamazi4 rr id3 lls) vs1
+-- lamaziLL = search (\rotLL -> getres1 (lamazi3 rotLL)) [0, 0] [5, 10] 16 30
 
 -- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
 -- search :: (Fractional a, Enum a, Ord a) => ([[a]] -> a) -> [[a]] -> [[a]] -> a -> Int -> [[a]]
@@ -719,16 +723,16 @@ search f c r n i =
     in
       search f (snd min) (map (/ 1.2) r) n (i - 1)
 
-sh = searchD getresMat [0, 0] [12, 24] 8
-shd = searchDD getresMatD [0, 0] [12, 24] 8
+sh = searchD getResMat [0, 0] [12, 24] [8, 12]
+shd = searchDD getResMatD [0, 0] [12, 24] 8
 
--- sh = searchD (\rr -> getres1 (\init1 ll -> ll)) [0, 0] [12, 24] 8
+-- sh = searchD (\rotLL -> getres1 (\init1 ll -> ll)) [0, 0] [12, 24] 8
 
 mapfxxM f xs = flip zip xs <$> mapM f xs
 
 searchD f c r n =
    let
-      xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
+      xs1 = zipWith3 (\c1 r1 n1 -> [c1 - r1 * n1, c1 - r1 * (n1 - 1) .. c1 + r1 * n1]) c r n
       xs = crossList xs1
       fxxs = mapfxx f xs
       min = minimum fxxs
@@ -764,29 +768,28 @@ main2 = do
    initGUI
 
    mainWindow <- windowNew
-   drawingArea <- drawingAreaNew
+   map1 <- drawingAreaNew
 
    pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/6262/060.png"
    --pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/5794/192.png"
-   let dr = drawingArea
    {-
-   widgetAddEvents dr [PointerMotionMask]
-   on dr motionNotifyEvent $ do
+   widgetAddEvents map1 [PointerMotionMask]
+   on map1 motionNotifyEvent $ do
          (r,t) <- eventPolarCoordinates
          liftIO $ if (0.8<r && r<1.2)
             then setJam (Just t)
             else setJam Nothing
-         liftIO $ widgetQueueDraw dr
+         liftIO $ widgetQueueDraw map1
          return True
 
-   on dr leaveNotifyEvent $ liftIO $
+   on map1 leaveNotifyEvent $ liftIO $
          setJam Nothing >> return True
          -}
    -- scale 0.01 0.01
    {-
    scale 0.3 0.3
-   --w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth dr)
-   --liftIO (fromIntegral <$> widgetGetAllocatedHeight dr)
+   --w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth map1)
+   --liftIO (fromIntegral <$> widgetGetAllocatedHeight map1)
    -- jam <- liftIO getJam
    -- cars <- liftIO getCars
    -- translate (w/2) (h/2)
@@ -797,7 +800,7 @@ main2 = do
 
    -- af <- aspectFrameNew 0.5 0.5 (Just 1)
    -- frameSetShadowType af ShadowNone
-   -- containerAdd af dr
+   -- containerAdd af map1
 
    -- 'layout' is a widget that contains all interface elements
    -- properly arranged.
@@ -805,16 +808,16 @@ main2 = do
 
    vb <- vBoxNew False 0
    hb <- hBoxNew False 0
-   lat  <- hScaleNewWithRange -180 180 10
-   long <- hScaleNewWithRange -180 180 10
-   zoom <- hScaleNewWithRange -4 4 0.1
+   latw   <- hScaleNewWithRange -180 180 0.1
+   longw  <- hScaleNewWithRange -180 180 0.1
+   zoom   <- hScaleNewWithRange -4 4 0.1
    zoomed <- drawingAreaNew
-   boxPackStart vb lat  PackGrow 0
-   boxPackStart vb long PackGrow 0
-   boxPackStart vb zoom PackGrow 0
+   boxPackStart vb latw   PackGrow 0
+   boxPackStart vb longw  PackGrow 0
+   boxPackStart vb zoom   PackGrow 0
    boxPackStart vb zoomed PackGrow 0
-   boxPackStart hb vb PackGrow 0
-   boxPackStart hb dr PackGrow 0
+   boxPackStart hb vb     PackGrow 0
+   boxPackStart hb map1   PackGrow 0
 
    set
       mainWindow
@@ -822,121 +825,173 @@ main2 = do
       , windowDefaultWidth  := 400
       , windowDefaultHeight := 400
       ]
-   set lat  [rangeValue := -37]
-   set long [rangeValue := -95]
-   set zoom [rangeValue := -1]
+   set latw  [rangeValue := -36.7644]
+   set longw [rangeValue := -96.8080]
+   set zoom  [rangeValue := -1]
    zoomedPos <- newIORef (0, 0)
    zoomedSize <- newIORef $ Rectangle 0 0 0 0
+   mapPos <- newIORef (0, 1000)
+   guiMode <- newIORef Waiting
 
-   on drawingArea draw              $ mapDraw pixbuf lat long zoom
-   on drawingArea buttonPressEvent  $ buttonDA dr lat long
-   widgetAddEvents drawingArea [PointerMotionMask]
-   on drawingArea motionNotifyEvent $ zoomedMove zoom zoomed zoomedPos
-   on zoomed      draw              $ zoomedDraw pixbuf lat long zoomed zoomedPos zoomedSize
-   on mainWindow  objectDestroy       mainQuit
-   on lat         changeValue       $ \a b -> do widgetQueueDraw dr; return False
-   on long        changeValue       $ \a b -> do widgetQueueDraw dr; return False
-   on zoom        changeValue       $ \a b -> do widgetQueueDraw dr; return False
-   containerAdd mainWindow hb
-   widgetShowAll mainWindow
+   let 
+      mapButtonPress = do 
+         zoom1 <- liftIO $ get zoom rangeValue
+         let zoom2 = 2**zoom1
+         (x2, y2) <- eventCoordinates
+         (xsc, ysc) <- liftIO $ readIORef mapPos
+         let (x, y) = (x2 / zoom2 + xsc, y2 / zoom2 + ysc)
+         lat  <- liftIO $ rangeGetValue latw
+         long <- liftIO $ rangeGetValue longw
+
+         let ll = [ lat, long ]
+         let t = lamazi4a ll $ getLamaziMat ll
+         let 
+            dists = mapfxx
+               ( \[lat, long] -> let
+                     [[x1, y1]] = t lat long
+                     in sqrt $ (x-x1)^2 + (y-y1)^2
+               )
+               lls
+         let mindist = minimum dists
+         liftIO $ do
+            print ("x2 y2 = ", x2, y2)
+            print ("x y = ", x, y)
+            print ("xsc ysc = ", xsc, ysc)
+         liftIO $ writeIORef guiMode 
+            if fst mindist < 50
+               then PointMove (snd mindist)
+               else MapScroll (x, y) (xsc, ysc)
+         return False
+      
+      mapButtonRelease = do
+         liftIO $ writeIORef guiMode Waiting
+         return False
+
+      mapMotion = do
+         g <- liftIO $ readIORef guiMode
+         case g of
+            Waiting       -> zoomedMove
+            MapScroll _ _ -> mapScroll
+            _             -> return False
+
+      zoomedMove = do
+         zoom1 <- liftIO $ get zoom rangeValue
+         let zoom2 = 2**zoom1
+         (x2, y2) <- eventCoordinates
+         (xsc, ysc) <- liftIO $ readIORef mapPos
+         let (x, y) = (x2 / zoom2 + xsc, y2 / zoom2 + ysc)
+         liftIO $ writeIORef zoomedPos (x, y)
+         liftIO $ widgetQueueDraw zoomed
+         return False
+{-
+      pointMove = do
+         lat  <- liftIO $ rangeGetValue latw
+         long <- liftIO $ rangeGetValue longw
+
+         let ll = [ lat, long ]
+         let t = lamazi4a ll $ getLamaziMat ll
+         return False
+-}
+      mapScroll = do
+         zoom1 <- liftIO $ get zoom rangeValue
+         let zoom2 = 2**zoom1
+         MapScroll (x1, y1) (xsc, ysc) <- liftIO $ readIORef guiMode
+         (x2, y2) <- eventCoordinates
+         let (x, y) = (x2 / zoom2 + xsc, y2 / zoom2 + ysc)
+         liftIO $ do
+            print "--------------------"
+            print ("x1 y1 = ", x1, y1)
+            print ("xsc ysc = ", xsc, ysc)
+            print ("x2 y2 = ", x2, y2)
+            print ("x y =", x, y)
+         liftIO $ writeIORef mapPos (x1 - x + xsc, y1 - y + ysc)
+         liftIO $ widgetQueueDraw map1
+         return False
+
+      mapWheel = do
+         d <- eventScrollDirection
+         zoom1 <- liftIO $ get zoom rangeValue
+         liftIO $ set zoom [ rangeValue := case d of
+            ScrollUp   -> zoom1 + 1
+            ScrollDown -> zoom1 - 1 ]
+         liftIO $ widgetQueueDraw map1
+         return False
+
+      --eventWindowSize :: Num b => Render  (b, b)
+      eventWindowSize map1 = do
+         --map1 <- eventWindow
+         w <- liftIO $ drawWindowGetWidth map1
+         h <- liftIO $ drawWindowGetHeight map1
+         return $ if w*h > 1
+            then (fromIntegral w, fromIntegral h)
+            else (1,1)
+
+      zoomedDraw = do
+         xs <- liftIO $ widgetGetAllocatedWidth zoomed
+         ys <- liftIO $ widgetGetAllocatedHeight zoomed
+         lat  <- liftIO $ rangeGetValue latw
+         long <- liftIO $ rangeGetValue longw
+         let centre = [ lat, long ]
+         (x, y) <- liftIO $ readIORef zoomedPos
+         translate (fromIntegral xs / 2) (fromIntegral ys / 2)
+         scale 4 4
+         translate -x -y
+         mapDraw1 pixbuf centre
+
+      mapDraw = do
+         lat  <- liftIO $ rangeGetValue latw
+         long <- liftIO $ rangeGetValue longw
+         let centre = [ lat, long ]
+         zoom1 <- liftIO $ get zoom rangeValue
+         let zoom2 = 2**zoom1
+         (x, y) <- liftIO $ readIORef mapPos
+         scale zoom2 zoom2
+         translate -x -y
+         mapDraw1 pixbuf centre
+
+      mapDraw1 pixbuf centre = do
+         setSourcePixbuf pixbuf 0 0
+         Cairo.paint
+         setSourceRGB 1 0 0
+         setLineWidth 2
+
+         let t = lamazi4a centre $ getLamaziMat centre
+         sphereGrid t 5 5
+         setSourceRGB 0 0 0
+         mapM_
+            ( \[x, y] -> do
+                  newPath
+                  movTo [[x-50, y-50]]
+                  linTo [[x+50, y+50]]
+                  movTo [[x-50, y+50]]
+                  linTo [[x+50, y-50]]
+                  stroke
+            )
+            vs1
+
+   widgetAddEvents map1 [PointerMotionMask]
+   on map1 draw                 mapDraw
+   on map1 buttonPressEvent     mapButtonPress
+   on map1 buttonReleaseEvent   mapButtonRelease 
+   on map1 motionNotifyEvent    mapMotion
+   on map1 scrollEvent          mapWheel
+   on zoomed      draw          zoomedDraw
+   on mainWindow  objectDestroy mainQuit
+   on latw        changeValue   $ \a b -> do widgetQueueDraw map1; return False
+   on longw       changeValue   $ \a b -> do widgetQueueDraw map1; return False
+   on zoom        changeValue   $ \a b -> do widgetQueueDraw map1; return False
+   containerAdd   mainWindow hb
+   widgetShowAll  mainWindow
 
    --    resume
 
    mainGUI
 
+data Mode   = Waiting
+            | MapScroll (Double, Double) (Double, Double)
+            | PointMove [Double]
+
 --buttonDA :: EventM EButton Bool
-buttonDA dr latw longw = do
-   (x, y) <- eventCoordinates
-   lat  <- liftIO $ rangeGetValue latw
-   long <- liftIO $ rangeGetValue longw
-
-   let ll = [ lat, long ]
-   let t = lamazi4a ll $ getlamaziMat ll
-   dists <- mapM
-      ( \[lat, long] -> let
-            [[x1, y1]] = t lat long
-            in return $ sqrt $ (x-x1)^2 + (y-y1)^2
-      )
-      lls
-   let mindist = minimum dists
-   liftIO $ on dr motionNotifyEvent $ 
-      if mindist < 50
-         then mapScroll (x, y)
-         else pointMove latw longw
-   return False
-
-zoomedMove zoom zoomed zoomedPos = do
-   zoom1 <- liftIO $ get zoom rangeValue
-   let zoom2 = 2**zoom1
-   (x, y) <- eventCoordinates
-   liftIO $ writeIORef zoomedPos (x / zoom2, y / zoom2)
-   liftIO $ widgetQueueDraw zoomed
-   return False
-
-pointMove latw longw = do
-   (x, y) <- eventCoordinates
-   lat  <- liftIO $ rangeGetValue latw
-   long <- liftIO $ rangeGetValue longw
-
-   let ll = [ lat, long ]
-   let t = lamazi4a ll $ getlamaziMat ll
-   return False
-
-mapScroll (x1, y1) = do
-   (x,  y ) <- eventCoordinates
-   return False
-
---eventWindowSize :: Num b => Render  (b, b)
-eventWindowSize dr = do
-    --dr <- eventWindow
-    w <- liftIO $ drawWindowGetWidth dr
-    h <- liftIO $ drawWindowGetHeight dr
-    return $ if w*h > 1
-        then (fromIntegral w, fromIntegral h)
-        else (1,1)
-
-zoomedDraw pixbuf latw longw zoomed zoomedPos zoomedSize = do
-   xs <- liftIO $ widgetGetAllocatedWidth zoomed
-   ys <- liftIO $ widgetGetAllocatedHeight zoomed
-   lat  <- liftIO $ rangeGetValue latw
-   long <- liftIO $ rangeGetValue longw
-   let centre = [ lat, long ]
-   (x, y) <- liftIO $ readIORef zoomedPos
-   translate (fromIntegral xs / 2) (fromIntegral ys / 2)
-   scale 4 4
-   translate -x -y
-   mapDraw1 pixbuf centre
-
-mapDraw pixbuf latw longw zoom = do
-   lat  <- liftIO $ rangeGetValue latw
-   long <- liftIO $ rangeGetValue longw
-   let centre = [ lat, long ]
-   zoom1 <- liftIO $ get zoom rangeValue
-   let zoom2 = 2**zoom1
-   scale zoom2 zoom2
-   mapDraw1 pixbuf centre
-
-mapDraw1 pixbuf centre = do
-   setSourcePixbuf pixbuf 0 0
-   Cairo.paint
-   setSourceRGB 1 0 0
-   setLineWidth 2
-
-   let t = lamazi4a centre $ getlamaziMat centre
-   sphereGrid t 5 5
-   setSourceRGB 0 0 0
-   mapM_
-      ( \[lat, long] -> do
-            newPath
-            let [[x, y]] = t lat long
-            movTo [[x-50, y-50]]
-            linTo [[x+50, y+50]]
-            movTo [[x-50, y+50]]
-            linTo [[x+50, y-50]]
-            stroke
-      )
-      lls
-
 gmv = do
    setCurrentDirectory "/home/brett/Documents/Info/earth"
    -- sequence $ concat $ crossWith (\y x -> callCommand ("mv earth6_" ++ fmt1 3 (-y) ++ "_" ++ fmt1 3 x ++ ".png earth6_" ++ fmt 2 y ++ "_" ++ fmt 3 (x - if x > 180 then 360 else 0) ++ ".png")) [-75, -50 .. 50] [90, 120 .. 330]
