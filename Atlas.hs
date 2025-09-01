@@ -304,26 +304,32 @@ sphereGrid t = sphereGridPatch t -90 90 -180 180
 sphereGridPatch t lat0 lat1 long0 long1 maj min = do
    let longs = [long0, long0 + min .. long1]
    let lats  = [lat0 , lat0  + min .. lat1 ]
+   let min1 = min / 3
+   let min2 = min1 * 2
    mapM_ (\long -> do
       newPath
-      movTo (t lat0 (head longs))
-      mapM_ (\[lat2, lat3, lat4] -> do 
+      movTo (t lat0 long)
+      mapM_ (\lat2 -> do 
+         let lat3 = lat2 + min1
+         let lat4 = lat2 + min2
          let [[x2, y2]] = t lat2 long
          let [[x3, y3]] = t lat3 long
          let [[x4, y4]] = t lat4 long
          curveTo x2 y2 x3 y3 x4 y4
-         ) $ groupN 3 $ tail lats
+         ) $ tail lats
       stroke
       ) [long0, long0 + maj .. long1]
    mapM_ (\lat -> do
       newPath
       movTo (t lat long0)
-      mapM_ (\[long2, long3, long4] -> do
+      mapM_ (\long2 -> do
+         let long3 = long2 + min1
+         let long4 = long2 + min2
          let [[x2, y2]] = t lat long2
          let [[x3, y3]] = t lat long3
          let [[x4, y4]] = t lat long4
          curveTo x2 y2 x3 y3 x4 y4
-         ) $ groupN 3 $ tail longs
+         ) $ tail longs
       stroke
       ) [lat0, lat0 + maj .. lat1]
 
@@ -807,15 +813,17 @@ main2 = do
    -- properly arranged.
 
 
-   vb <- vBoxNew False 0
-   hb <- hBoxNew False 0
-   latw   <- hScaleNewWithRange -180 180 0.1
-   longw  <- hScaleNewWithRange -180 180 0.1
+   vb  <- vBoxNew False 0
+   vb1 <- vBoxNew False 0
+   hb  <- hBoxNew False 0
+   latw   <- hScaleNewWithRange -180 180 0.0001
+   longw  <- hScaleNewWithRange -180 180 0.0001
    zoom   <- hScaleNewWithRange -4 4 0.1
    zoomed <- drawingAreaNew
-   boxPackStart vb latw   PackGrow 0
-   boxPackStart vb longw  PackGrow 0
-   boxPackStart vb zoom   PackGrow 0
+   boxPackStart vb1 latw   PackGrow 0
+   boxPackStart vb1 longw  PackGrow 0
+   boxPackStart vb1 zoom   PackGrow 0
+   boxPackStart vb vb1    PackGrow 0
    boxPackStart vb zoomed PackGrow 0
    boxPackStart hb vb     PackGrow 0
    boxPackStart hb map1   PackGrow 0
@@ -910,11 +918,20 @@ main2 = do
          return False
 
       mapWheel = do
-         d <- eventScrollDirection
          zoom1 <- liftIO $ get zoom rangeValue
-         liftIO $ set zoom [ rangeValue := case d of
-            ScrollUp   -> zoom1 + 1
-            ScrollDown -> zoom1 - 1 ]
+         let zoom2 = 2**zoom1
+         (x2, y2) <- eventCoordinates
+         (xsc, ysc) <- liftIO $ readIORef mapPos
+         let (x, y) = (x2 / zoom2 + xsc, y2 / zoom2 + ysc)
+         d <- eventScrollDirection
+         let 
+            zoom3 = case d of
+               ScrollUp   -> zoom1 + 0.3
+               ScrollDown -> zoom1 - 0.3 
+         let zoom4 = 2**zoom3
+         let (xsc4, ysc4) = (x - x2 / zoom4, y - y2 / zoom4)
+         liftIO $ writeIORef mapPos (xsc4, ysc4)
+         liftIO $ set zoom [ rangeValue := zoom3 ]
          liftIO $ widgetQueueDraw map1
          return False
 
@@ -925,7 +942,7 @@ main2 = do
          h <- liftIO $ drawWindowGetHeight map1
          return $ if w*h > 1
             then (fromIntegral w, fromIntegral h)
-            else (1,1)
+            else (1, 1)
 
       zoomedDraw = do
          xs <- liftIO $ widgetGetAllocatedWidth zoomed

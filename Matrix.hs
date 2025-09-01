@@ -3,6 +3,8 @@
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE LexicalNegation #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 module Matrix where
 
@@ -267,61 +269,48 @@ gaussAux2d coli rowp row =
 
 gaussAux3 mult r p = r - p * mult
 
+qrDecompose a = householder a
+
 householder a =
   let
     (m, n) = gethl a
     q0 = identity (m, m)
    in
-    householder1 m (q0, a)
+    householder1 m n q0 a
 
-householder0 (q0, a) =
-  let
-    q1 = householder2 a
-    q = q1 <*> q0
-    r = q1 <*> a
-   in
-    (q, r)
+householder1 m0 n0 q0 a = let
+  (m, n) = gethl a
+  j = 0 -- coli
+  k = 0 -- rowpi
+  x = map (singleton . (!! j)) a
+  [xk] = x !! k
+  alpha = signum xk * modulus x
+  ae = replaceIndex k [alpha] $ replicate m [0]
+  u  = replaceIndex k [xk - alpha] x
+  v  = unit u
+  qk' = identity (m, m) <-> 2 |*| v <*> transpose v
+  qk  = identity (m0 - m, m0 - m) <++> zero (m0 - m, m) <**> zero (m, m0 - m) <++> qk'
+  q = qk <*> q0
+  r = qk' <*> a
+  r' = tail $ map tail r
+  (q2, r2) = householder1 m0 n0 q r'
+  res = ae <++> (tail (col 0 r) : r2)
+  in if n <= 1
+        then (q0, a)
+        else (q2, res)
 
-householder1 m0 (q0, a) =
-  let
-    {-
-       colis = gaussLeadTerms a
-       (coli, _) = minimum colis
-       rowis = filter (\rowi -> (== Just coli) $ findIndex (/= 0) $ a !! rowi) [0 .. length a - 1]
-       rowpi = snd $ maxOn (gaussAux a coli) rowis
-       j = coli
-       k = rowpi
-       -}
-    (m, n) = gethl a
-    j = 0 -- coli
-    k = 0 -- rowpi
-    x = [a <!> j]
-    xk = entry k x
-    alpha = signum xk * modulus x
-    ae = [replaceIndex k alpha $ replicate m 0]
-    u = [replaceIndex k (xk - alpha) $ head x]
-    v = unit u
-    qk' = identity (m, m) <-> 2 |*| v <*> transpose v
-    qk = identity (m0 - m, m0 - m) <++> zero (m0 - m, m) ++ zero (m, m0 - m) <++> qk'
-    q = qk <*> q0
-    r = qk' <*> a
-    r' = tail $ map tail r
-    (q2, r2) = householder1 m0 (q, r')
-   in
-    (q2, if n <= 1 then a else ae <++> (tail (col 0 r) : r2))
+showMat name vals = do
+  putStrLn $ name ++ "="
+  putGrid $ transpose $ map2 show vals
 
 householderD a =
   let
     (m, n) = gethl a
     q0 = identity (m, m)
    in
-    householder1D m n q0 a
+    householderD1 m n q0 a
 
-showMat name vals = do
-  putStrLn $ name ++ "="
-  putGrid $ transpose $ map2 show vals
-
-householder1D m0 n0 q0 a =
+householderD1 m0 n0 q0 a =
   let
     {-
        colis = gaussLeadTerms a
@@ -354,7 +343,7 @@ householder1D m0 n0 q0 a =
         showMat "r" r
         let r' = tail $ map tail r
         showMat "r'" r'
-        (q2, r2) <- householder1D m0 n0 q r'
+        (q2, r2) <- householderD1 m0 n0 q r'
         showMat "q2" q2
         showMat "r2" r2
         showMat "ae" ae
@@ -364,7 +353,15 @@ householder1D m0 n0 q0 a =
       else
         return (q0, a)
 
-householder2 a =
+householderA (q0, a) =
+  let
+    q1 = householderA1 a
+    q = q1 <*> q0
+    r = q1 <*> a
+   in
+    (q, r)
+
+householderA1 a =
   let
     colis = gaussLeadTerms a
     (coli, _) = minimum colis
@@ -381,6 +378,41 @@ householder2 a =
     qk = identity (m, m) <-> 2 |*| v <*> transpose v
    in
     qk
+
+householderB a =
+  let
+    (m, n) = gethl a
+    q0 = identity (m, m)
+   in
+    householderB1 m (q0, a)
+
+householderB1 m0 (q0, a) =
+  let
+    {-
+       colis = gaussLeadTerms a
+       (coli, _) = minimum colis
+       rowis = filter (\rowi -> (== Just coli) $ findIndex (/= 0) $ a !! rowi) [0 .. length a - 1]
+       rowpi = snd $ maxOn (gaussAux a coli) rowis
+       j = coli
+       k = rowpi
+       -}
+    (m, n) = gethl a
+    j = 0 -- coli
+    k = 0 -- rowpi
+    x = [a <!> j]
+    xk = entry k x
+    alpha = signum xk * modulus x
+    ae = [replaceIndex k alpha $ replicate m 0]
+    u = [replaceIndex k (xk - alpha) $ head x]
+    v = unit u
+    qk' = identity (m, m) <-> 2 |*| v <*> transpose v
+    qk = identity (m0 - m, m0 - m) <++> zero (m0 - m, m) ++ zero (m, m0 - m) <++> qk'
+    q = qk <*> q0
+    r = qk' <*> a
+    r' = tail $ map tail r
+    (q2, r2) = householderB1 m0 (q, r')
+   in
+    (q2, if n <= 1 then a else ae <++> (tail (col 0 r) : r2))
 
 {-
 cramer [[a, b], [c, d]] = let
