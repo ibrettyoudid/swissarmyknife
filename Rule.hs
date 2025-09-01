@@ -6,21 +6,22 @@ import Data.Word
 
 newtype Ig a = Ig a
 
-data Rule tok =
-   Many       (Rule tok)
-   | Seq      [Rule tok]
-   | Alt      [Rule tok]
-   | And      [Rule tok]
-   | Not      (Rule tok)
-   | Then     (Rule tok) (Rule tok)
-   | ManyThen (Rule tok) (Rule tok)
-   | Apply    (Iso  Dynamic Dynamic) (Rule tok)
-   | Count    (Lens Dynamic Int) (Rule tok) (Rule tok)
+data Rule name tok =
+   Many       (Rule name tok)
+   | Seq      [Rule name tok]
+   | Alt      [Rule name tok]
+   | And      [Rule name tok]
+   | Not      (Rule name tok)
+   | Then     (Rule name tok) (Rule name tok)
+   | ManyThen (Rule name tok) (Rule name tok)
+   | Apply    (Iso  Dynamic Dynamic) (Rule name tok)
+   | Count    (Lens Dynamic Int) (Rule name tok) (Rule name tok)
    | Pure     Dynamic
-   | Try      (Rule tok)  
+   | Try      (Rule name tok)  
    | AnyToken 
    | Token    tok  
    | Range    tok    tok
-   | Get      String 
-   | Set      String (Rule tok)  
-   | Name     String (Rule tok)  
+   | Let      name
+   | Get      name 
+   | Set      name (Rule name tok)  
+   | Name     String (Rule name tok)  

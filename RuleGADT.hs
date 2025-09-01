@@ -6,22 +6,22 @@ import Data.Word
 
 newtype Ig a = Ig a
 
-data Rule res where
-   Many     ::  Rule a     -> Rule [a]
-   Seq      :: [Rule a]    -> Rule [a]
-   Alt      :: [Rule a]    -> Rule  a
-   And      :: [Rule a]    -> Rule  a
-   Not      ::  Rule a     -> Rule  a
-   Then     ::  Rule a     -> Rule  b   -> Rule (a, b)
-   ManyThen ::  Rule a     -> Rule  b   -> Rule [a]
-   Apply    ::   Iso a b   -> Rule  a   -> Rule b
-   Count    ::  Lens a Int -> Rule  a   -> Rule b -> Rule (a, [b])
-   Pure     ::       a     -> Rule  a
-   Try      ::  Rule a     -> Rule  a
-   AnyToken ::  Rule Char
-   Token    ::       Char  -> Rule Char
-   Range    ::       Char  ->      Char -> Rule Char
-   Get      ::  String     -> Rule Dynamic
-   Set      :: Typeable a =>
-                String     -> Rule  a   -> Rule a
-   Name     ::  String     -> Rule  a   -> Rule a
+data Rule i n v f r where
+   Many     ::  Rule i n v f a  -> Rule i n v f [a]
+   Seq      :: [Rule i n v f a] -> Rule i n v f [a]
+   Alt      :: [Rule i n v f a] -> Rule i n v f a
+   And      :: [Rule i n v f a] -> Rule i n v f a
+   Not      ::  Rule i n v f a  -> Rule i n v f a
+   Then     ::  Rule i n v f a  -> Rule i n v f b -> Rule i n v f (a, b)
+   ManyThen ::  Rule i n v f a  -> Rule i n v f b -> Rule i n v f [a]
+   Apply    ::   Iso a b        -> Rule i n v f a -> Rule i n v f b 
+   Count    ::  Lens a Int      -> Rule i n v f a -> Rule i n v f b -> Rule i n v f (a, [b])
+   Pure     ::       a          -> Rule i n v f a
+   Try      ::  Rule i n v f a  -> Rule i n v f a
+   AnyToken ::  Rule t n v f t
+   Token    :: (i ~ a) => i     -> Rule i n v f a
+   Range    :: (i ~ a) => i     ->      i         -> Rule i n v f a
+   Let      ::       f          -> Rule i n v f a -> Rule i n v f a
+   Get      ::       n                            -> Rule i n v f v
+   Set      ::       n          -> Rule i n v f v -> Rule i n v f a
+   Name     ::  String          -> Rule i n v f a -> Rule i n v f a
