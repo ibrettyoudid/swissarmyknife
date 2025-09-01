@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use when" #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE RecursiveDo #-}
 
 module Atlas where
 
@@ -764,13 +763,15 @@ between a b m = M.takeWhileAntitone (<= b) $ M.dropWhileAntitone (< a) m
 
 getRect args@[v0, v1] m = M.filter (inRect args) $ between (interleave v0) (interleave v1) m
 
+atlas = "/home/brett/code/html/atlas/"
+
 main2 = do
    initGUI
 
    mainWindow <- windowNew
    map1 <- drawingAreaNew
 
-   pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/6262/060.png"
+   pixbuf <- pixbufNewFromFile (atlas ++ "6262/060.png")
    --pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/5794/192.png"
    {-
    widgetAddEvents map1 [PointerMotionMask]
