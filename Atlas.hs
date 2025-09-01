@@ -34,6 +34,10 @@ import Graphics.Rendering.Cairo qualified as Cairo
 import Graphics.UI.Gtk.Gdk.EventM
 
 -- import Graphics.UI.Gtk.General.Structs
+
+--atlas = "/home/brett/code/html/atlas/"
+atlas = "/home/brett/Documents/Info/Atlas/"
+
 main = main2
 
 
@@ -309,9 +313,9 @@ sphereGridPatch t lat0 lat1 long0 long1 maj min = do
    mapM_ (\long -> do
       newPath
       movTo (t lat0 long)
-      mapM_ (\lat2 -> do 
-         let lat3 = lat2 + min1
-         let lat4 = lat2 + min2
+      mapM_ (\lat4 -> do 
+         let lat2 = lat4 - min1
+         let lat3 = lat4 - min2
          let [[x2, y2]] = t lat2 long
          let [[x3, y3]] = t lat3 long
          let [[x4, y4]] = t lat4 long
@@ -322,9 +326,9 @@ sphereGridPatch t lat0 lat1 long0 long1 maj min = do
    mapM_ (\lat -> do
       newPath
       movTo (t lat long0)
-      mapM_ (\long2 -> do
-         let long3 = long2 + min1
-         let long4 = long2 + min2
+      mapM_ (\long4 -> do
+         let long2 = long4 - min1
+         let long3 = long4 - min2
          let [[x2, y2]] = t lat long2
          let [[x3, y3]] = t lat long3
          let [[x4, y4]] = t lat long4
@@ -696,20 +700,22 @@ isNaNM m = any (any isNaN) m
 hjk ([[sx, sy]], r, [[xo, yo]]) = [sx, sy, r, xo, yo]
 
 lamaziSRS = hjk (getsrs (lamazi3 lamaziLL))
-lamaziLL = search getResMat [0, 0] [22, 88] 4 100
+lamaziLL = search getRes [0, 0] [22, 88] 4 100
 --lamaziLL = [-37, -95]
 lamaziMat = getLamaziMat lamaziLL
 getLamaziMat rotLL = getMat (lamazi4 rotLL id3 lls) vs1
-lamaziMatD rotLL = getMatD (lamazi4 rotLL id3 lls) vs1
+getLamaziMatD rotLL = getMatD (lamazi4 rotLL id3 lls) vs1
+
+--getMat i o = if isNaNM i then map2 (const nan) (t3 o) else mvRegress (add1s i) o
 
 getMat i o = if isNaNM i then map2 (const nan) (t3 o) else t3 o <*> invMat (add1s $ t3 i)
 
 getMatD i o = (t3 o <*>) <$> invMatD (add1s $ t3 i)
 
-getResMat rotLL = residuals $ vs1 <-> lamazi4 rotLL (getLamaziMat rotLL) lls
+getRes rotLL = residuals $ vs1 <-> lamazi4 rotLL (getLamaziMat rotLL) lls
 
-getResMatD rotLL = do
-   m <- lamaziMatD rotLL
+getResD rotLL = do
+   m <- getLamaziMatD rotLL
    return $ residuals $ vs1 <-> lamazi4 rotLL m lls
 
 residuals x = sqrt $ mean $ map (^ 2) $ concat x
@@ -728,8 +734,8 @@ search f c r n i =
     in
       search f (snd min) (map (/ 1.2) r) n (i - 1)
 
-sh = searchD getResMat [0, 0] [12, 24] [8, 12]
-shd = searchDD getResMatD [0, 0] [12, 24] 8
+sh = searchD getRes [0, 0] [12, 24] [8, 12]
+shd = searchDD getResD [0, 0] [12, 24] 8
 
 -- sh = searchD (\rotLL -> getres1 (\init1 ll -> ll)) [0, 0] [12, 24] 8
 
@@ -768,8 +774,6 @@ inRange a b x = x >= a && x <= b
 between a b m = M.takeWhileAntitone (<= b) $ M.dropWhileAntitone (< a) m
 
 getRect args@[v0, v1] m = M.filter (inRect args) $ between (interleave v0) (interleave v1) m
-
-atlas = "/home/brett/code/html/atlas/"
 
 main2 = do
    initGUI

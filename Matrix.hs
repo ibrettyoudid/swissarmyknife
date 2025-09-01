@@ -177,7 +177,15 @@ diffAux f fx0 x0 i =
    in
     df
 
-gaussElim m = until (null . gaussTrailingTerms) gaussZeroTrailingTerms $ until (null . gaussLeadTerms) gaussZeroLeadTerms m
+solveSimul m b = drop x $ gaussElim $ m <++> b
+ where
+  (y, x) = gethl m
+
+gaussElim m = gaussDoTrailingTerms $ gaussDoLeadTerms m
+
+gaussDoLeadTerms m = until (null . gaussLeadTerms) gaussZeroLeadTerms m
+
+gaussDoTrailingTerms m = until (null . gaussTrailingTerms) gaussZeroTrailingTerms m
 
 untilD f g x = if f x then return x else let gx = g x in print gx >> untilD f g gx
 
@@ -268,6 +276,14 @@ gaussAux2d coli rowp row =
     (mult, zipWith (gaussAux3 mult) row rowp)
 
 gaussAux3 mult r p = r - p * mult
+
+leastSquares x y = let
+  (q, r) = qrDecompose x
+  (_, n) = gethl r
+  beta = solveSimul r $ map (take n) (transpose q <*> y)
+  in beta
+
+mvRegress x y = invMat (transpose x <*> x) <*> transpose x <*> y
 
 qrDecompose a = householder a
 
