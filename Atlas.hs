@@ -36,7 +36,8 @@ import Graphics.UI.Gtk.Gdk.EventM
 -- import Graphics.UI.Gtk.General.Structs
 
 --atlas = "/home/brett/code/html/atlas/"
-atlas = "/home/brett/Documents/Info/Atlas/"
+--atlas = "/home/brett/Documents/Info/Atlas/"
+atlas = "/home/brett/code/html/atlas/"
 
 main = main2
 
@@ -706,9 +707,9 @@ lamaziMat = getLamaziMat lamaziLL
 getLamaziMat rotLL = getMat (lamazi4 rotLL id3 lls) vs1
 getLamaziMatD rotLL = getMatD (lamazi4 rotLL id3 lls) vs1
 
---getMat i o = if isNaNM i then map2 (const nan) (t3 o) else mvRegress (add1s i) o
+getMat i o = if isNaNM i then map2 (const nan) (t3 o) else mvRegress (add1s i) o
 
-getMat i o = if isNaNM i then map2 (const nan) (t3 o) else t3 o <*> invMat (add1s $ t3 i)
+--getMat i o = if isNaNM i then map2 (const nan) (t3 o) else t3 o <*> invMat (add1s $ t3 i)
 
 getMatD i o = (t3 o <*>) <$> invMatD (add1s $ t3 i)
 

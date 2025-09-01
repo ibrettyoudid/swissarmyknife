@@ -68,7 +68,7 @@ t2 = p fta
 t3 = filtree [inli "apc"] artistd
 t4 = filtree [inis $= "dt", ininis "iaw"] artistd
 
-baseDir = if linux then "/home/brett/Documents/Music" else "d:/music"
+baseDir = if linux then "/home/brett/Music" else "d:/music"
 
 infixr 5 @
 p @ s = if last p == convertChar '/' then p ++ s else p ++ cons (convertChar '/') s

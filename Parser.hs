@@ -176,9 +176,9 @@ process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
 predict = closure (process predict1)
 
-predict1 (EItem (Alt  as  ) j _ 0) = [EItem  a        j j 0 | a <-       as]
-predict1 (EItem (Seq  as  ) j _ d) = [EItem (as !! d) j j 0 | d < length as]
-predict1 (EItem (Name a  b) j _ 0) = [EItem  b        j j 0                ]
+predict1 (EItem (Alt  as  ) j k 0) = [EItem  a        k k 0 | a <-       as]
+predict1 (EItem (Seq  as  ) j k d) = [EItem (as !! d) k k 0 | d < length as]
+predict1 (EItem (Name a  b) j k 0) = [EItem  b        k k 0 ]
 predict1 s = []
 
 predict1a (EItem2 j _ (Item 0 (Alt   as  ))) = [EItem2 j j (Item 0  a       ) | a <-       as]
