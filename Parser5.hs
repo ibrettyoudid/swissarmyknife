@@ -1,5 +1,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -19,33 +20,34 @@ newtype Ig a = Ig a
 data Lens a b
    = Lens (a -> b) (b -> a -> a)
 
-data Rule r n v f t where
-   Many     ::  Rule r n v f t  -> Rule r n v f t
-   Seq      :: [Rule r n v f t] -> Rule [r] n v f t
-   Alt      :: [Rule r n v f t] -> Rule r n v f t
-   And      :: [Rule r n v f t] -> Rule r n v f t
-   Not      ::  Rule r n v f t  -> Rule r n v f t
-   Ignore   ::  Rule r n v f t  -> Rule r n v f t
-   Then     ::  Rule a n v f t  -> Rule b n v f t -> Rule (a,b)    n v f t
-   ManyTill ::  Rule r n v f t  -> Rule r n v f t -> Rule [r]      n v f t
-   AnyTill  ::  Rule r n v f t  -> Rule r n v f t -> Rule [t]      n v f t
-   Apply    ::   Iso a b        -> Rule a n v f t -> Rule  b       n v f t 
-   Count    ::  Rule a n v f t  -> Rule b n v f t -> Rule (a, [b]) n v f t
-   Pure     ::       r          -> Rule r n v f t
-   Try      ::  Rule r n v f t  -> Rule r n v f t
-   AnyToken ::  Rule t n v f t
-   String   ::      [t]         -> Rule [t] n v f t
-   Token    ::       t          -> Rule t n v f t
-   Range    ::       t          ->      t         -> Rule t n v f t
-   Let      ::      [n]         -> Rule r n v f t -> Rule r n v f t
-   Get      ::       n                            -> Rule v n v f t
-   Set      ::       n          -> Rule v n v f t -> Rule v n v f t
-   GetM     ::      [n]                           -> Rule [v] n v f t
-   SetM     ::      [n]         -> Rule [v] n v f t -> Rule [v] n v f t
-   Build    ::  Rule r n v f t  -> Rule r n v f t
-   Name     ::  String          -> Rule r n v f t -> Rule r n v f t
-   Redo     ::       n          -> Rule r n v f t -> Rule r n v f t
-   Rest     ::  Rule [t] n v f t
+data Rule r f t where
+   Many     ::  Rule  r  f t  -> Rule [r] f t
+   Seq      :: [Rule  r  f t] -> Rule [r] f t
+   Alt      :: [Rule  r  f t] -> Rule  r  f t
+   And      :: [Rule  r  f t] -> Rule  r  f t
+   Not      ::  Rule  r  f t  -> Rule  r  f t
+   Ignore   ::  Rule  r  f t  -> Rule  r  f t
+   Then     ::  Rule  a  f t  -> Rule  b  f t -> Rule (a,b) f t
+   ManyTill ::  Rule  r  f t  -> Rule  r  f t -> Rule [r]   f t
+   AnyTill  ::  Rule  r  f t                  -> Rule [t]   f t
+   Apply    ::   Iso  a  b    -> Rule  a  f t -> Rule  b    f t 
+   Count    ::  Rule Int f t  -> Rule  b  f t -> Rule [b]   f t
+   Pure     ::        r       -> Rule  r  f t
+   Try      ::  Rule  r  f t  -> Rule  r  f t
+   AnyToken ::  Rule  t  f t
+   String   ::       [t]      -> Rule [t] f t
+   Token    ::        t       -> Rule  t  f t
+   Range    ::        t       ->       t      -> Rule  t  f t
+   Let      :: Frame  n  v f  =>      [n]     -> Rule  r  f t -> Rule  r  f t
+   Get      :: Frame  n  v f  =>       n                      -> Rule  v  f t
+   Set      :: Frame  n  v f  =>       n      -> Rule  v  f t -> Rule  v  f t
+   GetM     :: Frame  n  v f  =>      [n]                     -> Rule [v] f t
+   SetM     :: Frame  n  v f  =>      [n]     -> Rule [v] f t -> Rule [v] f t
+   Build    ::  Rule  r  f t  -> Rule  r  f t
+   Name     ::  String        -> Rule  r  f t -> Rule  r  f t
+   Redo     ::        n       -> Rule  r  f t -> Rule  r  f t
+   Rest     ::  Rule [t] f t
+   
 {-}
 data Rule name value tok
    = Many     (Rule name value tok)
@@ -133,41 +135,41 @@ instance Ord a => Frame a b (M.Map a b) where
    myget1 = M.lookup
    myset1 = M.insert
 
-parse rule str = parse1 rule [] str id
+parse rule str = parse1 rule [] str
 
-format rule r = format1 rule [] r
+--format rule r = format1 rule [] r
 
-parse1 :: (Ord name, Show name, Typeable name) => Rule name Dynamic Char -> [M.Map name Dynamic] -> [Char] -> (IResult Dynamic (M.Map name Dynamic) Char -> IResult Dynamic (M.Map name Dynamic) Char) -> IResult Dynamic (M.Map name Dynamic) Char
-parse1 AnyToken fs []     c = c $ Fail "Expecting any token but got end of input" fs []
-parse1 AnyToken fs (i:is) c = c $ Done (toDyn i) fs is
+parse1 :: (Eq tok, Show tok, Ord tok) => Rule res frame tok -> [frame] -> [tok] -> IResult res frame tok
+parse1 AnyToken fs []     = Fail "Expecting any token but got end of input" fs []
+parse1 AnyToken fs (i:is) = Done i fs is
 
-parse1 (Token tok) fs []     c = c $ Fail ("Expecting token "++show tok) fs []
-parse1 (Token tok) fs (i:is) c =
+parse1 (Token tok) fs []     = Fail ("Expecting token "++show tok) fs []
+parse1 (Token tok) fs (i:is) =
    if i == tok
-      then Done (toDyn i) fs is
+      then Done i fs is
       else Fail ("Expecting token "++show tok) fs (i:is)
 
-parse1 r@(Range from to) fs i c =
+parse1 r@(Range from to) fs i =
    case i of
-      []      -> Fail ("EOF when expecting "++show r) fs i
+      []      -> Fail ("EOF when expecting range "++show from++".."++show to) fs i
       (i1:is) ->
          if from <= i1 && i1 <= to
-            then Done (toDyn i1) fs is
-            else Fail ("expecting "++show r) fs i
+            then Done i1 fs is
+            else Fail ("expecting "++show from++".."++show to) fs i
 
-parse1 (String str) fs i c =
+parse1 (String str) fs i =
    case stripPrefix str i of
-      Just  j -> Done (toDyn str) fs j
-      Nothing -> Fail ("Expecting string "++str) fs i
+      Just  j -> Done str fs j
+      Nothing -> Fail ("Expecting string "++show str) fs i
 
-parse1 (Then a b) fs i c =
-   case parse1 a fs i c of
+parse1 (Then a b) fs i =
+   case parse1 a fs i of
       Done ar fs1 i1 ->
-         case parse1 b fs1 i1 c of
-            Done br fs2 i2 -> Done (toDyn (ar, br)) fs2 i2
-            fail@Fail {}   -> fail
-      fail@Fail {} -> fail
-
+         case parse1 b fs1 i1 of
+            Done br fs2 i2 -> Done (ar, br) fs2 i2
+            Fail em fs2 i2 -> Fail em fs2 i2
+      Fail em fs1 i1 -> Fail em fs1 i1
+{-
 parse1 (Seq as) fs i c =
    case as of
       (a:as1) ->
@@ -181,45 +183,45 @@ parse1 (Seq as) fs i c =
                   fail@Fail {}     -> fail
             fail@Fail {} -> fail
       [] -> Done (toDyn ([] :: [Dynamic])) fs i
-
-parse1 (Alt as) fs i c =
+-}
+parse1 (Alt as) fs i =
    case as of
       (a:as1) ->
-         case parse1 a fs i c of
+         case parse1 a fs i of
             Done ar1 fs1 i1 -> Done ar1 fs1 i1
-            fail@Fail {} -> parse1 (Alt as1) fs i c
-      [] -> Fail i fs "no alternatives match"
+            fail@Fail {} -> parse1 (Alt as1) fs i
+      [] -> Fail "no alternatives match" fs i
 
-parse1 m@(Many a) fs i c =
-   case parse1 a fs i c of
+parse1 m@(Many a) fs i =
+   case parse1 a fs i of
       Done ar fs1 i1 ->
-         case parse1 m fs1 i1 c of
-            Done mr fs2 i2 -> Done (toDyn (ar:fromDyn1 mr)) fs2 i2
+         case parse1 m fs1 i1 of
+            Done mr fs2 i2 -> Done (ar:mr) fs2 i2
             fail@Fail {}   -> fail
-      Fail em fs1 i1 -> Done (toDyn ([] :: [Dynamic])) fs i
+      Fail em fs1 i1 -> Done [] fs i
 
-parse1 m@(ManyTill a b) fs i c =
-   case parse1 b fs i c of
-      Done br fs1 i1 -> Done (toDyn ([] :: [Dynamic])) fs i
+parse1 m@(ManyTill a b) fs i =
+   case parse1 b fs i of
+      Done br fs1 i1 -> Done [] fs i
       Fail em fs1 i1 ->
-         case parse1 a fs i c of
+         case parse1 a fs i of
             Done ar fs2 i2 ->
-               case parse1 m fs2 i2 c of
-                  Done mr fs3 i3 -> Done (toDyn (ar:fromDyn1 mr)) fs3 i3
+               case parse1 m fs2 i2 of
+                  Done mr fs3 i3 -> Done (ar:mr) fs3 i3
                   fail@Fail {}   -> fail
-            Fail em fs2 i2 -> Done (toDyn ([] :: [Dynamic])) fs i
+            Fail em fs2 i2 -> Done [] fs i
 
-parse1 m@(AnyTill b) fs i c =
-   case parse1 b fs i c of
-      Done br fs1 i1 -> Done (toDyn ([] :: String)) fs i
+parse1 m@(AnyTill b) fs i =
+   case parse1 b fs i of
+      Done br fs1 i1 -> Done [] fs i
       Fail em fs1 i1 ->
          case i of
             (ar:i2) ->
-               case parse1 m fs1 i2 c of
-                  Done mr fs3 i3 -> Done (toDyn (ar:fromDyn1 mr)) fs3 i3
+               case parse1 m fs1 i2 of
+                  Done mr fs3 i3 -> Done (ar:mr) fs3 i3
                   fail@Fail {}   -> fail
-            [] -> Done (toDyn ([] :: [Dynamic])) fs i
-
+            [] -> Done [] fs i
+{-}
 parse1 (Apply iso a) fs i c =
    case parse1 a fs i c of
       Done ar fs1 i1 ->
@@ -272,7 +274,7 @@ parse1count x fs i n =
       Done xr fs1 i1 ->
          case parse1count x fs1 i1 (n-1) of
             Done xsr fs2 i2 -> Done (toDyn $ xr:fromDyn1 xsr) fs2 i2
-
+-}
 --formatcount (r:rs) fs x 0 = FDone [] fs
 formatcount x fs []     = FDone [] fs
 formatcount x fs (r:rs) =
@@ -283,29 +285,30 @@ formatcount x fs (r:rs) =
             fail@FFail{}-> fail
       fail@FFail{}-> fail
 
-format1 AnyToken fs r = FDone [fromDyn1 r] fs
+format1 :: Frame n v f => Rule r [f] t -> [f] -> r -> FResult t [f]
+--format1 :: Rule r f t -> f -> r -> FResult t f
+format1 AnyToken fs r = FDone [r] fs
 
 format1 (Token tok) fs r = FDone [tok] fs
 
 format1 (String str) fs r = FDone str fs
 
 format1 (Then a b) fs r =
-   case fromDynamic r of
-      Just (ar, br) ->
+   case r of
+      (ar, br) ->
          case format1 a fs ar of
             FDone at fs1 ->
                case format1 b fs1 br of
                   FDone bt fs2 -> FDone (at++bt) fs2
                   fail@FFail{} -> fail
             fail@FFail{} -> fail
-      Nothing -> FFail [] fs "pattern match failed"
 
 format1 (Seq a) fs r =
    case a of
       (a1:as1) ->
-         case fromDyn1 r of
+         case r of
             (r1:rs) ->
-               case format1 (Seq as1) fs (toDyn rs) of
+               case format1 (Seq as1) fs rs of
                   FDone t1 fs1 ->
                      case format1 a1 fs1 r1 of
                         FDone t2 fs2 -> FDone (t2++t1) fs2
@@ -313,8 +316,8 @@ format1 (Seq a) fs r =
                   fail@FFail {} -> fail
             [] -> FFail [] fs "ran out of results to format1 in Seq"
       [] ->
-         case fromDyn1 r of
-            ([] :: [Dynamic]) -> FDone [] fs
+         case r of
+            [] -> FDone [] fs
             (r1:rs) -> FFail [] fs "too many results to format1 in Seq"
 
 format1 (Alt as) fs r =
@@ -348,9 +351,9 @@ format1 i fs m@(ManyTill a b) =
 -}
 
 format1 m@(Many a) fs r =
-   case fromDyn1 r :: [Dynamic] of
+   case r of
       (r1:rs) ->
-         case format1 m fs (toDyn rs) of
+         case format1 m fs rs of
             FDone ts fs1 ->
                case format1 a fs1 r1 of
                   FDone t1 fs2 -> FDone (t1++ts) fs2
@@ -364,37 +367,38 @@ format1 (Apply iso a) fs r =
       Nothing -> FFail [] fs "unapply iso failed"
 
 format1 (Count nr x) fs r = let
-   rs = fromDyn1 r :: [Dynamic]
+   rs = r
    n = length rs
    in case formatcount x fs rs of
          FDone ts fs1 ->
-            case format1 nr fs1 (toDyn n) of
+            case format1 nr fs1 n of
                FDone nt fs2 -> FDone (nt++ts) fs2
-
+{-}
 format1 (Let names rule) fs r =
    case format1 rule (M.fromList (map (, toDyn "") names):fs) r of
       FDone out (f:fs2) -> FDone out fs2
       fail@FFail { }    -> fail
-
+-}
 format1 (Get name) fs r = FDone [] $ myset name r fs
 
 format1 (Set name rule) fs r = format1 rule fs (myget fs name)
 
 format1 (GetM names) fs r = FDone [] $ Data.List.foldr (uncurry myset) fs (zip names $ fromDyn1 r)
 
-format1 (SetM names rule) fs r = format1 rule fs (toDyn $ map (myget fs) names)
+format1 (SetM names rule) fs r = format1 rule fs (map (myget fs) names)
 
 format1 (Build rule) fs r =
-   case format1 rule (fromDyn1 r:fs) r of
+   case format1 rule (r:fs) r of
       FDone t1 (f:fs1) -> FDone t1 fs1
       fail@FFail {}    -> fail
 
 format1 (Redo name rule) fs r =
    case format1 rule fs r of
-      FDone t fs1   -> FDone t (myset name (toDyn t) fs)
+      FDone t fs1   -> FDone t (myset name t fs)
       fail@FFail {} -> fail
 
 format1 Rest fs r = FDone (fromDyn1 r) fs
+
 
 myset2 name value [] = Nothing
 myset2 name value (f:frames) =
@@ -409,7 +413,7 @@ myget (f:frames) name =
    case myget1 name f of
       Just  j -> j
       Nothing -> myget frames name
-
+{-
 visitPost f x = f $ visit (visitPost f) x
 
 visitPre f x = visit (visitPre f) (f x)
@@ -466,10 +470,8 @@ diff2 (Range a b) (Range c d) =
 
 diff3 [Range a b] = Range a b
 diff3 (a:b:cs) = Alt (a:b:cs)
-
-
-filename :: Rule String Dynamic Char
-filename = doManyTill $ Seq [Many AnyToken, Token '.', Many AnyToken]
+-}
+filename = AnyTill (Token '.') `Then` Token '.' `Then` Many AnyToken
 
 t = parse filename "abc.mp3"
 
