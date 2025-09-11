@@ -236,20 +236,20 @@ button = Tag "td" [("align", "center"), ("valign", "center")] . s . Text
 iframe name src = with [("width", "100%"), ("height", "100%")] $ Tag "iframe" [("name", name), ("src", src)] []
 
 writeHtml f b h = writeFile f $ formatH 1 $ html b h
-
+{-
 index =
    writeFile (path ++ "index.html") $
       formatH 1 $
          html defstyle $
             s $
                gridH
-                  [ [with1 "width" "100%" $ gridH $ map2 button [["PREV", "NORTH", "NEXT"], ["WEST", "HOME", "EAST"], ["IN", "SOUTH", "OUT"]]]
+                  [ [with1 "width" "100%" $ gridH $ map2 (singleton . button) [["PREV", "NORTH", "NEXT"], ["WEST", "HOME", "EAST"], ["IN", "SOUTH", "OUT"]]]
                   ,
                      [ cellA [("height", "1700")] $ iframe "contents" "contents.html"
                      , cellA [("width", "91%"), ("height", "1700")] $ iframe "main" "index1.html"
                      ]
                   ]
-
+-}
 contents = writeHtml (path ++ "contents.html") defstyle $ s $ olist $ zipWith (\n p -> with [("target", "main")] $ textLink ("joined/" ++ fmt1 3 n ++ ".png") p) [8, 10 .. 294] pages
 
 makepages = do
@@ -783,40 +783,6 @@ main2 = do
    map1 <- drawingAreaNew
 
    pixbuf <- pixbufNewFromFile (atlas ++ "6262/060.png")
-   --pixbuf <- pixbufNewFromFile "/home/brett/Documents/Info/Atlas/5794/192.png"
-   {-
-   widgetAddEvents map1 [PointerMotionMask]
-   on map1 motionNotifyEvent $ do
-         (r,t) <- eventPolarCoordinates
-         liftIO $ if (0.8<r && r<1.2)
-            then setJam (Just t)
-            else setJam Nothing
-         liftIO $ widgetQueueDraw map1
-         return True
-
-   on map1 leaveNotifyEvent $ liftIO $
-         setJam Nothing >> return True
-         -}
-   -- scale 0.01 0.01
-   {-
-   scale 0.3 0.3
-   --w <- liftIO (fromIntegral <$> widgetGetAllocatedWidth map1)
-   --liftIO (fromIntegral <$> widgetGetAllocatedHeight map1)
-   -- jam <- liftIO getJam
-   -- cars <- liftIO getCars
-   -- translate (w/2) (h/2)
-   -- scale (w/drawSide) (h/drawSide)
-   drawGrid1 pixbuf
-   -}
-   -- return True
-
-   -- af <- aspectFrameNew 0.5 0.5 (Just 1)
-   -- frameSetShadowType af ShadowNone
-   -- containerAdd af map1
-
-   -- 'layout' is a widget that contains all interface elements
-   -- properly arranged.
-
 
    vb  <- vBoxNew False 0
    vb1 <- vBoxNew False 0

@@ -325,7 +325,7 @@ u = "Comparison_of_HTML_editors"
 
 wikiJoin m url = putGrid $ transpose $ joinTLists "" $ map init $ wikiTextGridsH m url
 
-writeCsv file grid = writeFileBinary file $ HTML.bsofs $ unlines $ map (intercalate "," . map show) grid
+writeCsv file grid = writeFileBinary file $ lbsofs $ unlines $ map (intercalate "," . map show) grid
 
 huge m = do
   let url = wiki "Lists of sovereign states and dependent territories.html"

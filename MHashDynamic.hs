@@ -1,6 +1,4 @@
 -- Copyright 2025 Brett Curtis
-{-# HLINT ignore "Use first" #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -13,141 +11,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# ORMOLU_DISABLE #-}
--- data Multimethod = Multimethod { name :: String, funcs :: M.Map [SomeTypeRep] Dynamic } deriving (Show, Typeable)
-{-
-instance Show SomeTypeRep where
-   show str = show $ TypeMap M.! str
--}
--- instance Integral Dynamic where
---   toInteger a = am toIntegerm [a]
--- applyMulti1 = foldl (\f x -> Dynamic $ fromJust $ D.dynApply (und f) (und x))
-{-
-applyMultimethodIO2 m@(Multimethod n fs) xs = let
-   xts = map expandVal xs
-   in case M.lookup xts fs of
-      Just f  -> return $ Right $ applyMulti1 f xs
-      Nothing -> do
-         xvals <- mapM tryReadIORef xs
-         let xvts = map dynTypeRep xvals
-         print xts
-         print xvts
-         if xvts /= xts
-            then applyMultimethodIO m xvals
-            else return $ Left $ "Multimethod "++n++" does not have an entry to Match "++if elem n ["show", "convert"] then show xts else showDyn (toDyn xs)
--}
-{-
-tryReadIORef3 :: Dynamic -> IO [Dynamic]
-tryReadIORef3 d = do
-   print d
-   case fromDynamic d :: Maybe (IORef Dynamic) of
-      Just r  -> do x <- readIORef r; y <- tryReadIORef2 x; return (x:y)
-      Nothing -> case fromDynamic d :: Maybe Dynamic of
-         Just x -> do y <- tryReadIORef2 x; return (x:y)
-         Nothing -> return [toDyn $ dynTypeRep d]
--}
--- myTypeOf = Type.Reflection.typeOf
---   in mapFJE (error "no good heads") (\x -> ifJust (S.notMember x tails) x) (map head tss)
--- map (mergeMethods1 methods)
--- map (mergeMethods1 methods)
--- map (mergeMethods1 methods)
--- map (mergeMethods1 methods)
-{-
-mergeMethodsA methods = let
-   methods2    = mapfxx (map (typeMap M.!) . getFType) methods
-   types     = transpose $ map fst methods2
-   inmap  = M.map Method $ M.fromList methods2
-   comb   = combinations types
-   (a, b) = unzip $ mapxfx (mergeMethods1A inmap outmap) comb
-   (c, d) = unzip b
-   outmap = A.fromAssocsD $ zip comb c
-   retype = M.fromList $ mapMaybe (\(k, v) -> case v of { Method m -> Just (map (typeMapR M.!) k, m); Types _ -> Nothing }) $ A.toAssocsD outmap
-   in outmap M.! [tiInt, tiInt]--map (mergeMethods1 methods)
-
-mergeMethods1A inmap outmap types = let
-   methods2 = concatMap (checkParentsA outmap types) [0..length types - 1]
-   types2 = mapMaybe getType methods2
-   types3 = bestTypes types types2
-   in (case M.lookup types inmap of
-         Just  j -> j
-         Nothing -> case elemIndex types3 types2 of
-            Just  i -> methods2 !! i
-            Nothing -> Types types3, methods2)
-
-checkParentsA outmap types paramn = let
-   t = types !! paramn
-   ps = tlparents t
-   rep p = let (b, x : a) = splitAt paramn types in outmap A.! (b ++ p : a)
-
-   in mapMaybe rep ps
----}
--- getType (Types t) = if null t then Nothing else Just t
-{-
-when checking a function a -> b -> c -> d
-
-find the best types for each argument
-if there is one method with those types, match
-
-might get a situation with multiple superclasses where there is no best type
-or will you? cause c3 has all those nice properties
-i don't think you will
-
-if there's no match just need to record best types at that point
-
-test
-class a
-class b
-class c
-class d : public a
-class e : public b
-class f : public c
-
-methods
-a b c
-d b c
-a e c
-a b f
-
--}
--- toDyn (compare :: Bool    -> Bool    -> Ordering),
--- toDyn (compare :: ()      -> ()      -> Ordering),
--- toDyn (compare :: Maybe Dynamic -> Maybe Dynamic -> Ordering),
--- toDyn (compare :: [Dynamic] -> [Dynamic] -> Ordering)]
-{-
-showm :: Multimethod
-showm = createMultimethod1 "show"  [
-   toDyn (show :: Int           -> String),
-   toDyn (show :: Integer       -> String),
-   toDyn (show :: String        -> String),
-   toDyn (show :: Bool          -> String),
-   toDyn (singleton :: Char -> String),
-   toDyn ((\d -> showFFloat (Just 5) d "") :: Double -> String),
-   toDyn (show :: ()            -> String),
-   toDyn (show :: Maybe Dynamic -> String),
-   toDyn (show :: [Dynamic]     -> String),
---   toDyn (formatS 80),
-   toDyn (show :: Multimethod   -> String),
-   toDyn (show :: M.Map [SomeTypeRep] Dynamic -> String),
-   toDyn (show :: [([SomeTypeRep], Dynamic)] -> String),
-   toDyn (show :: ([SomeTypeRep], Dynamic) -> String),
-   toDyn (show :: [SomeTypeRep] -> String),
-   toDyn (show :: SomeTypeRep   -> String),
-   toDyn (show :: Dynamic       -> String),
-   toDyn (show :: Ordering      -> String),
-   toDyn (show :: MMEntry       -> String),
-   toDyn (show :: Person        -> String),
-   toDyn (show :: Field         -> String),
-   toDyn (show :: TC            -> String),
-   toDyn (show :: Day           -> String)
- ]
--}
--- createMultimethod "+"
--- fromJust $ fromDynamic $ applyMultimethod showm [a]
---   toDyn (formatS 80),
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module MHashDynamic (
@@ -168,6 +33,8 @@ import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
 import Favs
 
 import Numeric
+
+import HTTPTypes qualified
 
 import Data.Dynamic qualified as D
 import Data.IORef
@@ -815,6 +682,8 @@ instance Read Dynamic where
 
 deriving instance Show MMEntry
 
+--deriving instance Show HTTPTypes.HVar
+
 showm :: Multimethod
 showm =
   createMultimethod1
@@ -840,6 +709,7 @@ showl =
     , toDyn (show :: [SomeTypeRep] -> String)
     , toDyn (show :: SomeTypeRep -> String)
     , toDyn (show :: Dynamic -> String)
+    , toDyn (show :: M.Map HTTPTypes.HVar Dynamic -> String)
     , toDyn (show :: Ordering -> String)
     , toDyn (show :: MMEntry -> String)
     , toDyn (show :: Person -> String)

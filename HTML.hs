@@ -2,6 +2,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Redundant $" #-}
 
 module HTML where
 
@@ -24,7 +27,7 @@ import System.Directory
 
 -- import Data.Attoparsec.ByteString
 
-import Favs hiding (bsofs, sofbs)
+import Favs
 import MyPretty2
 import Network.URI
 import NumberParsers
@@ -52,7 +55,7 @@ cTextGridH = map2 extractText . cGridH
 
 html h b = Tag "html" [] [Tag "head" [] h, Tag "body" [] b]
 
-textGridH = gridH . map2 (\cell -> Tag "td" [] [Text cell])
+textGridH = gridH . map2 (singleton . Text)
 textGrid = textGridH . transpose
 
 putTextGrid = putGrid . cTextGrid
@@ -76,8 +79,8 @@ cGrid = transpose . cGridH
 gridH = Tag "table" [] . map (Tag "tr" [] . map cell)
 grid = gridH . transpose
 
-cellA ats (Tag "td" atsin inin) = Tag "td" (mergeAttribs1 ats atsin) inin
-cellA ats inner = Tag "td" ats [inner]
+--cellA ats (Tag "td" atsin inin) = Tag "td" (mergeAttribs1 ats atsin) inin
+cellA ats inner = Tag "td" ats inner
 cell = cellA []
 
 olist = Tag "ol" [] . map (Tag "li" [] . singleton)
@@ -96,14 +99,14 @@ imgLink url thumb = link url $ [img thumb]
 getNested m url = nest $ parseHTML url $ getHTTP m url
 getNestedReq m req = nest $ getParsedReq m req
 getParsed m url = parseHTML url $ getHTTP m url
-getParsedReq m req = parseHTML (show $ reqPath req) $ sofbs $ unsafePerformIO $ getHTTPReq m req
+getParsedReq m req = parseHTML (show $ reqPath req) $ soflbs $ unsafePerformIO $ getHTTPReq m req
 nestParse = nest . parseHTML ""
 
 readNested = nest . readParsed
 readParsed filename = parseHTML filename $ readFileBinary filename
 
 --------------------------------------------------------------------------------
-getHTTP m url = sofbs $ unsafePerformIO $ getHTTPB m url
+getHTTP m url = soflbs $ unsafePerformIO $ getHTTPB m url
 
 --------------------------------------------------------------------------------
 getHTTPB m url = do
@@ -121,9 +124,9 @@ getRequest = addUserAgent . parseRequest_
 parseHTML = parse1 htmlP
 
 -- getHTTPB with refering page as first parameter
-bsofs = B.pack . map (fromIntegral . ord)
+lbsofs = B.pack . map (fromIntegral . ord)
 
-sofbs = map chr . filter (\x -> x == 10 || x == 13 || x >= 32 && x <= 127 || x >= 160 && x <= 255) . map fromIntegral . B.unpack
+soflbs = map chr . filter (\x -> x == 10 || x == 13 || x >= 32 && x <= 127 || x >= 160 && x <= 255) . map fromIntegral . B.unpack
 
 getHTTPRefr m ref url = do
   nsr <- simpleHTTP m (getRequestRefr ref url)
@@ -137,7 +140,7 @@ getHTTPReq m req = do
 
 reqPath = Network.HTTP.Client.path
 
-reqURI = fromJust . parseURI . sofbs . B.fromStrict . reqPath
+reqURI = fromJust . parseURI . soflbs . B.fromStrict . reqPath
 
 --------------------------------------------------------------------------------------------
 
@@ -176,9 +179,9 @@ getRequestRefr ref url =
     r = getRequest url
     h = requestHeaders r
    in
-    r{requestHeaders = h ++ [(hReferer, B.toStrict $ bsofs ref)]}
+    r{requestHeaders = h ++ [(hReferer, B.toStrict $ lbsofs ref)]}
 
-addUserAgent req = req{requestHeaders = (hUserAgent, B.toStrict $ bsofs "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") : requestHeaders req}
+addUserAgent req = req{requestHeaders = (hUserAgent, B.toStrict $ lbsofs "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") : requestHeaders req}
 
 {-
 urlToFileName url = let
@@ -203,7 +206,7 @@ writeHTTPRefr m ref url = do
   writeFileBinary fileName rbody
 
 writeHTTPReq m req = do
-  let fileName = urlToFileName $ sofbs $ B.fromStrict $ reqPath req
+  let fileName = urlToFileName $ soflbs $ B.fromStrict $ reqPath req
   rbody <- getHTTPReq m req
   writeFileBinary fileName rbody
 
@@ -239,7 +242,7 @@ readNestedUrl1 m url = do
       dat <- getHTTPB m url
       writeFileBinary file dat
       putStrLn $ "written " ++ file
-      return $ nest $ parseHTML url $ sofbs dat
+      return $ nest $ parseHTML url $ soflbs dat
 
 isPicName url = any (`isSuffixOf` url) [".jpg", ".jpeg", ".bmp", ".png", ".gif"]
 
@@ -263,7 +266,7 @@ wget m url recP saveP levels = do
           putStrLn url
           rbody <- getHTTPB m url
           writeFileBinary (urlToFileName url) rbody
-          let tags = parseHTML "" $ sofbs rbody
+          let tags = parseHTML "" $ soflbs rbody
           let links1 = map (relTo url) $ extractLinks1 tags
           let linksp = filter isPicName links1
           let pics1 = map (relTo url) $ extractPics tags
@@ -277,7 +280,8 @@ wget m url recP saveP levels = do
 
 zeropad n l = let str = show n in replicate (l - length str) '0' ++ str
 
-parseSpaces = concatMap (\x -> case x of ' ' -> "%20"; y -> [y])
+formatSpaces = replace "%20" " "
+parseSpaces = concatMap (\case ' ' -> "%20"; y -> [y])
 parseURI1 u = parseURI $ parseSpaces u
 
 -- relTo1 :: [Char] -> [Char] -> URI
@@ -491,6 +495,8 @@ formatAttrib (name, val) = " " ++ name ++ "=\"" ++ val ++ "\""
 formatAttribs a = concatMap formatAttrib a
 
 ph = putStrLn . formatH 1
+
+formatLBS = lbsofs . formatH 1
 
 formatH width (EndTag typ) = "[/" ++ typ ++ "]"
 formatH width (EmptyTag typ attribs) = "<" ++ typ ++ formatAttribs attribs ++ "/>\n"

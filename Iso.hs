@@ -1,41 +1,55 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- module Control.Isomorphism.Partial.Constructors 
-import Prelude ()
+--module Control.Isomorphism.Partial.Constructors 
+module Iso where
+
+import SyntaxTH
+
+import Prelude (Show, show)
+
+import Prelude qualified
 
 import Data.Bool (Bool, otherwise)
 import Data.Either (Either (Left, Right))
 import Data.Eq (Eq ((==)))
 import Data.Maybe (Maybe (Just, Nothing))
+import Data.List qualified
 
 -- module Control.Isomorphism.Partial.Derived 
-import Prelude ()
+--import Prelude ()
 
 --module Control.Isomorphism.Partial.Prim
-import Prelude ()
+--import Prelude ()
 
 import Control.Monad (liftM2, (>=>), fmap, mplus)
 import Control.Category (Category (id, (.)))
 
-import Data.Bool (Bool, otherwise)
-import Data.Either (Either (Left, Right))
-import Data.Eq (Eq ((==)))
-import Data.Maybe (Maybe (Just, Nothing))
+--import Data.Bool (Bool, otherwise)
+--import Data.Either (Either (Left, Right))
+--import Data.Eq (Eq ((==)))
+--import Data.Maybe (Maybe (Just, Nothing))
 
 -- module Control.Isomorphism.Partial.TH 
 import Language.Haskell.TH
-import Control.Monad
+--import Control.Monad
 import Data.List (find)
 import Data.Char (toLower)
 
 -- module Control.Isomorphism.Partial.Unsafe
 
-import Prelude ()
-import Data.Maybe (Maybe ())
+--import Prelude ()
+--import Data.Maybe (Maybe ())
 
 -- module Control.Isomorphism.Partial.Unsafe
+
 data Iso alpha beta 
   = Iso (alpha -> Maybe beta) (beta -> Maybe alpha)
+
+instance Show (Iso a b) where
+  show i = "iso"
+
+$(defineIsomorphisms ''Either)
+$(defineIsomorphisms ''Maybe)
 
 -- module Control.Isomorphism.Partial.Derived 
 foldl :: Iso (alpha, beta) alpha -> Iso (alpha, [beta]) alpha
@@ -71,9 +85,6 @@ listCases = Iso f g
     f (Right (x, xs))  =  Just (x : xs)
     g []               =  Just (Left ())
     g (x:xs)           =  Just (Right (x, xs))
-
-$(defineIsomorphisms ''Either)
-$(defineIsomorphisms ''Maybe)
 
 --module Control.Isomorphism.Partial.Prim
 
@@ -168,8 +179,13 @@ iterate step = Iso f g where
          Just state'  ->  driver step state'
          Nothing      ->  state
 
--- module Control.Isomorphism.Partial.TH 
+total f g = Iso (Just . f) (Just . g)
 
+satisfy p = Iso f f where f x = if p x then Just x else Nothing
+
+(!!) list = Iso (Just . (list Prelude.!!)) (`Data.List.elemIndex` list)
+-- module Control.Isomorphism.Partial.TH 
+{-
 -- | Extract the name of a constructor, e.g. ":" or "Just".
 conName :: Con -> Name
 conName (NormalC name fields)       =   name
@@ -263,3 +279,4 @@ nested tup []      =  tup []
 nested tup [x]     =  x
 nested tup (x:xs)  =  tup [x, nested tup xs]
 
+-}

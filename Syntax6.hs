@@ -15,7 +15,6 @@
 {-# HLINT ignore "Replace case with maybe" #-}
 
 module Syntax6 where
-{-
 
 import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 
@@ -37,22 +36,6 @@ import Data.Kind
 import Data.List qualified as L
 import Data.Map qualified as M
 import Text.Parsec qualified as P
-
-import Text.Syntax
-import Text.Syntax.Parser.Naive
-import Text.Syntax.Printer.Naive
-
-import qualified GHC.Cmm as Text.Syntax.Parser
-
--- module Text.Syntax.Classes where
-
--- import qualified Language.Haskell.TH as Control.Isomorphism.Partial
--- import qualified GHC.Runtime.Eval as Control.Isomorphism.Partial
-
-import Control.Isomorphism.Partial
-import Control.Isomorphism.Partial.Unsafe
-import Control.Isomorphism.Partial.TH
-
 
 import Data.Bool (Bool, otherwise)
 import Data.Either (Either (Left, Right))
@@ -96,7 +79,7 @@ class SyntaxP f where
 
 class (Syntax delta) => SyntaxA string delta where
    textA :: string -> delta ()
-
+{-
 instance ProductFunctor Rule where
    (>*<) = Then
 
@@ -110,7 +93,7 @@ instance IsoFunctor Rule where
 instance Syntax Rule where
    pure = Pure
 --   token = Token
-
+-}
 {-
 \*********************************************************************************
 SINCE I KNOW NOTHING ABOUT TEMPLATE HASKELL I HAVE COMMENTED THIS BIT OUT
@@ -452,6 +435,7 @@ compile2 (Get name) = do
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- PARSEC
 -------------------------------------------------------------------------------
+{-
 type Psr = P.ParsecT String (M.Map String Dynamic) IO
 
 instance ProductFunctor Psr where
@@ -495,24 +479,23 @@ instance Compile Psr res where
 --compile1 = compile2
 test = Many AnyToken `Then` Token '.'-- `Then` Apply (satisfy (== '.')) Token `Then` Many Token
 
-compile1 :: Rule a -> Psr a
-compile1 AnyToken = P.anyChar
+compile1 AnyToken = toDyn <$> P.anyChar
 
 compile1 (Token c) = P.char c
 
 compile1 (Then a b) = do
    case a of
       Many a1 -> do
-         let ac = compile1 a1
+         let ac = compile1 (exclude a1 b)
          let bc = compile1 b
          lift $ putStrLn "manyTill"
-         ra <- many (do P.notFollowedBy (do bc; return ()); ac)
+         ra <- P.manyTill ac bc
          rb <- bc
-         return (ra, rb)
+         return $ toDyn (ra, rb)
       _ -> do
          ra <- compile1 a
          rb <- compile1 b
-         return (ra, rb)
+         return $ toDyn (ra, rb)
 
 compile1 (Many a) = P.many $ compile1 a
 
@@ -554,7 +537,7 @@ compile2 (Get name) = do
    vars <- get
    return $ vars M.! name 
 -}
-
+-}
 --compile (Set name rule) = compile rule
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Earley
@@ -1222,5 +1205,4 @@ ctype qid = do
    return (i, c bt)
 
 ctypeni = do (_, t) <- ctype (return ()); return t
--}
 -}
