@@ -141,6 +141,8 @@ library
         Parser2,
         Parser3,
         Parser4,
+        Parser5,
+        Parser6,
         --Poker, 
         Prob, 
         Prolog, 
