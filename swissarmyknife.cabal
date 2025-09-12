@@ -143,6 +143,7 @@ library
         Parser4,
         Parser5,
         Parser6,
+        Parser6TH,
         --Poker, 
         Prob, 
         Prolog, 
