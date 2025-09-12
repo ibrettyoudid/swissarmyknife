@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 
 module Parser5 where
-
+{-
 import Iso
 import MHashDynamic hiding (Apply, Frame, Let)
 import Data.Word
@@ -489,3 +489,4 @@ totald :: (Typeable a, Typeable b) => (a -> b) -> (b -> a) -> Iso Dynamic Dynami
 totald f g = Iso (fd (Just . f)) (fd (Just . g))
 
 a <-- b = Set a b
+-}
