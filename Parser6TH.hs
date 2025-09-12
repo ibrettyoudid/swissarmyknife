@@ -1,8 +1,6 @@
 {-# LANGUAGE TemplateHaskell, DataKinds #-}
-module SyntaxTH
-  ( constructorIso
-  , defineIsomorphisms
-  ) where
+
+module Parser6TH where
 
 import           Control.Monad
 import           Data.Char                          (toLower)
