@@ -3,12 +3,12 @@
 module Parser6TH where
 
 import           Control.Monad
-import           Data.Char                          (toLower)
+import           Data.Char                          (toLower, toUpper)
 import           Data.List                          (find)
 import           Language.Haskell.TH
 
-import           SyntaxCIPU
-
+import           Iso
+{-
 gadtError :: a
 gadtError = error "Control.Isomorphism.Partial.TH: GADTs currently not supported."
 {-# NOINLINE gadtError #-}
@@ -150,3 +150,24 @@ nested :: ([t] -> t) -> [t] -> t
 nested tup []      =  tup []
 nested _   [x]     =  x
 nested tup (x:xs)  =  tup [x, nested tup xs]
+
+
+defineFrame n = do
+   Just classname <- lookupTypeName "Frame"
+   frame <- reify classname
+   TyConI dec <- reify n
+   let DataD cxt n1 tv mk con deriv = dec
+   let RecC cname fields = head con
+   Just mygetm <- lookupValueName "mygetm"
+   Just mysetm <- lookupValueName "mysetm"
+   mapM (\(fieldn, bang, fieldt) -> do
+      let fieldnat = rename2 fieldn
+      framen <- newName "frame"
+      valuen <- newName "value"
+      return $ InstanceD Nothing cxt typ [
+         FunD mygetm [Clause [ConP fieldnat [] []] (NormalB (VarE fieldn)) []],
+         FunD mysetm [Clause [ConP fieldnat [] [], VarP valuen, VarP framen] (NormalB (RecUpdE (VarE framen) [(fieldn, VarE valuen)])) []]]) fields
+
+rename2 n
+  = mkName (toUpper c : cs) where c : cs = nameBase n
+-}

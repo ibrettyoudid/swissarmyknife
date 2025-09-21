@@ -24,6 +24,8 @@ module MyPretty2 (
   putGridW,
   putGridT,
   width,
+  GridH(..), 
+  GridV(..),
   Term (Int1, Integer1, Data, Double1, String1, Date, DateTime, Bool1, List, NDiffTime, ByteStr),
 )
 where
@@ -66,6 +68,12 @@ instance GridHV GridH where
 instance GridHV GridV where
   h (GridV g) = GridH $ transpose g
   v = id
+
+instance Show a => Show (GridV a) where
+  show (GridV es) = showGrid $ map2 show es
+
+instance Show a => Show (GridH a) where
+  show g = showGrid $ map2 show es where GridV es = v g
 
 data Term
   = Int1 Int

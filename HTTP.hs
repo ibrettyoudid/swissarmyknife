@@ -1,93 +1,77 @@
 module HTTP where
 
-import Parser4
-import MHashDynamic hiding (Method, Apply, Value)
+import Parser6
 
 import HTTPTypes
+import Favs
+import Iso
 
 import Data.List
 import Data.Char
 
-req = Alt [requestLine, request]
+req = Eith requestConnect request
 
-requestLine = Build $ Seq [
-   Method <-- Alt [String "CONNECT"],
-   Many (Token ' '),
-   Url <-- hostPort,
-   Token ' ',
-   HTTPVersion <-- AnyTill crlf,
-   crlf]
+emptyUrl = Url "" "" (Just 0) [] Nothing ""
 
-request = Build $ Seq [
-   Method <-- Alt [String "GET", String "get"],
-   Many (Token ' '),
-   Url <-- url,
-   Headers <-- ManyTill header crlf,
-   crlf]
+emptyMessage = Message "" emptyUrl "" 0 "" [] 0 ""
+
+requestConnect = Build emptyMessage (
+   MethodK <-- Alt [String "CONNECT"] :-
+   Many (Token ' ') :/
+   UrlK <-- hostPort :-
+   Token ' ' :/
+   HTTPVersionK <-- AnyTill crlf ://
+   crlf)
+
+request = Build emptyMessage (
+   MethodK <-- Alt [String "GET", String "get"] :-
+   Many (Token ' ') :/
+   UrlK <-- urlP :-
+   HeadersK <-- ManyTill header crlf :-
+   crlf)
    --SetM [Headers1, ContentLength] $ Apply (ilookup "Content-Length") $ Get Headers]
    --Body <-- Count (Get ContentLength) AnyToken]
 
-response = Build $ Seq [
-   HTTPVersion <-- Many AnyToken,
-   Token ' ',
-   StatusCode <-- int,
-   Token ' ',
-   ReasonPhrase <-- Many AnyToken,
-   crlf,
-   Headers <-- Many header,
-   crlf]
+response = Build emptyMessage (
+   HTTPVersionK <-- AnyTill (Token ' ') :-
+   Token ' ' :/
+   StatusCodeK <-- int :-
+   Token ' ' :/
+   ReasonPhraseK <-- AnyTill crlf :-
+   crlf :/
+   HeadersK <-- ManyTill header crlf ://
+   crlf)
 
-message = Seq [
-   Headers <-- Many header,
-   crlf,
-   SetM [Headers1, ContentLength] $ Apply (ilookup "Content-Length") $ Get Headers,
-   Body <-- Count (Get ContentLength) AnyToken]
+headers :: Rule [([Char], [Char])] Message Char
+headers = 
+   HeadersK <-- ManyTill header crlf ://
+   crlf 
+   --SetM (Headers1K, (ContentLengthK, ())) (Apply (ilookup "Content-Length") $ Get HeadersK) :-
+   --BodyK <-- Count (Get ContentLengthK) AnyToken
 
-url = Seq [
-   Protocol <-- Alt [String "http:", String "https:", String "ftp:", String "file:"],
-   Alt [
-      Seq [
-         String   "//", 
-         Host     <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']), 
-         Port     <-- Alt [Seq [Ignore $ Token ':', int], Seq []]], 
-      Seq []],
-   AbsPath  <-- AnyTill (Alt [Token ' ', Token '?']), 
-   Query    <-- Alt [Seq [Token '?', AnyTill (Token ' ')], Seq []],
-   Token ' ',
-   HTTPVersion <-- AnyTill crlf,
-   crlf]
+urlP = Build emptyUrl (
+   ProtocolK <-- Alt [String "http:", String "https:", String "ftp:", String "file:"] :-
+   String "//" :/ HostK <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']) :- PortK <-- Option (Token ':' :/ int) :-
+   AbsPathK  <-- Apply (total (split "/") (intercalate "/")) (AnyTill (Alt [Token ' ', Token '?'])) :- 
+   QueryK    <-- Option (Token '?' :/ AnyTill (Token ' ')) :-
+   Token ' ' :/
+   HTTPVersionK <-- AnyTill crlf ://
+   crlf)
 
-hostPort = Seq [
-   Host     <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']),
-   Alt [Seq [Token ':', Port <-- int], Seq []]]
+hostPort = Build emptyUrl (
+   HostK <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']) :-
+   PortK <-- Option (Token ':' :/ int))
 
-header = Build $ Seq [
-   HeaderName <-- AnyTill (Token ':'),
-   Token      ':', --Many (Token ' '),
-   Value      <-- AnyTill crlf,
-   crlf]
+header = 
+   AnyTill (Token ':') :-
+   Token      ':' :/ Many (Token ' ') :/
+   AnyTill crlf ://
+   crlf
 
-many1 p = Seq [p, Many p]
+lws = crlf :- many1 (Alt [Token '\9', Token ' '])
 
-lws = Seq [crlf, many1 $ Alt [Token '\9', Token ' ']]
+crlf = Alt [String "\r\n", String "\n\r", String "\n", String "\r"]
 
-crlf = Alt [String "\r\n", String "\n\r", Token '\n', Token '\r']
-
-int = Apply istr $ Many $ Range '0' '9'
-
-alpha = Alt [Range 'a' 'z', Range 'A' 'Z']
-
-low = map toLower
-
-ilookup k = isod 
-   (\xs -> do
-      v <- find ((low k ==) . low . head) xs
-      let xs1 = filter ((low k /=) . low . head) xs
-      return [toDyn v, toDyn xs1])
-   (\[vd, xsd] -> let 
-      v = fromDyn1 vd
-      xs = fromDyn1 xsd 
-      in Just $ [k, v]:filter ((low k /=) . low . head) xs)
 {-
 ifind1 k = totald 
    (\xs -> [toDyn $ lookup k xs, toDyn (filter ((k /=) . fst) xs)]) 

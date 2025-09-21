@@ -1,12 +1,15 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# LANGUAGE MultiWayIf #-}
 
 
 module Parser6 where
 
+import Parser6Types
 import Iso
 import MHashDynamic hiding (Apply, Frame, Let)
 import Data.Word
@@ -29,11 +32,15 @@ data Rule r f t where
    Alt      :: [Rule  r  f t] -> Rule  r  f t
    And      :: [Rule  r  f t] -> Rule  r  f t
    Not      ::  Rule  r  f t  -> Rule  r  f t
-   Ignore   ::  Rule  r  f t  -> Rule  r  f t
+--   Ignore   ::  Rule  r  f t  -> Rule  r  f t
+   Eith     ::  Rule  r  f t  -> Rule  s  f t -> Rule (Either r s) f t
+   Option   ::  Rule  r  f t                  -> Rule (Maybe r) f t
    (:-)     ::  Rule  a  f t  -> Rule  b  f t -> Rule (a,b) f t
-   ManyTill ::  Rule  r  f t  -> Rule  r  f t -> Rule [r]   f t
+   (:/)     ::  Rule  a  f t  -> Rule  b  f t -> Rule  b    f t
+   (://)    ::  Rule  a  f t  -> Rule  b  f t -> Rule  a    f t
+   ManyTill ::  Rule  r  f t  -> Rule  b  f t -> Rule [r]   f t
    AnyTill  ::  Rule  r  f t                  -> Rule [t]   f t
-   Apply    ::   Iso  a  b    -> Rule  a  f t -> Rule  b    f t 
+   Apply    ::   Iso  a  b    -> Rule  a  f t -> Rule  b    f t
    Count    ::  Rule Int f t  -> Rule  b  f t -> Rule [b]   f t
    Pure     ::        r       -> Rule  r  f t
    Try      ::  Rule  r  f t  -> Rule  r  f t
@@ -51,7 +58,7 @@ data Rule r f t where
    Name     :: String         -> Rule  r  f t -> Rule  r  f t
    Redo     :: Frame  n [t] f =>       n      -> Rule  r  f t -> Rule r f t
    Rest     ::  Rule [t] f t
-   
+
 {-}
 data Rule name value tok
    = Many     (Rule name value tok)
@@ -143,15 +150,11 @@ instance Tuple TNil
 
 instance Tuple b => Tuple (TCons a b)
 
-class Frame name value frame | name frame -> value where
-   myget1 :: name -> frame -> Maybe value
-   myset1 :: name -> value -> frame -> Maybe frame
-
 type SSMap = M.Map String String
 
 instance Ord a => Frame a b (M.Map a b) where
-   myget1 = M.lookup
-   myset1 k v = Just . M.insert k v
+   myget1 k = fromJust . M.lookup k
+   myset1 k v = M.insert k v
 
 --parse1 :: (Eq tok, Show tok, Ord tok) => Rule res frame tok -> [frame] -> [tok] -> IResult res frame tok
 class SeqTuple a b f t where
@@ -161,42 +164,40 @@ instance SeqTuple () () f t where
    parseseq () fs t = Done () fs t
 
 instance (SeqTuple a b f t, Eq t, Show t, Ord t, Show f) => SeqTuple (Rule r f t, a) (r, b) f t where
-   parseseq (a, b) fs t = 
+   parseseq (a, b) fs t =
       case parse1 a fs t of
          Done ra fsa ta ->
             case parseseq b fsa ta of
                Done rb fsb tb -> Done (ra, rb) fsb tb
 
 class FrameTuple names values frame where
-   mygetm :: names -> frame -> Maybe values
-   mysetm :: names -> values -> frame -> Maybe frame
+   mygetm :: names -> frame -> values
+   mysetm :: names -> values -> frame -> frame
 
 instance FrameTuple () () frame where
-   mygetm () frame = Just ()
-   mysetm () () frame = Just frame
+   mygetm () frame = ()
+   mysetm () () frame = frame
 
 instance (FrameTuple names values frame, Frame name value frame) => FrameTuple (name, names) (value, values) frame where
-   mygetm (name, names) frame = do
-      value <- myget1 name frame
-      values <- mygetm names frame
-      return (value, values)
-   mysetm (name, names) (value, values) frame = do
-      frame1 <- myset1 name value frame
-      mysetm names values frame1
+   mygetm (name, names) frame = let
+      value = myget1 name frame
+      values = mygetm names frame
+      in (value, values)
+   mysetm (name, names) (value, values) frame = mysetm names values $ myset1 name value frame
 
-   
+
 data HostPort = HostPort String Int deriving (Eq, Ord, Show)
 
 data Host = Host
 data Port = Port
 
 instance Frame Host String HostPort where
-   myget1 Host (HostPort h p) = Just h
-   myset1 Host hnew (HostPort h p) = Just $ HostPort hnew p
+   myget1 Host (HostPort h p) = h
+   myset1 Host hnew (HostPort h p) = HostPort hnew p
 
 instance Frame Port Int HostPort where
-   myget1 Port (HostPort h p) = Just p
-   myset1 Port pnew (HostPort h p) = Just $ HostPort h pnew
+   myget1 Port (HostPort h p) = p
+   myset1 Port pnew (HostPort h p) = HostPort h pnew
 
 parse rule toks = parse1 rule () toks
 
@@ -232,6 +233,35 @@ parse1 (a :- b) fs i =
             Done br fs2 i2 -> Done (ar, br) fs2 i2
             Fail em fs2 i2 -> Fail em fs2 i2
       Fail em fs1 i1 -> Fail em fs1 i1
+
+parse1 (a :/ b) fs i =
+   case parse1 a fs i of
+      Done ar fs1 i1 ->
+         case parse1 b fs1 i1 of
+            Done br fs2 i2 -> Done br fs2 i2
+            Fail em fs2 i2 -> Fail em fs2 i2
+      Fail em fs1 i1 -> Fail em fs1 i1
+
+parse1 (a :// b) fs i =
+   case parse1 a fs i of
+      Done ar fs1 i1 ->
+         case parse1 b fs1 i1 of
+            Done br fs2 i2 -> Done ar fs2 i2
+            Fail em fs2 i2 -> Fail em fs2 i2
+      Fail em fs1 i1 -> Fail em fs1 i1
+
+parse1 (Eith a b) f t = 
+   case parse1 a f t of
+      Done ar af at -> Done (Left ar) af at
+      Fail ae af at ->
+         case parse1 b f t of
+            Done br bf bt -> Done (Right br) bf bt
+            Fail be bf bt -> Fail be bf bt
+
+parse1 (Option a) f t =
+   case parse1 a f t of
+      Done ar af at -> Done (Just ar) af at
+      Fail ae af at -> Done Nothing f t
 
 parse1 (Seq a) fs i = parseseq a fs i
 {-
@@ -306,39 +336,45 @@ parse1 (Let names rule) f t =
 -}
 parse1 (Set name rule) f t =
    case parse1 rule f t of
-      Done r f1 t1 -> 
+      Done r f1 t1 -> Done r (myset1 name r f1) t1
+         {-
          case myset1 name r f1 of
             Just j  -> Done r j t1
             Nothing -> Fail "Set failed" f1 t1
+            -}
       Fail m f1 t1 -> Fail m f t1
 
-parse1 (Get name) f t = 
+parse1 (Get name) f t = Done (myget1 name f) f t
+{-
    case myget1 name f of
       Just j  -> Done j f t
       Nothing -> Fail "Get failed" f t
-
+-}
 parse1 (SetM names rule) f t =
    case parse1 rule f t of
-      Done r f1 t1 -> 
+      Done r f1 t1 -> Done r (mysetm names r f1) t1
+      {-
          case mysetm names r f1 of
             Just j  -> Done r j t1
+      -}
       Fail em f1 t1 -> Fail em f1 t1
 
-parse1 (GetM names) f t = 
+parse1 (GetM names) f t = Done (mygetm names f) f t
+{-
    case mygetm names f of
       Just j  -> Done j f t
       Nothing -> Fail "GetM failed" f t
-
+-}
 parse1 (Build init rule) f t =
    case parse1 rule init t of
       Done r f1 t1 -> Done f1 f t1
       Fail em f1 t1 -> Fail em f t1
 
-parse1 (Redo name rule) f t = parse1 rule f (fromJust $ myget1 name f)
+parse1 (Redo name rule) f t = parse1 rule f (myget1 name f)
 
 parse1 Rest f t = Done t f []
 
-parse1 (Ignore a) f t = parse1 a f t
+--parse1 (Ignore a) f t = parse1 a f t
 
 --parse1 (Call fnew rule) fold ts =
 
@@ -379,6 +415,36 @@ format1 (a :- b) fs r =
                   FDone bt fs2 -> FDone (at++bt) fs2
                   fail@FFail{} -> fail
             fail@FFail{} -> fail
+
+format1 (a :/ b) fs r =
+   case r of
+      br ->
+         case format1 a fs undefined of
+            FDone at fs1 ->
+               case format1 b fs1 br of
+                  FDone bt fs2 -> FDone (at++bt) fs2
+                  fail@FFail{} -> fail
+            fail@FFail{} -> fail
+
+format1 (a :// b) fs r =
+   case r of
+      ar ->
+         case format1 a fs ar of
+            FDone at fs1 ->
+               case format1 b fs1 undefined of
+                  FDone bt fs2 -> FDone (at++bt) fs2
+                  fail@FFail{} -> fail
+            fail@FFail{} -> fail
+
+format1 (Eith a b) f r =
+   case r of
+      Left  ar -> format1 a f ar
+      Right br -> format1 b f br
+
+format1 (Option a) f r =
+   case r of
+      Just ar -> format1 a f ar
+      Nothing -> FDone [] f
 {-
 format1 (Seq a) fs r = 
    case a of
@@ -453,20 +519,13 @@ format1 (Let names rule) fs r =
       FDone out (f:fs2) -> FDone out fs2
       fail@FFail { }    -> fail
 -}
-format1 (Get name) fs r = 
-   case myset1 name r fs of
-      Just f1 -> FDone [] f1
+format1 (Get name) fs r = FDone [] (myset1 name r fs)
 
-format1 (Set name rule) fs r = format1 rule fs (fromJust $ myget1 name fs)
+format1 (Set name rule) fs r = format1 rule fs $ myget1 name fs
 
-format1 (GetM names) fs r = 
-   case mysetm names r fs of
-      Just f1 -> FDone [] f1
+format1 (GetM names) fs r = FDone [] $ mysetm names r fs
 
-format1 (SetM names rule) f r = 
-   case mygetm names f of
-      Just values -> format1 rule f values
-      Nothing -> FFail [] f "format SetM ie. GetM failed"
+format1 (SetM names rule) f r = format1 rule f $ mygetm names f
 
 format1 (Build init rule) f r =
    case format1 rule r undefined of
@@ -480,38 +539,54 @@ format1 (Redo name rule) fs r =
             FDone t f2
       fail@FFail {} -> fail
 -}
-{-
+
+visitPost :: (forall r f t. Rule r f t -> Rule r f t) -> Rule r f t -> Rule r f t
 visitPost f x = f $ visit (visitPost f) x
 
+visitPre :: (forall r f t. Rule r f t -> Rule r f t) -> Rule r f t -> Rule r f t
 visitPre f x = visit (visitPre f) (f x)
 
+visit :: (forall r f t. Rule r f t -> Rule r f t) -> Rule r f t -> Rule r f t
 visit f (Apply iso  x  ) = Apply iso  $ visit f x
-visit f (Seq        xs ) = Seq        $ map (visit f) xs
 visit f (Alt        xs ) = Alt        $ map (visit f) xs
 visit f (Many       x  ) = Many       $ visit f x
 visit f (ManyTill   x y) = ManyTill    (visit f x) (visit f y)
-visit f (Let  names x  ) = Let names  $ visit f x
 visit f (Set  name  x  ) = Set name   $ visit f x
 visit f (SetM names x  ) = SetM names $ visit f x
 visit f (And        xs ) = And        $ map (visit f) xs
 visit f (Not        x  ) = Not        $ visit f x
-visit f (Then       x y) = Then        (visit f x) (visit f y)
+visit f (        x :- y) = visit f x :- visit f y
 visit f (Count      x y) = Count       (visit f x) (visit f y)
 visit f (Name name  x  ) = Name name  $ visit f x
-visit f (Ignore     x  ) = Ignore     $ visit f x
+--visit f (Ignore     x  ) = Ignore     $ visit f x
 visit f (Try        x  ) = Try        $ visit f x
 visit f other            = other
 
 doManyTill = visitPost doManyTill1
 
-doManyTill1 (Seq as) = Seq $ doManyTill2 as
+ll = AnyToken :- AnyToken :- AnyToken
+
+doManyTill1 (Many AnyToken :- b) = AnyTill b :- b
+doManyTill1 (Many a :- b) = ManyTill a b :- b
+doManyTill1 (AnyTill a :- b) = AnyTill b :- b
+doManyTill1 (ManyTill a b :- c) = ManyTill a c :- c
 doManyTill1 other = other
 
-doManyTill2 (Many a:b:cs) = ManyTill a b:doManyTill2 (b:cs)
-doManyTill2 (a:bs) = a:doManyTill2 bs
-doManyTill2 [] = []
+nonEmpty :: Rule r f t -> Bool
+nonEmpty (Alt      a  ) = all nonEmpty a
+nonEmpty (      a :- b) = nonEmpty a || nonEmpty b
+nonEmpty (Many     a  ) = False
+nonEmpty (ManyTill a b) = False
+nonEmpty (AnyTill  a  ) = False
+nonEmpty (Token    a  ) = True
+nonEmpty (String   a  ) = True
+nonEmpty  AnyToken      = False
+nonEmpty (Count    a b) = False
+nonEmpty (Apply    a b) = nonEmpty b
+nonEmpty (Name     a b) = nonEmpty b
 
-doString (String cs) = Seq $ map Token $ charsOfStr cs
+--nonEmptyPrefix :: Rule r f t -> Rule s f t
+--nonEmptyPrefix (a :- b) = if nonEmpty a then a else a :- nonEmptyPrefix b
 
 strOfChars :: [Dynamic] -> String
 strOfChars = map fromDyn1
@@ -520,7 +595,7 @@ charsOfStr :: String -> [Dynamic]
 charsOfStr = map toDyn
 
 istr = totald strOfChars charsOfStr
-
+{-
 difference (Range b c) (Token a) = Alt [Range b (pred a), Range (succ a) c]
 
 diff1 (Token a) = Range a a
@@ -566,8 +641,12 @@ isod f g = Iso (fd f) (fd g)
 totald :: (Typeable a, Typeable b) => (a -> b) -> (b -> a) -> Iso Dynamic Dynamic
 totald f g = Iso (fd (Just . f)) (fd (Just . g))
 
-infixl 1 <--
+infixr 3 <--
 a <-- b = Set a b
+
+infixr 2 :-
+infixr 2 :/
+infixr 2 ://
 
 instance Show tok => Show (Rule res frame tok) where
    showsPrec d AnyToken r = "AnyToken"++r
@@ -577,3 +656,88 @@ instance Show tok => Show (Rule res frame tok) where
    showsPrec d (AnyTill t) r = "AnyTill "++showsPrec 10 t r
    showsPrec d (Alt as) r = "Alt"++concatMap (\a -> showsPrec 10 a "") as++r
    showsPrec d (a :- b) r = showsPrec 1 a " :- "++showsPrec 1 b r
+
+data DataInfo = DataInfo { type1 :: String, con :: String, fields :: [DataField] }
+data DataField = DataField { fname :: String, ftype :: String }
+
+data TypeK = TypeK
+data ConK = ConK
+data FieldsK = FieldsK
+data FNameK = FNameK
+data FTypeK = FTypeK
+
+instance Frame TypeK String DataInfo where
+   myget1 TypeK = type1
+   myset1 TypeK value frame = frame { type1 = value }
+
+instance Frame ConK String DataInfo where
+   myget1 ConK = con
+   myset1 ConK value frame = frame { con = value }
+
+instance Frame FieldsK [DataField] DataInfo where
+   myget1 FieldsK = fields
+   myset1 FieldsK value frame = frame { fields = value }
+
+instance Frame FNameK String DataField where
+   myget1 FNameK = fname
+   myset1 FNameK value frame = frame { fname = value }
+
+instance Frame FTypeK String DataField where
+   myget1 FTypeK = ftype
+   myset1 FTypeK value frame = frame { ftype = value }
+
+dataP = Build (DataInfo "" "" []) $ String "data" :- sp :- 
+   TypeK <-- ident :- sp :/ Token '=' :/ sp :/
+   ConK  <-- ident :- sp :/ Token '{' :/ sp :/
+   FieldsK <-- ManyTill (Build (DataField "" "") 
+      (FNameK <-- ident :- sp :/ String "::" :/ sp :/
+      FTypeK  <-- ident :- sp :/ Token   ',' :/ sp)) (Token '}') :// Token '}' :- sp
+
+makeFields f = DataInfo (uppk $ type1 f) (uppk $ type1 f)
+
+uppk (c:cs) = toUpper c : cs ++ "K"
+
+sp = Many (Token ' ')
+
+ident = Apply cons (alpha :- Many alnum)
+
+alpha = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_')) AnyToken
+
+alnum = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_' || isDigit c)) AnyToken
+
+many1 p = Apply cons (p :- Many p)
+
+low = map toLower
+
+ilookup k = Iso
+   (\xs -> do
+      (_, v) <- find ((low k ==) . low . fst) xs
+      let xs1 = filter ((low k /=) . low . fst) xs
+      return (v, xs1))
+   (\(v, xs) -> Just $ (k, v):filter ((low k /=) . low . fst) xs)
+
+
+a = 9 :: Int
+
+b = 10 :: Int
+
+a >< b = fwd a b
+
+xxx x = Ignore a `fwd` b
+
+class ThenIgnore a b c where
+   fwd :: a -> b -> c
+
+data Ignore a = Ignore a
+
+instance ThenIgnore (Ignore a) b b where
+   a `fwd` b = b
+
+instance ThenIgnore a b (a, b) where
+   a `fwd` b = (a, b)
+
+class IgnoreAll a b where
+   go :: a -> b
+
+instance IgnoreAll b c => IgnoreAll (a, b) (Ignore a, c) where
+   go (a, b) = (Ignore a, go b)

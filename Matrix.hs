@@ -82,6 +82,8 @@ rotZ theta = [[cos theta, sin theta, 0], [-(sin theta), cos theta, 0], [0, 0, 1]
 rotY theta = [[cos theta, 0, sin theta], [0, 1, 0], [-(sin theta), 0, cos theta]]
 rotX theta = [[1, 0, 0], [0, cos theta, sin theta], [0, -(sin theta), cos theta]]
 
+[[a, b]] >< [[c, d]] = a * c - b * d
+
 invMat m = drop x $ gaussElim $ m <++> identity (y, x)
  where
   (y, x) = gethl m
@@ -89,6 +91,10 @@ invMat m = drop x $ gaussElim $ m <++> identity (y, x)
 invMatD m = drop x <$> gaussElimDD (m <++> identity (y, x))
  where
   (y, x) = gethl m
+
+leftInv m = invMat (transpose m <*> m) <*> transpose m
+
+rightInv m = transpose m <*> invMat (m <*> transpose m)
 
 -- broyden :: Num a => ([[a]] -> [[a]]) -> a -> [[a]] -> [[a]] -> [[a]] -> [[a]]
 broyden f epsilon findy x0 x1 = loop (identity (k, k)) (f x0) (x1 <-> x0) x1

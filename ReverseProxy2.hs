@@ -39,7 +39,7 @@ import Network.Socket.ByteString
 import Network.Run.TCP
 
 import System.IO
-
+{-
 d / f = d ++ if last d == '/' then f else '/' : f
 
 runProxy proxy = runTCPServer Nothing "8888" talk
@@ -221,3 +221,4 @@ proxy = do
 convertReq r = return $ WPRProxyDest (ProxyDest (fromMaybe "www.google.co.uk" (requestHeaderHost r)) 443)
 
 onErr e req respond = respond $ responseLBS status200 [] $ lbsofs $ show e
+-}
