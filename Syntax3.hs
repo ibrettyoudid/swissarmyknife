@@ -8,6 +8,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Syntax3 where
 
@@ -21,6 +24,10 @@ import Prelude qualified
 
 import Control.Category
 import Control.Monad
+import Control.Monad.State
+import Control.Applicative qualified as App
+
+import ListT qualified
 import Data.Bits
 import Data.Char
 import Data.Kind
@@ -59,33 +66,31 @@ infixl 3 <|>
 infixr 5 >$<
 infixr 6 >*<
 
-class ProductFunctor f where
-  (>*<) :: f alpha -> f beta -> f (alpha, beta)
+class ProductFunctor f tok str where
+  (>*<) :: f tok str alpha -> f tok str beta -> f tok str (alpha, beta)
 
-class Alternative f where
-  (<|>) :: f alpha -> f alpha -> f alpha
-  empty :: f alpha
+class Alternative f tok str where
+  (<|>) :: f tok str alpha -> f tok str alpha -> f tok str alpha
+  empty1 :: f tok str alpha
 
-class IsoFunctor f where
-  (>$<) :: Iso alpha beta -> f alpha -> f beta
+class IsoFunctor f tok str where
+  (>$<) :: (Show alpha, Show beta) => Iso alpha beta -> f tok str alpha -> f tok str beta
 
-class (IsoFunctor delta, ProductFunctor delta, Alternative delta) => Syntax delta where
+class (IsoFunctor delta tok str, ProductFunctor delta tok str, Alternative delta tok str) => Syntax delta tok str where
   -- (>$<)   ::  Iso alpha beta -> delta alpha -> delta beta
   -- (>*<)   ::  delta alpha -> delta beta -> delta (alpha, beta)
   -- (<|>)   ::  delta alpha -> delta alpha -> delta alpha
   -- empty   ::  delta alpha
-  pure :: (Eq alpha) => alpha -> delta alpha
-  token :: delta Char
-  ci :: delta alpha -> delta alpha
-  groupOf :: delta alpha -> delta [alpha]
-  (<=>) :: String -> delta alpha -> delta alpha
+  pure :: (Eq alpha) => alpha -> delta tok str alpha
+  ci :: delta tok str alpha -> delta tok str alpha
+  groupOf :: (Show alpha) => delta tok str alpha -> delta tok str [alpha]
+  (<=>) :: String -> delta tok str alpha -> delta tok str alpha
+  token :: delta tok str tok
 
 class SyntaxP f where
   (>><) :: f b c -> f a b -> f a c
 
-class (Syntax delta) => SyntaxA string delta where
-  textA :: string -> delta ()
-
+class SyntaxToken delta tok where
 {-
 \*********************************************************************************
 SINCE I KNOW NOTHING ABOUT TEMPLATE HASKELL I HAVE COMMENTED THIS BIT OUT
@@ -127,22 +132,15 @@ instance Category Iso where
   id = Iso Just Just
 
 -- derived combinators
-many :: (Syntax delta) => delta alpha -> delta [alpha]
-many p =
-  nil
-    >$< pure ()
-    <|> cons
-    >$< p
-    >*< many p
+many p =  nil  >$< pure ()
+      <|> cons >$< p >*< many p
 
-many1 :: (Syntax delta) => delta alpha -> delta [alpha]
 many1 p = cons >$< p >*< many p
 
-(<+>) :: (Syntax delta) => delta alpha -> delta beta -> delta (Either alpha beta)
 p <+> q = (left >$< p) <|> (right >$< q)
 
 -- | `text` parses\/prints a fixed text and consumes\/produces a unit value.
-text :: (Syntax delta) => String -> delta ()
+--text :: (Eq char, Show char, Syntax delta) => [char] -> delta ()
 text [] = pure ()
 text (c : cs) =
   inverse (match ((), ()))
@@ -154,7 +152,6 @@ In contrast to its counterpart derived from the `Applicative` class, the ignored
 parts have type `delta ()` rather than `delta beta` because otherwise information relevant
 for pretty-printing would be lost.
 -}
-(*<) :: (Syntax delta) => delta () -> delta alpha -> delta alpha
 p *< q = inverse unit . commute >$< p >*< q
 
 {- | This variant of `>*<` ignores its right result.
@@ -162,37 +159,28 @@ In contrast to its counterpart derived from the `Applicative` class, the ignored
 parts have type `delta ()` rather than `delta beta` because otherwise information relevant
 for pretty-printing would be lost.
 -}
-(>*) :: (Syntax delta) => delta alpha -> delta () -> delta alpha
 p >* q = inverse unit >$< p >*< q
 
 -- | The `between` function combines `*<` and `>*` in the obvious way.
-between :: (Syntax delta) => delta () -> delta () -> delta alpha -> delta alpha
 between p q r = p *< r >* q
 
 {- | The `chainl1` combinator is used to parse a
 left-associative chain of infix operators.
 -}
-chainl1 :: (Syntax delta) => delta alpha -> delta beta -> Iso (alpha, (beta, alpha)) alpha -> delta alpha
 chainl1 arg op f = foldl f >$< arg >*< many (op >*< arg)
 
-chainr1 :: (Syntax delta) => delta alpha -> delta beta -> Iso (alpha, (beta, alpha)) alpha -> delta alpha
 chainr1 arg op f = f >$< arg >*< op >*< chainr1 arg op f <|> arg
 
-optional :: (Syntax delta) => delta alpha -> delta (Maybe alpha)
-optional x = just >$< x <|> nothing >$< text ""
+optional x = just >$< x <|> nothing >$< text []
 
-sepBy :: (Syntax delta) => delta alpha -> delta () -> delta [alpha]
 sepBy x sep =
-  nil
-    >$< text ""
-    <|> cons
-    >$< x
-    >*< many (sep *< x)
+      nil  >$< text ([] :: [alpha1])
+  <|> cons >$< x >*< many (sep *< x)
 
-comma :: (Syntax delta) => delta ()
+--comma :: (Syntax delta) => delta ()
 comma = text ","
 
-dot :: (Syntax delta) => delta ()
+--dot :: (Syntax delta) => delta ()
 dot = text "."
 
 -- Expressing whitespace
@@ -211,21 +199,21 @@ dot = text "."
 occur. It accepts arbitrary space while parsing, and produces
 no space while printing.
 -}
-skipSpace :: (Syntax delta) => delta ()
+--skipSpace :: (Syntax delta) => delta ()
 skipSpace = ignore [] >$< many (satisfy isSpace >$< token)
 
 {- | `optSpace` marks a position where whitespace is desired to occur.
 It accepts arbitrary space while parsing, and produces a
 single space character while printing.
 -}
-optSpace :: (Syntax delta) => delta ()
+--optSpace :: (Syntax delta) => delta ()
 optSpace = ignore " " >$< many (satisfy isSpace >$< token)
 
 {- | `sepSpace` marks a position where whitespace is required to
 occur. It requires one or more space characters while parsing,
 and produces a single space character while printing.
 -}
-sepSpace :: (Syntax delta) => delta ()
+--sepSpace :: (Syntax delta) => delta ()
 sepSpace = ignore " " >$< many1 (satisfy isSpace >$< token)
 
 -------------------------------------------------------------------------------
@@ -260,21 +248,21 @@ fail and return to Item 3
 -}
 data PMode = First | Next | Inner
 
-data PState = PState {todo :: String, column :: Int, mode :: PMode, indent :: Int}
+data PState str = PState {todo :: str, column :: Int, mode :: PMode, indent :: Int}
 
-newtype Parser alpha = Parser (PState -> [(alpha, PState)])
+newtype Parser tok str alpha = Parser (PState str -> [(alpha, PState str)])
 
-parse :: Parser alpha -> String -> [alpha]
-parse (Parser p) s = [x | (x, PState "" _ _ _) <- p $ PState s 0 Inner -1]
+parse :: Parser tok String alpha -> String -> [alpha]
+parse (Parser p) s = [x | (x, PState [] _ _ _) <- p $ PState s 0 Inner -1]
 
-parseM :: (MonadFail m) => Parser alpha -> String -> m alpha
+parseM :: (MonadFail m) => Parser tok String alpha -> String -> m alpha
 parseM p s =
   case parse p s of
     [] -> fail "parse error"
     [result] -> return result
     _ -> fail "ambiguous input"
 
-instance IsoFunctor Parser where
+instance IsoFunctor Parser Char String where
   iso >$< Parser p =
     Parser
       ( \s0 ->
@@ -284,7 +272,7 @@ instance IsoFunctor Parser where
           ]
       )
 
-instance ProductFunctor Parser where
+instance {-# OVERLAPPING #-} ProductFunctor Parser Char String where
   Parser p >*< Parser q =
     Parser
       ( \s0 ->
@@ -294,11 +282,13 @@ instance ProductFunctor Parser where
           ]
       )
 
-instance Alternative Parser where
+instance Alternative Parser Char String where
   Parser p <|> Parser q = Parser (\s -> p s ++ q s)
-  empty = Parser (\s -> [])
+  empty1 = Parser (\s -> [])
 
-instance Syntax Parser where
+instance SyntaxToken Parser Char where
+
+instance Syntax Parser Char String where
   pure x = Parser (\s -> [(x, s)])
   token =
     Parser
@@ -333,45 +323,105 @@ groupOfLB p = groupOfL p <|> groupOfB p
 groupOfB p = text "{" *< (cons >$< p >*< many (text ";" *< p {- >* text ";" -})) >* text "}"
 
 groupOfL p = Parser (\s -> let
-                  Parser p1 = cons 
-                      >$< setMode First 
-                      *< p 
-                      >*< many (setMode Next *< p)
-                      >* setState (\s2 -> s2{mode = mode s, column = column s})
-                  
+                  Parser p1 = cons >$< setMode First *< p >*< many (setMode Next *< p) >* setState (\s2 -> s2{mode = mode s, column = column s})
+
                   in p1 s)
+
+-------------------------------------------------------------------------------
+------------------------------------------------------------------------------- ParserIO
+-------------------------------------------------------------------------------
+
+--newtype ParserIO alpha = ParserIO (StateT String (ListT.ListT IO) (IO alpha))
+newtype ParserIO tok str alpha = ParserIO { parserIO :: ListT.ListT (StateT str IO) alpha }
+
+instance ProductFunctor ParserIO a [a] where
+  ParserIO a >*< ParserIO b = ParserIO $ do
+    ra <- a
+    rb <- b
+    return (ra, rb)
+
+instance Alternative ParserIO a [a] where
+  ParserIO a <|> ParserIO b = ParserIO $ a App.<|> b
+  --ParserIO a <|> ParserIO b = ParserIO $ join $ ListT.cons a $ ListT.cons b App.empty
+
+instance IsoFunctor ParserIO a [a] where
+  f >$< ParserIO a = ParserIO $ do
+    ra <- a
+    maybe App.empty return (apply f ra)
+
+instance SyntaxToken ParserIO (String, Int, Int) where
+
+
+instance Syntax ParserIO (String, Int, Int) [(String, Int, Int)] where
+  pure = ParserIO . return
+  token = ParserIO $ do
+    (h:t) <- lift get
+    lift $ put t
+    return h
+
+  groupOf :: Show alpha => ParserIO (String, Int, Int) [(String, Int, Int)] alpha -> ParserIO (String, Int, Int) [(String, Int, Int)] [alpha]
+  groupOf i = sepBy i (Iso (\case (";", _, _) -> Just ()) (\() -> Just (";", 0::Int, 0::Int)) >$< token) <|>
+              aligned i
+
+instance Functor (ParserIO a [a]) where
+  fmap f (ParserIO a) = ParserIO $ fmap f a
+
+instance App.Applicative (ParserIO a [a]) where
+  pure a = ParserIO $ App.pure a
+  ParserIO a <*> ParserIO b = ParserIO $ a <*> b
+
+instance Monad (ParserIO a [a]) where
+  ParserIO a >>= b = ParserIO $ do
+    ra <- a
+    parserIO $ b ra
+
+instance MonadFail (ParserIO a [a]) where
+  fail m = ParserIO $ fail m
+
+aligned ::Show alpha => ParserIO (String, Int, Int) [(String, Int, Int)] alpha -> ParserIO (String, Int, Int) [(String, Int, Int)] [alpha]
+aligned (ParserIO i) = do
+  ((_, l, c):_) <- ParserIO $ lift get
+  many $ ParserIO $ do
+    ((_::String, l1::Int, c1::Int):_) <- lift get
+    guard $ l1 > l && c == c1
+    i
+
+tokenAt = do
+  ((_, l, c):_) <- lift get
+  t <- token
+  return (t, l, c)
+
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Atto
 -------------------------------------------------------------------------------
-instance ProductFunctor A.Parser where
+{-
+instance ProductFunctor A.Parser Char where
   a >*< b = do
     ra <- a
     rb <- b
     return (ra, rb)
 
-instance Alternative A.Parser where
+instance Alternative A.Parser Char where
   a <|> b = A.choice [a, b]
   empty = mzero
 
-instance IsoFunctor A.Parser where
+instance IsoFunctor A.Parser Char where
   f >$< a = do
     ra <- a
     case apply f ra of
       Just j -> return j
       Nothing -> empty
 
-instance Syntax A.Parser where
+instance SyntaxToken A.Parser Char where
+
+instance {-# OVERLAPPING #-} Syntax A.Parser Char where
+  token = chr . fromIntegral <$> A.anyWord8
   -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
   -- (>*<)   ::  A.Parser alpha -> A.Parser beta -> A.Parser (alpha, beta)
   -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
   -- empty   ::  A.Parser alpha
   pure = return
-  token = chr . fromIntegral <$> A.anyWord8
-
-instance SyntaxA B.ByteString A.Parser where
-  textA t = do A.string t; return ()
-
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Earley
 -------------------------------------------------------------------------------
@@ -412,10 +462,6 @@ PRINTERS                                                                PRINTERS
 -}
 -------------------------------------------------------------------------------
 
-data Doc = DStr String | DGroup [Doc] | DSeq [Doc] deriving (Eq, Ord, Show)
-
-data Doc2 = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [String]} deriving (Eq, Ord)
-
 -- snarf (DSeq (DStr a:DSeq (DStr b:c))) = let
 
 -- Text.Syntax.Printer.Naive
@@ -427,17 +473,20 @@ print (Printer p) = p
 printM :: (MonadFail m) => Printer alpha -> alpha -> m Doc
 printM p x = maybe (fail "print error") return $ print p x
 
-instance IsoFunctor Printer where
+instance IsoFunctor Printer Char where
   iso >$< Printer p = Printer (\b -> unapply iso b >>= p)
 
-instance ProductFunctor Printer where
+instance ProductFunctor Printer Char where
   Printer p >*< Printer q = Printer (\(x, y) -> DSeq <$> sequence [p x, q y])
 
-instance Alternative Printer where
+instance Alternative Printer Char where
   Printer p <|> Printer q = Printer (\s -> mplus (p s) (q s))
   empty = Printer (\s -> Nothing)
 
-instance Syntax Printer where
+instance SyntaxToken Printer Char where
+
+instance Syntax Printer Char where
+  token = Printer (\s -> Just $ DStr [s])
   pure x =
     Printer
       ( \y ->
@@ -445,7 +494,6 @@ instance Syntax Printer where
             then Just $ DStr ""
             else Nothing
       )
-  token = Printer (\s -> Just $ DStr [s])
   ci = id
   groupOf (Printer p) = Printer (\a -> DGroup <$> mapM p a)
   n <=> p = p
@@ -458,11 +506,20 @@ newtype PrinterIO alpha = PrinterIO (alpha -> IO (Maybe Doc))
 printIO :: PrinterIO alpha -> alpha -> IO (Maybe Doc)
 printIO (PrinterIO p) = p
 
-instance IsoFunctor PrinterIO where
+instance IsoFunctor PrinterIO Char where
   --   iso >$< PrinterIO p = PrinterIO (\b -> p Prelude.>$< unapply iso b)
-  iso >$< PrinterIO p = PrinterIO (\b -> case unapply iso b of Just j -> p j; Nothing -> return Nothing)
+  iso >$< PrinterIO p
+    = PrinterIO
+      (\b ->
+        do
+          Prelude.print b
+          let b1 = unapply iso b
+          Prelude.print b1
+          case b1 of
+            Just j -> p j
+            Nothing -> return Nothing)
 
-instance ProductFunctor PrinterIO where
+instance ProductFunctor PrinterIO Char where
   PrinterIO p >*< PrinterIO q =
     PrinterIO
       ( \(x, y) ->
@@ -480,7 +537,7 @@ instance ProductFunctor PrinterIO where
 --   PrinterIO p >*< PrinterIO q = PrinterIO (\(x, y) -> let a = fmap (fmap DSeq . sequence) $ sequence [p x, q y] in a)
 --   PrinterIO p >*< PrinterIO q = PrinterIO (\(x, y) -> DSeq Prelude.>$< fmap sequence $ sequence [p x, q y])
 
-instance Alternative PrinterIO where
+instance Alternative PrinterIO Char where
   PrinterIO p <|> PrinterIO q =
     PrinterIO
       ( \s ->
@@ -497,7 +554,10 @@ instance Alternative PrinterIO where
 
   empty = PrinterIO (\s -> return Nothing)
 
-instance Syntax PrinterIO where
+instance SyntaxToken PrinterIO Char where
+  
+instance Syntax PrinterIO Char where
+  token = PrinterIO (\s -> return $ Just $ DStr [s])
   pure x =
     PrinterIO
       ( \y ->
@@ -506,7 +566,6 @@ instance Syntax PrinterIO where
               then Just $ DStr ""
               else Nothing
       )
-  token = PrinterIO (\s -> return $ Just $ DStr [s])
   ci = id
   groupOf (PrinterIO p) = PrinterIO (fmap (fmap DGroup . sequence) . mapM p)
   n <=> (PrinterIO p) =
@@ -518,6 +577,10 @@ instance Syntax PrinterIO where
             putStrLn ("<- " ++ n ++ "=" ++ case r of Just j -> format j; _ -> "Nothing")
             return r
       )
+-}
+data Doc = DStr String | DGroup [Doc] | DSeq [Doc] deriving (Eq, Ord, Show)
+
+data Doc2 = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [String]} deriving (Eq, Ord)
 
 wrap w d = d
 
@@ -583,7 +646,7 @@ mergeStrs (a : as) = a : mergeStrs as
 mergeSeq [DStr a] = DStr a
 mergeSeq a = DSeq a
 
-fp p e = format <$> print p e
+--fp p e = format <$> print p e
 
 text1a [] = pure []
 text1a (t : ts) = cons >$< (match1 t >$< token) >*< text1a ts
@@ -598,7 +661,6 @@ digit = satisfy isDigit >$< token
 -- identifier = cons >$< letter >*< many (letter <|> digit)
 identifier = many1 letter
 
-number :: (Syntax f) => f Int
 number = total read show >$< many1 digit
 
 intStr = total charToWord8 word8ToChar >$< token

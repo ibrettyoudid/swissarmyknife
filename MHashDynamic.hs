@@ -723,7 +723,9 @@ showl =
 
 u = unknown
 
-num = "num" <=> valueIso >$< number
+num = "num" <=> (numIso :: Iso Int Expr)>$< number
+
+numIso = valueIso :: Iso Int Expr
 
 valueIso = Iso (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> Nothing)
 
@@ -778,10 +780,7 @@ leftsec =
         (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, a, VarRef1 _ b])) -> ifJust (b `elem` map mname locals) (a, op)
         _ -> Nothing
     )
-    >$< text "("
-    *< term
-    >*< opc ops
-    >* text ")"
+    >$< text "(" *< term >*< opc ops >* text ")"
 
 rightsec =
   Iso
@@ -790,10 +789,7 @@ rightsec =
         (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, VarRef1 _ a, b])) -> ifJust (a `elem` map mname locals) (op, b)
         _ -> Nothing
     )
-    >$< text "("
-    *< opc ops
-    >*< term
-    >* text ")"
+    >$< text "(" *< opc ops >*< term >* text ")"
 
 parens = text "(" *< expr >* text ")"
 
@@ -802,7 +798,7 @@ list = text "[" *< list2 >* text "]"
 list3 = chainr1 expr (text ",")
 list2 = Iso (Just . Apply u . (VarRef1 u "list" :)) (\(Apply _ (f : xs)) -> ifJust (f == VarRef1 u "list") xs) >$< expr `sepBy` text ","
 
-term = "term" <=> num <|> var <|> leftsec <|> rightsec <|> op <|> parens <|> list
+term = "term" <=> num <|> var <|> leftsec <|> rightsec
 
 varname (VarRef1 _ v) = v
 varname (VarRef _ v _ _) = v
@@ -853,7 +849,7 @@ lambdaSyn =
     (\case Lambda _ (Co _ params) exp -> Just (params, exp); _ -> Nothing)
     >$< text "\\" *< mem `sepBy` sepSpace >* text "->" >*< expr0
 
-blockSyn =
+blockSyn = "blockSyn" <=>
   Iso
     (\exp -> Just $ Block u (Co "" []) exp)
     (\case Block _ _ exp -> Just exp; _ -> Nothing)
@@ -861,7 +857,7 @@ blockSyn =
 
 dataSyn = valueIso >$< conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace
 
-expr = ifSyn <|> lambdaSyn <|> expr0
+expr = "expr" <=> (ifSyn <|> lambdaSyn <|> blockSyn <|> expr0)
 
 exprs = groupOf expr
 
