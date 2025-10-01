@@ -4,6 +4,8 @@
 {-# HLINT ignore "Use when" #-}
 {-# LANGUAGE BlockArguments #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Use infix" #-}
+{-# HLINT ignore "Parenthesize unary negation" #-}
 
 module Atlas where
 
@@ -299,7 +301,7 @@ black = PixelRGB8 0 0 0
 
 vcross [[x0, y0, z0]] [[x1, y1, z1]] = [[y0*z1-z0*y1, z0*x1-x0*z1, x0*y1-y0*x1]]
 
-testrot rot r cam sc [[latd, longd]] = let 
+testrot rot r cam sc [[latd, longd]] = let
    lat = rofd latd
    long = rofd longd
    pos@[[x2, y2, z2]] = rot <*> ([[r * sin long * cos lat, -(r * sin lat), r * cos long * cos lat]] <-> cam)
@@ -341,7 +343,7 @@ join2 = do
    let p0 = [[r * sin long1 * cos lat1, -(r * sin lat1), r * cos long1 * cos lat1]]
    let p1 = p0 <-> cam
    let pos@[[x2, y2, z2]] = rot <*> p1
-   
+
    let sc = (3694 - 1920) * z2/x2
    let sc1 = (183 - 1080) * z2/y2
    print (p0, p1, pos, sc, sc1, x2/z2 * sc + 1920)
@@ -365,7 +367,7 @@ join2 = do
          let yy = unit $ vcross rot1 xx
          let rot = invMat (xx <++> yy <++> rot1)
          let t = testrot rot r cam sc
-         
+
          withImageSurface FormatRGB24 1920 1080 $ \surface -> do
        -- Perform Cairo operations on the surface
             pixbuf <- pixbufNewFromFile fi
@@ -383,16 +385,160 @@ join2 = do
             let lat1  = lat  + rofd (fromIntegral y1 / fromIntegral mu)
             let long1 = long + rofd (fromIntegral x1 / fromIntegral mu)
             let pos@[[x2, y2, z2]] = rot <*> ([[r * sin long1 * cos lat1, -(r * sin lat1), r * cos long1 * cos lat1]] <-> cam)
-            
+
             --print (dofr lat, dofr long, dofr lat1, dofr long1, pos, x2/z2 * sc + 1920, y2/z2 * sc + 1080, sc)
             p <- readPixelFrac src1 (x2/z2 * sc + 1920) (y2/z2 * sc + 1080)
             writePixel bigmap (mod (900+round longd*mu+x1) 1800) (mod (450+round latd*mu+y1) 900) p)
             [-75..75] [-75..75]
       )
-      [-75, -50 .. 75] [0, 30 .. 330] 
+      [-75, -50 .. 75] [0, 30 .. 330]
    out <- freezeImage bigmap
    savePngImage "bigmap.png" $ ImageRGB8 out
 
+gangs = do
+   setCurrentDirectory "/home/brett/Pictures/Atheism/RapeGangs/Offenders/Scaled"
+   files <- listDirectory "."
+   r1 <- mapM (\filename -> do
+      if isSuffixOf ".jpg" filename then do
+         let Just ul = elemIndex '_' filename
+         let l = length filename
+         let filename2 = take (l-4) filename
+         let filename1 = drop (ul+1) filename
+         let a = read $ take 1 filename1 :: Double
+         let b = read $ take 1 $ drop 2 filename1 :: Double
+         let x0   | filename1 !! 1 == 'x' = a
+                  | otherwise             = max a b
+         let y    | filename1 !! 1 == 'x' = b
+                  | otherwise             = 2
+         src <- pixbufNewFromFile filename
+         xs <- fromIntegral <$> pixbufGetWidth  src
+         ys <- fromIntegral <$> pixbufGetHeight src
+         singles <- concat <$> mapM (\y1 -> do
+            let x | filename1 !! 1 == 'x' = a
+                  | y1 == 0               = a
+                  | otherwise             = b
+            let xd = x * 200
+            let yd = y * 200
+            let z = max (xd / xs) (yd / ys)
+            let xo = (0 - xs * z) / x
+            let yo = (0 - ys * z) / y
+            let xp = (xd - xs * z) / x / 2
+            let yp = (yd - ys * z) / y / 2
+            print (filename, xs, ys, xd, yd, z, xo, yo)
+            mapM (\x1 -> do
+               dest <- pixbufNew ColorspaceRgb False 8 200 200
+               pixbufScale src dest 0 0 200 200 (x1 * xo + xp) (y1 * yo + yp) z z InterpHyper
+               withImageSurface FormatRGB24 200 200 $ \surface -> do
+                  renderWith surface $ do
+                     setSourcePixbuf dest 0 0
+                     Cairo.paint
+                  let n | filename1 !! 1 == 'x' = x0 * y1 + x1
+                        | y1 == 0               = x1
+                        | otherwise             = a + x1
+                  let filename3 = "out/" ++ filename2 ++ "_" ++ show (round n) ++ ".png"
+                  surfaceWriteToPNG surface filename3
+                  return filename3
+               ) [0..(x-1)]
+            ) [0..(y-1)]
+         return (filename, singles)
+         {-
+         if filename1 !! 1 == 'x'
+            then return $ a * b
+            else return $ a + b
+         -}
+         {-
+         withImageSurface FormatRGB24 (round $ x*200) (round $ y*200) $ \surface -> do
+            renderWith surface $ do
+               scale z z
+               mapM (\x1 -> 
+                  mapM (\y1 -> do
+                     setSourcePixbuf pixbuf (x1 * xsm + (xsm - ss) / 2) (y1 * ysm + (ysm - ss) / 2)
+                     --setSourceRGB 1 1 1
+                     newPath
+                     
+                     moveTo ( x1   *ss) ( y1   *ss)
+                     lineTo ((x1+1)*ss) ( y1   *ss)
+                     lineTo ((x1+1)*ss) ((y1+1)*ss)
+                     lineTo ( x1   *ss) ((y1+1)*ss)
+                     lineTo ( x1   *ss) ( y1   *ss)
+                     
+                     --Cairo.rectangle (x*200) (y*200) (x*200+200) (y*200+200)
+                     fill
+                     --fill
+                     ) [0..(y-1)]
+                  ) [0..(x-1)]
+            surfaceWriteToPNG surface $ "out/" ++ filename
+         -}
+
+      else
+         return ([], [])) files
+   writeFileBinary "index.html" $ lbsofs $ formatH 1 $ Tag "table" [] $ map (\(n, r2) -> Tag "tr" [] $ map (\f -> Tag "td" [] [Tag "img" [("src", f)] []]) r2) r1
+
+
+gangs1 = do
+   setCurrentDirectory "/home/brett/Pictures/Atheism/RapeGangs/Offenders/Scaled"
+   files <- listDirectory "."
+   mapM_ (\filename -> do
+      if isSuffixOf ".jpg" filename then do
+         let Just ul = elemIndex '_' filename
+         let filename1 = drop (ul+1) filename
+         let a = read $ take 1 filename1 :: Double
+         let b = read $ take 1 $ drop 2 filename1 :: Double
+         let x0   | filename1 !! 1 == 'x' = a
+                  | otherwise = max a b
+         let y = if filename1 !! 1 == 'x' then b else 2
+         src <- pixbufNewFromFile filename
+         xs <- fromIntegral <$> pixbufGetWidth  src
+         ys <- fromIntegral <$> pixbufGetHeight src
+         let xz = x0 * 200
+         let yz = y  * 200
+         dest <- pixbufNew ColorspaceRgb False 8 (round xz) (round yz)
+         mapM_ (\y1 -> do
+            let x | filename1 !! 1 == 'x' = a
+                  | y1 == 0 = a
+                  | otherwise = b
+            let xd = x * 200
+            let yd = y * 200
+            let z = max (xd / xs) (yd / ys)
+            let xo = (xd - xs * z) / x
+            let yo = (yd - ys * z) / y
+            print (filename, xs, ys, xd, yd, z, xo, yo)
+            mapM_ (\x1 ->
+               pixbufScale src dest (round $ x1*200) (round $ y1*200) 200 200 ((x1 + 0.5) * xo) ((y1 + 0.5) * yo) z z InterpHyper
+               ) [0..(x-1)]
+            ) [0..(y-1)]
+         withImageSurface FormatRGB24 (round xz) (round yz) $ \surface -> do
+            renderWith surface $ do
+               setSourcePixbuf dest 0 0
+               Cairo.paint
+            surfaceWriteToPNG surface $ "out/" ++ filename
+
+         {-
+         withImageSurface FormatRGB24 (round $ x*200) (round $ y*200) $ \surface -> do
+            renderWith surface $ do
+               scale z z
+               mapM (\x1 -> 
+                  mapM (\y1 -> do
+                     setSourcePixbuf pixbuf (x1 * xsm + (xsm - ss) / 2) (y1 * ysm + (ysm - ss) / 2)
+                     --setSourceRGB 1 1 1
+                     newPath
+                     
+                     moveTo ( x1   *ss) ( y1   *ss)
+                     lineTo ((x1+1)*ss) ( y1   *ss)
+                     lineTo ((x1+1)*ss) ((y1+1)*ss)
+                     lineTo ( x1   *ss) ((y1+1)*ss)
+                     lineTo ( x1   *ss) ( y1   *ss)
+                     
+                     --Cairo.rectangle (x*200) (y*200) (x*200+200) (y*200+200)
+                     fill
+                     --fill
+                     ) [0..(y-1)]
+                  ) [0..(x-1)]
+            surfaceWriteToPNG surface $ "out/" ++ filename
+         -}
+
+      else
+         return ()) files
 join3 = do
    let bigmap = generateImage (\x y -> PixelRGB8 0 0 0) 6262 4312
    savePngImage "bigmap.png" $ ImageRGB8 bigmap
@@ -797,8 +943,8 @@ main2 = do
    set longw [rangeValue := until (<180) (- 360) long]
    set zoom  [rangeValue := -2]
 
-   let 
-      mapButtonPress = do 
+   let
+      mapButtonPress = do
          zoom1 <- liftIO $ get zoom rangeValue
          let zoom2 = 2**zoom1
          (x2, y2) <- eventCoordinates
@@ -811,7 +957,7 @@ main2 = do
          let ll = [ lat, long ]
          let t = lamazi4a ll $ getLamaziMat ll
          lvs <- liftIO $ mapM readIORef lvsref
-         let 
+         let
             dists = mapfxx
                ( \llxy -> let
                      p1 = [drop 2 llxy]
@@ -833,7 +979,7 @@ main2 = do
             else liftIO $ do
                writeIORef guiMode $ MapScroll p mapScr1
          return False
-      
+
       mapButtonRelease = do
          liftIO $ writeIORef guiMode Waiting
          return False
@@ -852,14 +998,14 @@ main2 = do
          let p2 = [[x2, y2]]
          mapScr1 <- liftIO $ readIORef mapScr
          --MapScroll p1 mapScr1 <- liftIO $ readIORef guiMode
-         ptref <- liftIO $ readIORef movePoint 
+         ptref <- liftIO $ readIORef movePoint
          (la:lo:_) <- liftIO $ readIORef ptref
          let [[x, y]] = (1 / zoom2) |*| p2 <+> mapScr1
          liftIO $ writeIORef ptref [la, lo, x, y]
          liftIO $ writeIORef zoomedPos [[x, y]]
          liftIO $ widgetQueueDraw zoomed
          liftIO $ widgetQueueDraw map1
-         
+
          --PointMove p3 <- liftIO $ readIORef guiMode
          return False
 
@@ -907,7 +1053,7 @@ main2 = do
          mapScr1 <- liftIO $ readIORef mapScr
          let p = (1 / zoom2) |*| p2 <+> mapScr1
          d <- eventScrollDirection
-         let 
+         let
             zoom3 = case d of
                ScrollUp   -> zoom1 + 0.25
                ScrollDown -> zoom1 - 0.25
@@ -1034,7 +1180,7 @@ i(ax+by+c) + j(dx+ey+f) = y
    widgetAddEvents map1 [PointerMotionMask]
    on map1        draw                 mapDraw
    on map1        buttonPressEvent     mapButtonPress
-   on map1        buttonReleaseEvent   mapButtonRelease 
+   on map1        buttonReleaseEvent   mapButtonRelease
    on map1        motionNotifyEvent    mapMotion
    on map1        scrollEvent          mapWheel
    on zoomed      draw                 zoomedDraw
@@ -1057,9 +1203,9 @@ data PagePure = PagePure String [[Double]] deriving (Eq, Ord, Show, Read)
 data Page = Page (IORef String) (IORef [IORef [Double]])
 
 load file = readFromFile file >>= pureToRef
-save file dir = refToPure dir >>= showToFile file 
+save file dir = refToPure dir >>= showToFile file
 
-readFromFile file = read <$> readFile file 
+readFromFile file = read <$> readFile file
 showToFile file a = writeFile file $ show a
 
 pureToRef (DirPure p ps) = do
@@ -1114,7 +1260,7 @@ sphereGridPatch t lat0 lat1 long0 long1 maj min = do
    mapM_ (\long -> do
       newPath
       movTo $ t [[lat0, long]]
-      mapM_ (\lat -> do 
+      mapM_ (\lat -> do
          linTo $ t [[lat, long]]
          ) [lat0 + min, lat0 + min*2 .. lat1]
       stroke
@@ -1122,7 +1268,7 @@ sphereGridPatch t lat0 lat1 long0 long1 maj min = do
    mapM_ (\lat -> do
       newPath
       movTo $ t [[lat, long0]]
-      mapM_ (\long -> do 
+      mapM_ (\long -> do
          linTo $ t [[lat, long]]
          ) [long0 + min, long0 + min*2 .. long1]
       stroke
@@ -1224,7 +1370,7 @@ flatten2 src x y = do
 fgAux im x y =
    let
       PixelRGB8 r g b = pixelAt im x y
-      r1 = fromIntegral r 
+      r1 = fromIntegral r
       g1 = fromIntegral g
       b1 = fromIntegral b
       t = r1+g1+b1+1
@@ -1236,7 +1382,7 @@ fgAux im x y =
     in
       PixelRGB8 z1 z1 z1
 
-lvs = 
+lvs =
    [ [25, -120,  419, 3603]
    , [25, -95,  3305, 3928]
    , [25, -75,  5619, 3679]
@@ -1308,7 +1454,7 @@ sphereGridPatch1 t lat0 lat1 long0 long1 maj min = do
    mapM_ (\long -> do
       newPath
       movTo (t lat0 long)
-      mapM_ (\lat4 -> do 
+      mapM_ (\lat4 -> do
          let lat2 = lat4 - min1
          let lat3 = lat4 - min2
          let [[x2, y2]] = t lat2 long

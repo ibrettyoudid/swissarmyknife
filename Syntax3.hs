@@ -85,9 +85,9 @@ class (IsoFunctor delta st tok str, ProductFunctor delta st tok str, Alternative
   token :: delta st tok str tok
 
 class Syntax delta st tok str => SyntaxF delta st tok str where
-  ci :: delta st tok str alpha -> delta st tok str alpha
-  groupOf :: (Show alpha) => delta st tok str alpha -> delta st tok str [alpha]
-  (<=>) :: String -> delta st tok str alpha -> delta st tok str alpha
+  ci      ::                            delta st tok str alpha -> delta st tok str  alpha
+  groupOf :: (Show alpha) =>            delta st tok str alpha -> delta st tok str [alpha]
+  (<=>)   :: (Show alpha) => String ->  delta st tok str alpha -> delta st tok str  alpha
 
 class SyntaxP f where
   (>><) :: f b c -> f a b -> f a c
@@ -352,6 +352,7 @@ instance ProductFunctor ParserIO a b c where
 
 instance Alternative ParserIO a b c where
   ParserIO a <|> ParserIO b = ParserIO $ a App.<|> b
+  empty = ParserIO App.empty
   --ParserIO a <|> ParserIO b = ParserIO $ join $ ListT.cons a $ ListT.cons b App.empty
 
 instance IsoFunctor ParserIO a b c where
@@ -378,6 +379,11 @@ instance Syntax ParserIO SII Char String where
 instance SyntaxF ParserIO [SII] SII [SII] where
   groupOf i = sepBy i (Iso (\case (";", _, _) -> Just ()) (\() -> Just (";", 0::Int, 0::Int)) >$< token) <|>
               aligned i
+  n <=> p = do
+    ParserIO $ liftIO $ putStrLn $ "-> " ++ n
+    r <- p
+    ParserIO $ liftIO $ putStrLn $ "<- " ++ n ++ " = " ++ show r
+    return r
 
 instance Functor (ParserIO [a] a [a]) where
   fmap f (ParserIO a) = ParserIO $ fmap f a
@@ -662,7 +668,7 @@ mergeStrs (a : as) = a : mergeStrs as
 mergeSeq [DStr a] = DStr a
 mergeSeq a = DSeq a
 
---fp p e = format <$> print p e
+fp p e = format <$> print p e
 
 text1a [] = pure []
 text1a (t : ts) = cons >$< (match1 t >$< token) >*< text1a ts

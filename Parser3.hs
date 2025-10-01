@@ -1,17 +1,20 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
+
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Redundant multi-way if" #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Avoid lambda using `infix`" #-}
 
 module Parser3 where
 
 import Favs
 import MyPretty2 hiding (format)
 import MHashDynamic hiding (Apply, expr)
-import SyntaxCIPU
-import Rule
+import Iso hiding (foldl, (!!))
+--import Rule
 --import Syntax3 hiding (foldl, foldr)
 
 import Control.Monad
@@ -22,7 +25,6 @@ import Data.Set qualified as S
 import Data.IntMap qualified as I
 import Shell (ch)
 
-{-
 data Rule tok =
    Seq [Rule tok]
    | Alt [Rule tok]
@@ -31,24 +33,64 @@ data Rule tok =
    | Range tok tok
    | Many (Rule tok)
    | ManyTill (Rule tok) (Rule tok)
-   | Apply (Iso Rule Dynamic) (Rule tok)
+   | Apply (Iso Dynamic Dynamic) (Rule tok)
+   | Bind (Rule tok) (Dynamic -> Rule tok, Dynamic -> Rule tok -> Rule tok) -- parsing, the iso turns the result of the nested rule into a new rule. printing, we have the result of the new rule but not the new rule itself. we need to use the nested rule and the result to recreate it
+   | Return Dynamic
    | StrRes String Dynamic
    | Not (Rule tok)
    | And (Rule tok)
--}
+   | Set String (Rule tok)
+   | Get String
+
 {-
 parse (Token a) = a
 parse (Ignore a) = 
 format (Token a) = a
-
+-}
 --    EIso    :: Iso alpha beta -> Rule alpha -> Rule beta
-tod :: (Typeable a, Typeable b) => (a -> Maybe b) -> Dynamic -> Maybe Dynamic
-tod f x = toDyn <$> f (fromDyn1 x)
+fd f x = do d <- fromDynamic x; r <- f d; return $ toDyn r
 
-isod :: (Typeable a, Typeable b) => (a -> Maybe b) -> (b -> Maybe a) -> Iso Dynamic Dynamic
-isod a b = Iso (tod a) (tod b)
+isod (Iso f g) = Iso (fd f) (fd g)
 
+totald f g = isod (total f g)
+
+strOfChars :: [Dynamic] -> String
+strOfChars = map fromDyn1
+
+charsOfStr :: String -> [Dynamic]
+charsOfStr = map toDyn
+
+repl1 r = do n <- St.get; return $ Seq $ replicate (fromDyn n 0 :: Int) r
+
+repl n r = Seq $ replicate (fromDyn n 0 :: Int) r
+
+repl2 re r = Seq $ replicate (length (fromDyn re [] :: [Dynamic])) r
+
+repl3 int r = int >>== (\n -> repl n r, repl2)
+
+intiso :: Iso String Int
+intiso = total read show 
+
+intisod = isod intiso
+
+int = Apply intisod $ Range '0' '9'
+
+(>>==) = Bind
+
+test = int >>== (\n -> repl n $ Range 'a' 'z', repl2)
 --icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
+
+{-
+simulate this:
+do
+   n <- int
+   rep n anychar
+
+which is
+
+int >>= (\n -> rep n anychar)
+
+-}
 
 instance Eq tok => Eq (Rule tok) where
 --   Seqd  a b == Seqd c d = (a, b) == (c, d)
@@ -85,7 +127,7 @@ instance Show tok => Show (Rule tok) where
    show = outershow Nothing
 
 --innershow d (Seqd  a b) = unwords $ ii d [innershow Nothing a, innershow Nothing b]
-innershow :: Maybe Int -> (Rule tok) -> [Char]
+innershow :: Show tok => Maybe Int -> Rule tok -> [Char]
 innershow d (Seq   as ) = unwords $ ii d $ map (innershow Nothing) as
 innershow d (Alt   as ) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
 innershow d (Name  a _) = unwords $ ii d [a]
@@ -104,45 +146,33 @@ ii Nothing = id
 
 data Result = Running | Fail | Pass Dynamic deriving (Eq, Ord)
 
-data Item tok  = Item   (Rule tok) Int 
-               | ISeq   (Rule tok) Result Int 
-               | IAlt   (Rule tok) Result Int
-               | IName  (Rule tok) Result
-               | ITerm  (Rule tok) Result --used for all terminal level ops
-               | IMany  (Rule tok) Result
-               | INot   (Rule tok) Result
-               | IAnd   (Rule tok) Result
-               | IGet   (Rule tok) Result
-               | ISet   (Rule tok) Result
-               | IApply (Rule tok) Result
+data Item tok  = Item   (Rule tok) Result Item2 deriving (Eq, Ord)
+
+data Item2     = Item2
+               | ISeq  Int
+               | IAlt  Int -- Int is how many have finished
+               | IName
+               | ITerm   --used for all terminal level ops
+               | IMany [Dynamic]
+               | INot
+               | IAnd
+               | IGet
+               | ISet
+               | IApply
                deriving (Eq, Ord)
 
-result (ISeq   r re n) = re
-result (IAlt   r re n) = re
-result (IName  r re  ) = re
-result (ITerm  r re  ) = re
-result (IMany  r re  ) = re
-result (INot   r re  ) = re
-result (IAnd   r re  ) = re
-result (ISet   r re  ) = re
-result (IApply r re  ) = re
-
-item2 (State2 b c i) = i
+item  (State2 b c i) = i
 from2 (State2 b c i) = b
 to2   (State2 b c i) = c
 
-rule (ISeq   r re n) = r
-rule (IAlt   r re n) = r
-rule (IName  r re  ) = r
-rule (ITerm  r re  ) = r
-rule (IMany  r re  ) = r
-rule (INot   r re  ) = r
-rule (IAnd   r re  ) = r
-rule (ISet   r re  ) = r
-rule (IApply r re  ) = r
+result (Item r re i) = re
+rule   (Item r re i) = r
+item2  (Item r re i) = i
 
-pos (ISeq r re n) = n
-pos (IAlt r re n) = n
+pos2 (ISeq n) = n
+pos2 (IAlt n) = n
+
+pos (Item r s i) = pos2 i
 
 pass (Pass _) = True
 pass _        = False
@@ -152,13 +182,15 @@ passi = pass . result
 type ItemSet tok = S.Set (Item tok)
 
 instance Show tok => Show (Item tok) where
-   show (Item r n) = outershow (Just n) r
-
-data State2 tok = State2 Int Int (Item tok) deriving (Eq, Ord)
+   show (Item r s1 (ISeq n)) = outershow (Just n) r
+   show (Item r s1 (IAlt n)) = outershow (Just n) r
+   show (Item r s1 _) = outershow Nothing r
 
 data State tok
    = State { r::Rule tok, f::Int, t::Int, n::Int }
    deriving (Eq)
+
+data State2 tok = State2 Int Int (Item tok) deriving (Eq, Ord)
 
 instance Show z => Show (State z) where
    show (State r b c d) = outershow (Just d) r ++ " " ++ unwords (map show [b, c, d])
@@ -166,6 +198,12 @@ instance Show z => Show (State z) where
 instance Ord z => Ord (State z) where
    compare (State e1 b1 k1 d1) (State e2 j2 k2 d2) = compare (b1, k1, d1, e1) (j2, k2, d2, e2)
 
+instance Show z => Show (State2 z) where
+   show (State2 b c r) = show r ++ " " ++ unwords (map show [b, c])
+{-
+instance Ord z => Ord (State2 z) where
+   compare (State2 b1 k1 e1) (State2 j2 k2 e2) = compare (b1, k1, e1) (j2, k2, e2)
+-}
 digit = Range '0' '9'
 lower = Range 'a' 'z'
 upper = Range 'A' 'Z'
@@ -174,7 +212,7 @@ alpha = Alt [upper, lower]
 --num = Many digit
 --alnum = Alt [alpha, digit]
 op = Alt [Token '+', Token '-', Token '*', Token '/']
- 
+
 --ident = Name "ident" $ cons (Alt [alpha, under]) ident1
 --ident1 = Many (Alt [alpha, under, digit])
 
@@ -182,14 +220,15 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 
 --test = pD expr "a+a+a"
 
-p s t = tree s $ parseE s t
+--p s t = tree s $ parseE s t
 
+{-
 pD s t = do
     states <- parseED s t
-    tableD t $ concatMap S.toList states
-    tableD t $ filter isCompleteZ $ concatMap S.toList states
+    tableZ t $ concatMap S.toList states
+    tableZ t $ filter isCompleteZ $ concatMap S.toList states
     return $ tree s states
-
+-}
 parseE s t =
    let
       items = predictZ (S.singleton $ State2 0 0 (start s))
@@ -219,7 +258,7 @@ data States t = States [State2 t] (I.IntMap (S.Set (State2 t)))
 
 putss newlist = do
    States all bytok <- St.get
-   St.put $ States (all ++ newlist) (foldr fu bytok newlist) 
+   St.put $ States (all ++ newlist) (foldr fu bytok newlist)
 
 fu s m = I.insert (to2 s) (S.insert s (fromMaybe S.empty (I.lookup (to2 s) m))) m
 
@@ -233,7 +272,7 @@ parseE1 states t c items = let
 parseE1D states t c items = do
    let scan1 = scanZ c t items
    putStrLn $ "scan1=" ++ show scan1
-   let comp1 = completeZ states scan1
+   let comp1 = completeZ states $ S.fromList scan1
    putStrLn $ "comp1=" ++ show comp1
    if c < length t
       then do
@@ -258,20 +297,13 @@ closure1 f done current =
 
 process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
+predict :: Ord tok => S.Set (State tok) -> S.Set (State tok)
 predict = closure (process predict1)
 
+predictZ :: Ord tok => S.Set (State2 tok) -> S.Set (State2 tok)
 predictZ = closure (process predict1Z)
 
 predict1 (State r j c d) = [State a c c 0 | a <- paux r d]
-
-predict1Z (State2 _ c (ISeq   (Seq   as ) t n)) = [State2 c c (start (as !! n))]
-predict1Z (State2 _ c (IAlt   (Alt   as ) t n)) = [State2 c c (start a) | a <- as]
-predict1Z (State2 _ c (IName  (Name  a b) t  )) = [State2 c c (start b)]
-predict1Z (State2 _ c (IApply (Apply a b) t  )) = [State2 c c (start b)]
---predict1Z (State2 _ c (IGet   (Get   a  ) t  )) = [State2 c c (start a)]
-predict1Z (State2 _ c (ISet   (Set   a b) t  )) = [State2 c c (start b)]
-
---predict1Z (State2 j c (ISeq (Seq as) t n)) = [State2 c c (start a) | a <- [as !! n]]
 
 --paux (Seq  as ) q = [as !! q | q < length as]
 paux (Alt  as ) 0 = as
@@ -279,24 +311,27 @@ paux (Name a b) 0 = [b]
 --paux (ManyTill a b) 0 = [a, b]
 paux _ _ = []
 
-start r@(Seq   a  ) = ISeq  r Running 0
-start r@(Alt   a  ) = IAlt  r Running 0
-start r@(Name  a b) = IName r Running
-start r@(Token a  ) = ITerm r Running
+predict1Z (State2 _ c i) = map (State2 c c) $ predict2Z i
 
-{-}
-predict1 (State r@(Alt as) j c 0) = [State  a        c c 0 | a <-       as]
-predict1 (State r@(Seq as) j c d) = [State (as !! d) c c 0 | d < length as]
-predict1 (State (Name a b) j c 0) = [State  b        c c 0                ]
-predict1 t = []
+predict2Z (Item (Seq    as   ) Running (ISeq n)) = [start (as !! n)]
+predict2Z (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
+predict2Z (Item (Many   a    ) Running _       ) = [start a]
+predict2Z (Item (Name   a b  ) Running _       ) = [start b]
+predict2Z (Item (Apply  a b  ) Running _       ) = [start b]
+predict2Z (Item (Set    a b  ) Running _       ) = [start b]
+predict2Z (Item (Not    a    ) Running _       ) = [start a]
+predict2Z (Item (Bind   a b  ) Running _       ) = [start a]
+predict2Z (Item (Return a    ) Running _       ) = [Item (Return a) (Pass a) Item2]
+--predict2Z (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
+predict2Z (Item {}) = []
 
-predict1Z (State2 j c (Item (Alt   as  ) 0)) = [State2 c c (Item  a        0) | a <-       as]
-predict1Z (State2 j c (Item (Seq   as  ) d)) = [State2 c c (Item (as !! d) 0) | d < length as]
-predict1Z (State2 j c (Item (Name  a  b) 0)) = [State2 c c (Item  b        0)                ]
-predict1Z t = []
--}
+start r = Item r Running $ start1 r
 
---scan c t items = S.fromList $ mapMaybe (scan1 c (t !! (c - 1))) $ S.toList items
+start1 (Seq  a) = ISeq 0
+start1 (Alt  a) = IAlt 0
+start1 (Many a) = IMany []
+start1 _ = Item2
+
 scan c t items = let
    sc    = map (scan1 c (t !! (c - 1))) $ S.toList items
    scf f = map snd $ filter (f . fst) sc
@@ -312,7 +347,7 @@ scan1 c ch (State r j k1 n) = let pass = n == 0 && saux ch r in (pass, if pass t
 
 scan1Y c ch (State2 j _ t) = scan1Z c ch j c t
 
-scan1Z c ch j _ (ITerm r Running) = Just $ State2 j c (toDyn $ ITerm r (if saux ch r then Pass else Fail))
+scan1Z c ch j _ (Item r Running i2) = Just $ State2 j c $ Item r (if saux ch r then Pass $ toDyn ch else Fail) i2
 scan1Z c ch _ _ _ = Nothing
 
 saux ch (Token c  ) = ch == c
@@ -321,56 +356,60 @@ saux _ _ = False
 
 complete states = closure (\old -> process (complete1 (states ++ [old])) old)
 
-complete1 states (State y b c p) = mapMaybe 
-   (\(State x a b1 q) -> 
-      ifJust (p == slength y && q < slength x && caux x q y) 
+complete1 states (State y b c p) = mapMaybe
+   (\(State x a b1 q) ->
+      ifJust (p == slength y && q < slength x && caux x q y)
          $ State x a c (q + 1)
    ) $ S.toList $ states !! b
 
 completeZ states = closure (\old -> process (complete1Z (states ++ [old])) old)
 
-complete1Z states (State2 b c i) =
-   mapMaybe (complete2Z b c i) $ S.toList $ states !! b
+complete1Z states state =
+   concatMap (complete2Z state) $ S.toList $ states !! from2 state
 
-complete2Z b c i (State2 a b1 (ISeq x q n)) =
-      ifJust (result i /= Running && q == Running && caux x n (rule i)) $
-         State2 a c (ISeq x (if result i == Fail then Fail else if n + 1 == slength x then result i else Running) (n + 1))
+complete2Z (State2 b c sub) (State2 a b1 main) =
+      if result sub /= Running && result main == Running && subitem main sub
+         then map (State2 a c) $ complete3Z main sub
+         else []
 
-complete2Z b c i (State2 a b1 (IAlt x q n)) =
-      ifJust (result i /= Running && q == Running && caux x 0 (rule i)) $
-         State2 a c (if passi i then IAlt x (result i) n else if pos i > 0 then IAlt x Running (pos i-1) else IAlt x Fail 0)
+complete3Z main@(Item r@(Seq as) s (ISeq n)) sub
+  | result sub == Fail = [Item r Fail         (ISeq  n     )]
+  | n + 1 == length as = [Item r (result sub) (ISeq (n + 1))]
+  | otherwise          = [Item r Running      (ISeq (n + 1))]
 
-complete2Z b c i (State2 a b1 (IName x q)) =
-      ifJust (result i /= Running && q == Running && caux x 0 (rule i)) $
-         State2 a c (IName x $ result i)
+complete3Z main@(Item x@(Alt as) q (IAlt n)) sub
+  | passi sub     = [Item x (result sub) (IAlt  n     )]
+  | n < length as = [Item x Running      (IAlt (n + 1))]
+  | otherwise     = [Item x Fail         (IAlt  n     )]
 
-complete2Z b c i (State2 a b1 (IApply x q)) =
-      ifJust (q == Running && caux x 0 (rule i)) $
-         case result i of
-            Pass res -> 
-               case x of
-                  Apply iso _ ->
-                     case apply iso res of
-                        Just ju -> State2 a c (IApply x (Pass ju))
-                        Nothing -> State2 a c (IApply x Fail)
-            Fail -> State2 a c (IApply x Fail)
+complete3Z main@(Item x@(Name d e) q i2) sub = [Item x (result sub) i2]
 
-complete3  states items = foldl complete4 states items
+complete3Z main@(Item x@(Apply d e) q _) sub =
+   case result sub of
+      Pass res ->
+         case x of
+            Apply iso _ ->
+               case apply iso res of
+                  Just j  -> [Item x (Pass j) Item2]
+                  Nothing -> [Item x  Fail    Item2]
+      Fail -> [Item x Fail Item2]
 
-complete32 states items = foldl complete42 states items
+complete3Z main@(Item x@(Not d) q i2) sub = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass (toDyn ()) } ) Item2]
 
-complete4 states (State y b c p) = foldl (complete5 p y) states $ S.toList $ states !! b
+complete3Z main@(Item x@(Bind a (b, c)) q _) sub = 
+   case result sub of
+      Pass res -> 
+         case b res of
+            r2 -> [start r2]
+      Fail -> [Item x Fail Item2]
 
-complete42 states (State2 b c (Item y p)) = foldl (complete52 p y) states $ S.toList $ states !! b
+complete3Z main@(Item x@(Many a) q (IMany done)) sub =
+   Item x (Pass $ toDyn done) Item2 :
+   case result sub of
+      Pass res -> [Item x Running (IMany $ done ++ [res])]
+      Fail     -> []
+      
 
-complete5 p y states (State x a b1 q) = states ++
-   [ S.singleton $ State x a (length states) (q + 1)
-   | p == slength y && q < slength x && caux x q y ]
-
-complete52 p y states (State2 a b1 (Item x q)) = states ++
-   [ S.singleton $ State2 a (length states) (Item x (q + 1))
-   | p == slength y && q < slength x && caux x q y ]
--- complete3 c states (State y b _ p) = mapMaybe (\(State x a b q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (State x a b q) (State x a c (q + 1)) (State y b c p)) $ S.toList $ states !! b
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
@@ -378,11 +417,12 @@ caux (Name a b) q y = b == y
 --caux (ManyTill a b) q y = a == y
 caux _ _ _ = False
 
---iaux a q y = caux (rule a) q (rule y)
-
-iaux (ISeq  (Seq  as ) re n) ch = as !! n == rule ch
-iaux (IAlt  (Alt  as ) re n) ch = rule ch `elem` as
-iaux (IName (Name a b) re  ) ch = b == rule ch 
+subitem (Item (Seq   as ) _ (ISeq n)) ch = as !! n == rule ch
+subitem (Item (Alt   as ) _ _       ) ch = rule ch `elem` as
+subitem (Item (Name  a b) _ _       ) ch = b == rule ch
+subitem (Item (Apply a b) _ _       ) ch = b == rule ch
+subitem (Item (Not   a  ) _ _       ) ch = a == rule ch
+subitem (Item (Many  a  ) _ _       ) ch = a == rule ch
 
 slength (Seq as) = length as
 slength _ = 1
@@ -395,6 +435,7 @@ predict3 c (Item (Seq  as  ) d) = [Item (as !! d) 0 | d < length as]
 predict3 c (Item (Name a  b) 0) = [Item b 0]
 predict3 c t = []
 -}
+{-
 makeLR e = let
    items = predict (S.singleton $ State e 0 0 0)
    in makeLRa [items] [items]
@@ -471,11 +512,11 @@ scan3 t = Nothing
 scan4 c (State r@(Token ch   ) b _ 0) = Just (ch, State r b c 1)
 --scan3 c (State r@(Range c d) b _ 0) = ifJust (ch >= c && ch <= d) (State r b c 1)
 scan4 c t = Nothing
-
+-}
 
 children states (State2 f t i) = do
     s1@(State2 f1 t1 i1) <- S.toList $ states !! t
-    if iaux i i1 && pass (result i1)
+    if subitem i i1 && pass (result i1)
          then do
              s2@(State2 f2 t2 i2) <- S.toList $ states !! f1
              if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
@@ -551,71 +592,6 @@ mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a >
 
 t2 (State2 _ t _) = t
 
-tableD str states =
-   let
-      shown = map show states
-      range = [0..length str]
-      nums  = map show [0..length str]
-      numls = 0 : map length nums
-      ends  = 0 : map (\a -> maximum $ zipWith (taux1D ends numls a) shown states) [0..length str]
-      show1 = zipWith (taux2D ends numls) shown states 
-      nums1 = map (taux3D ends nums ) [0..length str] 
-      toks  = map (taux4D ends str  ) [0..length str] 
-      axis  = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
-    in
-      putStrLn $ unlines $ axis : show1 ++ [axis]
-{- 
-ends !! 0 = 0
-ends !! 1 = 
--}
-taux1D ends numls a sh st@(State2 f t i) = numls !! a + 
-   if f == t 
-      then let 
-         l = length sh + 2
-         in if | t     == a -> ends !!  f      +      div l 2  
-               | t + 1 == a -> ends !! (f + 1) + (l - div l 2)
-               | True       -> 0
-      else let
-         l = length sh + 4
-         in if | t     == a -> ends !! (f + 1)
-               | True       -> 0
-
-taux2D ends numls sh st@(State2 f t i) = let
-   l  = length sh
-   in if f == t 
-            then replicate (ends !! (f + 1) - div l 2) ' ' ++ "(" ++ sh ++ ")"
-            else let
-               l2 = ends !! (f + 2) - ends !! (f + 1)
-               l3 = l2 - l
-               l4 = div l 2
-               l5 = l - l3
-               in replicate (ends !! (f + 1) + numls !! (f + 1)) ' ' ++ replicate l4 '-' ++ sh ++ replicate l5 '-'
-
-taux3D ends nums a = replicate (ends !! a) ' ' ++ nums !! a
-
-taux4D ends str a = let
-   sh = show $ str !! a
-   l  = length sh
-   in replicate (div (ends !! a + ends !! (a + 1) - l) 2) ' ' ++ sh
-
-taux5D ends m b c sh fill =
-   if
-      | b < c ->
-            let
-               st = ends !! (b + 1)
-               l1 = m - st - length sh
-               l2 = div l1 2
-               l3 = l1 - l2 - 1
-             in
-               (st + length sh, replicate st ' ' ++ replicate l2 fill ++ sh ++ replicate l3 fill)
-      | b == c ->
-            let
-               st = ends !! b
-               l = length sh
-               l2 = div l 2
-             in
-               (st + l2, replicate (m - l2) ' ' ++ sh)
-
 makelr states rule c = makelr1 states (S.singleton $ State rule 0 0 0) c
 
 makelr1 states items c = predict items
@@ -650,204 +626,52 @@ combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
 -- those are your new kernels
 -- closure them with completions and predictions
 -- 
-<<<<<<< HEAD
 -- how kernels are compared for equality defines what sort of parser it is
 -- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
-=======
--- how kernels are compared for equality defines what sort of parser i is
--- some record little context, some account for a lot, if i accounts for all context i can't do recursive grammars
-pF e t = tree e $ parseE e t
 
-pFD e t = do
-    states <- parseED e t
-    table t states
-    table t $ map (S.filter isComplete) states
-    return $ tree e states
-
-parseF e t =
+tableZ str states =
    let
-      items = predict (S.singleton $ State e 0 0 0)
+      shown = map show states
+      range = [0..length str]
+      nums  = map show [0..length str]
+      numls = 0 : map length nums
+      ends  = 0 : map (\a -> maximum $ zipWith (taux1D ends numls a) shown states) [0..length str]
+      show1 = zipWith (taux2D ends numls) shown states
+      nums1 = map (taux3D ends nums ) [0..length str]
+      toks  = map (taux4D ends str  ) [0..length str]
+      axis  = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
     in
-      parseF0 [items] t items [1 .. length t]
-
-parseFD e t =
-   let
-      items = predict (S.singleton $ State e 0 0 0)
-    in
-      parseF0D [items] t items [1 .. length t]
-
-parseF0 states _ items [] = states
-parseF0 states t items (c : ks) = let
-   itemsnew = parseE1 states t items c
-   in parseE0 (states ++ [itemsnew]) t itemsnew ks
-
-parseF0D states _ items [] = return states
-parseF0D states t items (c : ks) = do
-   itemsnew <- parseF1D states t items c
-   parseF0D (states ++ [itemsnew]) t itemsnew ks
-
--- scanM :: Monad m => (m [a] -> b -> m a) -> m [a] -> [b] -> m [a]
-scanFM f z = foldl (\a b -> do ra <- a; rr <- f (last ra) b; return $ ra ++ [rr]) (return [z])
-
-parseF1 states t items c = let
-   (pass, fail) = scanZ c t items
-   comp1 = completeZ states pass
-   in if c < length t
-      then predictZ comp1
-      else comp1
-
-parseF1D states t items c = do
-   let scan1 = scan c t items
-   putStrLn $ "scan1=" ++ show scan1
-   let comp1 = complete states scan1
-   putStrLn $ "comp1=" ++ show comp1
-   if c < length t
-      then do
-         let pred1 = predict comp1
-         putStrLn $ "pred1=" ++ show pred1
-         return pred1
-      else return comp1
-
-closureF f items = closure1 f items items
-
-closureF1 f done current =
-   let
-      new = f done current
-      newdone = S.union done new
-      newnew = new S.\\ done
-    in
-      if S.null new then done else closure1 f newdone newnew
-
-processF f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
-
-predictF = closure (process predict1)
-
-predictFZ = closure (process predict1Z)
-
-predictF1 (State r j c d) = [State a c c 0 | a <- paux r d]
-
-predictF1Z j c (ISeq   (Seq   as ) t n) = [State2 c c (start (as !! n))]
-predictF1Z j c (IAlt   (Alt   as ) t n) = [State2 c c (start a) | a <- as]
-predictF1Z j c (IName  (Name  a b) t  ) = [State2 c c (start b)]
-predictF1Z j c (IApply (Apply a b) t  ) = [State2 c c (start b)]
-predictF1Z j c (IGet   (Get   a  ) t  ) = [State2 c c (start a)]
-predictF1Z j c (ISet   (Set   a b) t  ) = [State2 c c (start b)]
-
---predict1Z (State2 j c (ISeq (Seq as) t n)) = [State2 c c (start a) | a <- [as !! n]]
-
---paux (Seq  as ) q = [as !! q | q < length as]
-pauxF (Alt  as ) 0 = as
-pauxF (Name a b) 0 = [b]
---paux (ManyTill a b) 0 = [a, b]
-pauxF _ _ = []
-
-startF r@(Seq   a  ) = ISeq  r Running 0
-startF r@(Alt   a  ) = IAlt  r Running $ length a
-startF r@(Name  a b) = IName r Running
-startF r@(Token a  ) = ITerm r Running
-
-{-}
-predict1 (State r@(Alt as) j c 0) = [State  a        c c 0 | a <-       as]
-predict1 (State r@(Seq as) j c d) = [State (as !! d) c c 0 | d < length as]
-predict1 (State (Name a b) j c 0) = [State  b        c c 0                ]
-predict1 t = []
-
-predict1Z (State2 j c (Item (Alt   as  ) 0)) = [State2 c c (Item  a        0) | a <-       as]
-predict1Z (State2 j c (Item (Seq   as  ) d)) = [State2 c c (Item (as !! d) 0) | d < length as]
-predict1Z (State2 j c (Item (Name  a  b) 0)) = [State2 c c (Item  b        0)                ]
-predict1Z t = []
+      putStrLn $ unlines $ axis : show1 ++ [axis]
+{- 
+ends !! 0 = 0
+ends !! 1 = 
 -}
+taux1D ends numls a sh st@(State2 f t i) = numls !! a +
+   if f == t
+      then let
+         l = length sh + 2
+         in if | t     == a -> ends !!  f      +      div l 2
+               | t + 1 == a -> ends !! (f + 1) + (l - div l 2)
+               | True       -> 0
+      else let
+         l = length sh + 4
+         in if | t     == a -> ends !! (f + 1)
+               | True       -> 0
 
---scan c t items = S.fromList $ mapMaybe (scan1 c (t !! (c - 1))) $ S.toList items
-scanF c t items = let
-   sc    = map (scan1 c (t !! (c - 1))) $ S.toList items
-   scf f = map snd $ filter (f . fst) sc
-   in (scf id, scf not)
+taux2D ends numls sh st@(State2 f t i) = let
+   l  = length sh
+   in if f == t
+            then replicate (ends !! (f + 1) - div l 2) ' ' ++ "(" ++ sh ++ ")"
+            else let
+               l2 = ends !! (f + 2) - ends !! (f + 1)
+               l3 = l2 - l
+               l4 = div l 2
+               l5 = l - l3
+               in replicate (ends !! (f + 1) + numls !! (f + 1)) ' ' ++ replicate l4 '-' ++ sh ++ replicate l5 '-'
 
-scanFZ c t items = let
-   sc    = mapMaybe (scan1Y c (t !! (c - 1))) $ S.toList items
-   scf f = filter ((== f) . result . item2) sc
-   in (scf Pass, scf Fail)
+taux3D ends nums a = replicate (ends !! a) ' ' ++ nums !! a
 
-
---scan1 c ch (State r j _ 0) = ifJust (saux ch r) (State r j c 1)
---scan1 c ch t = Nothing
-
-scanF1 c ch (State r j k1 n) = let pass = n == 0 && saux ch r in (pass, if pass then State r j c 1 else State r j k1 n)
-
-scanF1Y c ch (State2 j _ t) = scan1Z c ch j c t
-
-scanF1Z c ch j _ (ITerm r Running) = Just $ State2 j c (toDyn $ ITerm r (if saux ch r then Pass else Fail))
-scanF1Z c ch _ _ _ = Nothing
-
-sauxF ch (Token c  ) = ch == c
-sauxF ch (Range c d) = ch >= c && ch <= d
-sauxF _ _ = False
-
-completeF states = closure (\old -> process (complete1 (states ++ [old])) old)
-
-completeF1 states (State y b c p) = mapMaybe 
-   (\(State x a b1 q) -> 
-      ifJust (p == slength y && q < slength x && caux x q y) 
-         $ State x a c (q + 1)
-   ) $ S.toList $ states !! b
-
-completeF1Z1 states (State2 b c i) =
-   mapMaybe (\(State2 a b1 (ISeq x q n)) ->
-      ifJust (result i /= Running && q == Running && caux x n (rule i)) $
-         State2 a c (ISeq x (if result i == Fail then Fail else if n + 1 == slength x then result i else Running) (n + 1))
-   ) $ S.toList $ states !! b
-
-completeF1Z2 states (State2 b c i) =
-   mapMaybe (\(State2 a b1 (IAlt x q n)) ->
-      ifJust (result i /= Running && q == Running && caux x 0 (rule i)) $
-         State2 a c (if pass $ result i then IAlt x (result i) n else if pos i > 0 then IAlt x Running (pos i-1) else IAlt x Fail 0)
-   ) $ S.toList $ states !! b
-
-completeF1Z3 states (State2 b c i) =
-   mapMaybe (\(State2 a b1 (IName x q)) ->
-      ifJust (result i /= Running && q == Running && caux x 0 (rule i)) $
-         State2 a c (IName x $ result i)
-   ) $ S.toList $ states !! b
-
-completeF1Z4 states (State2 b c i) =
-   mapMaybe (\(State2 a b1 (IApply x q)) ->
-      ifJust (q == Running && caux x 0 (rule i)) $
-         case result i of
-            Pass res -> 
-               case x of
-                  Apply iso _ ->
-                     case apply iso res of
-                        Just ju -> State2 a c (IApply x (Pass ju))
-                        Nothing -> State2 a c (IApply x Fail)
-            Fail -> State2 a c (IApply x Fail)
-   ) $ S.toList $ states !! b
-
-completeF3  states items = foldl complete4 states items
-
-completeF32 states items = foldl complete42 states items
-
-completeF4 states (State y b c p) = foldl (complete5 p y) states $ S.toList $ states !! b
-
-completeF42 states (State2 b c (Item y p)) = foldl (complete52 p y) states $ S.toList $ states !! b
-
-completeF5 p y states (State x a b1 q) = states ++
-   [ S.singleton $ State x a (length states) (q + 1)
-   | p == slength y && q < slength x && caux x q y ]
-
-completeF52 p y states (State2 a b1 (Item x q)) = states ++
-   [ S.singleton $ State2 a (length states) (Item x (q + 1))
-   | p == slength y && q < slength x && caux x q y ]
--- complete3 c states (State y b _ p) = mapMaybe (\(State x a b q) -> ifJust (p == slength y && q < slength x && caux x q y) $ EComplete3 (State x a b q) (State x a c (q + 1)) (State y b c p)) $ S.toList $ states !! b
-
-cauxF (Seq as) q y = as !! q == y
-cauxF (Alt as) q y = y `elem` as
-cauxF (Name a b) q y = b == y
---caux (ManyTill a b) q y = a == y
-cauxF _ _ _ = False
-
-slengthF (Seq as) = length as
-slengthF _ = 1
-
->>>>>>> f80b1f1e71842cbd3a1bb44ea13668261543c88d
--}
+taux4D ends str a = let
+   sh = show $ str !! a
+   l  = length sh
+   in replicate (div (ends !! a + ends !! (a + 1) - l) 2) ' ' ++ sh

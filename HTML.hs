@@ -75,8 +75,8 @@ extractPics = mapMaybe (\t -> ifJust (tagType t == "img" && hasAttrib "src" t) (
 
 cGridH tag = padRWith (Text "") $ expandV4 $ map (expand . findTrees (\t -> tagType t `elem` ["td", "th"])) (findTypes "tr" tag)
 cGrid = transpose . cGridH
-
-gridH = Tag "table" [] . map (Tag "tr" [] . map cell)
+-----------------------------------------------------------------------------------------------------------------------------------
+gridH = Tag "table" [] . map (Tag "tr" [] . map (Tag "td" []))
 grid = gridH . transpose
 
 --cellA ats (Tag "td" atsin inin) = Tag "td" (mergeAttribs1 ats atsin) inin
@@ -227,6 +227,7 @@ writeFileBinary name dat = do
 readHTTP m url = do
   nsr <- simpleHTTP m (getRequest url)
   return $ responseBody nsr
+
 
 readNestedUrl m url = unsafePerformIO $ readNestedUrl1 m url
 
@@ -413,7 +414,6 @@ setAttrib a v t = setAttribs t $ setAttrib1 (a, v) $ attribs t
 delAttrib a t = setAttribs t $ filter ((a /=) . fst) $ attribs t
 mbAttrib a t = lookup a (attribs t)
 hasAttrib a t = isJust $ mbAttrib a t
-
 -- tagAttrib a t = fromJust $ mbAttrib a t
 tagAttrib a t = fromMaybe "" $ mbAttrib a t
 tagId = tagAttrib "id"
@@ -565,15 +565,17 @@ tag =
       empty <- option False (do char '/'; return True)
       char '>'
 
-      -- if name == "script" && not end
-      --   then manyTill anyChar (try $ string "</script>")
-      --   else return ""
-      if end
-        then return $ EndTag name
+      if name == "script" && not end
+        then do
+          script <- manyTill anyChar (try $ string "</script>")
+          return $ Tag name attribs [Text script]
         else
-          if empty
-            then return $ EmptyTag name attribs
-            else return $ Tag name attribs []
+          if end
+            then return $ EndTag name
+            else
+              if empty
+                then return $ EmptyTag name attribs
+                else return $ Tag name attribs []
   )
     <?> "Tag"
 
@@ -933,3 +935,14 @@ putMap m = putGrid $ transpose $ map showT $ M.toList m
 putMap1 = putGrid . transposez "" . sortOn (readInt . (!! 2)) . map (uncurry (:)) . M.toList
 
 putMap2 = putGrid . transposez "" . sortOn (readInt . (!! 2)) . map (\(a, b :: [Int]) -> a : map show b) . M.toList
+
+lego = concatMap (findTrees (attribIs "data-test" "pab-item")) $ concatMap (\p -> findTrees (attribIs "data-test" "pab-search-results-list") $ readNested $ "/home/brett/swissarmyknife/.cache/lego"++show p++".html") [1..5]
+
+dropBut n l = drop (length l - n) l
+
+lego1 = sort $ map (\item -> let
+  title = extractText $ findTree (attribIs "data-test" "pab-item-title") item
+  img = dropBut 11 $ tagAttrib "src" $ findType "img" $ findTree (attribIs "data-test" "pab-item-image") item
+  in (title, take 7 img, img)) lego
+
+lego2 = writeFileBinary ".cache/lego.html" $ lbsofs $ formatH 1 $ Tag "table" [] $ map (\(title, n, img) -> Tag "tr" [] [Tag "td" [] [Text n], Tag "td" [] [Text title], Tag "td" [] [Tag "image" [("src", img)] []]]) lego1

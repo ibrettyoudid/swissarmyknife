@@ -102,11 +102,11 @@ instance Category Iso where
                  (unapply g >=> unapply f)
   id     =  Iso  Just Just
 
+{-
 infix 5 <$>
-
 class IsoFunctor f where
   (<$>) :: Iso alpha beta -> (f alpha -> f beta)
-
+-}
 ignore :: alpha -> Iso alpha ()
 ignore x = Iso f g where
   f _   =  Just ()

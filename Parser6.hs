@@ -17,6 +17,7 @@ import Data.Char
 import Data.Map qualified as M
 import Data.List
 import Data.Maybe
+import Control.Monad
 
 import Debug.Trace
 import Unsafe.Coerce
@@ -632,11 +633,9 @@ t3 = parse hostport "www.deathmetal.org:443"
 
 t4 = parse1 int () "443"
 
-fd :: (Typeable a, Typeable b) => (a -> Maybe b) -> Dynamic -> Maybe Dynamic
-fd f x = fmap toDyn $ f $ fromDyn1 x
+fd f x = do d <- fromDynamic x; r <- f d; return $ toDyn r
 
-isod :: (Typeable a1, Typeable a2) => (a1 -> Maybe a2) -> (a2 -> Maybe a1) -> Iso Dynamic Dynamic
-isod f g = Iso (fd f) (fd g)
+isod (Iso f g) = Iso (fd f) (fd g)
 
 totald :: (Typeable a, Typeable b) => (a -> b) -> (b -> a) -> Iso Dynamic Dynamic
 totald f g = Iso (fd (Just . f)) (fd (Just . g))

@@ -31,8 +31,8 @@ listState = do
 listStateIO :: ListT (StateT String IO) Char
 listStateIO = do
    lift $ lift $ print "hello"
-   a <- lift token
-   b <- lift token
+   a <- token
+   b <- token
    cons a empty
    return a
 
@@ -42,12 +42,12 @@ stateListIO = do
    put a
    return b
 
-token = do
+token1 = do
    (h:t) <- get
    put t
    return h
 
-x = lift token
+token = lift token1
 
 class Syntax d where
    seq1 :: d a -> d b -> d (a, b)
@@ -59,7 +59,7 @@ instance Monad m => Syntax m where
       rb <- b
       return (ra, rb)
 
-   alt1 a b = join $ cons a $ cons b empty
+   --alt1 a b = a <|> b
 
 app :: (t -> Maybe b) -> Parser t -> Parser b
 app f a = do
@@ -67,10 +67,7 @@ app f a = do
    maybe empty return (f ra)
 
 alt :: Parser a -> Parser a -> Parser a
-alt a b = do
-   ra <- a
-   rb <- b
-   cons ra $ cons rb empty
+alt a b = a <|> b
    --join $ cons a $ cons b empty
 
 type Parser a = ListT (StateT String IO) a
@@ -81,12 +78,12 @@ sq a b = do
    rb <- b
    return (ra, rb)
 
-test = evalStateT syn "hello"
+test = parse syn "hello"
 
-syn :: (MonadFail m1, Monad m2, MonadTrans t, MonadState [b] m1) => t (ListT m2) (m1 (b, b))
+syn :: Parser (Char, Char)
 syn = alt (sq token token) (sq token token)
 
-parse = toList
+parse p = evalStateT (toList p)
 {-
 ioList = do
    a <- lift getLine

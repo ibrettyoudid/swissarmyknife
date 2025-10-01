@@ -134,6 +134,7 @@ library
         Levenshtein,
         MHash, 
         MHashDynamic, 
+        MHashDynamic2,
         Matrix, 
         MyPretty2, 
         NumberParsers,

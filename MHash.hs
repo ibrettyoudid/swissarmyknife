@@ -89,7 +89,8 @@ repl1 env = do
     else return li
   putStrLn li2
   putStrLn "parsing"
-  ex <- head <$> S3.parseIO expr li2
+  --ex <- head <$> S3.parseIO expr li2
+  let ex = Value u 0
   putStrLn "doing vars"
   let ex1 = runDoVars ex (map fconstr env)
   putStrLn "print ex"
