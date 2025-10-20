@@ -192,9 +192,9 @@ integratei n f a =
 
 percofiq sd iq = integratei 10 normalstd ((iq - 100) / sd)
 
-iqofperc sd perc = falsePos1 (percofiq sd) 0.00000001 perc $ getBrackets1 (percofiq sd) 100 (percofiq sd 100) 0.5 2 5 90 perc
+iqofperc sd perc = let f = findy (percofiq sd) perc in falsePos1 0.00000001 f $ getBrackets1 0.5 2 5 90 f 100 (f 100)
 
-differentiate f x = (f (x + 0.001) - f x) * 1000
+differentiate d f x = (f (x + d) - f x) / d
 
 accumulate xs = scanl (+) 0 xs
 
@@ -356,7 +356,7 @@ goatArea l =
     in
       r ^ 2 * theta - r ^ 2 * sin theta * cos theta + l ^ 2 * phi - l ^ 2 * sin phi * cos phi
 
-go = secantMethod goatArea (100 :: Int) (50 :: Double) (150 :: Double) (pi * 5000)
+go = secantMethod (100 :: Int) (50 :: Double) (150 :: Double) (findy goatArea (pi * 5000))
 
 goatArea2 l =
    let
@@ -382,104 +382,4 @@ goatArea3 l r x y =
     in
       r1 < r && l1 < l
 
-
-
-hypercatalan m = fac (e m - 1) `div` (fac (v m - 1) * product (map fac m))
-
-v m = 2 + sum (zipWith (*) [1..] m)
-
-e m = 1 + sum (zipWith (*) [2..] m)
-
-facpower x n = x ^ n % fac n
-
-iterateM f x n = foldl (>>=) (return x) $ replicate n f
-
-polysol1M c n x = iterateM ps2 x n
-   where
-      ps2a = polysol2M (length c)
-      ps2 x = ps2a (shift x c)
-
-polysol2M cl = \c -> do
-   let terms = map ($ c) ps3
-   mapM_ (\x -> putStrLn $ showFFloat (Just 20) x "") terms
-   putStrLn ""
-   putStrLn $ showFFloat (Just 20) (sum terms) ""
-   putStrLn ""
-   return $ sum terms
-   where
-      ps3 = map polysol5 $ corner cl cl
-
-polysol1 c = iterate ps2 0
-   where
-      ps2 x = polysol2 (length c) (shift x c)
-
-polysol2 cl = \c -> sum $ map ($ c) ps3
-   where
-      ps3 = map polysol5 $ corner cl cl
-
-polysol3 m c = (1 % c !! 1) * facpower (c !! 0) (v m - 1) / facpower (c !! 1) (e m - 1) * product (zipWith facpower (drop 2 c) m)
-
-polysol4 m c = hypercatalan m * (c !! 0 ^ (v m - 1) % c !! 1 ^ e m) * (product (zipWith (^) (drop 2 c) m) % 1)
-
-polysol5 m = \c -> h * (c !! 0 ^^ vm1 / c !! 1 ^^ em) * product (zipWith (^) (drop 2 c) m)
-    where
-         h = fromIntegral $ hypercatalan m
-         vm1 = v m - 1
-         em = e m
-
-corner  0 _ = [[]]
-corner  1 n = map singleton [0, 1..n]
-corner ml n = concatMap (\q -> map (q :) $ corner (ml-1) (n-q)) [0..n]
-
-shift s cs = map sum $ transpose $ zipWith (\c -> reverse . zipWith (*) (iterate (*s) 1) . map ((*c) . fromIntegral)) cs pascal
-
-poly c x = sum $ zipWith (*) c $ iterate (*x) 1
-
-newtype Poly a = Poly [a]
-
-instance (Eq a, Num a) => Eq (Poly a) where
-   a == b = polyempty (a - b)
-
-instance (Eq a, Num a) => Num (Poly a) where
-   Poly as * Poly bs = Poly $ map sum $ zipWith (\a z -> replicate z 0 ++ map (a*) bs) as [0..]
-   Poly as + Poly bs = Poly $ snarf $ zerozip (+) as bs 
-   Poly as - Poly bs = Poly $ snarf $ zerozip (-) as bs 
-   fromInteger a = Poly [fromInteger a]
-   abs (Poly as) = Poly $ map abs as
-   
-polydiv (/) n@(Poly ns) d@(Poly ds) = let 
-   ln = length ns
-   ld = length ds
-   q = Poly $ replicate (ln - ld) 0 ++ [last ns / last ds]
-   r = n - q * d
-   (q1, r1) = polydiv (/) r d
-   in if ln >= ld then (q + q1, r1) else (Poly [], n)
-
-snarf as = reverse $ dropWhile (==0) $ reverse as
-
-zerozip f a b = let
-   [a1, b1] = padRWith 0 [a, b]
-   in zipWith f a1 b1
-
-polyempty (Poly as) = null as
-
-at (Poly as) = poly as
-
-root r = Poly [-r, 1]
-
-withRoots rs = product $ map root rs
-{-
-x^2+x+1
-
-x=y+5
-(y+5)^2+(y+5)+1
-(y^2+10*y+25)+(y+5)+1
-
-5(y+10)^5+4(y+10)^4+3(y+10)^3+2(y+10)^2+1(y+10)+0
-(y^5+20*y^4+150*y^3+
-
-
-(y+10)^3
-(y^3+300y^2
--}
 main = putStrLn "hello world"

@@ -16,8 +16,8 @@ module Syntax3 where
 
 import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 
+import Iso
 import SyntaxCIPU
-import SyntaxTH
 
 import Prelude hiding (foldl, foldr, id, iterate, print, pure, (*<), (.), (>$<), (>*), (>*<))
 import Prelude qualified
@@ -95,44 +95,7 @@ class SyntaxP f where
 class SyntaxToken delta tok where
 {-
 \*********************************************************************************
-SINCE I KNOW NOTHING ABOUT TEMPLATE HASKELL I HAVE COMMENTED THIS BIT OUT
-and tried to guess the 4 definitions below
 -}
-defineIsomorphisms ''Either
-defineIsomorphisms ''Maybe
-
-{-
-just :: Iso alpha (Maybe alpha)
-just = Iso (Just . Just) id
-
-nothing :: Iso () (Maybe alpha)
-nothing = Iso (const Nothing) (\Nothing -> Just ())
-
-left :: Iso alpha (Either alpha beta)
-left =
-  Iso
-    (Just . Left)
-    ( \case
-        Left x -> Just x
-        Right x -> Nothing
-    )
-
-right :: Iso beta (Either alpha beta)
-right =
-  Iso
-    (Just . Right)
-    ( \case
-        Left x -> Nothing
-        Right x -> Just x
-    )
--}
-instance Category Iso where
-  g . f =
-    Iso
-      (apply f >=> apply g)
-      (unapply g >=> unapply f)
-  id = Iso Just Just
-
 -- derived combinators
 many p =  nil  >$< pure ()
       <|> cons >$< p >*< many p
@@ -145,9 +108,7 @@ p <+> q = (left >$< p) <|> (right >$< q)
 --text :: (Eq char, Show char, Syntax delta) => [char] -> delta ()
 text [] = pure ()
 text (c : cs) =
-  inverse (match ((), ()))
-    >$< (inverse (match c) >$< token)
-    >*< text cs
+  inverse (match ((), ())) >$< (inverse (match c) >$< token) >*< text cs
 
 {- | This variant of `>*<` ignores its left result.
 In contrast to its counterpart derived from the `Applicative` class, the ignored
@@ -736,7 +697,6 @@ charToWord8 = fromIntegral . ord
 word8ToChar = chr . fromIntegral
 
 -- convert a total function and its inverse to a partial isomorphism
-total f g = Iso (Just . f) (Just . g)
 
 -- an involution is a function that is its own inverse, such as reverse or unary minus
 -- convert an involution to an Iso
@@ -758,184 +718,6 @@ f </> g =
 
 swap a b c = if c == a then Just b else Nothing
 
--------------------------------------------------------------------------------
--- Control.Isomorphism.Partial.Unsafe
--- moved to SyntaxCIPU.hs
-
--- Control.Isomorphism.Partial.Prim
-inverse :: Iso alpha beta -> Iso beta alpha
-inverse (Iso f g) = Iso g f
-
-apply :: Iso alpha beta -> alpha -> Maybe beta
-apply (Iso f _) = f
-
-unapply :: Iso alpha beta -> beta -> Maybe alpha
-unapply = apply . inverse
-
-ignore :: alpha -> Iso alpha ()
-ignore x = Iso f g
- where
-  f _ = Just ()
-  g () = Just x
-
--- | the product type constructor `(,)` is a bifunctor from
-
--- `Iso` $\times$ `Iso` to `Iso`, so that we have the
-
--- bifunctorial map `***` which allows two separate isomorphisms
-
--- to work on the two components of a tuple.
-
-(***) :: Iso alpha beta -> Iso gamma delta -> Iso (alpha, gamma) (beta, delta)
-i *** j = Iso f g
- where
-  f (a, b) = liftM2 (,) (apply i a) (apply j b)
-  g (c, d) = liftM2 (,) (unapply i c) (unapply j d)
-
--- | The mediating arrow for sums constructed with `Either`.
-
--- This is not a proper partial isomorphism because of `mplus`.
-
-(|||) :: Iso alpha gamma -> Iso beta gamma -> Iso (Either alpha beta) gamma
-i ||| j = Iso f g
- where
-  f (Left x) = apply i x
-  f (Right x) = apply j x
-  g y = (Left `fmap` unapply i y) `mplus` (Right `fmap` unapply j y)
-
--- | Nested products associate.
-associate :: Iso (alpha, (beta, gamma)) ((alpha, beta), gamma)
-associate = Iso f g
- where
-  f (a, (b, c)) = Just ((a, b), c)
-  g ((a, b), c) = Just (a, (b, c))
-
--- | Products commute.
-commute :: Iso (alpha, beta) (beta, alpha)
-commute = Iso f f
- where
-  f (a, b) = Just (b, a)
-
--- | `()` is the unit element for products.
-unit :: Iso alpha (alpha, ())
-unit = Iso f g
- where
-  f a = Just (a, ())
-  g (a, ()) = Just a
-
--- | Products distribute over sums.
-distribute :: Iso (alpha, Either beta gamma) (Either (alpha, beta) (alpha, gamma))
-distribute = Iso f g
- where
-  f (a, Left b) = Just (Left (a, b))
-  f (a, Right c) = Just (Right (a, c))
-  g (Left (a, b)) = Just (a, Left b)
-  g (Right (a, b)) = Just (a, Right b)
-
--- | `element x` is the partial isomorphism between `()` and the
-
--- singleton set which contains just `x`.
-
-match :: (Eq alpha) => alpha -> Iso () alpha
-match x =
-  Iso
-    (\() -> Just x)
-    (\b -> if x == b then Just () else Nothing)
-
-match1 x =
-  Iso
-    (\x1 -> if x == x1 then Just x else Nothing)
-    (\x1 -> if x == x1 then Just x else Nothing)
-
--- | For a predicate `p`, `subset p` is the identity isomorphism
-
--- restricted to elements matching the predicate.
-
-satisfy :: (alpha -> Bool) -> Iso alpha alpha
-satisfy p = Iso f f
- where
-  f x | p x = Just x | otherwise = Nothing
-
-iterate :: Iso alpha alpha -> Iso alpha alpha
-iterate step = Iso f g
- where
-  f = Just . driver (apply step)
-  g = Just . driver (unapply step)
-
-  driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
-  driver step' state =
-    case step' state of
-      Just state' -> driver step' state'
-      Nothing -> state
-
--- Control.Isomorphism.Partial.Derived
-foldl :: Iso (alpha, beta) alpha -> Iso (alpha, [beta]) alpha
-foldl i =
-  inverse unit
-    . (id *** inverse nil)
-    . iterate (step i)
- where
-  step i' =
-    (i' *** id)
-      . associate
-      . (id *** inverse cons)
-
--- Control.Isomorphism.Partial.Constructors
-{-
-module Control.Isomorphism.Partial.Constructors
-  ( nil
-  , cons
-  , listCases
-  , left
-  , right
-  , nothing
-  , just
-  ) where
-import Prelude ()
-
-import Data.Either (Either (Left, Right))
-import Data.Maybe (Maybe (Just, Nothing))
--}
-
-nil :: Iso () [alpha]
-nil = Iso f g
- where
-  f () = Just []
-  g [] = Just ()
-  g _ = Nothing
-
-cons :: Iso (alpha, [alpha]) [alpha]
-cons = Iso f g
- where
-  f (x, xs) = Just (x : xs)
-  g (x : xs) = Just (x, xs)
-  g _ = Nothing
-
-listCases :: Iso (Either () (alpha, [alpha])) [alpha]
-listCases = Iso f g
- where
-  f (Left ()) = Just []
-  f (Right (x, xs)) = Just (x : xs)
-  g [] = Just (Left ())
-  g (x : xs) = Just (Right (x, xs))
-
--------------------------------------------------------------------------------
-foldl1 i =
-  -- alpha
-  inverse unit
-    -- (alpha, ())
-    . (id *** inverse nil)
-    -- (alpha, [beta])
-    . iterate (step i)
-
--- (alpha, [beta])
-
-step i =
-  (i *** id)
-    . associate
-    . (id *** inverse cons)
-
--------------------------------------------------------------------------------
 {-
 myfoldr f = (z, []    ) <=> []
         <|> (z, (x:xs)) <=> (f x (myfoldr f z xs))

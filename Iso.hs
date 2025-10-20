@@ -1,9 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 --module Control.Isomorphism.Partial.Constructors 
-module Iso where
+module Iso
+(
+  module Iso,
+  module SyntaxCIPU
+)
+where
 
 import SyntaxTH
+import SyntaxCIPU
 
 import Prelude (Show, show)
 
@@ -41,9 +47,6 @@ import Data.Char (toLower)
 --import Data.Maybe (Maybe ())
 
 -- module Control.Isomorphism.Partial.Unsafe
-
-data Iso alpha beta 
-  = Iso (alpha -> Maybe beta) (beta -> Maybe alpha)
 
 instance Show (Iso a b) where
   show i = "iso"
@@ -178,6 +181,10 @@ iterate step = Iso f g where
     =  case step state of
          Just state'  ->  driver step state'
          Nothing      ->  state
+
+match c = Iso (\x -> Just c) (\x -> if x == c then Just () else Nothing)
+
+match1 c = satisfy (==c)
 
 total f g = Iso (Just . f) (Just . g)
 

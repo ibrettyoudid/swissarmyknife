@@ -2,24 +2,25 @@
 {-# HLINT ignore "Fuse foldr/map" #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Move filter" #-}
+{-# HLINT ignore "Parenthesize unary negation" #-}
 module Sound where
 
 import Favs
+import Poly
+
 import Data.List
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Ratio
-import Numeric
+import Debug.Trace
 
-freq1 (c0:c1:c2:_) = let
-   d1 = c2+c0-2*c1 -- (c2-c1)-(c1-c0)
-   in sqrt (-d1/c1)
+freq1 (c0:c1:c2:_) = cos ((c2+c0)/(2*c1))
 
 wave f = map sin [0,f..]
 
 test w = map (\n -> freq $ drop n w) [0..]
 
-freq4 w = secantMethod (freq1 . wave) (freq1 w) (freq1 w / 2) (freq1 w * 2) 10
+freq4 w = secantMethod 10 (freq1 w / 2) (freq1 w * 2) (freq1 . wave)
 
 {-  
 a0+b0=c0
@@ -111,58 +112,47 @@ t0=w0+x0+y0+z0
 p^2+q^2 = 1
 r^2+s^2 = 1
 
-t5 = (p^2-q^2)x3+2pqy3 + (r^2-s^2)w3+2rsz3
-t4 = px3+qy3 + rw3+sz3
-t2 = px3-qy3 + rw3-sz3
-t4+t2 = 2px3 + 2rw3
-t4-t2 = 2qy3 + 2sz3
+t5 = px4+qy4 + rw4+sz4
+t3 = px4-qy4 + rw4-sz4
 
-t1 = (p^2-q^2)x3-2pqy3 + (r^2-s^2)w3-2rsz3
+t5+t3 = 2px4 + 2rw4
+t5-t3 = 2qy3 + 2sz3
 
-t5+t1 = 2(p^2-q^2)x3 + 2(r^2-s^2)w3
-t5-t1 = 4pqy3  + 4rsz3
+t6 = (p^2-q^2)x4+2pqy4 + (r^2-s^2)w4+2rsz4
+t2 = (p^2-q^2)x4-2pqy4 + (r^2-s^2)w4-2rsz4
 
-t6 = (p^3-3pq^2)x3 + (3p^2q-q^3)y3 + (r^3-3rs^2)w3 + (3r^2s-s^3)z3
-t0 = (p^3-3pq^2)x3 - (3p^2q-q^3)y3 + (r^3-3rs^2)w3 - (3r^2s-s^3)z3
+t6+t2 = 2(p^2-q^2)x4 + 2(r^2-s^2)w4
+t6-t2 = 4pqy4  + 4rsz4
 
-t6+t0 = 2(p^3-3pq^2)x3 + 2(r^3-3rs^2)w3
-t6-t0 = 2(3p^2q-q^3)y3 + 2(3r^2s-s^3)z3
+t7 = (p^3-3pq^2)x4 + (3p^2q-q^3)y4 + (r^3-3rs^2)w4 + (3r^2s-s^3)z4
+t1 = (p^3-3pq^2)x4 - (3p^2q-q^3)y4 + (r^3-3rs^2)w4 - (3r^2s-s^3)z4
 
-t6+t0 = 2(p^3-3pq^2)x3 + 2(r^3-3rs^2)w3 
-t5+t1 = 2(p^2-q^2)  x3 + 2(r^2-s^2)  w3
-t4+t2 = 2p          x3 + 2r          w3
+t7+t1 = 2(p^3-3pq^2)x4 + 2(r^3-3rs^2)w4
+t7-t1 = 2(3p^2q-q^3)y4 + 2(3r^2s-s^3)z4
 
-t6+t0 = 2(p^3-3p(1-p^2))x3 + 2(r^3-3r(1-r^2)w3 
-t6+t0 = 2(-3p-2p^3))x3 + 2(-3r-2r^3)w3 
-t6+t0 = (-4p^3 - 6p)x3 + (-4r^3 - 6r)w3 
+t7+t1 = 2(p^3-3pq^2)x4 + 2(r^3-3rs^2)w4 
+t6+t2 = 2(p^2-q^2)  x4 + 2(r^2-s^2)  w4
+t5+t3 = 2p          x4 + 2r          w4
 
-q^2 = 1-p^2
+t7+t1 = 2(p^3-3p(1-p^2))x4 + 2(r^3-3r(1-r^2)w4
+t7+t1 = 2(-3p-2p^3))x4 + 2(-3r-2r^3)w4
+t7+t1 = (-4p^3 - 6p)x4 + (-4r^3 - 6r)w4
 
-p^2-q^2+p^2+q^2 = p^2-q^2+1 = 2p^2
-p^2-q^2 = 2p^2 - 1
-t5+t1 = 2(2p^2-1)  x3 + 2(2r^2-1)  w3
+t8 = (p^4-6p^2q^2+q^4)x4 + (4p^3q-4pq^3)y4
+t0 = (p^4-6p^2q^2+q^4)x4 - (4p^3q-4pq^3)y4
+t8+t0     = (2p^4-12p^2q^2+2q^4)x4
+4*(t6+t2) = (8p^2-8q^2)x4
+6*t4      = 6x4
+A         = 2p^4-12p^2(1-p^2)+2(1-p^2)^2 + 8p^2-8(1-p^2) + 6
+          = 2p^4-12p^2+12p^4+2+2p^4-4p^2 + 8p^2-8+8p^2 + 6
+          = 2p^4+12p^4+2p^4-12p^2-4p^2+8p^2+8p^2 + 6+2-8
+          = 16p^4x
 
-t6+t0 = (-4p^3-6p)x3 + (-4r^3 - 6r)w3 
-t5+t1 = (4p^2-2)x3 + (4r^2-2)w3
-t4+t2 = 2p          x3 + 2r          w3
-t3    = x3 + w3
--4p^3x3 -4r^3w3 = 3(t4+t2)+(t6+t0) 
- 4p^2x3 +4r^2w3 = t5+t1+2*t3       
- 2p  x3 +2r  w3 = t4+t2            
-     x3 +    w3 = t3               
-                                        
--4p^3x -4r^3w  = 3(t4+t2)+(t6+t0) 
- 4p^2x +4r^2w  = t5+t1+2*t3       
- 2p  x +2r  w  = t4+t2            
-     x +    w  = t3               
-
-a = 3*(t4+t2)+(t6+t0)
-b = t5+t1+2*t3
-c = t4+t2
-d = t3
-
-sq = 4*a^2*d^2+12*a*b*c*d-8*a*c^3+4*b^3*d-3*b^2*c^2
-   = 64*(p^6x^2+r^6w^2+2p^3r^3xw)*(x^2+w^2+2xw)+12*(-16p^5x^2-16r^5w^2
+A = t0+4*t2+6*t4+4*t6+t8
+a = t1+3*t3+3*t5+t7
+b = t2+2*t4+t6
+c = t3+t5
+d = t4
 
 A =  16p^4x+16r^4w
 a =  -4p^3x -4r^3w
@@ -184,13 +174,52 @@ a =  -4p^3x -4r^3d+4r^3x
 b =   4p^2x +4r^2d-4r^2x
 c =   2p  x +2r  d-2rx
 
+A = 16(p^4-r^4)x + 16r^4d
 a = 4(r^3-p^3)x - 4r^3d
 b = 4(p^2-r^2)x + 4r^2d
 c = 2(p-r)x     + 2rd
 
-a + 4r^3d = 4(r^3-p^3)x
-b - 4r^2d = 4(p^2-r^2)x
-c - 2rd   = 2(p-r)x    
+A + 16r^4d = 16(p^4-r^4)x
+4a + 16r^3d = 16(r^3-p^3)x
+4b - 16r^2d = 16(p^2-r^2)x
+8c - 16rd   = 16(p-r)x    
+
+A + 16r^4d = 16(p+r)^2(p-r)^2x
+4b - 16r^2d = 16(p+r)(p-r)x
+8c - 16rd   = 16(p-r)x
+
+A+16r^4d = (p^2-r^2)(4b - 16r^2d)
+A+16r^4d = 4bp^2 - 16p^2r^2 - 4br^2 + 16r^4d
+A        = 4bp^2 - 16p^2r^2 - 4br^2
+A        = p^2(4b - 16r^2) - 4br^2
+A + 4br^2 = p^2(4b - 16r^2)
+(A + 4br^2)/(4b - 16r^2) = p^2
+
+
+4b-16r^2d = (p+r)(8c - 16rd)
+4b-16r^2d = 8cp - 16prd + 8cr - 16r^2d
+4b = 8cp - 16prd + 8cr
+4b = p(8c - 16rd) + 8cr
+p = (b - 2cr)/(2c - 4rd)
+
+(A + 4br^2)/(4b - 16r^2) = (b - 2cr)^2/(2c - 4rd)^2
+(A + 4br^2)(2c - 4rd)^2 = (b - 2cr)^2(4b - 16r^2)
+(A + 4br^2)(4c^2 + 16d^2r^2 - 8cdr) = (b^2 + 4c^2r^2 - 2bcr)(4b - 16r^2)
+4Ac^2 + 16Ad^2r^2 - 8Acdr + 16bc^2r^2 + 64bd^2r^4 - 32bcdr^3 = 4b^3 + 16bc^2r^2 - 8b^2cr + 16b^2r^2 + 64c^2r^4 - 32bcr^3
+64(bd^2-c^2)r^4 + 32(bc - bcd)r^3 + 16(Ad^2 - b^2)r^2 + 8(b^2c - Acd)r + 4(Ac^2 - b^3) = 0
+solve $ Poly [4*(a*d^2-c^3), 8*(c^2*d - a*d*e), 16*(a*e^2 - c^2), 32*(c*d - c*d*e), 64*(c*e^2 - d^2)]
+
+(4b - 16r^2d)/(c/2 - rd) = (p^2-r^2)/(p-r)
+p^2-r^2/(p-r) = (p+r)(p-r)/(p-r)
+(b/4 - r^2d)/(c/2 - rd) = p + r
+(b/4 - r^2d) = (p+r)(c/2 - rd)
+b - 4r^2d = 2(p+r)(c - 2rd)
+b - 4r^2d = 2cp - 4prd + 2cr - 4r^2d
+b = 2cp - 4prd + 2cr
+b = 2p(c - 2rd) + 2cr
+b - 2cr = 2p(c - 2rd)
+(b-2cr)/(2c-4rd) = p
+
 
 (a/4 + r^3d)/(r^3-p^3) = x
 (b/4 - r^2d)/(p^2-r^2) = x
@@ -230,11 +259,6 @@ dr^3 - cr^2/4 + br/8              = (2c+dr)/4(p + (4dr^2-b)/(8c+4dr))^2 - (4dr^2
 2*sqrt(dr^3 - cr^2/4 + br/8 - (4dr^2-b)^2/(32c+16dr))/sqrt(2c+dr) = (p + (4dr^2-b)/(8c+4dr))
 2*sqrt(dr^3 - cr^2/4 + br/8 - (4dr^2-b)^2/(32c+16dr))/sqrt(2c+dr) - (4dr^2-b)/(8c+4dr) = p 
 
-(b/4 - r^2d)/(c/2 - rd) = (p^2-r^2)/(p-r)
-
-
-
-
 
 2px = c - 2rw
 p  = (c - 2rw)/2x
@@ -252,7 +276,7 @@ x  = (c/2 - rw)/p
 (b/4 - r^2w)^2 = -(a/4 - r^3w)(c/2 - rw)
 b/16 + r^4w^2 - br^2w/2 = -ac/8 - r^4w^2 + cr^3w/2 - arw/4
 2r^4w^2 - cr^3w/2 - br^2w/2 - arw/4 + b/16  + ac/8 = 0
-r^4w^2  - cr^3w/4 - br^2w/8 - arw/8 + ac/16 + b/32 = 0
+r^4w^2  - cr^3w/4 - br^2w/4 - arw/8 + ac/16 + b/32 = 0
 
 
 x  = (b - 4r^2(d-x))/4p^2
@@ -393,21 +417,23 @@ wop2 a b = zipWith (+) (wop a) (wop b)
 pow2 xs = paramsOfWave2 xs
 pow2a = paramsOfWave2a
 
+wopn ps = map sum $ transpose $ map wop ps
+
 test1 = solvepolys [
-                Poly "pxrwabcd" [([3,1,0,0,0,0,0,0],-4), ([0,0,3,1,0,0,0,0], -4), ([0,0,0,0,1,0,0,0], 1)],
-                Poly "pxrwabcd" [([2,1,0,0,0,0,0,0], 4), ([0,0,2,1,0,0,0,0],  4), ([0,0,0,0,0,1,0,0], 1)],
-                Poly "pxrwabcd" [([1,1,0,0,0,0,0,0], 2), ([0,0,1,1,0,0,0,0],  2), ([0,0,0,0,0,0,1,0], 1)],
-                Poly "pxrwabcd" [([0,1,0,0,0,0,0,0], 1), ([0,0,0,1,0,0,0,0],  1), ([0,0,0,0,0,0,0,1], 1::Ratio Integer)]
+                MPoly "pxrwabcd" [([3,1,0,0,0,0,0,0],-4), ([0,0,3,1,0,0,0,0], -4), ([0,0,0,0,1,0,0,0], 1)],
+                MPoly "pxrwabcd" [([2,1,0,0,0,0,0,0], 4), ([0,0,2,1,0,0,0,0],  4), ([0,0,0,0,0,1,0,0], 1)],
+                MPoly "pxrwabcd" [([1,1,0,0,0,0,0,0], 2), ([0,0,1,1,0,0,0,0],  2), ([0,0,0,0,0,0,1,0], 1)],
+                MPoly "pxrwabcd" [([0,1,0,0,0,0,0,0], 1), ([0,0,0,1,0,0,0,0],  1), ([0,0,0,0,0,0,0,1], 1::Ratio Integer)]
     ]
 
 paramsOfWave2 xs = let
-  (t0:t1:t2:t3:t4:t5:t6:_) = map realToFrac xs
+  (t0:t1:t2:t3:t4:t5:t6:t7:t8:_) = map realToFrac xs
   in solvepolys [
-                Poly "pxrw" [([4,1,0,0], 16), ([0,0,4,1], 16)],
-                Poly "pxrw" [([3,1,0,0], -4), ([0,0,3,1], -4), ([0,0,0,0], -(t6+3*t4+3*t2+t0))],
-                Poly "pxrw" [([2,1,0,0],  4), ([0,0,2,1],  4), ([0,0,0,0], -(t5+2*t3+t1))],
-                Poly "pxrw" [([1,1,0,0],  2), ([0,0,1,1],  2), ([0,0,0,0], -(t4+t2))],
-                Poly "pxrw" [([0,1,0,0],  1), ([0,0,0,1],  1), ([0,0,0,0], -t3::Ratio Integer)]
+                MPoly "pxrw" [([4,1,0,0], 16), ([0,0,4,1], 16), ([0,0,0,0], -(t8+4*t6+6*t4+4*t2+t0))],
+                MPoly "pxrw" [([3,1,0,0], -4), ([0,0,3,1], -4), ([0,0,0,0], -(t7+3*t5+3*t3+t1))],
+                MPoly "pxrw" [([2,1,0,0],  4), ([0,0,2,1],  4), ([0,0,0,0], -(t6+2*t4+t2))],
+                MPoly "pxrw" [([1,1,0,0],  2), ([0,0,1,1],  2), ([0,0,0,0], -(t5+t3))],
+                MPoly "pxrw" [([0,1,0,0],  1), ([0,0,0,1],  1), ([0,0,0,0], -t4::Ratio Integer)]
     ]
 
 solvepolys polys = {- buchberger compare $ reorder compare $ -} buchberger2D grevlex polys
@@ -480,20 +506,20 @@ reorder order polys = M.fromList $ mapfxx (leading order) $ map snd $ M.toList p
 
 type Mono coeff = ([Int], coeff)
 
-data Poly coeff = Poly {  vars :: String, terms :: [Mono coeff] }
+data MPoly coeff = MPoly {  vars :: String, terms :: [Mono coeff] }
 
-instance (Show coeff, Num coeff, Ord coeff, Real coeff) => Show (Poly coeff) where
-  show p@(Poly z ms) = if p == zero then "0" else concatMap (showm z "") ms
+instance (Show coeff, Num coeff, Ord coeff, Real coeff) => Show (MPoly coeff) where
+  show p@(MPoly z ms) = if p == zero then "0" else concatMap (showm z "") ms
 
-instance Eq coeff => Eq (Poly coeff) where
-  Poly z a == Poly zz b = a == b
+instance Eq coeff => Eq (MPoly coeff) where
+  MPoly z a == MPoly zz b = a == b
 
-instance Ord coeff => Ord (Poly coeff) where
-  compare (Poly _ a) (Poly _ b) = compare a b
+instance Ord coeff => Ord (MPoly coeff) where
+  compare (MPoly _ a) (MPoly _ b) = compare a b
 
 showm z ch (pi,  0) = "+0" ++ ch
-showm z ch (pi,  1) = "+"                     ++ concat (zipWith showz pi z) ++ if any (> 0) pi then ch else ""
-showm z ch (pi, -1) = "-"                     ++ concat (zipWith showz pi z) ++ if any (> 0) pi then ch else ""
+showm z ch (pi,  1) = "+"                                       ++ concat (zipWith showz pi z) ++ if any (> 0) pi then ch else ""
+showm z ch (pi, -1) = "-"                                       ++ concat (zipWith showz pi z) ++ if any (> 0) pi then ch else ""
 showm z ch (pi, ci) | ci > 0 = "+" ++ showFF 10 (realToFrac ci) ++ concat (zipWith showz pi z) ++ ch
                     | otherwise =     showFF 10 (realToFrac ci) ++ concat (zipWith showz pi z) ++ ch
 
@@ -509,24 +535,24 @@ mulm (pi, ci) (pj, cj) = (zipWith (+) pi pj, ci*cj)
 
 negm (pi, ci) = (pi, negate ci)
 
-mulpm (Poly z xs) m = Poly z $ map (mulm m) xs
+mulpm (MPoly z xs) m = MPoly z $ map (mulm m) xs
 
-mulpp p (Poly z xs) = foldr addpp (Poly z []) $ map (mulpm p) xs
+mulpp p (MPoly z xs) = foldr addpp (MPoly z []) $ map (mulpm p) xs
 
-addpp (Poly z hi) (Poly _ hj) = Poly z $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
+addpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
 
-subpp (Poly z hi) (Poly _ hj) = Poly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
+subpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
 
-sortp order (Poly z p) = Poly z $ sortBy order p
+sortp order (MPoly z p) = MPoly z $ sortBy order p
 
 rinse xs = filter ((/= 0) . snd) xs
 
-nonzero (Poly z []) = False
+nonzero (MPoly z []) = False
 nonzero _ = True
 
-zero = Poly "" []
+zero = MPoly "" []
 
-leading order (Poly _ p) = minimumBy order p
+leading order (MPoly _ p) = minimumBy order p
 
 mvd order fi fj = let
   gi = leading order fi
@@ -599,21 +625,40 @@ reduce3 order polys fi (fj:fjs) (gi:gis) = do
  2p  x +2r  w  = t4+t2            
      x +    w  = t3               
 -}
-paramsOfWave2a (t0:t1:t2:t3:t4:t5:t6:_) = let
-  a = t6+3*t4+3*t2+t0
-  b = t5+2*t3+t1
-  c = t4+t2
-  d = t3
+paramsOfWave2a (t0:t1:t2:t3:t4:t5:t6:t7:t8:_) = let
+  a = t8+4*t6+6*t4+4*t2+t0
+  b = t7+3*t5+3*t3+t1
+  c = t6+2*t4+t2
+  d = t5+t3
+  e = t4
+  {-
+  a =  16p^4x+16r^4w
+  b =  -4p^3x -4r^3w
+  c =   4p^2x +4r^2w
+  d =   2p  x +2r  w
+  e =       x +    w
 
-  sq = 4*a^2*d^2+12*a*b*c*d-8*a*c^3+4*b^3*d-3*b^2*c^2
-  sqrt1 = sqrt sq
-  p = (2*a*d+b*c - sqrt1) / (4*(c^2-b*d))
-  r = (2*a*d+b*c + sqrt1) / (4*(c^2-b*d))
-  in (acos p, r)
+  t5+t3 = 2px4 + 2rw4
+  t5-t3 = 2qy3 + 2sz3
+  -}
+  
+  (r:_) = check aberth $ Poly [4*(a*d^2-c^3), 8*(c^2*d - a*d*e), 16*(a*e^2 - c^2), 32*(c*d - c*d*e), 64*(c*e^2 - d^2)]
+  s = sqrt (1 - r*r)
+  p = (c - 2*d*r)/(2*d - 4*e*r)
+  q = sqrt (1 - p*p)
+  x = (d/2 - e*r)/(p - r)
+  w = e - x
+  freq1 = acos p
+  freq2 = acos r
+  in (freq1, freq2, s)
 
 pow2b (x0:x1:x2:x3:x4:x5:_) = [pow [x0,x1,x2], pow [x1,x2,x3], pow [x2,x3,x4], pow [x3,x4,x5], pow [x0,x2,x4], pow [x1,x3,x5]]
 
 stagger f xs = map f $ tails xs
+
+
+
+
 {-
 t6 = (p^2-q^2)x4+2pqy4 + (r^2-s^2)w4+2rsz4
 t5 = px4+qy4 + rw3+sz3

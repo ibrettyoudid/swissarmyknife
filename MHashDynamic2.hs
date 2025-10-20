@@ -48,7 +48,7 @@ import Data.Set qualified as S
 
 import Syntax3 hiding (foldl, foldr, print, right)
 import Syntax3 qualified as S3
-import SyntaxCIPU
+import Iso hiding (foldl, foldr, right, (!!))
 
 data NamedValue = NamedValue {nname :: String, nvalue :: Dynamic}
 

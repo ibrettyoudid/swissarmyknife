@@ -40,13 +40,17 @@ main = do
 
   -- Setup the handler to draw the layout.
   on area draw $ updateArea lay
+  withImageSurface FormatRGB24 512 512 $ \surface -> do
+    renderWith surface $ updateArea lay
+    surfaceWriteToPNG surface "out.png"
+
 
   -- Run the whole thing.
   containerAdd win vb
   widgetShowAll win
   mainGUI
 
-updateArea :: PangoLayout -> Render ()
+--updateArea :: PangoLayout -> Render ()
 updateArea lay = do
   setSourceColor $ Color 65535 0 0
   setSourceRGB 1 0 0

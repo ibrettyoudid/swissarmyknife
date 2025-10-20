@@ -24,17 +24,12 @@ import Codec.Picture
 import Codec.Picture.Types
 import Data.List
 import Data.IORef
-import Control.Monad.Trans.Reader
 import System.Directory
 import System.Process
 
 import Graphics.UI.Gtk
-import Graphics.UI.Gtk.Abstract.Widget
--- import Graphics.UI.Gtk.Abstract.Widget
-import Graphics.UI.Gtk.Misc.DrawingArea
 import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo qualified as Cairo
-import Graphics.UI.Gtk.Gdk.EventM
 
 -- import Graphics.UI.Gtk.General.Structs
 
@@ -912,16 +907,16 @@ main2 = do
 
    fitXsW <- buttonNewWithLabel "Fit red lines to black crosses"
    zoomed <- drawingAreaNew
-   boxPackStart vb1 latw      PackGrow 0
-   boxPackStart vb1 longw     PackGrow 0
-   boxPackStart vb1 zoom      PackGrow 0
-   boxPackStart vb1 zoom1     PackGrow 0
-   boxPackStart vb1 fineAdjXW PackGrow 0
-   boxPackStart vb1 fineAdjYW PackGrow 0
-   boxPackStart vb1 fitXsW    PackGrow 0
-   boxPackStart vb  vb1       PackGrow 0
+   boxPackStart vb1 latw      PackNatural 0
+   boxPackStart vb1 longw     PackNatural 0
+   boxPackStart vb1 zoom      PackNatural 0
+   boxPackStart vb1 zoom1     PackNatural 0
+   boxPackStart vb1 fineAdjXW PackNatural 0
+   boxPackStart vb1 fineAdjYW PackNatural 0
+   boxPackStart vb1 fitXsW    PackNatural 0
+   boxPackStart vb  vb1       PackNatural 0
    boxPackStart vb  zoomed    PackGrow 0
-   boxPackStart hb  vb        PackGrow 0
+   boxPackStart hb  vb        PackNatural 0
    boxPackStart hb  map1      PackGrow 0
 
    set

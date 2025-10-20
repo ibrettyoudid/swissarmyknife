@@ -15,7 +15,7 @@ import MyPretty2 hiding (format)
 import MHashDynamic hiding (Apply, expr)
 import Iso hiding (foldl, (!!))
 --import Rule
---import Syntax3 hiding (foldl, foldr)
+import Syntax3 hiding (foldl, foldr)
 
 import Control.Monad
 import Control.Monad.State qualified as St
@@ -73,11 +73,11 @@ intiso = total read show
 
 intisod = isod intiso
 
-int = Apply intisod $ Range '0' '9'
+int1 = Apply intisod $ Range '0' '9'
 
 (>>==) = Bind
 
-test = int >>== (\n -> repl n $ Range 'a' 'z', repl2)
+test = int1 >>== (\n -> repl n $ Range 'a' 'z', repl2)
 --icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
 
 {-
@@ -294,6 +294,19 @@ closure1 f done current =
       newnew = new S.\\ done
     in
       if S.null new then done else closure1 f newdone newnew
+
+closure2 f items = closure3 f (S.fromList items) items items
+
+closure3 f doneset done (c:current) = let
+   new = f done current
+   newset = S.fromList new
+   newdoneset = S.union doneset newset
+   newnewset = newset S.\\ doneset
+   newnew = S.toList newnewset
+   newdone = done ++ newnew
+   in
+      if null newnew then done else closure3 f newdoneset newdone newnew
+
 
 process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
@@ -541,7 +554,7 @@ tree2 xs = map Trees xs
 only [x] = x
 
 instance Show z => Show (Tree z) where
-    show tree = format1 1 $ convTree tree
+    show tree = MyPretty2.format1 1 $ convTree tree
 
 convTree (Tree a b) = Data (show a) $ map convTree b
 convTree (Trees b) = Data "TREES" $ map convTree b

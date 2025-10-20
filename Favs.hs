@@ -971,56 +971,36 @@ showFF17 n = showFF 17 n
 showFF d n = pad (d + 3) $ showFFloat (Just d) n ""
 
 -- secantMethod::(Double -> Double) -> Double -> Double -> Double -> Int -> Double
-secantMethod f n lx rx targety = search lx (f lx) rx (f rx) n
- where
-  search lx ly rx ry n =
-    let
-      x = lx + (targety - ly) / (ry - ly) * (rx - lx)
-      y = f x
-     in
-      if n <= 0
-        then x
-        else
-          if y < targety
-            then search x y rx ry (n - 1)
-            else search lx ly x y (n - 1)
+secantMethod n x0 x1 f = search x0 x1 (f x0) (f x1) n
+  where
+    search x0 x1 fx0 fx1 n =
+      let
+        x2 = (x0 * fx1 - x1 * fx0) / (fx1 - fx0)
+        fx2 = f x2
+      in if n <= 0
+          then x2
+          else search x1 x2 fx1 fx2 (n - 1)
 
 -- secantMethodD::(Double -> Double) -> Double -> Double -> Double -> Int -> IO Double
-secantMethodD f n lx rx targety = do
-  putStrLn ("targety=" ++ showFF17 targety)
-  search lx (f lx) rx (f rx) n
- where
-  search lx ly rx ry n = do
-    let x = lx + (targety - ly) / (ry - ly) * (rx - lx)
-    let y = f x
-    putStrLn ("lx=" ++ showFF5 lx ++ " ly=" ++ showFF5 ly ++ " rx=" ++ showFF5 rx ++ " ry=" ++ showFF5 ry ++ " x=" ++ showFF5 x ++ " y=" ++ showFF17 y)
-    if y == targety || n <= 0
-      then return x
-      else
-        if y < targety
-          then search x y rx ry (n - 1)
-          else search lx ly x y (n - 1)
+falsePos epsilon f = falsePos1 epsilon f $ getBrackets f
 
-falsePos f epsilon findy = falsePos1 f epsilon findy $ getBrackets f findy
+falsePos1 epsilon f = loop
+  where
+    loop ((lx, ly), (rx, ry)) = let
+      x = (lx * ry - rx * ly) / (ry - ly)
+      y = f x
+      in if abs y < epsilon
+        then x
+        else case signum ly * signum y of
+          1 -> loop ((x, y), (rx, ry))
+          0 -> x
+          -1 -> loop ((lx, ly), (x, y))
 
-falsePos1 f epsilon findy = loop
- where
-  loop ((lx, ly), (rx, ry)) =
-    if abs y < epsilon
-      then x
-      else case signum ly * signum y of
-        1 -> loop ((x, y), (rx, ry))
-        0 -> x
-        -1 -> loop ((lx, ly), (x, y))
-   where
-    x = (lx * ry - rx * ly) / (ry - ly)
-    y = f x - findy
-
-itp f epsilon findy = itp1 f epsilon findy $ getBrackets f findy
+itp epsilon f = itp1 epsilon f $ getBrackets f
 
 itp1 = itp2 0.1 2 1 
 
-itp2 k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
+itp2 k1 k2 n0 epsilon f ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
  where
   nh = ceiling $ logBase 2 ((rx - lx) / (2 * epsilon))
   nmax = nh + n0
@@ -1033,7 +1013,7 @@ itp2 k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
       delta = k1 * abs (rx - lx) ^ k2
       xt = if delta <= abs (xh - xf) then xf + sigma * delta else xh
       xitp = if abs (xt - xh) <= r then xt else xh - sigma * r
-      yitp = f xitp - findy
+      yitp = f xitp
      in
       if rx - lx > 2 * epsilon
         then case signum yitp of
@@ -1042,9 +1022,9 @@ itp2 k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
           -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
         else xh
 
-itp1d k1 k2 n0 f epsilon findy lx rx = itp2d k1 k2 n0 f epsilon findy ((lx, f lx), (rx, f rx))
+itp1d k1 k2 n0 epsilon f lx rx = itp2d k1 k2 n0 epsilon f ((lx, f lx), (rx, f rx))
 
-itp2d k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
+itp2d k1 k2 n0 epsilon f ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
  where
   nh = ceiling $ logBase 2 ((rx - lx) / (2 * epsilon))
   nmax = nh + n0
@@ -1057,7 +1037,7 @@ itp2d k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry)
       delta = k1 * abs (rx - lx) ^ k2
       xt = if delta <= abs (xh - xf) then xf + sigma * delta else xh
       xitp = if abs (xt - xh) <= r then xt else xh - sigma * r
-      yitp = f xitp - findy
+      yitp = f xitp
      in
       if rx - lx > 2 * epsilon
         then
@@ -1069,27 +1049,27 @@ itp2d k1 k2 n0 f epsilon findy ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry)
               -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
         else [(xh, lx, rx, ly, ry, j, nh, nmax, r, xf, sigma, delta, xt, xitp, yitp)]
 
-getBrackets f = getBrackets1 f 0 (f 0) 0.9 2 1 2
+getBrackets f = getBrackets1 6 11 1 2 f 0 (f 0) 
 
-getBrackets1 f c fc smult zmult s z findy = loop s z
- where
-  loop s z =
-    let
-      fxs = mapxfx (sub f findy) [c - z, c - z + s .. c + z]
-     in
-      case find (\(_, a) -> fc * a < 0) fxs of
-        Just b -> maybeSwap ((c, fc), b)
-        Nothing -> loop (s * smult) (z * zmult)
+getBrackets1 smult zmult s z f c fc = loop s z
+  where
+    loop s z =
+      let
+        fxs = mapxfx f [c - z, c - z + s .. c + z]
+      in
+        case find (\(_, a) -> fc * a < 0) fxs of
+          Just b -> maybeSwap ((c, fc), b)
+          Nothing -> loop (s * smult) (z * zmult)
 
-getBracketsD f s c z findy = do
+getBracketsD s z f c = do
   putStrLn $ "getBracketsD s=" ++ showFF 8 s ++ " c=" ++ showFF 8 c ++ " z=" ++ showFF 8 z
-  let fxs = mapxfx (sub f findy) [c - z, c - z + s .. c + z]
+  let fxs = mapxfx f [c - z, c - z + s .. c + z]
   mapM_ print fxs
   case find (\((_, a) : (_, b) : _) -> a * b < 0) $ init $ init $ tails fxs of
     Just (l : r : _) -> return (l, r)
-    Nothing -> getBracketsD f (s / 2) c (z * 2) findy
+    Nothing -> getBracketsD (s / 2) (z * 2) f c
 
-sub f y x = f x - y
+findy f y x = f x - y
 
 maybeSwap ((lx, ly), (rx, ry)) = if lx < ly then ((lx, ly), (rx, ry)) else ((rx, ry), (lx, ly))
 
