@@ -27,11 +27,12 @@ import System.Process
 import Graphics.UI.Gtk hiding (Box)
 import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo qualified as Cairo
+import Atlas (refToPure)
 
 data TermType = Input | Output | Internal deriving (Eq, Ord, Show, Read)
 
-data Object = Term { tat :: [Double], tselected :: Bool, ttype :: TermType }
-            | Wire { wterms :: [IORef Object], wselected :: Bool }
+data Object = Term { tat :: [Double] , selected :: Bool, ttype :: TermType }
+            | Wire {                   selected :: Bool,                 kids :: [IORef Object] }
             | Box  { at :: [[Double]], selected :: Bool, text :: String, kids :: [IORef Object] }
 
 movTo [x, y] = moveTo x y
@@ -53,6 +54,8 @@ only [x] = x
 sing x = [x]
 
 data GuiMode = Waiting | Move [Double] | MaybeMove [Double]
+
+data Recurse obj = Recurse obj (obj -> Recurse obj) 
 
 main = do
    initGUI
@@ -131,7 +134,7 @@ main = do
                      liftIO $ widgetQueueDraw area
                      liftIO $ writeIORef guiMode $ MaybeMove hitAt
                   RightButton -> do
-                     liftIO $ writeIORef boxRef $ startWires hitAt box
+                     liftIO $ startWires box
                      liftIO $ widgetQueueDraw area
                      liftIO $ writeIORef guiMode $ MaybeMove hitAt
          return False
@@ -140,65 +143,55 @@ main = do
          liftIO $ writeIORef guiMode Waiting
          return False
 
-      startWires hitAt box = let
-         terms1 = filter tselected $ terms box
-         wires1 = filter wselected $ wires box
-         terms2 = filter tselected $ concatMap wterms wires1
-         wires2
-           | not $ null terms2 = map (\t -> Wire [t, t { tselected = False }] True) terms2 ++ wires1
-           | not $ null terms1 = map (\t -> Wire [t, t { tselected = False }] True) terms1 ++ wires1
-           | otherwise = wires1
-         boxes1 = map (hitBox  hitAt) $ boxes box
-         selected1 = False --not (any tselected terms1 || any wselected wires3 || any selected boxes1) && hitAt `inRect` at box
-         in box
-         {
-            terms = terms1,
-            wires = wires2,
-            boxes = boxes1,
-            selected = selected1
-         }
+      startWires terms box = let
+         terms1 = mapM (\r -> readIORef r >>= newIORef) terms
+         in return False
 
-      hitObject hitAt objectR = do
+      getSelected objectRef = filter selected <$> subObjects objectRef
+
+      subObjectRefs objectRef = do
+         object <- readIORef objectRef
+         subs <- mapM subObjectRefs $ kids object
+         return $ objectRef:concat subs
+
+      subObjects objectRef = mapM readIORef $ subObjectRefs objectRef
+
+      hitRef hitAt objectR = do
          object <- liftIO $ readIORef objectR
          hit hitAt object
 
+      hit :: [Double] -> Object -> IO [(Double, Object)]
       hit hitAt box@(Box {}) = do
-         h <- mapM (hitObject hitAt) $ kids box
+         h <- mapM (hitRef hitAt) $ kids box
          if null h
                then if hitAt `inRect` at box 
                         then return [(0, box)]
-                        else []
-               else return h
+                        else return []
+               else return $ concat h
 
-      hit hat term@(Term {}) = let 
+      hit hitAt term@(Term {}) = let 
          dist = modulus (hitAt <-> tat term)
          in return $ if dist < 10 then [(dist, term)] else []
 
-      hit hat wire@(Wire {}) = let
-         [wt0, wt1] = wterms wire
-         wl = tat wt1 <-> tat wt0
-         wll = modulus wl
-         wlu@[wlx, wly] = unit wl
-         wwu = [wly, -wlx]
-         [wrl, wrw] = [wlu, wwu] <*> (hat <-> tat wt0)
-         in return $ if wrl >= 0 && wrl < wll && abs wrw < 5
+      hit hat wire@(Wire {}) = do
+         [wt0, wt1] <- mapM readIORef $ kids wire
+         let 
+            wl = tat wt1 <-> tat wt0
+            wll = modulus wl
+            wlu@[wlx, wly] = unit wl
+            wwu = [wly, -wlx]
+            [wrl, wrw] = [wlu, wwu] <*> (hat <-> tat wt0)
+         return $ if wrl >= 0 && wrl < wll && abs wrw < 5
                then if | wrl / wll < 0.25 -> [(abs wrw, wt0)]
                        | wrl / wll > 0.75 -> [(abs wrw, wt1)]
                        | True             -> [(abs wrw, wire)]
                else
                   []
-
-      hasSelected box = let
-         tsel = any tselected $ terms box
-         wsel = any wselected $ wires box
-         bsel = any hasSelected $ boxes box
-         in selected box || tsel || wsel || bsel
-
+{-
       selSpansBoxes box = let
          n = (if selected box then (+1) else id) $ length $ filter hasSelected $ boxes box
          in n >= 2 || any selSpansBoxes (boxes box)
-
-
+-}
       areaMotion = do
          g <- liftIO $ readIORef guiMode
          case g of
@@ -210,8 +203,7 @@ main = do
          (x, y) <- eventCoordinates
          let to = [x, y]
          let by = to <-> from
-         box <- liftIO $ readIORef boxRef
-         liftIO $ writeIORef boxRef $ moveBox by (selected box) box
+         liftIO $ moveSelected by boxRef
          liftIO $ writeIORef guiMode $ Move to
          liftIO $ widgetQueueDraw area
          return False
@@ -220,21 +212,35 @@ main = do
          (x, y) <- eventCoordinates
          let to = [x, y]
          let by = to <-> from
-         when (modulus by > 3)
-            $ liftIO $ writeIORef guiMode $ Move from
-         return False
+         if modulus by > 3 
+            then do
+               liftIO $ writeIORef guiMode $ Move from
+               move from
+            else return False
 
-      moveBox by sub box = box
-         {
-            at = if sub then map (<+> by) (at box) else at box,
-            terms = mapSel (moveTerm by True ) (orf sub tselected) $ terms box,
-            wires = mapSel (moveWire by False) (orf sub wselected) $ wires box,
-            boxes = mapSel (moveBox  by True ) (orf sub  selected) $ boxes box
-         }
+      moveSelected by = visitPre (moveSelected1 by False)
 
-      moveTerm by _   term = term { tat = tat term <+> by }
-      moveWire by sub wire = wire { wterms = mapSel (moveTerm by True) (orf sub tselected) $ wterms wire }
+      moveSelected1 by all obj = 
+         if selected obj 
+            then Recurse (moveObject by obj) (moveSelected1 by True)
+            else Recurse                obj  (moveSelected1 by all )
 
+      moveObject by  box@(Box  {}) = box  {  at = map (by <+>) (at box) }
+      moveObject by term@(Term {}) = term { tat =      by <+>  tat term }
+      moveObject by wire@(Wire {}) = wire
+
+      visitPre1 f ref = do
+         obj <- readIORef ref
+         new <- f obj
+         writeIORef ref new
+         mapM_ (visitPre1 f) $ kids new
+
+      visitPre f ref = do
+         obj <- readIORef ref
+         let Recurse new g = f obj
+         writeIORef ref new
+         mapM_ (visitPre g) $ kids new
+{-
       setInputNumSelection n box = let
          box1 = box { boxes = map (setInputNumSelection n) $ boxes box }
          in if selected box
@@ -256,7 +262,7 @@ main = do
          [[_, y], [x, _]] = at box
          terms1 = map (\i -> Term [x, y + i * 10 + 10] False Output) [1..n]
          in box { terms = terms1 ++ filter ((/= Output) . ttype) (terms box) }
-         
+-}         
 
 
    widgetAddEvents area [PointerMotionMask]
@@ -269,13 +275,13 @@ main = do
    onValueSpinned inputNum $ do
       n <- get inputNum spinButtonValue 
       box <- liftIO $ readIORef boxRef
-      liftIO $ writeIORef boxRef $ setInputNumSelection n box
+      --liftIO $ writeIORef boxRef $ setInputNumSelection n box
       liftIO $ widgetQueueDraw area
 
    onValueSpinned outputNum $ do
       n <- get outputNum spinButtonValue 
       box <- liftIO $ readIORef boxRef
-      liftIO $ writeIORef boxRef $ setOutputNumSelection n box
+      --liftIO $ writeIORef boxRef $ setOutputNumSelection n box
       liftIO $ widgetQueueDraw area
 {-
    on inputNum  ValueSpinned    $ \a n -> do
