@@ -74,42 +74,44 @@ main = do
 
    containerAdd mainWindow vbox
 
-   boxRef <- newIORef $ Box [[0, 0], [1000, 1000]] False "" [Term [300, 500] False Internal] [] [Box [[800, 500], [900, 600]] False "" [] [] []]
+
+   term <- newIORef $ Term [300, 500] False Internal
+   box <- newIORef $ Box [[800, 500], [900, 600]] False "" []
+   boxRef <- newIORef $ Box [[0, 0], [1000, 1000]] False "" [term, box]
    guiMode <- newIORef Waiting
    let
       areaDraw = do
          setSourceRGB 0 0 0
          setLineWidth 1
-         drawBox boxRef
+         drawObjectRef boxRef
 
-      drawTerm termR = do
-         term <- liftIO $ readIORef termR
-         if tselected term
+      drawObjectRef objectRef = do
+         object <- liftIO $ readIORef objectRef
+         drawObject object
+         
+      drawObject term@(Term {}) = do
+         if selected term
             then setSourceRGB 1 0 0
             else setSourceRGB 0 0 0.5
          rect [tat term <-> [3, 3], tat term <+> [3, 3]]
          fill
 
-      drawWire wireR = do
-         wire <- liftIO $ readIORef wireR
-         colourSel $ wselected wire
-         let [wt0, wt1] = wterms wire
+      drawObject wire@(Wire {}) = do
+         colourSel $ selected wire
+         [wt0, wt1] <- liftIO $ mapM readIORef $ kids wire
          newPath
          movTo $ tat wt0
          linTo $ tat wt1
          stroke
          --mapM_ drawTerm $ wterms w
 
-      drawBox boxR = do
-         box <- liftIO $ readIORef boxR
+      drawObject box@(Box {}) = do
          if selected box
             then setSourceRGB 1 0 0
             else setSourceRGB 0.5 0.5 0.5
          rect $ at box
          stroke
-         mapM_ drawTerm $ terms box
-         mapM_ drawWire $ wires box
-         mapM_ drawBox  $ boxes box
+         mapM_ drawObjectRef $ kids box
 
             {-
             newPath
@@ -130,7 +132,7 @@ main = do
                box <- liftIO $ readIORef boxRef
                case b of
                   LeftButton -> do
-                     liftIO $ writeIORef boxRef $ hitBox hitAt box
+                     liftIO $ writeIORef boxRef $ hitRef hitAt boxRef
                      liftIO $ widgetQueueDraw area
                      liftIO $ writeIORef guiMode $ MaybeMove hitAt
                   RightButton -> do
