@@ -2,6 +2,9 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Move filter" #-}
 {-# HLINT ignore "Use list comprehension" #-}
+{-# HLINT ignore "Use unless" #-}
+{-# HLINT ignore "Use >=>" #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 module Dataflow where
 
@@ -98,7 +101,8 @@ main = do
 
       drawObject wire@(Wire {}) = do
          colourSel $ selected wire
-         [wt0, wt1] <- liftIO $ mapM readIORef $ kids wire
+         wires1 <- liftIO $ mapM readIORef $ kids wire
+         let [wt0, wt1] = wires1
          newPath
          movTo $ tat wt0
          linTo $ tat wt1
@@ -129,26 +133,45 @@ main = do
                b <- eventButton
                (x2, y2) <- eventCoordinates
                let hitAt = [x2, y2]
-               box <- liftIO $ readIORef boxRef
-               case b of
-                  LeftButton -> do
-                     liftIO $ writeIORef boxRef $ hitRef hitAt boxRef
-                     liftIO $ widgetQueueDraw area
-                     liftIO $ writeIORef guiMode $ MaybeMove hitAt
-                  RightButton -> do
-                     liftIO $ startWires box
-                     liftIO $ widgetQueueDraw area
-                     liftIO $ writeIORef guiMode $ MaybeMove hitAt
+               hits <- liftIO $ hitRef hitAt boxRef
+               let (dist, ref) = head $ sortOn fst hits
+               object <- liftIO $ readIORef ref
+               let objsel = selected object
+               modifiers <- eventModifier
+               case (b, Control `elem` modifiers) of
+                     (LeftButton, False) -> do
+                        when (not objsel) $ liftIO $ selectNone boxRef
+                        liftIO $ writeIORef ref $ object { selected = True }
+                     (LeftButton, True) -> do
+                        liftIO $ writeIORef ref $ object { selected = not objsel }
+               --when (Shift `elem` modifiers) $ do
+               --   startWires boxRef
+
+               liftIO $ widgetQueueDraw area
+               liftIO $ writeIORef guiMode $ MaybeMove hitAt
          return False
+
+      selectNone = visitPre1 (\obj -> return obj { selected = False })
 
       areaButtonRelease :: EventM EButton Bool = do
          liftIO $ writeIORef guiMode Waiting
          return False
 
-      startWires terms box = let
-         terms1 = mapM (\r -> readIORef r >>= newIORef) terms
-         in return False
+      startWires = visitPre1 startWires1
+      
+      startWires1 box@(Box {}) = do
+         w <- startWires2 box
+         return box { kids = kids box ++ w }
 
+      startWires2 box = mapM (startWires3 box) $ kids box
+      
+      startWires3 box obj = mapM (startWires4 box obj) $ kids obj
+
+      startWires4 box obj ref = do
+         t <- readIORef ref
+         r <- newIORef t
+         return $ Wire False [ref, r]
+         
       getSelected objectRef = filter selected <$> subObjects objectRef
 
       subObjectRefs objectRef = do
@@ -156,26 +179,27 @@ main = do
          subs <- mapM subObjectRefs $ kids object
          return $ objectRef:concat subs
 
-      subObjects objectRef = mapM readIORef $ subObjectRefs objectRef
+      subObjects objectRef = subObjectRefs objectRef >>= mapM readIORef
 
-      hitRef hitAt objectR = do
-         object <- liftIO $ readIORef objectR
-         hit hitAt object
+      hitRef hitAt ref = do
+         object <- liftIO $ readIORef ref
+         hit hitAt ref object
 
-      hit :: [Double] -> Object -> IO [(Double, Object)]
-      hit hitAt box@(Box {}) = do
+      hit :: [Double] -> IORef Object -> Object -> IO [(Double, IORef Object)]
+      hit hitAt ref box@(Box {}) = do
          h <- mapM (hitRef hitAt) $ kids box
          if null h
                then if hitAt `inRect` at box 
-                        then return [(0, box)]
+                        then return [(0, ref)]
                         else return []
                else return $ concat h
 
-      hit hitAt term@(Term {}) = let 
+      hit hitAt ref term@(Term {}) = let 
          dist = modulus (hitAt <-> tat term)
-         in return $ if dist < 10 then [(dist, term)] else []
+         in return $ if dist < 10 then [(dist, ref)] else []
 
-      hit hat wire@(Wire {}) = do
+      hit hat ref wire@(Wire {}) = do
+         let [wtr0, wtr1] = kids wire
          [wt0, wt1] <- mapM readIORef $ kids wire
          let 
             wl = tat wt1 <-> tat wt0
@@ -184,9 +208,9 @@ main = do
             wwu = [wly, -wlx]
             [wrl, wrw] = [wlu, wwu] <*> (hat <-> tat wt0)
          return $ if wrl >= 0 && wrl < wll && abs wrw < 5
-               then if | wrl / wll < 0.25 -> [(abs wrw, wt0)]
-                       | wrl / wll > 0.75 -> [(abs wrw, wt1)]
-                       | True             -> [(abs wrw, wire)]
+               then if | wrl / wll < 0.25 -> [(abs wrw, wtr0)]
+                       | wrl / wll > 0.75 -> [(abs wrw, wtr1)]
+                       | True             -> [(abs wrw, ref)]
                else
                   []
 {-
@@ -302,6 +326,17 @@ main = do
    widgetShowAll mainWindow
 
    mainGUI
+
+modifyIORM f ref = readIORef ref >>= f >>= writeIORef ref
+
+mapKidsRef f g ref = modifyIORM (g . mapM f . kids) ref
+
+mapKidsRef1 f ref = modifyIORM (mapKids f) ref
+
+mapKids :: (Object -> IO Object) -> Object -> IO Object
+mapKids f object = do
+   updated <- mapM (\ref -> f <$> readIORef ref) $ kids object
+   return object { kids = updated }
 
 gateMod old new = do
    x <- eventModifier
