@@ -34,9 +34,10 @@ import Atlas (refToPure)
 
 data TermType = Input | Output | Internal deriving (Eq, Ord, Show, Read)
 
-data Object = Term { tat :: [Double] , selected :: Bool, ttype :: TermType }
-            | Wire {                   selected :: Bool,                 kids :: [IORef Object] }
-            | Box  { at :: [[Double]], selected :: Bool, text :: String, kids :: [IORef Object] }
+data Object = Term { parent :: IORef Object, tat :: [Double] , selected :: Bool, ttype :: TermType, wires :: [IORef Object] }
+            | Wire { parent :: IORef Object,                   selected :: Bool,                 kids :: [IORef Object] }
+            | Box  { parent :: IORef Object, at :: [[Double]], selected :: Bool, text :: String, kids :: [IORef Object] }
+            | Null
 
 movTo [x, y] = moveTo x y
 linTo [x, y] = lineTo x y
@@ -56,9 +57,21 @@ inRect [x, y] [[x0, y0], [x1, y1]] = inRange x x0 x1 && inRange y y0 y1
 only [x] = x
 sing x = [x]
 
-data GuiMode = Waiting | Move [Double] | MaybeMove [Double]
+data GuiMode = Waiting | Move [Double] | MaybeDo [Double] (EventM EMotion Bool) | RetargetWires [Double] Object | StartWires [Double] Object
 
 data Recurse obj = Recurse obj (obj -> Recurse obj) 
+
+addKid parentRef childRef = do
+   --child <- readIORef childRef
+   --modifyIORef (parent child) (\oldParent -> oldParent { kids = filter (/= childRef) $ kids oldParent })
+   modifyIORef parentRef (\parent -> parent { kids = kids parent ++ [childRef] })
+   modifyIORef  childRef (\ child ->  child { parent = parentRef }) 
+
+adoptKid parentRef childRef = do
+   modifyIORef parentRef (\parent -> parent { kids = kids parent ++ [childRef] })
+
+removeKid parentRef childRef = do
+   modifyIORef parentRef (\oldParent -> oldParent { kids = filter (/= childRef) $ kids oldParent })
 
 main = do
    initGUI
@@ -78,15 +91,19 @@ main = do
    containerAdd mainWindow vbox
 
 
-   term <- newIORef $ Term [300, 500] False Internal
-   box <- newIORef $ Box [[800, 500], [900, 600]] False "" []
-   boxRef <- newIORef $ Box [[0, 0], [1000, 1000]] False "" [term, box]
+   null1 <- newIORef Null
+   term <- newIORef $ Term null1 [300, 500] False Internal
+   box <- newIORef $ Box null1 [[800, 500], [900, 600]] False "" []
+   boxMain <- newIORef $ Box null1 [[0, 0], [1000, 1000]] False "" []
+   wiresBox <- newIORef $ Box null1 [[0, 0], [0, 0]] False "" []
+   addKid boxMain box
+   addKid boxMain term
    guiMode <- newIORef Waiting
    let
       areaDraw = do
          setSourceRGB 0 0 0
          setLineWidth 1
-         drawObjectRef boxRef
+         drawObjectRef boxMain
 
       drawObjectRef objectRef = do
          object <- liftIO $ readIORef objectRef
@@ -132,23 +149,29 @@ main = do
             Waiting -> do
                b <- eventButton
                (x2, y2) <- eventCoordinates
+               modifiers <- eventModifier
                let hitAt = [x2, y2]
-               hits <- liftIO $ hitRef hitAt boxRef
-               let (dist, ref) = head $ sortOn fst hits
+               hits <- liftIO $ hitRef hitAt boxMain
+               let (dist, ref, onwire) = head $ sortOn (\(a, b, c) -> a) hits
                object <- liftIO $ readIORef ref
                let objsel = selected object
-               modifiers <- eventModifier
                case (b, Control `elem` modifiers) of
                      (LeftButton, False) -> do
-                        when (not objsel) $ liftIO $ selectNone boxRef
+                        when (not objsel) $ liftIO $ selectNone boxMain
                         liftIO $ writeIORef ref $ object { selected = True }
                      (LeftButton, True) -> do
                         liftIO $ writeIORef ref $ object { selected = not objsel }
+               liftIO $ writeIORef guiMode $ MaybeDo hitAt $ do
+                  case object of
+                     term@(Term {}) | ttype term == Internal -> move          hitAt
+--                                    | onwire                 -> retargetWires hitAt
+                                    | True                   -> startWires    hitAt 
+                  return False
+
                --when (Shift `elem` modifiers) $ do
-               --   startWires boxRef
+               --   startWires boxMain
 
                liftIO $ widgetQueueDraw area
-               liftIO $ writeIORef guiMode $ MaybeMove hitAt
          return False
 
       selectNone = visitPre1 (\obj -> return obj { selected = False })
@@ -157,20 +180,36 @@ main = do
          liftIO $ writeIORef guiMode Waiting
          return False
 
-      startWires = visitPre1 startWires1
+      startWires from = liftIO $ do
+         writeIORef wiresBox $ Box null1 [[0, 0], [0, 0]] False "" []
+         visitPre2 startWires1 boxMain
+         writeIORef guiMode $ Move from
+         return False
       
-      startWires1 box@(Box {}) = do
-         w <- startWires2 box
-         return box { kids = kids box ++ w }
+      startWires1 ref = do
+         obj <- readIORef ref
+         case obj of
+            term@(Term {}) -> do
+               termref2 <- newIORef term
+               newwireref <- newIORef $ Wire null1 False [ref, termref2]
+               --addKid   newwireref termref2
+               addKid   boxMain    newwireref
+               adoptKid wiresBox   newwireref
 
-      startWires2 box = mapM (startWires3 box) $ kids box
-      
-      startWires3 box obj = mapM (startWires4 box obj) $ kids obj
+            _ -> return ()
+  
+      retargetWires1 ref = do
+         obj <- readIORef ref
+         case obj of
+            term@(Term {}) -> do
+            --wire@(Wire {}) -> do
+               termref2 <- newIORef term
+               let wireref = parent term
+               modifyIORef wireref (\wire -> wire { kids = [ref, termref2] })
+               addKid   boxMain  wireref
+               adoptKid wiresBox wireref
 
-      startWires4 box obj ref = do
-         t <- readIORef ref
-         r <- newIORef t
-         return $ Wire False [ref, r]
+            _ -> return ()
          
       getSelected objectRef = filter selected <$> subObjects objectRef
 
@@ -185,18 +224,18 @@ main = do
          object <- liftIO $ readIORef ref
          hit hitAt ref object
 
-      hit :: [Double] -> IORef Object -> Object -> IO [(Double, IORef Object)]
+      hit :: [Double] -> IORef Object -> Object -> IO [(Double, IORef Object, Bool)]
       hit hitAt ref box@(Box {}) = do
          h <- mapM (hitRef hitAt) $ kids box
          if null h
                then if hitAt `inRect` at box 
-                        then return [(0, ref)]
+                        then return [(0, ref, False)]
                         else return []
                else return $ concat h
 
       hit hitAt ref term@(Term {}) = let 
          dist = modulus (hitAt <-> tat term)
-         in return $ if dist < 10 then [(dist, ref)] else []
+         in return $ if dist < 10 then [(dist, ref, False)] else []
 
       hit hat ref wire@(Wire {}) = do
          let [wtr0, wtr1] = kids wire
@@ -208,9 +247,9 @@ main = do
             wwu = [wly, -wlx]
             [wrl, wrw] = [wlu, wwu] <*> (hat <-> tat wt0)
          return $ if wrl >= 0 && wrl < wll && abs wrw < 5
-               then if | wrl / wll < 0.25 -> [(abs wrw, wtr0)]
-                       | wrl / wll > 0.75 -> [(abs wrw, wtr1)]
-                       | True             -> [(abs wrw, ref)]
+               then if | wrl / wll < 0.25 -> [(abs wrw, wtr0, True )]
+                       | wrl / wll > 0.75 -> [(abs wrw, wtr1, True )]
+                       | True             -> [(abs wrw, ref , False)]
                else
                   []
 {-
@@ -221,27 +260,25 @@ main = do
       areaMotion = do
          g <- liftIO $ readIORef guiMode
          case g of
-            Waiting        -> return False
-            MaybeMove from -> maybeMove from
-            Move      from -> move      from
+            Waiting             -> return False
+            MaybeDo from action -> maybeDo from action
+            Move    from        -> move    from
 
       move from = do
          (x, y) <- eventCoordinates
          let to = [x, y]
          let by = to <-> from
-         liftIO $ moveSelected by boxRef
+         liftIO $ moveSelected by boxMain
          liftIO $ writeIORef guiMode $ Move to
          liftIO $ widgetQueueDraw area
          return False
 
-      maybeMove from = do
+      maybeDo from action = do
          (x, y) <- eventCoordinates
          let to = [x, y]
          let by = to <-> from
          if modulus by > 3 
-            then do
-               liftIO $ writeIORef guiMode $ Move from
-               move from
+            then action
             else return False
 
       moveSelected by = visitPre (moveSelected1 by False)
@@ -254,6 +291,11 @@ main = do
       moveObject by  box@(Box  {}) = box  {  at = map (by <+>) (at box) }
       moveObject by term@(Term {}) = term { tat =      by <+>  tat term }
       moveObject by wire@(Wire {}) = wire
+
+      visitPre2 f ref = do
+         f ref
+         obj <- readIORef ref
+         mapM f $ kids obj
 
       visitPre1 f ref = do
          obj <- readIORef ref
@@ -300,25 +342,25 @@ main = do
 
    onValueSpinned inputNum $ do
       n <- get inputNum spinButtonValue 
-      box <- liftIO $ readIORef boxRef
-      --liftIO $ writeIORef boxRef $ setInputNumSelection n box
+      box <- liftIO $ readIORef boxMain
+      --liftIO $ writeIORef boxMain $ setInputNumSelection n box
       liftIO $ widgetQueueDraw area
 
    onValueSpinned outputNum $ do
       n <- get outputNum spinButtonValue 
-      box <- liftIO $ readIORef boxRef
-      --liftIO $ writeIORef boxRef $ setOutputNumSelection n box
+      box <- liftIO $ readIORef boxMain
+      --liftIO $ writeIORef boxMain $ setOutputNumSelection n box
       liftIO $ widgetQueueDraw area
 {-
    on inputNum  ValueSpinned    $ \a n -> do
-      box <- liftIO $ readIORef boxRef
-      liftIO $ writeIORef boxRef $ setInputNumSelection n box
+      box <- liftIO $ readIORef boxMain
+      liftIO $ writeIORef boxMain $ setInputNumSelection n box
       liftIO $ widgetQueueDraw area
       return False
     
    on outputNum changeValue    $ \a n -> do
-      box <- liftIO $ readIORef boxRef
-      liftIO $ writeIORef boxRef $ setOutputNumSelection n box
+      box <- liftIO $ readIORef boxMain
+      liftIO $ writeIORef boxMain $ setOutputNumSelection n box
       liftIO $ widgetQueueDraw area
       return False
 -}
@@ -333,7 +375,6 @@ mapKidsRef f g ref = modifyIORM (g . mapM f . kids) ref
 
 mapKidsRef1 f ref = modifyIORM (mapKids f) ref
 
-mapKids :: (Object -> IO Object) -> Object -> IO Object
 mapKids f object = do
    updated <- mapM (\ref -> f <$> readIORef ref) $ kids object
    return object { kids = updated }
