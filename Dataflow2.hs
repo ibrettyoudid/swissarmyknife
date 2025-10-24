@@ -164,8 +164,9 @@ main = do
                liftIO $ writeIORef guiMode $ MaybeDo hitAt $ do
                   case object of
                      term@(Term {}) | ttype term == Internal -> move          hitAt
---                                    | onwire                 -> retargetWires hitAt
                                     | True                   -> startWires    hitAt 
+                     wire@(Wire {}) -> retargetWires hitAt
+--                                    | onwire                 -> retargetWires hitAt
                   return False
 
                --when (Shift `elem` modifiers) $ do
@@ -206,14 +207,20 @@ main = do
          case obj of
             term@(Term {}) -> do
             --wire@(Wire {}) -> do
-               termref2 <- newIORef term
-               let wireref = parent term
-               modifyIORef wireref (\wire -> wire { kids = [ref, termref2] })
+               ref2 <- newIORef term
+               wirerefs <- mapM selectedObj $ wires term
+               let wireref = head $ catMaybes wirerefs
+               writeIORef ref $ term { wires = filter (/= wireref) $ wires term }
+               modifyIORef wireref (\wire -> wire { kids = [ref, ref2] })
                addKid   boxMain  wireref
                adoptKid wiresBox wireref
 
             _ -> return ()
          
+      selectedObj ref = do
+         obj <- readIORef ref
+         return $ ifJust (selected obj) ref
+
       getSelected objectRef = filter selected <$> subObjects objectRef
 
       subObjectRefs objectRef = do
@@ -227,18 +234,18 @@ main = do
          object <- liftIO $ readIORef ref
          hit hitAt ref object
 
-      hit :: [Double] -> IORef Object -> Object -> IO [(Double, IORef Object, Bool)]
+      hit :: [Double] -> IORef Object -> Object -> IO [(Double, IORef Object, IORef Object)]
       hit hitAt ref box@(Box {}) = do
          h <- mapM (hitRef hitAt) $ kids box
          if null h
                then if hitAt `inRect` at box 
-                        then return [(0, ref, False)]
+                        then return [(0, ref, null1)]
                         else return []
                else return $ concat h
 
       hit hitAt ref term@(Term {}) = let 
          dist = modulus (hitAt <-> tat term)
-         in return $ if dist < 10 then [(dist, ref, False)] else []
+         in return $ if dist < 10 then [(dist, ref, null1)] else []
 
       hit hat ref wire@(Wire {}) = do
          let [wtr0, wtr1] = kids wire
@@ -250,9 +257,9 @@ main = do
             wwu = [wly, -wlx]
             [wrl, wrw] = [wlu, wwu] <*> (hat <-> tat wt0)
          return $ if wrl >= 0 && wrl < wll && abs wrw < 5
-               then if | wrl / wll < 0.25 -> [(abs wrw, wtr0, True )]
-                       | wrl / wll > 0.75 -> [(abs wrw, wtr1, True )]
-                       | True             -> [(abs wrw, ref , False)]
+               then if | wrl / wll < 0.25 -> [(abs wrw, ref, wtr0)]
+                       | wrl / wll > 0.75 -> [(abs wrw, ref, wtr1)]
+                       | True             -> [(abs wrw, ref, null1)]
                else
                   []
 {-
@@ -280,7 +287,7 @@ main = do
          (x, y) <- eventCoordinates
          let to = [x, y]
          let by = to <-> from
-         if modulus by > 3 
+         if modulus by > 2
             then action
             else return False
 
@@ -338,7 +345,7 @@ main = do
 
    widgetAddEvents area [PointerMotionMask]
 
-   on area draw areaDraw
+   on area draw                areaDraw
    on area buttonPressEvent    areaButton
    on area buttonReleaseEvent  areaButtonRelease
    on area motionNotifyEvent   areaMotion
