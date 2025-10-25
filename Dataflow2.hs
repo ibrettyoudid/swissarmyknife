@@ -88,6 +88,8 @@ main = do
    boxPackStart vbox hbox      PackNatural 0
    boxPackStart vbox area      PackGrow 0
 
+   menu <- menuNew
+
    containerAdd mainWindow vbox
 
 
@@ -155,19 +157,24 @@ main = do
                let (dist, ref, onwire) = head $ sortOn (\(a, b, c) -> a) hits
                object <- liftIO $ readIORef ref
                let objsel = selected object
-               case (b, Control `elem` modifiers) of
-                     (LeftButton, False) -> do
-                        when (not objsel) $ liftIO $ selectNone boxMain
-                        liftIO $ writeIORef ref $ object { selected = True }
-                     (LeftButton, True) -> do
-                        liftIO $ writeIORef ref $ object { selected = not objsel }
-               liftIO $ writeIORef guiMode $ MaybeDo hitAt $ do
-                  case object of
-                     term@(Term {}) | ttype term == Internal -> move          hitAt
-                                    | True                   -> startWires    hitAt
-                     wire@(Wire {}) -> retargetWires hitAt
---                                    | onwire                 -> retargetWires hitAt
-                  return False
+               if Control `elem` modifiers
+                  then
+                     liftIO $ writeIORef ref $ object { selected = not objsel }
+                  else do
+                     when (not objsel) $ liftIO $ selectNone boxMain
+                     liftIO $ writeIORef ref $ object { selected = True }
+               case b of
+                  LeftButton -> do
+                     liftIO $ writeIORef guiMode $ MaybeDo hitAt $ do
+                        case object of
+                           term@(Term {}) | ttype term == Internal -> move          hitAt
+                                          | True                   -> startWires    hitAt
+                           wire@(Wire {})                          -> retargetWires hitAt
+                           box@(Box {})                            -> move          hitAt
+      --                                    | onwire                 -> retargetWires hitAt
+                        return False
+                  RightButton -> do
+                     return ()
 
                --when (Shift `elem` modifiers) $ do
                --   startWires boxMain
@@ -201,6 +208,12 @@ main = do
                adoptKid wiresBox   newwireref
 
             _ -> return ()
+
+      retargetWires from = liftIO $ do
+         writeIORef wiresBox $ Box null1 [[0, 0], [0, 0]] False "" []
+         visitPre2 retargetWires1 boxMain
+         writeIORef guiMode $ Move from
+         return False
 
       retargetWires1 ref = do
          obj <- readIORef ref
