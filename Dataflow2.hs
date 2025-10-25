@@ -59,13 +59,13 @@ sing x = [x]
 
 data GuiMode = Waiting | Move [Double] | MaybeDo [Double] (EventM EMotion Bool) | RetargetWires [Double] Object | StartWires [Double] Object
 
-data Recurse obj = Recurse obj (obj -> Recurse obj) 
+data Recurse obj = Recurse obj (obj -> Recurse obj)
 
 addKid parentRef childRef = do
    --child <- readIORef childRef
    --modifyIORef (parent child) (\oldParent -> oldParent { kids = filter (/= childRef) $ kids oldParent })
    modifyIORef parentRef (\parent -> parent { kids = kids parent ++ [childRef] })
-   modifyIORef  childRef (\ child ->  child { parent = parentRef }) 
+   modifyIORef  childRef (\ child ->  child { parent = parentRef })
 
 adoptKid parentRef childRef = do
    modifyIORef parentRef (\parent -> parent { kids = kids parent ++ [childRef] })
@@ -108,7 +108,7 @@ main = do
       drawObjectRef objectRef = do
          object <- liftIO $ readIORef objectRef
          drawObject object
-         
+
       drawObject term@(Term {}) = do
          if selected term
             then setSourceRGB 1 0 0
@@ -164,7 +164,7 @@ main = do
                liftIO $ writeIORef guiMode $ MaybeDo hitAt $ do
                   case object of
                      term@(Term {}) | ttype term == Internal -> move          hitAt
-                                    | True                   -> startWires    hitAt 
+                                    | True                   -> startWires    hitAt
                      wire@(Wire {}) -> retargetWires hitAt
 --                                    | onwire                 -> retargetWires hitAt
                   return False
@@ -186,7 +186,7 @@ main = do
          visitPre2 startWires1 boxMain
          writeIORef guiMode $ Move from
          return False
-      
+
       startWires1 ref = do
          obj <- readIORef ref
          case obj of
@@ -201,25 +201,23 @@ main = do
                adoptKid wiresBox   newwireref
 
             _ -> return ()
-  
+
       retargetWires1 ref = do
          obj <- readIORef ref
          case obj of
             term@(Term {}) -> do
             --wire@(Wire {}) -> do
                ref2 <- newIORef term
-               wirerefs <- mapM selectedObj $ wires term
-               let wireref = head $ catMaybes wirerefs
-               writeIORef ref $ term { wires = filter (/= wireref) $ wires term }
+               wirerefs <- filterM (fmap selected . readIORef) $ wires term
+               let wireref = head wirerefs
+               writeIORef ref  $ term { wires = filter (/= wireref) $ wires term }
+               writeIORef ref2 $ term { wires = [wireref] }
+               --writeIORef ref $ term { wires = wires term \\ wirerefs }
                modifyIORef wireref (\wire -> wire { kids = [ref, ref2] })
                addKid   boxMain  wireref
                adoptKid wiresBox wireref
 
             _ -> return ()
-         
-      selectedObj ref = do
-         obj <- readIORef ref
-         return $ ifJust (selected obj) ref
 
       getSelected objectRef = filter selected <$> subObjects objectRef
 
@@ -238,24 +236,24 @@ main = do
       hit hitAt ref box@(Box {}) = do
          h <- mapM (hitRef hitAt) $ kids box
          if null h
-               then if hitAt `inRect` at box 
+               then if hitAt `inRect` at box
                         then return [(0, ref, null1)]
                         else return []
                else return $ concat h
 
-      hit hitAt ref term@(Term {}) = let 
+      hit hitAt ref term@(Term {}) = let
          dist = modulus (hitAt <-> tat term)
          in return $ if dist < 10 then [(dist, ref, null1)] else []
 
-      hit hat ref wire@(Wire {}) = do
+      hit hitAt ref wire@(Wire {}) = do
          let [wtr0, wtr1] = kids wire
          [wt0, wt1] <- mapM readIORef $ kids wire
-         let 
+         let
             wl = tat wt1 <-> tat wt0
             wll = modulus wl
             wlu@[wlx, wly] = unit wl
             wwu = [wly, -wlx]
-            [wrl, wrw] = [wlu, wwu] <*> (hat <-> tat wt0)
+            [wrl, wrw] = [wlu, wwu] <*> (hitAt <-> tat wt0)
          return $ if wrl >= 0 && wrl < wll && abs wrw < 5
                then if | wrl / wll < 0.25 -> [(abs wrw, ref, wtr0)]
                        | wrl / wll > 0.75 -> [(abs wrw, ref, wtr1)]
@@ -293,8 +291,8 @@ main = do
 
       moveSelected by = visitPre (moveSelected1 by False)
 
-      moveSelected1 by all obj = 
-         if selected obj 
+      moveSelected1 by all obj =
+         if selected obj
             then Recurse (moveObject by obj) (moveSelected1 by True)
             else Recurse                obj  (moveSelected1 by all )
 
@@ -340,7 +338,7 @@ main = do
          [[_, y], [x, _]] = at box
          terms1 = map (\i -> Term [x, y + i * 10 + 10] False Output) [1..n]
          in box { terms = terms1 ++ filter ((/= Output) . ttype) (terms box) }
--}         
+-}
 
 
    widgetAddEvents area [PointerMotionMask]
@@ -351,13 +349,13 @@ main = do
    on area motionNotifyEvent   areaMotion
 
    onValueSpinned inputNum $ do
-      n <- get inputNum spinButtonValue 
+      n <- get inputNum spinButtonValue
       box <- liftIO $ readIORef boxMain
       --liftIO $ writeIORef boxMain $ setInputNumSelection n box
       liftIO $ widgetQueueDraw area
 
    onValueSpinned outputNum $ do
-      n <- get outputNum spinButtonValue 
+      n <- get outputNum spinButtonValue
       box <- liftIO $ readIORef boxMain
       --liftIO $ writeIORef boxMain $ setOutputNumSelection n box
       liftIO $ widgetQueueDraw area
