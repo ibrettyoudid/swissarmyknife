@@ -916,7 +916,7 @@ main2 = do
    boxPackStart vb1 fitXsW    PackNatural 0
    boxPackStart vb  vb1       PackNatural 0
    boxPackStart vb  zoomed    PackGrow 0
-   boxPackStart hb  vb        PackNatural 0
+   boxPackStart hb  vb        PackGrow 0
    boxPackStart hb  map1      PackGrow 0
 
    set

@@ -136,8 +136,7 @@ chainr1 arg op f = f >$< arg >*< op >*< chainr1 arg op f <|> arg
 
 optional x = just >$< x <|> nothing >$< text []
 
-sepBy x sep =
-      nil  >$< text ([] :: [alpha1])
+sepBy x sep = nil >$< text ([] :: [alpha1])
   <|> cons >$< x >*< many (sep *< x)
 
 --comma :: (Syntax delta) => delta ()

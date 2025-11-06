@@ -134,6 +134,7 @@ library
         Iso,
         Layout, 
         Levenshtein,
+        Lex,
         MHash, 
         MHashDynamic, 
         MHashDynamic2,

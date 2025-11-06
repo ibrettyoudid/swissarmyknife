@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase #-}
 
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -23,6 +24,7 @@ import Data.List
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.IntMap qualified as I
+
 import Shell (ch)
 
 data Rule tok =
@@ -88,11 +90,20 @@ infixr 6 >*<
 
 (>*<) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a, b)
 (>*<) = (:-)
+
+(*<) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
+(*<) = (:/)
+
+(>*) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t a   
+(>*) = (://)
+
 {-
-   a >*< b = case a of
-      SeqR a1 -> SeqR (a1 ++ [b])
-      _       -> SeqR [a, b]
+SeqR a >*< SeqR b = SeqR (a ++ b)
+SeqR a >*<      b = SeqR (a ++ [b])
+a      >*< SeqR b = SeqR (a:b)
+a      >*<      b = SeqR [a, b]
 -}
+
 AltR a <|> AltR b = AltR (a ++ b)
 AltR a <|>      b = AltR (a ++ [b])
 a      <|> AltR b = AltR (a:b)
@@ -104,12 +115,31 @@ a      <|>      b = AltR [a, b]
 (<=>):: Typeable a => String -> RuleR t a -> RuleR t a
 (<=>) = NameR
 
-text = StringR
+text :: Typeable t => t -> RuleR t t
+text = TokenR
+
+anytoken :: Typeable t => RuleR t t
+anytoken = AnyTokenR
+
+pure :: Typeable a => a -> RuleR t a 
+pure = PureR
 
 many :: Typeable a => RuleR t a -> RuleR t [a]
 many = ManyR
 
 many1 p = cons >$< p >*< many p
+
+sepBy x sep = Parser3.pure []
+          <|> cons >$< x >*< many (sep *< x)
+
+groupOf i = sepBy i (text ";") <|> aligned i
+
+aligned (ParserIO i) = do
+  ((_, l, c):_) <- ParserIO $ lift get
+  many $ ParserIO $ do
+    ((_::String, l1::Int, c1::Int):_) <- lift get
+    guard $ l1 > l && c == c1
+    i
 
 translate :: Typeable a => RuleR t a -> Rule t
 translate (AltR as) = Alt $ map translate as
