@@ -46,8 +46,9 @@ import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
 import Data.Map.Lazy qualified as M
 import Data.Set qualified as S
 
-import Syntax3 hiding (foldl, foldr, print, right)
-import Syntax3 qualified as S3
+--import Syntax3 hiding (foldl, foldr, print, right)
+--import Syntax3 qualified as S3
+import Parser3 hiding (Apply)
 import Iso hiding (foldl, foldr, right, (!!))
 
 data NamedValue = NamedValue {nname :: String, nvalue :: Dynamic}
@@ -56,18 +57,18 @@ instance Eq NamedValue where
   a == b = nname a == nname b
 
 data Expr
-  = Value {etype :: MType, value :: Dynamic}
-  | VarRef {etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int}
-  | VarDef {xtype :: Expr, name :: String, frameIndex :: Int, memIndex :: Int}
+  = Value   {etype :: MType, value :: Dynamic}
+  | VarRef  {etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int}
+  | VarDef  {xtype :: Expr , name :: String, frameIndex :: Int, memIndex :: Int}
   | VarRef1 {etype :: MType, name :: String}
-  | Lambda {etype :: MType, econstr :: Constr, subexpr :: Expr}
-  | Let {etype :: MType, econstr :: Constr, vals :: [Expr], subexpr :: Expr}
-  | Block {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
-  | Apply {etype :: MType, subexprs :: [Expr]}
-  | If {etype :: MType, clauses :: [(Expr, Expr)]}
-  | Case {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
+  | Lambda  {etype :: MType, econstr :: Constr,                     subexpr :: Expr}
+  | Let     {etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr}
+  | Block   {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
+  | Apply   {etype :: MType,                    subexprs :: [Expr]}
+  | If      {etype :: MType,                clauses :: [(Expr, Expr)]}
+  | Case    {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
   | Else
-  | Exprs {etype :: MType, exprs1 :: [Expr]}
+  | Exprs   {etype :: MType, exprs1 :: [Expr]}
   | Keyword String
   deriving (Typeable, Eq, Show)
 
@@ -91,9 +92,7 @@ data Field = Borrowed | Profit | Owed deriving (Eq, Ord, Show, Read)
 
 data TC = Trans | Cum deriving (Eq, Ord, Show, Read)
 
-newtype MyDynamic = Dynamic D.Dynamic
-
-type Dynamic = MyDynamic
+newtype Dynamic = Dynamic D.Dynamic
 
 data MType = MType {mtname :: String, conv :: TypeLink, constr :: Constr}
 
@@ -750,9 +749,9 @@ var = "var" <=> varIso >$< identifier
 
 vardefiso = Iso (\(n, t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n, t); _ -> Nothing)
 
-vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((skipSpace *< text "::" *< skipSpace *< expr) <|> (valueIso >$< Syntax3.pure u))
+vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser3.pure u))
 
-typeanno = expr >*< skipSpace *< text "::" *< skipSpace *< expr
+typeanno = expr >*< text "::" *< expr
 
 mem = Iso (Just . Member u) (\(Member _ n) -> Just n) >$< identifier
 
