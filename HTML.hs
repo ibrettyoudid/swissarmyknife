@@ -43,7 +43,7 @@ data HTML
 
 putLines l = mapM_ putStrLn l
 
-ukulele m = filter (not . null) $ extractLinks $ findTree (\t -> tagType t == "table" && tagAttrib "width" t == "571") $ getNested m "https://wpu3a.org.uk/Groups/ukulele-for-beginners"
+ukulele m = filter (not . null) $ extractLinks $ findTree (\t -> tagType t == "table" && tagAttrib "width" t == "407") $ getNested m "https://wpu3a.org.uk/Groups/ukulele-for-beginners"
 
 uku m = mapM (writeHTTP m . relTo "https://wpu3a.org.uk") $ tail $ ukulele m
 

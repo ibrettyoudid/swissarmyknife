@@ -24,7 +24,6 @@ module MHashDynamic2 (
   TypeRep,
 )
 where
-
 import MyPretty2
 
 import Data.Array qualified as A
@@ -48,13 +47,68 @@ import Data.Set qualified as S
 
 --import Syntax3 hiding (foldl, foldr, print, right)
 --import Syntax3 qualified as S3
+import Lex
 import Parser3 hiding (Apply)
 import Iso hiding (foldl, foldr, right, (!!))
+
+newtype Dynamic = Dynamic D.Dynamic
+
+und :: Dynamic -> D.Dynamic
+und (Dynamic d) = d
+
+fromDynamic :: (Typeable a) => Dynamic -> Maybe a
+fromDynamic d = D.fromDynamic $ und d
+dynApply f x = Dynamic <$> D.dynApply (und f) (und x)
+dynTypeRep :: Dynamic -> SomeTypeRep
+dynTypeRep = D.dynTypeRep . und
+typeOf1 t = typeOf t
+toDyn :: (Typeable a) => a -> Dynamic
+toDyn a = Dynamic $ D.toDyn a
+fromDyn :: (Typeable a) => Dynamic -> a -> a
+fromDyn a = D.fromDyn $ und a
+
+fromDyn1 :: (Typeable a) => Dynamic -> a
+fromDyn1 d = case fromDynamic d of
+  Just j -> j
+  n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (und d))
+{-
+
+instance Eq Dynamic where
+  a == b = am eqm [a, b]
+
+instance Ord Dynamic where
+  compare a b = case applyMultimethod comparem [a, b] of
+    Right d -> fromDyn d (error "should be an Ordering")
+    Left e -> compare (showDyn a) (showDyn b)
+
+instance Num Dynamic where
+  a + b = am3 addm [a, b]
+  a - b = am3 subm [a, b]
+  a * b = am3 mulm [a, b]
+  abs a = am3 absm [a]
+  signum a = am3 signumm [a]
+  fromInteger a = toDyn (fromInteger a :: Double)
+
+instance Fractional Dynamic where
+  a / b = am3 divfracm [a, b]
 
 data NamedValue = NamedValue {nname :: String, nvalue :: Dynamic}
 
 instance Eq NamedValue where
   a == b = nname a == nname b
+
+data MType = MType {mtname :: String, conv :: TypeLink, constr :: Constr}
+
+data TypeLink = TypeLink {tlparents :: [MType], tllinear :: [MType]} deriving (Eq, Show)
+
+instance Show MType where
+  show = mtname
+
+instance Eq MType where
+  a == b = mtname a == mtname b
+
+instance Ord MType where
+  compare = compare `on` mtname
 
 data Expr
   = Value   {etype :: MType, value :: Dynamic}
@@ -84,6 +138,12 @@ data Constr = Constr {cname :: String, tl :: TypeLink, members :: [Member]} deri
 
 data Member = Member {mtype :: MType, mname :: String} deriving (Show, Eq)
 
+data MMEntry = Method Dynamic | Types [MType]
+
+data Multimethod = Multimethod {mmname :: String, funcs :: M.Map [SomeTypeRep] Dynamic} deriving (Typeable)
+
+data MultimethodA = MultimethodA {namea :: String, funcsa :: SubArrayD Dynamic} deriving (Typeable)
+
 data PartApply = PartApply [Dynamic] Constr Expr Env deriving (Typeable)
 
 data Person = Tyrone | Danny | James | David deriving (Eq, Ord, Show, Read)
@@ -91,65 +151,6 @@ data Person = Tyrone | Danny | James | David deriving (Eq, Ord, Show, Read)
 data Field = Borrowed | Profit | Owed deriving (Eq, Ord, Show, Read)
 
 data TC = Trans | Cum deriving (Eq, Ord, Show, Read)
-
-newtype Dynamic = Dynamic D.Dynamic
-
-data MType = MType {mtname :: String, conv :: TypeLink, constr :: Constr}
-
-data TypeLink = TypeLink {tlparents :: [MType], tllinear :: [MType]} deriving (Eq, Show)
-
-instance Show MType where
-  show = mtname
-
-instance Eq MType where
-  a == b = mtname a == mtname b
-
-instance Ord MType where
-  compare = compare `on` mtname
-
-data MMEntry = Method Dynamic | Types [MType]
-
-data Multimethod = Multimethod {mmname :: String, funcs :: M.Map [SomeTypeRep] Dynamic} deriving (Typeable)
-
-data MultimethodA = MultimethodA {namea :: String, funcsa :: SubArrayD Dynamic} deriving (Typeable)
-
-und :: Dynamic -> D.Dynamic
-und (Dynamic d) = d
-
-fromDynamic :: (Typeable a) => Dynamic -> Maybe a
-fromDynamic d = D.fromDynamic $ und d
-dynApply f x = Dynamic <$> D.dynApply (und f) (und x)
-dynTypeRep :: Dynamic -> SomeTypeRep
-dynTypeRep = D.dynTypeRep . und
-typeOf1 t = typeOf t
-toDyn :: (Typeable a) => a -> Dynamic
-toDyn a = Dynamic $ D.toDyn a
-fromDyn :: (Typeable a) => Dynamic -> a -> a
-fromDyn a = D.fromDyn $ und a
-
-fromDyn1 :: (Typeable a) => Dynamic -> a
-fromDyn1 d = case fromDynamic d of
-  Just j -> j
-  n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (und d))
-
-instance Eq Dynamic where
-  a == b = am eqm [a, b]
-
-instance Ord Dynamic where
-  compare a b = case applyMultimethod comparem [a, b] of
-    Right d -> fromDyn d (error "should be an Ordering")
-    Left e -> compare (showDyn a) (showDyn b)
-
-instance Num Dynamic where
-  a + b = am3 addm [a, b]
-  a - b = am3 subm [a, b]
-  a * b = am3 mulm [a, b]
-  abs a = am3 absm [a]
-  signum a = am3 signumm [a]
-  fromInteger a = toDyn (fromInteger a :: Double)
-
-instance Fractional Dynamic where
-  a / b = am3 divfracm [a, b]
 
 dmean xs = toDyn (fromJust (fromDynamic (sum xs)) / fromIntegral (length xs) :: Double)
 
@@ -723,13 +724,13 @@ showl =
 
 lexer = num <|> oplex <|> var <|> charlit <|> strlit
 
-oplex = varIso >$< many1 (satisfy (`elem` "!£$%^&*-=+;@~#<>/?|") >$< token)
+oplex = varIso >$< many1 (satisfy (`elem` "!£$%^&*-=+;@~#<>/?|") >$< anytoken)
 
 punc = satisfy (`elem` "([{}]),.")
 
-charlit = valueIso >$< text "'" *< token >* text "'"
+charlit = valueIso >$< text "'" *< anytoken >* text "'"
 
-strlit = valueIso >$< text "\"" *< many token >* text "\""
+strlit = valueIso >$< text "\"" *< many anytoken >* text "\""
 
 singIso = Iso (\a -> Just [a]) (\case [a] -> Just a; _ -> Nothing)
 
@@ -1294,3 +1295,4 @@ insertAt n v l =
     (b, a) = splitAt n l
    in
     b ++ v : a
+-}

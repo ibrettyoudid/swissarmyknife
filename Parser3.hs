@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -29,6 +30,7 @@ import Shell (ch)
 
 data Rule tok =
    Seq [Rule tok]
+   | Then (Rule tok) (Rule tok)
    | Alt [Rule tok]
    | Name String (Rule tok)
    | Token tok
@@ -36,7 +38,7 @@ data Rule tok =
    | Many (Rule tok)
    | ManyTill (Rule tok) (Rule tok)
    | Apply (Iso Dynamic Dynamic) (Rule tok)
-   | Bind (Rule tok) (Dynamic -> Rule tok, Dynamic -> (Dynamic, Rule tok)) -- parsing, the iso turns the result of the nested rule into a new rule. printing, we have the result of the new rule but not the new rule itself. we need to use the nested rule and the result to recreate it
+   | Bind (Rule tok) (Dynamic -> Rule tok, Dynamic -> Dynamic) -- parsing, the iso turns the result of the nested rule into a new rule. printing, we have the result of the new rule but not the new rule itself. we need to use the nested rule and the result to recreate it
    | Return Dynamic
    | StrRes String Dynamic
    | Not (Rule tok)
@@ -44,39 +46,58 @@ data Rule tok =
    | Set String (Rule tok)
    | Get String
 
+data IgnoreMe a = IgnoreMe a
+
+data a :- b = a :- b
+
 data RuleR t r where
-   BindR     :: (Typeable a, Typeable b)                        =>  RuleR t a   -> (a -> RuleR t b, b -> (a, RuleR t b)) -> RuleR t b
-   ApplyR    :: (Typeable a, Typeable b) => Iso a b             ->  RuleR t a   -> RuleR t b   
+   BindR     :: (Typeable a, Typeable b)                        =>  RuleR t a   -> (a -> RuleR t b, b -> a) -> RuleR t b
+   ApplyR    :: (Typeable a, Typeable b) => Iso a b             ->  RuleR t a                 -> RuleR t b   
+   OptionR   :: (Typeable a, Typeable (Maybe a))                =>  RuleR t a                 -> RuleR t (Maybe a)
    EithR     :: (Typeable a, Typeable b, Typeable (Either a b)) =>  RuleR t a   -> RuleR t b  -> RuleR t (Either a s)
-   OptionR   :: (Typeable a, Typeable (Maybe a))                =>  RuleR t a   -> RuleR t (Maybe a)
-   (:-)      :: (Typeable a, Typeable b, Typeable (a, b))       =>  RuleR t a   -> RuleR t b  -> RuleR t (a,b)
+   ThenR     :: ThenClass a b c                                 =>  RuleR t a   -> RuleR t b  -> RuleR t c
    (:/)      :: (Typeable a, Typeable b)                        =>  RuleR t a   -> RuleR t b  -> RuleR t  b   
    (://)     :: (Typeable a, Typeable b)                        =>  RuleR t a   -> RuleR t b  -> RuleR t  a   
-   ManyR     :: Typeable a                                      =>  RuleR t a   -> RuleR t [a]
-   SeqR      :: Typeable a                                      => [RuleR t a]  -> RuleR t [a]
-   AltR      :: Typeable a                                      => [RuleR t a]  -> RuleR t a 
-   AndR      :: Typeable a                                      => [RuleR t a]  -> RuleR t a 
-   NotR      :: Typeable a                                      =>  RuleR t a   -> RuleR t a 
-   IgnoreR   :: Typeable a                                      =>  RuleR t a   -> RuleR t a 
-   ManyTillR :: Typeable a                                      =>  RuleR t a   -> RuleR t b  -> RuleR t [a]  
-   AnyTillR  :: Typeable a                                      =>  RuleR t a   -> RuleR t [t]
    CountR    :: Typeable b                                      =>  RuleR t Int -> RuleR t b  -> RuleR t [b]  
-   TryR      :: Typeable a                                      =>  RuleR t a   -> RuleR t a 
+   ManyTillR :: Typeable a                                      =>  RuleR t a   -> RuleR t b  -> RuleR t [a]  
+   ManyR     :: Typeable a                                      =>  RuleR t a                 -> RuleR t [a]
+   SeqR      :: Typeable a                                      => [RuleR t a]                -> RuleR t [a]
+   AltR      :: Typeable a                                      => [RuleR t a]                -> RuleR t a 
+   AndR      :: Typeable a                                      => [RuleR t a]                -> RuleR t a 
+   NotR      :: Typeable a                                      =>  RuleR t a                 -> RuleR t a 
+   IgnoreR   :: Typeable a                                      =>  RuleR t a                 -> RuleR t (IgnoreMe a)
+   AnyTillR  :: Typeable a                                      =>  RuleR t a                 -> RuleR t [t]
+   TryR      :: Typeable a                                      =>  RuleR t a                 -> RuleR t a 
+   BuildR    :: Typeable a                      =>  f           ->  RuleR t a                 -> RuleR t f
+   LambdaR   :: Typeable a                      =>  f           ->  RuleR t a                 -> RuleR t a
+   CallR     :: Typeable a                      =>  f           ->  RuleR t a                 -> RuleR t a
+   NameR     :: Typeable a                      =>  String      ->  RuleR t a                 -> RuleR t a
+   PureR     :: Typeable a                      =>  a           ->  RuleR t a 
+   TokenR    :: (Typeable t, Eq t)              =>  t           ->  RuleR t t
+   RangeR    :: Typeable t                      =>  t ->  t     ->  RuleR t t
    AnyTokenR :: Typeable t                                      =>  RuleR t t
    StringR   :: Typeable t                      =>  [t]         ->  RuleR t [t]
-   PureR     :: Typeable a                      =>  a           ->  RuleR t a 
-   TokenR    :: Typeable t                      =>  t           ->  RuleR t t
-   RangeR    :: Typeable t                      =>  t ->  t     ->  RuleR t t
-   BuildR    :: Typeable a                      =>  f           ->  RuleR t a   -> RuleR t f
-   LambdaR   :: Typeable a                      =>  f           ->  RuleR t a   -> RuleR t a
-   CallR     :: Typeable a                      =>  f           ->  RuleR t a   -> RuleR t a
-   NameR     :: Typeable a                      =>  String      ->  RuleR t a   -> RuleR t a
    RestR     :: Typeable [t]                                    =>  RuleR t [t]
    --GetR      :: Frame      n v f      =>       n              -> RuleR t v
    --SetR      :: Frame      n v f      =>       n              -> RuleR t v -> RuleR t v
    --GetMR     :: FrameTuple n v f      =>       n              -> RuleR t v
    --SetMR     :: FrameTuple n v f      =>       n              -> RuleR t v -> RuleR t v 
    --RedoR     :: Frame  n [t] f        =>       n              -> RuleR t a -> RuleR t a
+
+class (Typeable a, Typeable b, Typeable c) => ThenClass a b c where
+   thenc :: a -> b -> c 
+
+instance (Typeable a, Typeable b) => ThenClass a (IgnoreMe b) a where
+   thenc a b = a
+
+instance (Typeable a, Typeable b) => ThenClass (IgnoreMe a) b b where
+   thenc a b = b
+
+instance (Typeable a, Typeable b) => ThenClass (IgnoreMe a) (IgnoreMe b) (IgnoreMe (a, b)) where
+   thenc (IgnoreMe a) (IgnoreMe b) = IgnoreMe (a, b)
+
+instance (Typeable a, Typeable b) => ThenClass a b (a :- b) where
+   thenc a b = a :- b
 
 infix 2 <=>
 infixl 3 <|>
@@ -85,11 +106,11 @@ infixl 3 <|>
 infixr 5 >$<
 infixr 6 >*<
 
-(>>==) :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> (a, RuleR t b)) -> RuleR t b
+(>>==) :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> a) -> RuleR t b
 (>>==) = BindR
 
-(>*<) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a, b)
-(>*<) = (:-)
+(>*<) :: ThenClass a b c => RuleR t a -> RuleR t b -> RuleR t c
+(>*<) = ThenR
 
 (*<) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
 (*<) = (:/)
@@ -115,7 +136,7 @@ a      <|>      b = AltR [a, b]
 (<=>):: Typeable a => String -> RuleR t a -> RuleR t a
 (<=>) = NameR
 
-text :: Typeable t => t -> RuleR t t
+text :: (Typeable t, Eq t) => t -> RuleR t t
 text = TokenR
 
 anytoken :: Typeable t => RuleR t t
@@ -132,21 +153,21 @@ many1 p = cons >$< p >*< many p
 sepBy x sep = Parser3.pure []
           <|> cons >$< x >*< many (sep *< x)
 
-groupOf i = sepBy i (text ";") <|> aligned i
-
+groupOf i = sepBy i (text ";") -- <|> aligned i
+{-
 aligned (ParserIO i) = do
   ((_, l, c):_) <- ParserIO $ lift get
   many $ ParserIO $ do
     ((_::String, l1::Int, c1::Int):_) <- lift get
     guard $ l1 > l && c == c1
     i
-
+-}
 translate :: Typeable a => RuleR t a -> Rule t
 translate (AltR as) = Alt $ map translate as
-translate (a :- b) = Seq [translate a, translate b]
+translate (ThenR a b) = Seq [translate a, translate b]
 translate (ApplyR a b) = Apply (isod a) $ translate b
 translate (NameR a b) = Name a $ translate b
-translate (BindR a (b, c)) = Bind (translate a) (\a -> translate (b $ fromDyn1 a), \b -> let (a, ra) = c $ fromDyn1 b in (toDyn a, translate ra))
+translate (BindR a (b, c)) = Bind (translate a) (\a -> translate (b $ fromDyn1 a), \b -> toDyn $ c $ fromDyn1 b)
 
 parset r t = parseE (translate r) t
 {-   
@@ -173,7 +194,7 @@ chars = totald strOfChars charsOfStr
 
 replParse rule n = SeqR $ replicate n rule
 
-replPrint rule res = let l = length res in (l, SeqR $ replicate l rule)
+replPrint rule res = length res
 
 repl rule = (replParse rule, replPrint rule)
 
@@ -732,12 +753,13 @@ data Doc str = DStr str | DGroup [Doc str] | DSeq [Doc str] deriving (Eq, Ord, S
 data Doc2 str = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [str]} deriving (Eq, Ord)
 
 print1 :: forall t a. RuleR t a -> a -> Maybe (Doc [t])
-print1 (SeqR  as)   e = do z <- zipWithM print1 as e; return $ DSeq z
-print1 (AltR  as)   e = firstJust1 $ map (flip print1 e) as
+print1 (SeqR  as)   e = mergeSeq <$> zipWithM print1 as e
+print1 (AltR  as)   e = firstJust1 $ map (\a -> print1 a e) as
 print1 (ApplyR a b) e = unapply a e >>= print1 b
-print1 (BindR  a (b, c)) e = let (g, h) = c e in do ag <- print1 a g; ch <- print1 h e; return $ DSeq [ag, ch]
+print1 (ManyR a)    e = mergeSeq <$> mapM (print1 a) e
+print1 (BindR  p (g, h)) b = let a = h b in do t1 <- print1 p a; t2 <- print1 (g a) b; return $ DSeq [t1, t2]
 print1 (NameR  a b) e = print1 b e
-print1 (TokenR t)   e = Just $ DStr [t]
+print1 (TokenR t)   e = ifJust (t == e) $ DStr [t]
 print1 AnyTokenR    e = Just $ DStr [e]
 
 format = format1 0
@@ -754,8 +776,13 @@ mergeStrs1 [] = []
 mergeStrs1 (DStr a : DStr b : cs) = mergeStrs1 (DStr (a ++ b) : cs)
 mergeStrs1 (a : as) = a : mergeStrs1 as
 
-mergeSeq [DStr a] = DStr a
-mergeSeq a = DSeq a
+mergeSeq1 [] = []
+mergeSeq1 (DSeq a : DSeq b : cs) = mergeSeq1 (DSeq (a ++ b) : cs)
+mergeSeq1 (a : as) = a : mergeSeq1 as
+
+mergeSeq s = case mergeSeq1 $ mergeStrs1 s of
+   [a] -> a
+   b   -> DSeq b
 
 fp p e = format <$> print1 p e
 
