@@ -64,6 +64,9 @@ putim im = putStr $ showim im
 
 data Colour = White | Black | EmptyC deriving (Eq)
 
+opponent White = Black
+opponent Black = White
+
 instance Show Colour where
    show Black = "\27[40;37m"
    show White = "\27[47;30m"
@@ -87,7 +90,7 @@ bishopV = [[ 1, 1],[-1, 1],[ 1,-1],[-1,-1]]
 queenV  = castleV ++ bishopV
 knightV = [[ 2, 1],[-2, 1],[ 2,-1],[-2,-1],[ 1, 2],[-1, 2],[ 1,-2],[-1,-2]]
 
-data Sq = Sq { pos :: Vec, n :: Int, step1 :: M.Map Vec Sq, steps :: M.Map Vec [Sq], knight :: [[Sq]], pawn :: [(Colour, Colour, [Sq])] } | Off
+data Sq = Sq { pos :: Vec, n :: Int, step1 :: M.Map Vec Sq, steps :: M.Map Vec [Sq], knight :: [[Sq]], pawn :: [(Colour, Bool, Bool, [Sq])] } | Off
 
 instance Eq Sq where
    a@Sq{} == b@Sq{} = pos a == pos b
@@ -124,14 +127,13 @@ createSquare y x = let
       step1 = M.fromList $ mapxfx (at1 masterboard . (pos1 <+>)) queenV,
       steps = M.fromList $ mapxfx (\v -> takeWhile (/= Off) $ map (at1 masterboard) $ iterate (v <+>) pos1) queenV,
       knight = map singleton $ filter (/= Off) $ map (at1 masterboard . (pos1 <+>)) knightV,
-      pawn = map (\(f, t, v) -> (f, t, map (at1 masterboard) $ filter onboard $ map (pos1 <+>) v)) 
-                        [(White, Black , [[-1,  1]]),
-                         (White, Black , [[ 1,  1]]), 
-                         (White, EmptyC, [[ 0,  1]] ++ if y == 1 then [[ 0,  2]] else []), 
-
-                         (Black, White , [[-1, -1]]),
-                         (Black, White , [[ 1, -1]]),
-                         (Black, EmptyC, [[ 0, -1]] ++ if y == 6 then [[ 0, -2]] else [])]
+      pawn = map (\(f, m, k, v) -> (f, m, k, map (at1 masterboard) $ filter onboard $ map (pos1 <+>) v)) 
+                        [(White, False, True , [[-1,  1]]),
+                         (White, False, True , [[ 1,  1]]), 
+                         (Black, False, True , [[-1, -1]]),
+                         (Black, False, True , [[ 1, -1]]),
+                         (White, True , False, [[ 0,  1]] ++ if y == 1 then [[ 0,  2]] else []), 
+                         (Black, True , False, [[ 0, -1]] ++ if y == 6 then [[ 0, -2]] else [])]
       }
 
 
@@ -153,17 +155,17 @@ instance Show Move where
                                  then '-' : show (sq $ to m)
                                  else 'x' : show (kill m))
 
-data Move = Move { from :: SqPC, kill :: SqPC, to :: SqPC, thru :: [Sq] }
+data Move = Move { from :: SqPC, kill :: SqPC, to :: SqPC, thru :: [Sq], canmove :: Bool, cankill :: Bool }
 
 movessq movesofsqs board fromsquare = let
    from1 = at board fromsquare
    steps1 = steps fromsquare
    stepsl = map snd $ M.toList steps1
    in case pcpiece from1 of
-      Pawn  -> map (\(fromcol, killcol, sqs) -> if pccolour from1 == fromcol 
+      Pawn  -> map (\(fromcol, canmove, cankill, sqs) -> if pccolour from1 == fromcol 
                                                    then 
                                                       concatMap promote $
-                                                         movesofsqs board from1 (== killcol) sqs 
+                                                         movesofsqs board from1 canmove cankill sqs 
                                                    else []) 
                                                    $ pawn fromsquare
       Empty -> []
@@ -174,25 +176,36 @@ movessq movesofsqs board fromsquare = let
             Castle -> map (steps1 M.!) castleV
             Bishop -> map (steps1 M.!) bishopV
             Knight -> knight fromsquare
-         in map (movesofsqs board from1 (/= pccolour from1)) steps2
+         in map (movesofsqs board from1 True True) steps2
 
 takeWhile1 pred []     = []
 takeWhile1 pred (x:xs) = if pred x then x : takeWhile1 pred xs else [x]
 
-movesofsqs board from1 killcol tos1 =
-   filter (killcol . pccolour . kill) $ 
+movesofsqs board from1 canmove1 cankill1 tos1 =
+   filter 
+      ((case (canmove1, cankill1) of
+         (True , True ) -> (/= pccolour from1)
+         (False, True ) -> (== opponent (pccolour from1))
+         (True , False) -> (== EmptyC))
+      . pccolour . kill) $ 
    takeWhile1 ((== Empty) . pcpiece . kill) $ 
-   movesofsqs1 board from1 killcol tos1
-
-movesofsqs1 board from1 killcol tos1 =
+   movesofsqs1 board from1 canmove1 cankill1 tos1
+{-
+movesofsqs1 board from1 canmove1 cankill1 tos1 =
    filter (killcol . pccolour . kill) $ 
-   movesofsqs2 board from1 killcol tos1
-
-movesofsqs2 board from1 killcol tos1 = 
+   movesofsqs2 board from1 canmove1 cankill1 tos1
+-}
+movesofsqs1 board from1 canmove1 cankill1 tos1 = 
    mapMaybe (\kills2 -> let
          kill1 = last kills2
          sq1   = sq kill1
-         in ifJust (not $ null kills2) $ Move { from = from1, kill = kill1, to = SqPC sq1 (pc from1), thru = map sq kills2 }) $ tail $ inits $ map (at board) tos1
+         in ifJust (not $ null kills2) $ Move { 
+            from = from1, 
+            kill = kill1, 
+            to = SqPC sq1 (pc from1), 
+            thru = map sq kills2,
+            canmove = canmove1,
+            cankill = cankill1 }) $ tail $ inits $ map (at board) tos1
 
 promote move = let
    t = to move
