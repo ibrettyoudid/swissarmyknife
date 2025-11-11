@@ -135,6 +135,7 @@ library
         Layout, 
         Levenshtein,
         Lex,
+        Merge,
         MHash, 
         MHashDynamic, 
         MHashDynamic2,

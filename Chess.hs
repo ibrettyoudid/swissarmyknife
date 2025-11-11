@@ -153,7 +153,7 @@ pcpiece = piece . pc
 
 pccolour = colour . pc
 
-at board square = SqPC square $ board IM.! n square
+at board square = board IM.! n square
 
 check board sqpc = at board (sq sqpc) == sqpc
 
@@ -162,13 +162,9 @@ data SqPC = SqPC { sq :: Sq, pc :: PC } deriving (Eq)
 instance Show SqPC where
    show (SqPC sq pc) = show pc ++ show sq
 
-instance Show Move where
-   show m = show (from m) ++ (if pcpiece (kill m) == Empty
-                                 then '-' : show (sq $ to m)
-                                 else 'x' : show (kill m))
+data Action = Start | MoveA | Block | Kill
 
-data Move = Move { from :: SqPC, kill :: SqPC, to :: SqPC, thru :: [Sq], canmove :: Bool, cankill :: Bool }
-
+data Move = Move { canmove :: Bool, cankill :: Bool, squares :: [Sq], actions :: [Action], lastblock :: [(Sq, Sq)] }
 
 movessq2 board fromsquare = let
    from1  = at board fromsquare
@@ -189,6 +185,22 @@ moves3 board = map (\sqs@(from:_) -> let
                      fromcol = pccolour $ at board from
                      in spanAllow (pccolour . at board) True True fromcol sqs) $ moves2 board
 
+movessq1 board fromsquare = let
+   from1 = at board fromsquare
+   fromcol = colour from1
+   steps1 = steps fromsquare
+   stepsl = map snd $ M.toList steps1
+   in case piece from1 of
+      Empty -> []      
+      Pawn  -> map (\(m, k, s) -> (m, k, fromsquare:s)) $ pawn fromsquare M.! colour from1
+      _ -> map (\x -> (True, True, fromsquare:x)) $
+         case piece from1 of
+            Queen  -> stepsl
+            King   -> map (singleton . head) stepsl
+            Castle -> map (steps1 M.!) castleV
+            Bishop -> map (steps1 M.!) bishopV
+            Knight -> knight fromsquare
+
 spanAllow f canmove cankill fromcol (x:xs) = let (b, a) = loop xs in (x:b, a)
    where 
       loop [    ] = ([], [])
@@ -201,53 +213,69 @@ spanAllow f canmove cankill fromcol (x:xs) = let (b, a) = loop xs in (x:b, a)
                   fail    = ([], x:xs)
                   kill    = ([x], xs)
 
-movessq1 board fromsquare = let
-   from1 = at board fromsquare
-   fromcol = pccolour from1
-   steps1 = steps fromsquare
-   stepsl = map snd $ M.toList steps1
-   in case pcpiece from1 of
-      Empty -> []      
-      Pawn  -> map (\(m, k, s) -> (m, k, fromsquare:s)) $ pawn fromsquare M.! pccolour from1
-      _ -> map (\x -> (True, True, fromsquare:x)) $
-         case pcpiece from1 of
-            Queen  -> stepsl
-            King   -> map (singleton . head) stepsl
-            Castle -> map (steps1 M.!) castleV
-            Bishop -> map (steps1 M.!) bishopV
-            Knight -> knight fromsquare
+lengthAllow move1 = loop actions1 0
+   where 
+      canmove1 = canmove move1
+      cankill1 = cankill move1
+      actions1 = actions move1
+      loop [    ] n = [n]
+      loop (x:xs) n = case x of 
+            Start -> loop xs 1
+            MoveA -> if canmove1 then move else block
+            Block -> block
+            Kill  -> if cankill1 then kill else block
+         where
+            move  = loop xs (n+1)
+            block = n : move
+            kill  = n + 1 : move
+
+lengthAllow1 move1 = loop actions1 squares1
+   where 
+      canmove1 = canmove move1
+      cankill1 = cankill move1
+      actions1 = actions move1
+      squares1 = squares move1
+      loop [    ] _      = []
+      loop _      [    ] = []
+      loop (a:as) (s:t:ss) = case a of 
+            Start -> loop as (s:ss)
+            MoveA -> if canmove1 then move else block
+            Block -> block
+            Kill  -> if cankill1 then kill else block
+         where
+            move  = loop as ss
+            block = (s, t) : move
+            kill  = (t, t) : move
+
+createMove board m@(canmove1, cankill1, x:xs) = let 
+   fromcol = colour $ at board x
+   move1 = Move {
+      canmove = canmove1,
+      cankill = cankill1,
+      squares = x:xs,
+      actions = Start:map ((\x -> if 
+            | x == EmptyC  -> MoveA
+            | x == fromcol -> Block
+            | otherwise    -> Kill) . colour . at board) xs,
+      lastblock = [] }
+   l = lengthAllow1 move1
+   in move1 { lastblock = l }
 
 moves4 board = concatMap (movessq1 board) masterboardl
 
 movesThru4 board = multimap $ concatMap (\m@(m1, k, s) -> map (,m) s) $ concatMap (movessq1 board) masterboardl
 
 moves5 board = map (\(canmove, cankill, sqs@(from:_)) -> let 
-                     fromcol = pccolour $ at board from
-                     in spanAllow (pccolour . at board) canmove cankill fromcol sqs) $ moves4 board
+                     fromcol = colour $ at board from
+                     in spanAllow (colour . at board) canmove cankill fromcol sqs) $ moves4 board
 
 movesThru5 board = multimap $ concatMap (\m@(s1, s2) -> map (,m) $ s1 ++ s2) $ moves5 board
 
+moves6 board = map (createMove board) $ moves4 board
 
+--movesOK6 board = multimap $ concatMap (\m -> map (,m) $ tail $ ok m) board
 
---movesThru5 board =
-
-movessq movesofsqs board fromsquare = let
-   from1 = at board fromsquare
-   steps1 = steps fromsquare
-   stepsl = map snd $ M.toList steps1
-   in case pcpiece from1 of
-      Empty -> []
-      Pawn  -> map (\(canmove, cankill, sqs) -> concatMap promote 
-                  $ movesofsqs board from1 canmove cankill sqs) 
-               $ pawn fromsquare M.! pccolour from1
-      _ -> let
-         steps2 = case pcpiece from1 of
-            Queen  -> stepsl
-            King   -> map (take 1) stepsl
-            Castle -> map (steps1 M.!) castleV
-            Bishop -> map (steps1 M.!) bishopV
-            Knight -> knight fromsquare
-         in map (movesofsqs board from1 True True) steps2
+--movesBlocked6 board = multimap $ map (\m -> (head $ blocked m, m)) board
 
 takeWhile1 pred []     = []
 takeWhile1 pred (x:xs) = if pred x then x : takeWhile1 pred xs else [x]
@@ -255,32 +283,11 @@ takeWhile1 pred (x:xs) = if pred x then x : takeWhile1 pred xs else [x]
 span1 pred [] = ([], [])
 span1 pred (x:xs) | pred x    = let (b, a) = span1 pred xs in (x:b, a)
                   | otherwise = ([x], xs)
-
+{-}
 allowMove move col = 
    if | col == EmptyC               -> canmove move
       | col == pccolour (from move) -> False
       | otherwise                   -> cankill move
-
-movesofsqs board from1 canmove1 cankill1 tos1 =
-   filter (\m -> allowMove m $ pccolour $ kill m) $ 
-   takeWhile1 ((== Empty) . pcpiece . kill) $ 
-   movesofsqs1 board from1 canmove1 cankill1 tos1
-{-
-movesofsqs1 board from1 canmove1 cankill1 tos1 =
-   filter (killcol . pccolour . kill) $ 
-   movesofsqs2 board from1 canmove1 cankill1 tos1
--}
-movesofsqs1 board from1 canmove1 cankill1 tos1 = 
-   mapMaybe (\kills2 -> let
-         kill1 = last kills2
-         sq1   = sq kill1
-         in ifJust (not $ null kills2) $ Move { 
-            from    = from1, 
-            kill    = kill1, 
-            to      = SqPC sq1 (pc from1), 
-            thru    = map sq kills2,
-            canmove = canmove1,
-            cankill = cankill1 }) $ tail $ inits $ map (at board) tos1
 
 promote move = let
    t = to move
@@ -292,33 +299,7 @@ promote move = let
          Black -> if pos s !! 1 == 0
             then [SqPC s $ PC Black Queen, SqPC s $ PC Black Knight]
             else [t]
-
-moves1 movesofsqs board = concatMap (concat . movessq movesofsqs board) masterboardl
-
-moves board = moves1 movesofsqs board
-
-movesThru board = multimap $ concatMap (\m -> map (,m) $ thru m) $ moves1 movesofsqs1 board
-
-doMove move board = if (check board $ from move) && (check board $ kill move)
-   then
-      IM.insert (n $ sq $ to   move) (pc $ to move   ) $
-      IM.insert (n $ sq $ from move) (PC EmptyC Empty) board
-   else
-      error $ "This move "++show move++" is invalid on this board"
-
-doMove1 board move = if (check board $ from move) && (check board $ kill move)
-   then
-      IM.insert (n $ sq $ to   move) (pc $ to move   ) $
-      IM.insert (n $ sq $ from move) (PC EmptyC Empty) board
-   else
-      error $ "This move "++show move++" is invalid on this board"
-{-}
-newMoves board = let
-   moves2 = movesThru board
-   (ok, notok) = partition 
-   new = map (doMove1 board) moves2
 -}
-data BoardMoves = BoardMoves { board :: IM.IntMap PC, bmoves :: M.Map Sq [Move]}
 {-
 CnbKQbnC
 pppppppp
