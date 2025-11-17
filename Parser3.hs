@@ -16,6 +16,7 @@ import Favs hiding (indent1, indent2)
 import qualified MyPretty2
 import {-# SOURCE #-} MHashDynamic2 hiding (Apply, expr)
 import NewTuple
+import qualified SetList as SL
 import Iso hiding (foldl, (!!))
 import qualified Iso
 --import Rule
@@ -423,18 +424,15 @@ closure1 f done current =
     in
       if S.null new then done else closure1 f newdone newnew
 
-closure2 f items = closure3 f (S.fromList items) items items
+closureA f items = closureA1 f items items
 
-closure3 f doneset done (c:current) = let
-   new = f done current
-   newset = S.fromList new
-   newdoneset = S.union doneset newset
-   newnewset = newset S.\\ doneset
-   newnew = S.toList newnewset
-   newdone = done ++ newnew
-   in
-      if null newnew then done else closure3 f newdoneset newdone newnew
-
+closureA1 f done current =
+   let
+      new = f done current
+      newdone = SL.union done new
+      newnew = new SL.\\ done
+    in
+      if SL.null new then done else closureA1 f newdone newnew
 
 process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
@@ -470,7 +468,6 @@ start1 (Many a) = IMany []
 start1 _ = Item2
 
 scanZ c t items = mapMaybe (scan1Y c (t !! (c - 1))) $ S.toList items
-
 
 scan1Y c ch (State j _ t) = scan1Z c ch j c t
 
