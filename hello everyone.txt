@@ -1,0 +1,5 @@
+hello everyone
+
+i am the great file to be diffed
+
+that's all folks

@@ -1,7 +1,7 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FlexibleContexts #-}
 
-module Prolog where
+module Prolog2 where
 
 import Control.Concurrent.STM
 import Control.Monad.State

@@ -7,7 +7,7 @@
 module Parser4 where
 
 import Iso
-import MHashDynamic hiding (Apply, Frame, Let)
+import MHashDynamic2 hiding (Apply, Frame, Let)
 import Data.Word
 import Data.Char
 import Data.Map qualified as M

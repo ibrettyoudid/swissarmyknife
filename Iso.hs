@@ -11,6 +11,8 @@ where
 import SyntaxTH
 import SyntaxCIPU
 
+import NewTuple
+
 import Prelude (Show, show)
 
 import Prelude qualified
@@ -55,7 +57,7 @@ $(defineIsomorphisms ''Either)
 $(defineIsomorphisms ''Maybe)
 
 -- module Control.Isomorphism.Partial.Derived 
-foldl :: Iso (alpha, beta) alpha -> Iso (alpha, [beta]) alpha
+foldl :: Iso (alpha :- beta) alpha -> Iso (alpha :- [beta]) alpha
 foldl i = inverse unit 
         . (id *** inverse nil) 
         . iterate (step i) where
@@ -75,19 +77,19 @@ nil = Iso f g where
   g []  =  Just ()
   g _   =  Nothing
 
-cons :: Iso (alpha, [alpha]) [alpha]
+cons :: Iso (alpha :- [alpha]) [alpha]
 cons = Iso f g where
-  f (x, xs)   =  Just (x : xs)
-  g (x : xs)  =  Just (x, xs)
+  f (x :- xs) =  Just (x :  xs)
+  g (x : xs)  =  Just (x :- xs)
   g _         =  Nothing
   
-listCases :: Iso (Either () (alpha, [alpha])) [alpha]
+listCases :: Iso (Either () (alpha :- [alpha])) [alpha]
 listCases = Iso f g
   where
     f (Left ())        =  Just []
-    f (Right (x, xs))  =  Just (x : xs)
+    f (Right (x :- xs))  =  Just (x : xs)
     g []               =  Just (Left ())
-    g (x:xs)           =  Just (Right (x, xs))
+    g (x:xs)           =  Just (Right (x :- xs))
 
 --module Control.Isomorphism.Partial.Prim
 
@@ -115,14 +117,14 @@ ignore x = Iso f g where
   f _   =  Just ()
   g ()  =  Just x
 
--- | the product type constructor `(,)` is a bifunctor from 
+-- | the product type constructor `(:-)` is a bifunctor from 
 -- `Iso` $\times$ `Iso` to `Iso`, so that we have the 
 -- bifunctorial map `***` which allows two separate isomorphisms 
 -- to work on the two components of a tuple.
-(***) :: Iso alpha beta -> Iso gamma delta -> Iso (alpha, gamma) (beta, delta)
+(***) :: Iso alpha beta -> Iso gamma delta -> Iso (alpha :- gamma) (beta :- delta)
 i *** j = Iso f g where
-  f (a, b) = liftM2 (,) (apply i a) (apply j b) 
-  g (c, d) = liftM2 (,) (unapply i c) (unapply j d) 
+  f (a :- b) = liftM2 (:-) (apply i a) (apply j b) 
+  g (c :- d) = liftM2 (:-) (unapply i c) (unapply j d) 
 
 -- | The mediating arrow for sums constructed with `Either`.
 -- This is not a proper partial isomorphism because of `mplus`.
@@ -134,29 +136,29 @@ i ||| j = Iso f g where
 
  
 -- | Nested products associate. 
-associate :: Iso (alpha, (beta, gamma)) ((alpha, beta), gamma)
+associate :: Iso (alpha :- (beta :- gamma)) ((alpha :- beta) :- gamma)
 associate = Iso f g where
-  f (a, (b, c)) = Just ((a, b), c)
-  g ((a, b), c) = Just (a, (b, c))
+  f (a :- (b :- c)) = Just ((a :- b) :- c)
+  g ((a :- b) :- c) = Just (a :- (b :- c))
 
 -- | Products commute.
-commute :: Iso (alpha, beta) (beta, alpha)
+commute :: Iso (alpha :- beta) (beta :- alpha)
 commute = Iso f f where
-  f (a, b) = Just (b, a)
+  f (a :- b) = Just (b :- a)
 
 -- | `()` is the unit element for products. 
-unit :: Iso alpha (alpha, ())
+unit :: Iso alpha (alpha :- ())
 unit = Iso f g where
-  f a = Just (a, ())
-  g (a, ()) = Just a
+  f a = Just (a :- ())
+  g (a :- ()) = Just a
 
 -- | Products distribute over sums.
-distribute  ::  Iso (alpha, Either beta gamma) (Either (alpha, beta) (alpha, gamma))
+distribute  ::  Iso (alpha :- Either beta gamma) (Either (alpha :- beta) (alpha :- gamma))
 distribute  =   Iso f g where
-  f (a, Left   b)    =  Just (Left   (a, b))
-  f (a, Right  c)    =  Just (Right  (a, c))
-  g (Left   (a, b))  =  Just (a,  Left   b)
-  g (Right  (a, b))  =  Just (a,  Right  b)
+  f (a :- Left   b)    =  Just (Left   (a :- b))
+  f (a :- Right  c)    =  Just (Right  (a :- c))
+  g (Left   (a :- b))  =  Just (a :-  Left   b)
+  g (Right  (a :- b))  =  Just (a :-  Right  b)
   
 -- | `element x` is the partial isomorphism between `()` and the 
 -- singleton set which contains just `x`.
@@ -165,7 +167,7 @@ element x = Iso
   (\a -> Just x)
   (\b -> if x == b then Just () else Nothing)
 
--- | For a predicate `p`, `subset p` is the identity isomorphism
+-- | For a predicate `p`:- `subset p` is the identity isomorphism
 -- restricted to elements matching the predicate.
 subset :: (alpha -> Bool) -> Iso alpha alpha
 subset p = Iso f f where
@@ -193,7 +195,7 @@ satisfy p = Iso f f where f x = if p x then Just x else Nothing
 (!!) list = Iso (Just . (list Prelude.!!)) (`Data.List.elemIndex` list)
 -- module Control.Isomorphism.Partial.TH 
 {-
--- | Extract the name of a constructor, e.g. ":" or "Just".
+-- | Extract the name of a constructor:- e.g. ":" or "Just".
 conName :: Con -> Name
 conName (NormalC name fields)       =   name
 conName (RecC name fields)          =   name
@@ -202,9 +204,9 @@ conName (ForallC vars context con)  =   conName con
 
 -- | Extract the types of the constructor's fields.
 conFields :: Con -> [Type]
-conFields (NormalC name fields)       =   map (\(s, t) -> t) fields
-conFields (RecC name fields)          =   map (\(n, s, t) -> t) fields
-conFields (InfixC lhs name rhs)       =   map (\(s, t) -> t) [lhs, rhs]
+conFields (NormalC name fields)       =   map (\(s:- t) -> t) fields
+conFields (RecC name fields)          =   map (\(n:- s:- t) -> t) fields
+conFields (InfixC lhs name rhs)       =   map (\(s:- t) -> t) [lhs:- rhs]
 conFields (ForallC vars context con)  =   conFields con
 
 -- | Extract the constructors of a type declaration
@@ -214,7 +216,7 @@ decConstructors (NewtypeD _ _ _ c _)  =  return [c]
 decConstructors _                      
   = fail "partial isomorphisms can only be derived for constructors of data type or newtype declarations."
 
--- | Construct a partial isomorphism expression for a constructor, 
+-- | Construct a partial isomorphism expression for a constructor:- 
 -- given the constructor's name.
 constructorIso :: Name -> ExpQ
 constructorIso c = do
@@ -238,7 +240,7 @@ rename n
   = mkName (toLower c : cs) where c : cs = nameBase n
 
 -- | Construct partial isomorphism definitions for all 
---   constructors of a datatype, given the datatype's name.
+--   constructors of a datatype:- given the datatype's name.
 --   The names of the partial isomorphisms are constructed by
 --   spelling the constructor names with an initial lower-case
 --   letter.
@@ -249,7 +251,7 @@ defineIsomorphisms d = do
   mapM (defFromCon (wildcard cs)) cs
 
 -- | Constructs a partial isomorphism definition for a
---   constructor, given information about the constructor.
+--   constructor:- given information about the constructor.
 --   The name of the partial isomorphisms is constructed by
 --   spelling the constructor name with an initial lower-case
 --   letter.
@@ -259,13 +261,13 @@ defFromCon wildcard con
       [clause [] (normalB (isoFromCon wildcard con)) []]
 
 -- | Constructs a partial isomorphism expression for a
---   constructor, given information about the constructor.
+--   constructor:- given information about the constructor.
 isoFromCon :: [MatchQ] -> Con -> ExpQ
 isoFromCon wildcard con = do
   let c     =   conName con
   let fs    =   conFields con
   let n     =   length fs
-  (ps, vs)  <-  genPE n
+  (ps:- vs)  <-  genPE n
   v         <-  newName "x"
   let f     =   lamE [nested tupP ps] 
                   [| Just $(foldl appE (conE c) vs) |]
@@ -280,10 +282,10 @@ isoFromCon wildcard con = do
 
 genPE n = do
   ids <- replicateM n (newName "x")
-  return (map varP ids, map varE ids)
+  return (map varP ids:- map varE ids)
 
 nested tup []      =  tup [] 
 nested tup [x]     =  x
-nested tup (x:xs)  =  tup [x, nested tup xs]
+nested tup (x:xs)  =  tup [x:- nested tup xs]
 
 -}

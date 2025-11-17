@@ -21,7 +21,7 @@ import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 import SyntaxCIPU
 import SyntaxTH
 import Rule
-import MHashDynamic hiding (Apply)
+import MHashDynamic2 hiding (Apply)
 
 import Prelude hiding (foldl, foldr, id, iterate, print, pure, (*<), (.), (>$<), (>*), (>*<))
 import Prelude qualified

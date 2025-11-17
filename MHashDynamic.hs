@@ -46,6 +46,7 @@ import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
 import Data.Map.Lazy qualified as M
 import Data.Set qualified as S
 
+import Iso hiding (right, foldl, (!!))
 import Syntax3 hiding (foldl, foldr, print, right)
 import Syntax3 qualified as S3
 import SyntaxCIPU
@@ -64,8 +65,8 @@ data Expr
   | Let {etype :: MType, econstr :: Constr, vals :: [Expr], subexpr :: Expr}
   | Block {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
   | Apply {etype :: MType, subexprs :: [Expr]}
-  | If {etype :: MType, clauses :: [(Expr, Expr)]}
-  | Case {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
+  | If {etype :: MType, clauses :: [Expr :- Expr]}
+  | Case {etype :: MType, case1 :: Expr, clauses :: [Expr :- Expr]}
   | Else
   | Exprs {etype :: MType, exprs1 :: [Expr]}
   deriving (Typeable, Eq, Show)
@@ -757,9 +758,9 @@ prediso p = Iso (ifPred p) (ifPred p)
 
 opiso ops =
   Iso
-    (\(a, (op, b)) -> Just $ Apply u [VarRef1 u op, a, b])
+    (\(a :- op :- b) -> Just $ Apply u [VarRef1 u op, a, b])
     ( \case
-        Apply _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a, (op, b))
+        Apply _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a :- op :- b)
         _ -> Nothing
     )
 

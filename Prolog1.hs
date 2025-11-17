@@ -17,7 +17,6 @@ import Data.Set qualified as S
 import Data.IntMap qualified as I
 import Data.List
 import Data.Maybe
-import MHash (Doc(docWidth))
 import TestBoomerang (id3Base)
 --import qualified BString as S
 {-

@@ -35,6 +35,8 @@ import Numeric
 
 import HTTPTypes qualified
 
+import NewTuple
+
 import Data.Dynamic qualified as D
 import Data.IORef
 import Data.List
@@ -47,7 +49,6 @@ import Data.Set qualified as S
 
 --import Syntax3 hiding (foldl, foldr, print, right)
 --import Syntax3 qualified as S3
-import Lex
 import Parser3 hiding (Apply)
 import Iso hiding (foldl, foldr, right, (!!))
 
@@ -71,7 +72,7 @@ fromDyn1 :: (Typeable a) => Dynamic -> a
 fromDyn1 d = case fromDynamic d of
   Just j -> j
   n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (und d))
-{-
+
 
 instance Eq Dynamic where
   a == b = am eqm [a, b]
@@ -119,8 +120,8 @@ data Expr
   | Let     {etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr}
   | Block   {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
   | Apply   {etype :: MType,                    subexprs :: [Expr]}
-  | If      {etype :: MType,                clauses :: [(Expr, Expr)]}
-  | Case    {etype :: MType, case1 :: Expr, clauses :: [(Expr, Expr)]}
+  | If      {etype :: MType,                clauses :: [(Expr :- Expr)]}
+  | Case    {etype :: MType, case1 :: Expr, clauses :: [(Expr :- Expr)]}
   | Else
   | Exprs   {etype :: MType, exprs1 :: [Expr]}
   | Keyword String
@@ -732,11 +733,15 @@ charlit = valueIso >$< text "'" *< anytoken >* text "'"
 
 strlit = valueIso >$< text "\"" *< many anytoken >* text "\""
 
+sepSpace = token ' '
+
 singIso = Iso (\a -> Just [a]) (\case [a] -> Just a; _ -> Nothing)
 
 u = unknown
 
-num = "num" <=> (numIso :: Iso Int Expr) >$< number
+readShow = total read show
+
+num = "num" <=> valueIso >$< (readShow :: Iso String Int) >$< many (RangeR '0' '9')
 
 numIso = valueIso :: Iso Int Expr
 
@@ -744,13 +749,15 @@ valueIso = Iso (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> 
 
 varIso = Iso (Just . VarRef1 u) varfn
 
-varIsoT = Iso (\(v, t) -> Just $ VarRef1 t v) varfnt
+varIsoT = Iso (\(v :- t) -> Just $ VarRef1 t v) varfnt
 
 var = "var" <=> varIso >$< identifier
 
-vardefiso = Iso (\(n, t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n, t); _ -> Nothing)
+vardefiso = Iso (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n :- t); _ -> Nothing)
 
 vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser3.pure u))
+
+identifier = many (RangeR 'a' 'z')
 
 typeanno = expr >*< text "::" *< expr
 
@@ -760,27 +767,31 @@ varfn (VarRef1 _ v) = Just v
 varfn (VarRef _ v _ _) = Just v
 varfn _ = Nothing
 
-varfnt (VarRef t v _ _) = Just (v, t)
-varfnt (VarRef1 t v) = Just (v, t)
+varfnt (VarRef t v _ _) = Just (v :- t)
+varfnt (VarRef1 t v) = Just (v :- t)
 varfnt _ = Nothing
 
 app (Apply _ l) = l
 
 prediso p = Iso (ifPred p) (ifPred p)
 
+opiso :: [String] -> Iso (Expr :- (String :- Expr)) Expr
 opiso ops =
   Iso
-    (\(a, (op, b)) -> Just $ Apply u [VarRef1 u op, a, b])
+    (\(a :- op :- b) -> Just $ Apply u [VarRef1 u op, a, b])
     ( \case
-        Apply _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a, (op, b))
+        Apply _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a :- op :- b)
         _ -> Nothing
     )
 
-opc ops = Prelude.foldr (<|>) empty $ map text1 ops
+opc :: [[Char]] -> RuleR Char String
+opc ops = Prelude.foldr (<|>) (Parser3.pure "") $ map text ops
 
+opl :: [[Char]] -> RuleR Char Expr -> RuleR Char Expr
 opl ops term = chainl1 term (opc ops) $ opiso ops
 
-opr ops term = chainr1 term (opc ops) $ opiso ops
+opr :: [[Char]] -> RuleR Char Expr -> RuleR Char Expr
+opr ops term = (chainr1) (term :: RuleR Char Expr) (opc ops :: RuleR Char String) (opiso ops :: Iso (Expr :- (String :- Expr)) Expr)
 
 ops = ["+", "-", "*", "/", "$", ".", "=", "=="]
 
@@ -788,18 +799,18 @@ op = "op" <=> varIso >$< text "(" *< opc ops >* text ")"
 
 leftsec =
   Iso
-    (\(a, op) -> Just $ Lambda u (Co "lam" [Member u "b"]) (Apply u [VarRef1 u op, a, VarRef1 u "b"]))
+    (\(a :- op) -> Just $ Lambda u (Co "lam" [Member u "b"]) (Apply u [VarRef1 u op, a, VarRef1 u "b"]))
     ( \case
-        (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, a, VarRef1 _ b])) -> ifJust (b `elem` map mname locals) (a, op)
+        (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, a, VarRef1 _ b])) -> ifJust (b `elem` map mname locals) (a :- op)
         _ -> Nothing
     )
     >$< text "(" *< term >*< opc ops >* text ")"
 
 rightsec =
   Iso
-    (\(op, b) -> Just $ Lambda u (Co "lam" [Member u "a"]) (Apply u [VarRef1 u op, VarRef1 u "a", b]))
+    (\(op :- b) -> Just $ Lambda u (Co "lam" [Member u "a"]) (Apply u [VarRef1 u op, VarRef1 u "a", b]))
     ( \case
-        (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, VarRef1 _ a, b])) -> ifJust (a `elem` map mname locals) (op, b)
+        (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, VarRef1 _ a, b])) -> ifJust (a `elem` map mname locals) (op :- b)
         _ -> Nothing
     )
     >$< text "(" *< opc ops >*< term >* text ")"
@@ -851,16 +862,16 @@ ifSyn =
   Iso
     (Just . If u)
     (\case If _ blah -> Just blah; _ -> Nothing)
-    >$< ci (text "if")
-    *< groupOf (expr0 >* text "->" >*< expr0)
+    >$< text "if"
+    *< groupOf (expr0 >*< text "->" *< expr0 :: RuleR Char (Expr :- Expr))
 
 conIso = Iso (Just . Co "data") (\case Co _ members -> Just members)
 
 lambdaSyn =
   Iso
-    (\(params, exp) -> Just $ Lambda u (Co "" params) exp)
-    (\case Lambda _ (Co _ params) exp -> Just (params, exp); _ -> Nothing)
-    >$< text "\\" *< mem `sepBy` sepSpace >* text "->" >*< expr0
+    (\(params :- exp) -> Just $ Lambda u (Co "" params) exp)
+    (\case Lambda _ (Co _ params) exp -> Just (params :- exp); _ -> Nothing)
+    >$< text "\\" *< many mem >*< text "->" *< expr0
 
 blockSyn = "blockSyn" <=>
   Iso
@@ -1295,4 +1306,3 @@ insertAt n v l =
     (b, a) = splitAt n l
    in
     b ++ v : a
--}

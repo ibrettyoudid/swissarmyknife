@@ -11,7 +11,9 @@ module Parser6 where
 
 import Parser6Types
 import Iso
-import MHashDynamic hiding (Apply, Frame, Let)
+import MHashDynamic2 hiding (Apply, Frame, Let)
+import NewTuple
+
 import Data.Word
 import Data.Char
 import Data.Map qualified as M
@@ -36,7 +38,7 @@ data Rule r f t where
 --   Ignore   ::  Rule  r  f t  -> Rule  r  f t
    Eith     ::  Rule  r  f t  -> Rule  s  f t -> Rule (Either r s) f t
    Option   ::  Rule  r  f t                  -> Rule (Maybe r) f t
-   (:-)     ::  Rule  a  f t  -> Rule  b  f t -> Rule (a,b) f t
+   (:+)     ::  Rule  a  f t  -> Rule  b  f t -> Rule (a :- b) f t
    (:/)     ::  Rule  a  f t  -> Rule  b  f t -> Rule  b    f t
    (://)    ::  Rule  a  f t  -> Rule  b  f t -> Rule  a    f t
    ManyTill ::  Rule  r  f t  -> Rule  b  f t -> Rule [r]   f t
@@ -227,11 +229,11 @@ parse1 (String str) fs i =
       Just  j -> Done str fs j
       Nothing -> Fail ("Expecting string "++show str) fs i
 
-parse1 (a :- b) fs i =
+parse1 (a :+ b) fs i =
    case parse1 a fs i of
       Done ar fs1 i1 ->
          case parse1 b fs1 i1 of
-            Done br fs2 i2 -> Done (ar, br) fs2 i2
+            Done br fs2 i2 -> Done (ar :- br) fs2 i2
             Fail em fs2 i2 -> Fail em fs2 i2
       Fail em fs1 i1 -> Fail em fs1 i1
 
@@ -407,9 +409,9 @@ format1 (Token tok) fs r = FDone [tok] fs
 
 format1 (String str) fs r = FDone str fs
 
-format1 (a :- b) fs r =
+format1 (a :+ b) fs r =
    case r of
-      (ar, br) ->
+      (ar :- br) ->
          case format1 a fs ar of
             FDone at fs1 ->
                case format1 b fs1 br of
@@ -556,7 +558,7 @@ visit f (Set  name  x  ) = Set name   $ visit f x
 visit f (SetM names x  ) = SetM names $ visit f x
 visit f (And        xs ) = And        $ map (visit f) xs
 visit f (Not        x  ) = Not        $ visit f x
-visit f (        x :- y) = visit f x :- visit f y
+visit f (        x :+ y) = visit f x :+ visit f y
 visit f (Count      x y) = Count       (visit f x) (visit f y)
 visit f (Name name  x  ) = Name name  $ visit f x
 --visit f (Ignore     x  ) = Ignore     $ visit f x
@@ -565,17 +567,17 @@ visit f other            = other
 
 doManyTill = visitPost doManyTill1
 
-ll = AnyToken :- AnyToken :- AnyToken
+ll = AnyToken :+ AnyToken :+ AnyToken
 
-doManyTill1 (Many AnyToken :- b) = AnyTill b :- b
-doManyTill1 (Many a :- b) = ManyTill a b :- b
-doManyTill1 (AnyTill a :- b) = AnyTill b :- b
-doManyTill1 (ManyTill a b :- c) = ManyTill a c :- c
+doManyTill1 (Many AnyToken :+ b) = AnyTill b :+ b
+doManyTill1 (Many a :+ b) = ManyTill a b :+ b
+doManyTill1 (AnyTill a :+ b) = AnyTill b :+ b
+doManyTill1 (ManyTill a b :+ c) = ManyTill a c :+ c
 doManyTill1 other = other
 
 nonEmpty :: Rule r f t -> Bool
 nonEmpty (Alt      a  ) = all nonEmpty a
-nonEmpty (      a :- b) = nonEmpty a || nonEmpty b
+nonEmpty (      a :+ b) = nonEmpty a || nonEmpty b
 nonEmpty (Many     a  ) = False
 nonEmpty (ManyTill a b) = False
 nonEmpty (AnyTill  a  ) = False
@@ -587,7 +589,7 @@ nonEmpty (Apply    a b) = nonEmpty b
 nonEmpty (Name     a b) = nonEmpty b
 
 --nonEmptyPrefix :: Rule r f t -> Rule s f t
---nonEmptyPrefix (a :- b) = if nonEmpty a then a else a :- nonEmptyPrefix b
+--nonEmptyPrefix (a :+ b) = if nonEmpty a then a else a :+ nonEmptyPrefix b
 
 strOfChars :: [Dynamic] -> String
 strOfChars = map fromDyn1
@@ -614,9 +616,9 @@ diff2 (Range a b) (Range c d) =
 diff3 [Range a b] = Range a b
 diff3 (a:b:cs) = Alt (a:b:cs)
 -}
-filename = AnyTill (Token '.') :- Token '.' :- Many AnyToken
+filename = AnyTill (Token '.') :+ Token '.' :+ Many AnyToken
 
-hostport = Build (HostPort "" 0) $ (Host <-- AnyTill (Token ':')) :- Token ':' :- (Port <-- int)
+hostport = Build (HostPort "" 0) $ (Host <-- AnyTill (Token ':')) :+ Token ':' :+ (Port <-- int)
 
 rint s = read s :: Int
 
@@ -643,7 +645,7 @@ totald f g = Iso (fd (Just . f)) (fd (Just . g))
 infixr 3 <--
 a <-- b = Set a b
 
-infixr 2 :-
+infixr 2 :+
 infixr 2 :/
 infixr 2 ://
 
@@ -654,7 +656,7 @@ instance Show tok => Show (Rule res frame tok) where
    showsPrec d (ManyTill m t) r = "ManyTill "++showsPrec 10 m " "++showsPrec 10 t r
    showsPrec d (AnyTill t) r = "AnyTill "++showsPrec 10 t r
    showsPrec d (Alt as) r = "Alt"++concatMap (\a -> showsPrec 10 a "") as++r
-   showsPrec d (a :- b) r = showsPrec 1 a " :- "++showsPrec 1 b r
+   showsPrec d (a :+ b) r = showsPrec 1 a " :+ "++showsPrec 1 b r
 
 data DataInfo = DataInfo { type1 :: String, con :: String, fields :: [DataField] }
 data DataField = DataField { fname :: String, ftype :: String }
@@ -685,12 +687,12 @@ instance Frame FTypeK String DataField where
    myget1 FTypeK = ftype
    myset1 FTypeK value frame = frame { ftype = value }
 
-dataP = Build (DataInfo "" "" []) $ String "data" :- sp :- 
-   TypeK <-- ident :- sp :/ Token '=' :/ sp :/
-   ConK  <-- ident :- sp :/ Token '{' :/ sp :/
+dataP = Build (DataInfo "" "" []) $ String "data" :+ sp :+ 
+   TypeK <-- ident :+ sp :/ Token '=' :/ sp :/
+   ConK  <-- ident :+ sp :/ Token '{' :/ sp :/
    FieldsK <-- ManyTill (Build (DataField "" "") 
-      (FNameK <-- ident :- sp :/ String "::" :/ sp :/
-      FTypeK  <-- ident :- sp :/ Token   ',' :/ sp)) (Token '}') :// Token '}' :- sp
+      (FNameK <-- ident :+ sp :/ String "::" :/ sp :/
+      FTypeK  <-- ident :+ sp :/ Token   ',' :/ sp)) (Token '}') :// Token '}' :+ sp
 
 makeFields f = DataInfo (uppk $ type1 f) (uppk $ type1 f)
 
@@ -698,13 +700,13 @@ uppk (c:cs) = toUpper c : cs ++ "K"
 
 sp = Many (Token ' ')
 
-ident = Apply cons (alpha :- Many alnum)
+ident = Apply cons (alpha :+ Many alnum)
 
 alpha = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_')) AnyToken
 
 alnum = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_' || isDigit c)) AnyToken
 
-many1 p = Apply cons (p :- Many p)
+many1 p = Apply cons (p :+ Many p)
 
 low = map toLower
 

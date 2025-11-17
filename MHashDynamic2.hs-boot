@@ -13,3 +13,6 @@ fromDyn :: (Typeable a) => Dynamic -> a -> a
 
 fromDyn1 :: (Typeable a) => Dynamic -> a
 
+instance Eq Dynamic
+instance Ord Dynamic
+instance Show Dynamic

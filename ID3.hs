@@ -17,7 +17,7 @@ module ID3 where
 import ApplyTuple
 import BString
 import Favs hiding (range, split, split1With, splitWith)
-import MHashDynamic hiding (Frame, name, tl, (!), (==))
+import MHashDynamic2 hiding (Frame, name, tl, (!), (==))
 import MyPretty2
 import Shell hiding (contents, fields, main, year, (@))
 import Show1

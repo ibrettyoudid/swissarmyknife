@@ -11,7 +11,7 @@ module Atlas where
 
 import Favs hiding (on)
 import HTML
-import MHashDynamic
+import MHashDynamic2
 import Matrix hiding ((*), (+), (-))
 import MyPretty2
 

@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Prolog where
 
@@ -10,8 +11,9 @@ import Data.Char
 import Data.Map qualified as M
 import Data.IntMap qualified as I
 import Data.List
+import Debug.Trace
 
-data Expr = Apply [Expr] | I Int | Sym String | Str String | Var Int | Name String | List [Expr] | Imp [Expr] Expr deriving (Eq, Ord, Show)
+data Expr = Apply [Expr] | I Int | Sym String | Str String | Var Int | Name String | List [Expr] | Imp [Expr] Expr | Braced Expr deriving (Eq, Ord, Show)
 
 data Env1 = Env1 Env Int deriving (Eq, Ord, Show)
 
@@ -22,22 +24,58 @@ db =
   , Apply [Apply [Sym "append", Apply [Sym "cons", Name "A", Name "As"], Name "Bs", Apply [Sym "cons", Name "A", Name "Cs"]], Apply [Sym "append", Name "As", Name "Bs", Name "Cs"]]
   ]
 
-test = Apply [Sym "append", Name "X", Name "Y", expandSym "abcd"]
-
+test = [Apply [Sym "append", Name "X", Name "Y", expandSym "abcd"]]
 {- >>> contractEList $ run db test
-[fromList [(0,Sym ""),(1,Sym "abcd"),(3,Sym "abcd")],fromList [(0,Sym "a"),(1,Sym "bcd"),(5,Sym "a"),(7,Sym ""),(8,Sym "bcd"),(9,Sym "bcd"),(11,Sym "bcd")],fromList [(0,Sym "ab"),(1,Sym "cd"),(5,Sym "a"),(7,Sym "b"),(8,Sym "cd"),(9,Sym "bcd"),(13,Sym "b"),(15,Sym ""),(16,Sym "cd"),(17,Sym "cd"),(19,Sym "cd")],fromList [(0,Sym "abc"),(1,Sym "d"),(5,Sym "a"),(7,Sym "bc"),(8,Sym "d"),(9,Sym "bcd"),(13,Sym "b"),(15,Sym "c"),(16,Sym "d"),(17,Sym "cd"),(21,Sym "c"),(23,Sym ""),(24,Sym "d"),(25,Sym "d"),(27,Sym "d")],fromList [(0,Sym "abcd"),(1,Sym ""),(5,Sym "a"),(7,Sym "bcd"),(8,Sym ""),(9,Sym "bcd"),(13,Sym "b"),(15,Sym "cd"),(16,Sym ""),(17,Sym "cd"),(21,Sym "c"),(23,Sym "d"),(24,Sym ""),(25,Sym "d"),(29,Sym "d"),(31,Sym ""),(32,Sym ""),(33,Sym ""),(35,Sym "")]]
+Couldn't match type `[(String, Expr)]' with `Env1'
+Expected: [Env1]
+  Actual: [[(String, Expr)]]
+In the second argument of `($)', namely `run db test'
+In the expression: contractEList $ run db test
+In an equation for `it_aotQe':
+    it_aotQe = contractEList $ run db test
 -}
-run db goal =
-  execStateT
-    ( do
-        new <- instantiate goal
-        doOr db new
-    )
-    $ Env1 I.empty 0
+
+parser = 
+  Apply [Sym "=", Name "X", Name "X"] : map expandTerm [
+    Apply [Sym "-->", Apply [Sym "num1"]],
+    Apply [Sym "-->", Apply [Sym "num1"], Apply [Sym "num"]],
+    Apply [Sym "-->", Apply [Sym "num"], List [Sym "0"], Apply [Sym "num1"]]]
+{-
+>>> parser
+[Apply [Sym "=",Name "X",Name "X"],Apply [Sym "-->",Apply [Sym "num1",Name "ET1",Name "ET1"]],Apply [Sym "-->",Apply [Sym "num1",Name "ET1",Name "ET2"],Apply [Sym "num",Name "ET1",Name "ET2"]],Apply [Sym "-->",Apply [Sym "num",Name "ET1",Name "ET3"],Apply [Sym "=",Name "ET1",Imp [Sym "0"] (Name "ET2")],Apply [Sym "num1",Name "ET2",Name "ET3"]]]
+
+
+>>> parse [Apply [Sym "num"]] "0000"
+[]
+-}
+
+parse xs s = let
+  l    = (+1) $ length $ filter (\case { Braced {} -> False; _ -> True }) xs
+  vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
+  vars1 = init vars     
+  vars2 = tail vars
+
+  es = expandTerm0 xs vars1 vars2
+
+  s1 = Apply [Sym "=", head vars, expandSym1 s $ last vars]
+  in run parser $ s1 : es
+
+run db goals = map (\(vars1, Env1 env n) -> let
+  vars2 = I.fromList $ map (\(name, num) -> (num, name)) vars1
+  in map (\(name, num) -> (name, rename1 vars2 $ env I.! num)) vars1) $
+    runStateT
+      (do
+          (Apply new, vars1) <- instantiate $ Apply goals
+          doAnd db new
+          return vars1
+      )
+      $ Env1 I.empty 0
+  
+  
 
 doClause db goal clause = do
   new <- instantiate clause
-  let Apply (head1 : newgoals) = new
+  let Apply (head1 : newgoals) = fst new
   Env1 env vn <- get
   case execStateT (unify goal head1) env of
     Nothing -> lift []
@@ -50,9 +88,10 @@ inst goal = runStateT (instantiate goal) $ Env1 I.empty 0
 instantiate goal = do
   Env1 env vn <- get
   let names = getNames goal
-  let new = rename (M.fromList $ zip names [vn ..]) goal
-  put $ Env1 env $ vn + length names
-  return new
+  let newvars = zip names [vn..]
+  let new = rename (M.fromList newvars) goal
+  put $ Env1 env $ vn + length newvars
+  return (new, newvars)
 
 {-
 >>> inst test
@@ -88,21 +127,57 @@ expandLists x = visitPost expandList2 x
 
 expandSym = expandList . map (Sym . singleton)
 
+expandSym1 xs y = expandList1 (map (Sym . singleton) xs) y
+
 expandStr = expandList . map (I . ord)
 
 expandTerm (Apply (Sym "-->":xs)) = let
-  vars = map (\n -> Name ("ET" ++ show n)) [1..length xs] 
+  l    = length $ filter (\case { Braced {} -> False; _ -> True }) xs
+  vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
+  vars1 = head vars:init vars     
+  vars2 = last vars:tail vars
 
-  in Apply (Sym "-->":zipWith3 expandTerm1 xs (head vars:vars) (last vars:tail vars))
+  in Apply (Sym "-->":expandTerm0 xs vars1 vars2) 
 
 {-
 >>> expandTerm (Apply [Sym "-->", Sym "np", Sym "adj", Sym "n"])
-Apply [Sym "-->",Apply [Sym "np",Name "ET1",Name "ET3"],Apply [Sym "adj",Name "ET1",Name "ET2"],Apply [Sym "n",Name "ET2",Name "ET3"]]
+/home/brett/swissarmyknife/Prolog.hs:(121,1)-(125,94): Non-exhaustive patterns in function expandTerm1
 -}
 
-expandTerm1 s@(Sym {}) a b = Apply [s, a, b]
-expandTerm1 (Apply xs) a b = Apply (xs ++ [a, b])
-expandTerm1 (List  xs) a b = Apply [Sym "=", a, Imp xs b]
+expandTerm0 xs as bs = trace ("expandTerm1 "++show xs++" "++show as++" "++show bs) $ expandTerm1 xs as bs
+
+expandTerm1 [             ] [    ] [    ] = []
+expandTerm1 (x@(Sym {}):xs) (a:as) (b:bs) = Apply [x, a, b]             : expandTerm0 xs as bs
+expandTerm1 ((Apply  x):xs) (a:as) (b:bs) = Apply (x ++ [a, b])         : expandTerm0 xs as bs
+expandTerm1 ((List   x):xs) (a:as) (b:bs) = Apply [Sym "=", a, Imp x b] : expandTerm0 xs as bs
+expandTerm1 ((Braced x):xs)    as     bs  = x                           : expandTerm0 xs as bs
+
+expandTermD (Apply (Sym "-->":xs)) = let
+  l    = length $ filter (\case { Braced {} -> False; _ -> True }) xs
+  vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
+  vars1 = head vars:init vars
+  vars2 = last vars:tail vars
+  in do
+    print l
+    z <- expandTerm0D xs vars1 vars2
+    return $ Apply (Sym "-->":z)
+
+{-
+>>> expandTerm (Apply [Sym "-->", Sym "np", Sym "adj", Sym "n"])
+/home/brett/swissarmyknife/Prolog.hs:(121,1)-(125,94): Non-exhaustive patterns in function expandTerm1
+-}
+
+expandTerm0D xs as bs = do
+  putStrLn $ "expandTerm1 "++show xs++" "++show as++" "++show bs
+  z <- expandTerm1D xs as bs
+  putStrLn $ " = "++show z
+  return z
+
+expandTerm1D [             ] [    ] [    ] = return []
+expandTerm1D (x@(Sym {}):xs) (a:as) (b:bs) = do z <- expandTerm0D xs as bs; return (Apply [x, a, b]             :z)
+expandTerm1D ((Apply  x):xs) (a:as) (b:bs) = do z <- expandTerm0D xs as bs; return (Apply (x ++ [a, b])         :z)
+expandTerm1D ((List   x):xs) (a:as) (b:bs) = do z <- expandTerm0D xs as bs; return (Apply [Sym "=", a, Imp x b] :z)
+expandTerm1D ((Braced x):xs)    as     bs  = do z <- expandTerm0D xs as bs; return (x                           :z)
 
 contractEnv env = I.map (contractSym . (`contractList` env)) env
 
@@ -136,6 +211,10 @@ getNames _ = []
 rename env (Name n) = Var $ env M.! n
 rename env (Apply as) = Apply $ map (rename env) as
 rename _ x = x
+
+rename1 renv (Var n) = Name $ renv I.! n
+rename1 renv (Apply as) = Apply $ map (rename1 renv) as
+rename1 _ x = x
 
 setv var val = modify (\env -> I.insert (getvarref var env) val env)
 

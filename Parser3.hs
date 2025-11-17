@@ -14,10 +14,13 @@ module Parser3 where
 
 import Favs hiding (indent1, indent2)
 import qualified MyPretty2
-import MHashDynamic hiding (Apply, expr)
+import {-# SOURCE #-} MHashDynamic2 hiding (Apply, expr)
+import NewTuple
 import Iso hiding (foldl, (!!))
+import qualified Iso
 --import Rule
 --import Syntax3 hiding (foldl, foldr)
+import Shell (ch)
 
 import Control.Monad
 import Control.Monad.State qualified as St
@@ -25,8 +28,8 @@ import Data.List
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.IntMap qualified as I
-
-import Shell (ch)
+import Data.Typeable
+import Debug.Trace
 
 data Rule tok =
    Seq [Rule tok]
@@ -48,14 +51,12 @@ data Rule tok =
 
 data IgnoreMe a = IgnoreMe a
 
-data a :- b = a :- b
-
 data RuleR t r where
    BindR     :: (Typeable a, Typeable b)                        =>  RuleR t a   -> (a -> RuleR t b, b -> a) -> RuleR t b
    ApplyR    :: (Typeable a, Typeable b) => Iso a b             ->  RuleR t a                 -> RuleR t b   
    OptionR   :: (Typeable a, Typeable (Maybe a))                =>  RuleR t a                 -> RuleR t (Maybe a)
    EithR     :: (Typeable a, Typeable b, Typeable (Either a b)) =>  RuleR t a   -> RuleR t b  -> RuleR t (Either a s)
-   ThenR     :: ThenClass a b c                                 =>  RuleR t a   -> RuleR t b  -> RuleR t c
+   ThenR     :: (Typeable a, Typeable b, Typeable (a :- b))     =>  RuleR t a   -> RuleR t b  -> RuleR t (a :- b)
    (:/)      :: (Typeable a, Typeable b)                        =>  RuleR t a   -> RuleR t b  -> RuleR t  b   
    (://)     :: (Typeable a, Typeable b)                        =>  RuleR t a   -> RuleR t b  -> RuleR t  a   
    CountR    :: Typeable b                                      =>  RuleR t Int -> RuleR t b  -> RuleR t [b]  
@@ -84,32 +85,19 @@ data RuleR t r where
    --SetMR     :: FrameTuple n v f      =>       n              -> RuleR t v -> RuleR t v 
    --RedoR     :: Frame  n [t] f        =>       n              -> RuleR t a -> RuleR t a
 
-class (Typeable a, Typeable b, Typeable c) => ThenClass a b c where
-   thenc :: a -> b -> c 
-
-instance (Typeable a, Typeable b) => ThenClass a (IgnoreMe b) a where
-   thenc a b = a
-
-instance (Typeable a, Typeable b) => ThenClass (IgnoreMe a) b b where
-   thenc a b = b
-
-instance (Typeable a, Typeable b) => ThenClass (IgnoreMe a) (IgnoreMe b) (IgnoreMe (a, b)) where
-   thenc (IgnoreMe a) (IgnoreMe b) = IgnoreMe (a, b)
-
-instance (Typeable a, Typeable b) => ThenClass a b (a :- b) where
-   thenc a b = a :- b
-
 infix 2 <=>
 infixl 3 <|>
 
 -- infixl 4 <+>
 infixr 5 >$<
 infixr 6 >*<
+infixr 6 >*
+infixr 6 *<
 
 (>>==) :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> a) -> RuleR t b
 (>>==) = BindR
 
-(>*<) :: ThenClass a b c => RuleR t a -> RuleR t b -> RuleR t c
+(>*<) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
 (>*<) = ThenR
 
 (*<) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
@@ -136,8 +124,10 @@ a      <|>      b = AltR [a, b]
 (<=>):: Typeable a => String -> RuleR t a -> RuleR t a
 (<=>) = NameR
 
-text :: (Typeable t, Eq t) => t -> RuleR t t
-text = TokenR
+token :: (Typeable t, Eq t) => t -> RuleR t t
+token = TokenR
+
+text xs = SeqR $ map token xs
 
 anytoken :: Typeable t => RuleR t t
 anytoken = AnyTokenR
@@ -148,12 +138,19 @@ pure = PureR
 many :: Typeable a => RuleR t a -> RuleR t [a]
 many = ManyR
 
+many1 :: Typeable a => RuleR t a -> RuleR t [a]
 many1 p = cons >$< p >*< many p
 
 sepBy x sep = Parser3.pure []
           <|> cons >$< x >*< many (sep *< x)
 
 groupOf i = sepBy i (text ";") -- <|> aligned i
+
+
+chainl1 arg op f = Iso.foldl f >$< (arg >*< (many (op >*< arg)))
+
+chainr1 arg op f = f >$< arg >*< (op >*< chainr1 arg op f) <|> arg
+
 {-
 aligned (ParserIO i) = do
   ((_, l, c):_) <- ParserIO $ lift get
@@ -209,7 +206,7 @@ int1 = ApplyR intiso $ SeqR [RangeR '0' '9']
 intn n = ApplyR intiso $ SeqR $ replicate n $ RangeR '0' '9'
 
 
-test = int1 >>== repl (RangeR 'a' 'z')
+--test = int1 >>== repl (RangeR 'a' 'z')
 --icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
 
 {-
@@ -239,20 +236,23 @@ instance Ord tok => Ord (Rule tok) where
    compare (Name  a _) (Name  b _) = compare a b
    compare (Token a  ) (Token b  ) = compare a b
    compare (Range a b) (Range c d) = compare (a, b) (c, d)
-   compare (Name {}) _         = LT
-   compare (Seq  {}) (Name {}) = GT
-   compare (Seq  {}) _         = LT
-   compare (Alt  {}) (Name {}) = GT
-   compare (Alt  {}) (Seq  {}) = GT
-   compare (Alt  {}) _         = LT
-   compare (Token{}) (Name {}) = GT
-   compare (Token{}) (Seq  {}) = GT
-   compare (Token{}) (Alt  {}) = GT
-   compare (Token{}) _         = LT
-   compare (Range{}) (Name {}) = GT
-   compare (Range{}) (Seq  {}) = GT
-   compare (Range{}) (Alt  {}) = GT
-   compare (Range{}) (Token{}) = GT
+   compare (Not     a) (Not     b) = compare a b
+   compare (Name   {}) _           = LT
+   compare (Seq    {}) (Name   {}) = GT
+   compare (Seq    {}) _           = LT
+   compare (Alt    {}) (Name   {}) = GT
+   compare (Alt    {}) (Seq    {}) = GT
+   compare (Alt    {}) _           = LT
+   compare (Token  {}) (Name   {}) = GT
+   compare (Token  {}) (Seq    {}) = GT
+   compare (Token  {}) (Alt    {}) = GT
+   compare (Token  {}) _           = LT
+   compare (Range  {}) (Name   {}) = GT
+   compare (Range  {}) (Seq    {}) = GT
+   compare (Range  {}) (Alt    {}) = GT
+   compare (Range  {}) (Token  {}) = GT
+   compare (Range  {}) _           = LT
+   compare (Not    {}) _           = GT
 --   compare (Range{}) _ = LT
 
 instance Show tok => Show (Rule tok) where
@@ -265,6 +265,7 @@ innershow d (Alt   as ) = unwords $ ii d [intercalate " | " $ map (innershow Not
 innershow d (Name  a _) = unwords $ ii d [a]
 innershow d (Token a  ) = unwords $ ii d [show a]
 innershow d (Range a b) = unwords $ ii d ["[" ++ show a ++ ".." ++ show b ++ "]"]
+innershow d (Not     a) = "Not " ++ innershow Nothing a
 
 --outershow d r@(Seqd  a b) = "Seqd " ++ innershow d r
 outershow d r@(Seq   as ) = "Seq " ++ innershow d r
@@ -272,11 +273,21 @@ outershow d r@(Alt   as ) = "Alt " ++ innershow d r
 outershow d r@(Name  a b) = unwords $ ii d [a ++ " -> " ++ innershow Nothing b]
 outershow d r@(Token a  ) = show a
 outershow d r@(Range a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
+outershow d r@(Not     a) = innershow Nothing r
 
 ii (Just d) = insertIndex d "."
 ii Nothing = id
 
-data Result = Running | Fail | Pass Dynamic deriving (Eq, Ord)
+data State tok = State Int Int (Item tok) deriving (Eq, Ord)
+
+item  (State b c i) = i
+from2 (State b c i) = b
+to2   (State b c i) = c
+
+instance Show z => Show (State z) where
+   show (State b c r) = show r ++ " " ++ unwords (map show [b, c])
+
+data Result = Running | Fail | Pass Dynamic deriving (Eq, Ord, Show)
 
 data Item tok  = Item   (Rule tok) Result Item2 deriving (Eq, Ord)
 
@@ -292,10 +303,6 @@ data Item2     = Item2
                | ISet
                | IApply
                deriving (Eq, Ord)
-
-item  (State b c i) = i
-from2 (State b c i) = b
-to2   (State b c i) = c
 
 result (Item r re i) = re
 rule   (Item r re i) = r
@@ -318,10 +325,6 @@ instance Show tok => Show (Item tok) where
    show (Item r s1 (IAlt n)) = outershow (Just n) r
    show (Item r s1 _) = outershow Nothing r
 
-data State tok = State Int Int (Item tok) deriving (Eq, Ord)
-
-instance Show z => Show (State z) where
-   show (State b c r) = show r ++ " " ++ unwords (map show [b, c])
 {-
 instance Ord z => Ord (State z) where
    compare (State b1 k1 e1) (State j2 k2 e2) = compare (b1, k1, e1) (j2, k2, e2)
@@ -340,7 +343,7 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 
 --expr = Name "expr" $ Alt [expr `Then` Token '+' `Then` expr], Token 'a']
 
---test = pD expr "a+a+a"
+test = parseE (Seq [Not (Token 'b'), Token 'a']) "a"
 
 --p s t = tree s $ parseE s t
 
@@ -351,15 +354,18 @@ pD s t = do
     tableZ t $ filter isCompleteZ $ concatMap S.toList states
     return $ tree s states
 -}
-parseE s t =
+parseE r t =
    let
-      items = predictZ (S.singleton $ State 0 0 (start s))
-    in
-      tree s $ parseE0 [items] t items [1 .. length t]
+      items = predictZ (S.singleton $ State 0 0 (start r))
+      states = parseE0 [items] t items [1 .. length t]
+      done = mapMaybe (\s -> ifJust (from2 s == 0 && rule (item s) == r && passi (item s)) (result (item s))) (S.toList $ last states)
+   in if length states == length t && done /= []
+         then done
+         else trace (tableZ t $ concatMap S.toList states) []
 
-parseED s t =
+parseED r t =
    let
-      items = predictZ (S.singleton $ State 0 0 (start s))
+      items = predictZ (S.singleton $ State 0 0 (start r))
     in
       parseE0D [items] t items [1 .. length t]
 
@@ -449,12 +455,13 @@ predict2Z (Item (Many   a    ) Running _       ) = [start a]
 predict2Z (Item (Name   a b  ) Running _       ) = [start b]
 predict2Z (Item (Apply  a b  ) Running _       ) = [start b]
 predict2Z (Item (Set    a b  ) Running _       ) = [start b]
-predict2Z (Item (Not    a    ) Running _       ) = [start a]
+predict2Z (Item (Not    a    ) Running _       ) = [Item (Not a) (Pass $ toDyn ()) Item2, start a]
 predict2Z (Item (Bind   a b  ) Running _       ) = [start a]
 predict2Z (Item (Return a    ) Running _       ) = [Item (Return a) (Pass a) Item2]
 --predict2Z (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
 predict2Z (Item {}) = []
 
+--start r@(Not a) = Item r (Pass $ toDyn ()) Item2
 start r = Item r Running $ start1 r
 
 start1 (Seq  a) = ISeq 0
@@ -492,7 +499,7 @@ complete3Z main@(Item r@(Seq as) s (ISeq n)) sub
 complete3Z main@(Item x@(Alt as) q (IAlt n)) sub
   | passi sub     = [Item x (result sub) (IAlt  n     )]
   | n < length as = [Item x Running      (IAlt (n + 1))]
-  | otherwise     = [Item x Fail         (IAlt  n     )]
+  | otherwise     = [Item x (result sub) (IAlt  n     )]
 
 complete3Z main@(Item x@(Name d e) q i2) sub = [Item x (result sub) i2]
 
@@ -530,11 +537,13 @@ caux (Name a b) q y = b == y
 caux _ _ _ = False
 
 subitem (Item (Seq   as ) _ (ISeq n)) ch = as !! n == rule ch
+subitem (Item (Then  a b) _ (ISeq n)) ch = case n of { 0 -> a == rule ch; 1 -> b == rule ch }
 subitem (Item (Alt   as ) _ _       ) ch = rule ch `elem` as
 subitem (Item (Name  a b) _ _       ) ch = b == rule ch
 subitem (Item (Apply a b) _ _       ) ch = b == rule ch
 subitem (Item (Not   a  ) _ _       ) ch = a == rule ch
 subitem (Item (Many  a  ) _ _       ) ch = a == rule ch
+subitem (Item {                    }) ch = False
 
 slength (Seq as) = length as
 slength _ = 1
@@ -708,10 +717,10 @@ tableZ str states =
       ends  = 0 : map (\a -> maximum $ zipWith (taux1D ends numls a) shown states) [0..length str]
       show1 = zipWith (taux2D ends numls) shown states
       nums1 = map (taux3D ends nums ) [0..length str]
-      toks  = map (taux4D ends str  ) [0..length str]
+      toks  = map (taux4D ends str  ) [0..length str-1]
       axis  = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
     in
-      putStrLn $ unlines $ axis : show1 ++ [axis]
+      unlines $ axis : show1 ++ [axis]
 {- 
 ends !! 0 = 0
 ends !! 1 = 
@@ -725,7 +734,7 @@ taux1D ends numls a sh st@(State f t i) = numls !! a +
                | True       -> 0
       else let
          l = length sh + 4
-         in if | t     == a -> ends !! (f + 1)
+         in if | t     == a -> ends !! (f + 1) + l
                | True       -> 0
 
 taux2D ends numls sh st@(State f t i) = let
@@ -735,16 +744,16 @@ taux2D ends numls sh st@(State f t i) = let
             else let
                l2 = ends !! (f + 2) - ends !! (f + 1)
                l3 = l2 - l
-               l4 = div l 2
-               l5 = l - l3
+               l4 = div l3 2
+               l5 = l3 - l4
                in replicate (ends !! (f + 1) + numls !! (f + 1)) ' ' ++ replicate l4 '-' ++ sh ++ replicate l5 '-'
 
-taux3D ends nums a = replicate (ends !! a) ' ' ++ nums !! a
+taux3D ends nums a = replicate (ends !! (a + 1) + 1) ' ' ++ nums !! a
 
 taux4D ends str a = let
    sh = show $ str !! a
    l  = length sh
-   in replicate (div (ends !! a + ends !! (a + 1) - l) 2) ' ' ++ sh
+   in replicate (div (ends !! (a + 1) + ends !! (a + 2) - l) 2) ' ' ++ sh
 
 
 

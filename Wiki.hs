@@ -8,7 +8,7 @@ module Wiki where
 
 import Favs
 import HTML
-import MHashDynamic
+import MHashDynamic2
 import MyPretty2
 import Table1
 

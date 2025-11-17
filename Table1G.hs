@@ -11,7 +11,7 @@ module Table1G where
 
 import Favs
 import HTML
-import MHashDynamic hiding (toList2)
+import MHashDynamic2 hiding (toList2)
 import MyPretty2
 import NumberParsers
 

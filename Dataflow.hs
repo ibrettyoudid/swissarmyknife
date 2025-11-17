@@ -4,7 +4,7 @@ module Dataflow where
 
 import Favs hiding (on)
 import HTML
-import MHashDynamic
+import MHashDynamic2
 import Matrix2 hiding ((*), (+), (-))
 import MyPretty2 hiding (Term)
 

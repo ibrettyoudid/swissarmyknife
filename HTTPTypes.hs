@@ -1,6 +1,8 @@
 module HTTPTypes where
 
 import Parser6Types
+import NewTuple
+
 
 data ProtocolK = ProtocolK
 data HostK = HostK
@@ -20,7 +22,7 @@ data StatusCodeK = StatusCodeK
 data ReasonPhraseK = ReasonPhraseK
 
 data Url = Url { protocol :: String, host :: String, port :: Maybe Int, absPath :: [String], query :: Maybe String, httpVersion1 :: String }
-data Message = Message { method :: String, url :: Url, httpVersion :: String, statusCode :: Int, reasonPhrase :: String, headers :: [(String, String)], contentLength :: Int, body :: String }
+data Message = Message { method :: String, url :: Url, httpVersion :: String, statusCode :: Int, reasonPhrase :: String, headers :: [(String :- String)], contentLength :: Int, body :: String }
 
 data HVar = HVar deriving (Eq, Ord, Show)
 
@@ -68,7 +70,7 @@ instance Frame HTTPVersionK String Message where
    myget1 HTTPVersionK = httpVersion
    myset1 HTTPVersionK value frame = frame { httpVersion = value }
 
-instance Frame HeadersK [(String, String)] Message where
+instance Frame HeadersK [String :- String] Message where
    myget1 HeadersK = headers
    myset1 HeadersK value frame = frame { headers = value }
 

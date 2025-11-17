@@ -12,7 +12,7 @@ import HTTPTypes
 import HTTP
 import Parser4
 import Favs
-import MHashDynamic
+import MHashDynamic2
 
 import Control.Monad
 import Control.Concurrent

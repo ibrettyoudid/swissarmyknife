@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
 -- Copyright 2025 Brett Curtis
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- {-# LANGUAGE OverlappingInstances #-} -- deprecated
@@ -20,10 +20,10 @@
 module MHash where
 
 import Favs hiding (ifP)
-import MHashDynamic
+import MHashDynamic2
 import MyPretty2
 
-import Syntax3 qualified as S3
+import NewTuple
 
 import Data.IORef
 
@@ -154,7 +154,7 @@ eval1 env expr = case expr of
     eval2 (newfr : env) exprs
  where
   evalIf [] = return $ toDyn ()
-  evalIf ((cond, then1) : rest) = do
+  evalIf ((cond :- then1) : rest) = do
     condres <- eval env cond
     case fromDynamic condres of
       Nothing -> error "if condition must be boolean!"
@@ -162,7 +162,7 @@ eval1 env expr = case expr of
       Just False -> evalIf rest
 
   evalCase caseval [] = return $ toDyn ()
-  evalCase caseval ((when1, then1) : others) = do
+  evalCase caseval ((when1 :- then1) : others) = do
     whenval <- eval env when1
     if caseval == whenval
       then eval env then1

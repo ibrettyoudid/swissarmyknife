@@ -10,7 +10,7 @@ module WikiG where
 
 import Favs
 import HTML
-import MHashDynamic hiding ((?))
+import MHashDynamic2 hiding ((?))
 import MyPretty2
 import NumberParsers
 import Table1G

@@ -18,7 +18,7 @@ import ApplyTuple
 import BString
 import Favs hiding (range, split, split1With, splitWith)
 import Iso qualified as I
-import MHashDynamic hiding (Apply, Frame, name, tl, (!), (==))
+import MHashDynamic2 hiding (Apply, Frame, name, tl, (!), (==))
 import MyPretty2
 import Parser4 hiding (Frame, Range)
 import Parser4 qualified as P

@@ -12,7 +12,7 @@ module Syntax5 where
 
 import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 
-import MHashDynamic
+import MHashDynamic2
 import Parser
 import SyntaxCIPU
 import SyntaxTH

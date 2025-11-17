@@ -16,7 +16,7 @@ module Syntax3 where
 
 import Favs hiding (indent, indent1, indent2, left, mode, right, swap)
 
-import Iso
+import NewTuple
 import SyntaxCIPU
 
 import Prelude hiding (foldl, foldr, id, iterate, print, pure, (*<), (.), (>$<), (>*), (>*<))
@@ -67,7 +67,7 @@ infixr 5 >$<
 infixr 6 >*<
 
 class ProductFunctor f st tok str where
-  (>*<) :: f st tok str alpha -> f st tok str beta -> f st tok str (alpha, beta)
+  (>*<) :: f st tok str alpha -> f st tok str beta -> f st tok str (alpha :- beta)
 
 class Alternative f st tok str where
   (<|>) :: f st tok str alpha -> f st tok str alpha -> f st tok str alpha
