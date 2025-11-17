@@ -75,6 +75,9 @@ combine f zero list = M.toList $ mapFromList f zero list
 multimap = mapFromList (:) []
 multimapOn f = multimap . mapfxx f
 
+refold f z [] = []
+refold f z (x : xs) = let (a, b) = f z x in a : refold f b xs
+
 for lst fun = map fun lst
 
 -- ppFor lst fun = mapM_ (\d -> putStr (show d ++ "  " ++ show (fun d) ++ "\n")) lst

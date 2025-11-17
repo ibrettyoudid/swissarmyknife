@@ -895,14 +895,12 @@ data SubArrayD e = SubArrayD {dims :: [Dimension], offset :: Int, payload :: A.A
 
 -- main = print $ Main.transpose 0 1 $ fromList2z 0 [[1,2,3],[4,5,6],[7,8,9]]
 
-refold f z [] = []
-refold f z (x : xs) = let (a, b) = f z x in a : refold f b xs
+refold2 f z [] = []
+refold2 f z (x : xs) = let (a, b) = f z x in a : refold f b xs
 
 -- foldl f   z (x:xs) = f x $ foldl f z xs
 
 refold1 f z xs = snd $ foldr (\i (z, o) -> let (a, b) = f z i in (b, a : o)) (z, []) xs
-
-refold4 f z xs = let (rs, zs) = unzip $ zipWith f (z : zs) xs in rs
 
 -- elemOffset1 i (DimCat d di mu) = sum $ zipWith (*) mu $ refold divMod (elemOffset1 i d) di
 elemOffset1 i d = (i - dimLower d) * dimMult d

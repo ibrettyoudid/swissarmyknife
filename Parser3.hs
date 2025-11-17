@@ -9,6 +9,7 @@
 {-# HLINT ignore "Redundant multi-way if" #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Avoid lambda using `infix`" #-}
+{- HLINT ignore "Use tuple-section" -}
 
 module Parser3 where
 
@@ -357,7 +358,7 @@ pD s t = do
 -}
 parseE r t =
    let
-      items = predictZ (S.singleton $ State 0 0 (start r))
+      items = predict (S.singleton $ State 0 0 (start r))
       states = parseE0 [items] t items [1 .. length t]
       done = mapMaybe (\s -> ifJust (from2 s == 0 && rule (item s) == r && passi (item s)) (result (item s))) (S.toList $ last states)
    in if length states == length t && done /= []
@@ -366,7 +367,7 @@ parseE r t =
 
 parseED r t =
    let
-      items = predictZ (S.singleton $ State 0 0 (start r))
+      items = predict (S.singleton $ State 0 0 (start r))
     in
       parseE0D [items] t items [1 .. length t]
 
@@ -392,20 +393,20 @@ putss newlist = do
 fu s m = I.insert (to2 s) (S.insert s (fromMaybe S.empty (I.lookup (to2 s) m))) m
 
 parseE1 states t c items = let
-   scan1 = scanZ c t items
-   comp1 = completeZ states $ S.fromList scan1
+   scan1 = scan c t items
+   comp1 = complete states $ S.fromList scan1
    in if c < length t
-      then predictZ comp1
+      then predict comp1
       else comp1
 
 parseE1D states t c items = do
-   let scan1 = scanZ c t items
+   let scan1 = scan c t items
    putStrLn $ "scan1=" ++ show scan1
-   let comp1 = completeZ states $ S.fromList scan1
+   let comp1 = complete states $ S.fromList scan1
    putStrLn $ "comp1=" ++ show comp1
    if c < length t
       then do
-         let pred1 = predictZ comp1
+         let pred1 = predict comp1
          putStrLn $ "pred1=" ++ show pred1
          return pred1
       else return comp1
@@ -428,16 +429,55 @@ closureA f items = closureA1 f items items
 
 closureA1 f done current =
    let
-      new = f done current
+      new     = f done current
       newdone = SL.union done new
-      newnew = new SL.\\ done
+      newnew  = new SL.\\ done
     in
-      if SL.null new then done else closureA1 f newdone newnew
+      if SL.null newnew then done else closureA1 f newdone newnew
+
+closureD f items = closureD1 f items items
+
+closureD1 f done current = do
+   putStrLn $ replicate 80 '='
+   (a, newdone) <- f done current
+   let newnew = SL.fromList $ catMaybes a
+   if SL.null newnew then return done else closureD1 f newdone newnew
+
 
 process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
 
-predictZ :: Ord tok => S.Set (State tok) -> S.Set (State tok)
-predictZ = closure (process predict1Z)
+processA f old current = St.runState (mapM insertA $ concatMap (\x -> map (x,) $ f x) $ SL.list current) old 
+
+processD f old current = St.runStateT (mapM insertD $ concatMap (\x -> map (x,) $ f x) $ SL.list current) old 
+
+--refoldD f z xs = do (rs, zs) <- unzip <$> zipWithM f (z : zs) xs; return (rs, zs)
+refoldD f z [] = return []
+refoldD f z (x : xs) = do (a, b) <- f z x; c <- refoldD f b xs; return $ a : c
+
+insertA (v, fv) = do
+   old <- St.get
+   if SL.member fv old
+      then do
+         return Nothing
+      else do
+         St.modify (SL.insert fv)
+         return $ Just fv
+
+insertD (v, fv) = do
+   old <- St.get
+   if SL.member fv old
+      then do
+         St.liftIO $ putStrLn $ show v ++ "  ==>  " ++ show fv
+         return Nothing
+      else do
+         St.liftIO $ putStrLn $ show v ++ "  ==>  " ++ show fv ++ " *** NEW ***"
+         St.modify (SL.insert fv)
+         return $ Just fv
+
+predict :: Ord tok => S.Set (State tok) -> S.Set (State tok)
+predict = closure (process predict1)
+
+predictD items = closureD (processD predict1) items
 
 --paux (Seq  as ) q = [as !! q | q < length as]
 paux (Alt  as ) 0 = as
@@ -445,19 +485,19 @@ paux (Name a b) 0 = [b]
 --paux (ManyTill a b) 0 = [a, b]
 paux _ _ = []
 
-predict1Z (State _ c i) = map (State c c) $ predict2Z i
+predict1 (State _ c i) = map (State c c) $ predict2 i
 
-predict2Z (Item (Seq    as   ) Running (ISeq n)) = [start (as !! n)]
-predict2Z (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
-predict2Z (Item (Many   a    ) Running _       ) = [start a]
-predict2Z (Item (Name   a b  ) Running _       ) = [start b]
-predict2Z (Item (Apply  a b  ) Running _       ) = [start b]
-predict2Z (Item (Set    a b  ) Running _       ) = [start b]
-predict2Z (Item (Not    a    ) Running _       ) = [Item (Not a) (Pass $ toDyn ()) Item2, start a]
-predict2Z (Item (Bind   a b  ) Running _       ) = [start a]
-predict2Z (Item (Return a    ) Running _       ) = [Item (Return a) (Pass a) Item2]
---predict2Z (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
-predict2Z (Item {}) = []
+predict2 (Item (Seq    as   ) Running (ISeq n)) = [start (as !! n)]
+predict2 (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
+predict2 (Item (Many   a    ) Running _       ) = [start a]
+predict2 (Item (Name   a b  ) Running _       ) = [start b]
+predict2 (Item (Apply  a b  ) Running _       ) = [start b]
+predict2 (Item (Set    a b  ) Running _       ) = [start b]
+predict2 (Item (Not    a    ) Running _       ) = [Item (Not a) (Pass $ toDyn ()) Item2, start a]
+predict2 (Item (Bind   a b  ) Running _       ) = [start a]
+predict2 (Item (Return a    ) Running _       ) = [Item (Return a) (Pass a) Item2]
+--predict2 (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
+predict2 (Item {}) = []
 
 --start r@(Not a) = Item r (Pass $ toDyn ()) Item2
 start r = Item r Running $ start1 r
@@ -467,40 +507,45 @@ start1 (Alt  a) = IAlt 0
 start1 (Many a) = IMany []
 start1 _ = Item2
 
-scanZ c t items = mapMaybe (scan1Y c (t !! (c - 1))) $ S.toList items
+scan c t items = mapMaybe (scan1 c (t !! (c - 1))) $ S.toList items
 
-scan1Y c ch (State j _ t) = scan1Z c ch j c t
+scan1 c ch (State j _ t) = scan2 c ch j c t
 
-scan1Z c ch j _ (Item r Running i2) = Just $ State j c $ Item r (if saux ch r then Pass $ toDyn ch else Fail) i2
-scan1Z c ch _ _ _ = Nothing
+scan2 c ch j _ (Item r Running i2) = Just $ State j c $ Item r (if saux ch r then Pass $ toDyn ch else Fail) i2
+scan2 c ch _ _ _ = Nothing
 
 saux ch (Token c  ) = ch == c
 saux ch (Range c d) = ch >= c && ch <= d
 saux _ _ = False
 
-completeZ states = closure (\old -> process (complete1Z (states ++ [old])) old)
+complete states = closure (\old -> process (complete1 (states ++ [old])) old)
 
-complete1Z states state =
-   concatMap (complete2Z state) $ S.toList $ states !! from2 state
+completeD states = closureD (\old -> processD (complete1D (states ++ [old])) old)
 
-complete2Z (State b c sub) (State a b1 main) =
-      if result sub /= Running && result main == Running && subitem main sub
-         then map (State a c) $ complete3Z main sub
-         else []
+complete1 states state =
+   concatMap (complete2 state) $ S.toList $ states !! from2 state
 
-complete3Z main@(Item r@(Seq as) s (ISeq n)) sub
+complete1D states state =
+   concatMap (complete2 state) $ SL.list $ states !! from2 state
+
+complete2 (State b c sub) (State a b1 main) =
+   if result sub /= Running && result main == Running && subitem main sub
+      then map (State a c) $ complete3 main sub
+      else []
+
+complete3 main@(Item r@(Seq as) s (ISeq n)) sub
   | result sub == Fail = [Item r Fail         (ISeq  n     )]
   | n + 1 == length as = [Item r (result sub) (ISeq (n + 1))]
   | otherwise          = [Item r Running      (ISeq (n + 1))]
 
-complete3Z main@(Item x@(Alt as) q (IAlt n)) sub
+complete3 main@(Item x@(Alt as) q (IAlt n)) sub
   | passi sub     = [Item x (result sub) (IAlt  n     )]
   | n < length as = [Item x Running      (IAlt (n + 1))]
   | otherwise     = [Item x (result sub) (IAlt  n     )]
 
-complete3Z main@(Item x@(Name d e) q i2) sub = [Item x (result sub) i2]
+complete3 main@(Item x@(Name d e) q i2) sub = [Item x (result sub) i2]
 
-complete3Z main@(Item x@(Apply d e) q _) sub =
+complete3 main@(Item x@(Apply d e) q _) sub =
    case result sub of
       Pass res ->
          case x of
@@ -510,16 +555,16 @@ complete3Z main@(Item x@(Apply d e) q _) sub =
                   Nothing -> [Item x  Fail    Item2]
       Fail -> [Item x Fail Item2]
 
-complete3Z main@(Item x@(Not d) q i2) sub = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass (toDyn ()) } ) Item2]
+complete3 main@(Item x@(Not d) q i2) sub = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass (toDyn ()) } ) Item2]
 
-complete3Z main@(Item x@(Bind a (b, c)) q _) sub = 
+complete3 main@(Item x@(Bind a (b, c)) q _) sub = 
    case result sub of
       Pass res -> 
          case b res of
             r2 -> [start r2]
       Fail -> [Item x Fail Item2]
 
-complete3Z main@(Item x@(Many a) q (IMany done)) sub =
+complete3 main@(Item x@(Many a) q (IMany done)) sub =
    Item x (Pass $ toDyn done) Item2 :
    case result sub of
       Pass res -> [Item x Running (IMany $ done ++ [res])]
