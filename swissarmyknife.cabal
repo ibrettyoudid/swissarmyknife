@@ -131,6 +131,7 @@ library
         HTTPTypes,
         ID3,
         ID3P4,
+        ID3P6,
         Iso,
         Layout, 
         Levenshtein,
