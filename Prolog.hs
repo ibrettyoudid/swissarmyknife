@@ -6,11 +6,17 @@
 
 module Prolog where
 
+import Favs 
+
+import qualified ListT
+
 import Control.Monad.State
+import Control.Applicative
 import Data.Char
 import Data.Map qualified as M
 import Data.IntMap qualified as I
 import Data.List
+import Data.Functor.Identity
 import Debug.Trace
 
 data Expr = Apply [Expr] | I Int | Sym String | Str String | Var Int | Name String | List [Expr] | Imp [Expr] Expr | Braced Expr deriving (Eq, Ord, Show)
@@ -20,82 +26,68 @@ data Env1 = Env1 Env Int deriving (Eq, Ord, Show)
 type Env = I.IntMap Expr
 
 db =
-  [ Apply [Apply [Sym "append", Sym "nil", Name "Bs", Name "Bs"]]
-  , Apply [Apply [Sym "append", Apply [Sym "cons", Name "A", Name "As"], Name "Bs", Apply [Sym "cons", Name "A", Name "Cs"]], Apply [Sym "append", Name "As", Name "Bs", Name "Cs"]]
-  ]
+   [ Apply [Apply [Sym "append", Sym "nil", Name "Bs", Name "Bs"]]
+   , Apply [Apply [Sym "append", Apply [Sym "cons", Name "A", Name "As"], Name "Bs", Apply [Sym "cons", Name "A", Name "Cs"]], Apply [Sym "append", Name "As", Name "Bs", Name "Cs"]]
+   ]
 
 test = [Apply [Sym "append", Name "X", Name "Y", expandSym "abcd"]]
-{- >>> contractEList $ run db test
-Couldn't match type `[(String, Expr)]' with `Env1'
-Expected: [Env1]
-  Actual: [[(String, Expr)]]
-In the second argument of `($)', namely `run db test'
-In the expression: contractEList $ run db test
-In an equation for `it_aotQe':
-    it_aotQe = contractEList $ run db test
+{- >>> run db test
+[[("X",List []),("Y",List [Sym "a",Sym "b",Sym "c",Sym "d"])],[("X",List [Sym "a"]),("Y",List [Sym "b",Sym "c",Sym "d"])],[("X",List [Sym "a",Sym "b"]),("Y",List [Sym "c",Sym "d"])],[("X",List [Sym "a",Sym "b",Sym "c"]),("Y",List [Sym "d"])],[("X",List [Sym "a",Sym "b",Sym "c",Sym "d"]),("Y",List [])]]
 -}
-
-parser = 
-  Apply [Sym "=", Name "X", Name "X"] : map expandTerm [
-    Apply [Sym "-->", Apply [Sym "num1"]],
-    Apply [Sym "-->", Apply [Sym "num1"], Apply [Sym "num"]],
-    Apply [Sym "-->", Apply [Sym "num"], List [Sym "0"], Apply [Sym "num1"]]]
 {-
->>> parser
-[Apply [Sym "=",Name "X",Name "X"],Apply [Sym "-->",Apply [Sym "num1",Name "ET1",Name "ET1"]],Apply [Sym "-->",Apply [Sym "num1",Name "ET1",Name "ET2"],Apply [Sym "num",Name "ET1",Name "ET2"]],Apply [Sym "-->",Apply [Sym "num",Name "ET1",Name "ET3"],Apply [Sym "=",Name "ET1",Imp [Sym "0"] (Name "ET2")],Apply [Sym "num1",Name "ET2",Name "ET3"]]]
-
-
->>> parse [Apply [Sym "num"]] "0000"
-[]
--}
-
-parse xs s = let
-  l    = (+1) $ length $ filter (\case { Braced {} -> False; _ -> True }) xs
-  vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
-  vars1 = init vars     
-  vars2 = tail vars
-
-  es = expandTerm0 xs vars1 vars2
-
-  s1 = Apply [Sym "=", head vars, expandSym1 s $ last vars]
-  in run parser $ s1 : es
-
-run db goals = map (\(vars1, Env1 env n) -> let
-  vars2 = I.fromList $ map (\(name, num) -> (num, name)) vars1
-  in map (\(name, num) -> (name, rename1 vars2 $ env I.! num)) vars1) $
-    runStateT
-      (do
-          (Apply new, vars1) <- instantiate $ Apply goals
-          doAnd db new
-          return vars1
+runM :: (MonadState Env1 (ListT.ListT IO)) => [Expr] -> [Expr] -> IO [[(String, Expr)]]
+runM db goals =  
+   map (\(vars1, Env1 env n) -> let
+         vars2 = I.fromList $ map (\(name, num) -> (num, name)) vars1
+         in map (\(name, num) -> (name, contractList (rename1 env vars2 $ env I.! num) env)) vars1) <$> 
+   ListT.toList
+      (runStateT
+         (do
+               (Apply new, vars1) <- instantiate $ Apply goals
+               doAnd db new
+               return vars1
+         )
+         $ Env1 I.empty 0
       )
-      $ Env1 I.empty 0
-  
-  
+  -}
+
+run db goals = 
+   map 
+      (\(vars1, Env1 env n) -> let
+         vars2 = I.fromList $ map (\(name, num) -> (num, name)) vars1
+         in map (\(name, num) -> (name, contractList (rename1 env vars2 $ env I.! num) env)) vars1) 
+      (runStateT
+         (do
+            (Apply new, vars1) <- instantiate $ Apply goals
+            doAnd db new
+            return vars1
+         )
+         $ Env1 I.empty 0) -- :: Identity [([(String, Int)], Env1)])
+
+   
 
 doClause db goal clause = do
-  new <- instantiate clause
-  let Apply (head1 : newgoals) = fst new
-  Env1 env vn <- get
-  case execStateT (unify goal head1) env of
-    Nothing -> lift []
-    Just newenv -> do
-      put $ Env1 newenv vn
-      doAnd db newgoals
+   new <- instantiate clause
+   let Apply (head1 : newgoals) = fst new
+   unify goal head1
+   doAnd db newgoals
 
 inst goal = runStateT (instantiate goal) $ Env1 I.empty 0
 
 instantiate goal = do
-  Env1 env vn <- get
-  let names = getNames goal
-  let newvars = zip names [vn..]
-  let new = rename (M.fromList newvars) goal
-  put $ Env1 env $ vn + length newvars
-  return (new, newvars)
+   Env1 env vn <- get
+   let names = getNames goal
+   let newvars = zip names [vn..]
+   let new = rename (M.fromList newvars) goal
+   put $ Env1 env $ vn + length newvars
+   return (new, newvars)
 
 {-
->>> inst test
-(Apply [Sym "append",Var 0,Var 1,Apply [Sym "cons",Sym "a",Apply [Sym "cons",Sym "b",Sym "nil"]]],Env1 (fromList []) 2)
+>>> run test
+No instance for `Show ([Expr] -> [[(String, Expr)]])'
+   arising from a use of `evalPrint'
+   (maybe you haven't applied a function to enough arguments?)
+In a stmt of an interactive GHCi command: evalPrint it_a6xvi
 
 (MonadState Env (t []), MonadTrans t) => t [] ()
 
@@ -104,22 +96,24 @@ use lift to bring list monad stuff into the state monad
 
 doAnd db = mapM_ (doOr db)
 
-doOr db newgoal = lift db >>= doClause db newgoal
+doOr db newgoal = convert db >>= doClause db newgoal
+
+convert db = foldr (<|>) empty $ map return db
 
 visitPost f (Apply xs) = f $ Apply $ map (visitPost f) xs
 visitPost f (List  xs) = f $ List  $ map (visitPost f) xs
 visitPost f other      = f other
 
 visitPre f x = case f x of
-  Apply xs -> Apply $ map (visitPre f) xs
-  List  xs -> List  $ map (visitPre f) xs
-  other    -> other
+   Apply xs -> Apply $ map (visitPre f) xs
+   List  xs -> List  $ map (visitPre f) xs
+   other    -> other
 
 expandList xs = foldr (\x y -> Apply [Sym "cons", x, y]) (Sym "nil") xs
 
 expandList1 xs y = foldr (\x y -> Apply [Sym "cons", x, y]) y xs
 
-expandList2 (List xs  ) = expandList  xs
+expandList2 (List xs  ) = expandList   xs
 expandList2 (Imp  xs y) = expandList1 xs y
 expandList2 other       = other
 
@@ -131,13 +125,47 @@ expandSym1 xs y = expandList1 (map (Sym . singleton) xs) y
 
 expandStr = expandList . map (I . ord)
 
-expandTerm (Apply (Sym "-->":xs)) = let
-  l    = length $ filter (\case { Braced {} -> False; _ -> True }) xs
-  vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
-  vars1 = head vars:init vars     
-  vars2 = last vars:tail vars
+parser = 
+   Apply [Apply [Sym "=", Name "X", Name "X"]] : map expandTerm [
+      Apply [Sym "-->", Apply [Sym "num1"]],
+      Apply [Sym "-->", Apply [Sym "num1"], Apply [Sym "num"]],
+      Apply [Sym "-->", Apply [Sym "num"], List [Sym "0"], Apply [Sym "num1"]]
+      ]
+{-
+>>> parser
+[Apply [Apply [Sym "=",Name "X",Name "X"]],Apply [Apply [Sym "num1",Name "ET1",Name "ET1"]],Apply [Apply [Sym "num1",Name "ET1",Name "ET2"],Apply [Sym "num",Name "ET1",Name "ET2"]],Apply [Apply [Sym "num",Name "ET1",Name "ET3"],Apply [Sym "=",Name "ET1",Imp [Sym "0"] (Name "ET2")],Apply [Sym "num1",Name "ET2",Name "ET3"]]]
 
-  in Apply (Sym "-->":expandTerm0 xs vars1 vars2) 
+>>> run parser [Apply [Sym "=", Name "X", Sym "sdafsd"]]
+[[("X",Sym "sdafsd")]]
+
+
+
+>>> parse [Apply [Sym "num"]] "0000"
+[Apply [Sym "=",Name "ET1",Apply [Sym "cons",Sym "0",Apply [Sym "cons",Sym "0",Apply [Sym "cons",Sym "0",Apply [Sym "cons",Sym "0",Name "ET2"]]]]],Apply [Sym "num",Name "ET1",Name "ET2"]]
+
+>>> run parser [Apply [Sym "=",Name "ET1",Apply [Sym "cons",Sym "0",Apply [Sym "cons",Sym "0",Apply [Sym "cons",Sym "0",Apply [Sym "cons",Sym "0",Name "ET2"]]]]]]
+IntMap.!: key 1 is not an element of the map
+-}
+
+parse xs s = let
+   l      = (+1) $ length $ filter (\case { Braced {} -> False; _ -> True }) xs
+   vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
+   vars1 = init vars       
+   vars2 = tail vars
+
+   es = expandTerm0 xs vars1 vars2
+
+   s1 = Apply [Sym "=", head vars, expandSym1 s $ last vars]
+
+   in trace (show $ s1 : es) $ run parser $ s1 : es
+
+expandTerm (Apply (Sym "-->":xs)) = let
+   l     = length $ filter (\case { Braced {} -> False; _ -> True }) xs
+   vars  = map (\n -> Name ("ET" ++ show n)) [1..l] 
+   vars1 = head vars:init vars       
+   vars2 = last vars:tail vars
+
+   in Apply (expandTerm0 xs vars1 vars2) 
 
 {-
 >>> expandTerm (Apply [Sym "-->", Sym "np", Sym "adj", Sym "n"])
@@ -153,25 +181,25 @@ expandTerm1 ((List   x):xs) (a:as) (b:bs) = Apply [Sym "=", a, Imp x b] : expand
 expandTerm1 ((Braced x):xs)    as     bs  = x                           : expandTerm0 xs as bs
 
 expandTermD (Apply (Sym "-->":xs)) = let
-  l    = length $ filter (\case { Braced {} -> False; _ -> True }) xs
-  vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
-  vars1 = head vars:init vars
-  vars2 = last vars:tail vars
-  in do
-    print l
-    z <- expandTerm0D xs vars1 vars2
-    return $ Apply (Sym "-->":z)
+   l     = length $ filter (\case { Braced {} -> False; _ -> True }) xs
+   vars  = map (\n -> Name ("ET" ++ show n)) [1..l] 
+   vars1 = head vars:init vars
+   vars2 = last vars:tail vars
+   in do
+      print l
+      z <- expandTerm0D xs vars1 vars2
+      return $ Apply (Sym "-->":z)
 
 {-
 >>> expandTerm (Apply [Sym "-->", Sym "np", Sym "adj", Sym "n"])
-/home/brett/swissarmyknife/Prolog.hs:(121,1)-(125,94): Non-exhaustive patterns in function expandTerm1
+Apply [Sym "-->",Apply [Sym "np",Name "ET1",Name "ET3"],Apply [Sym "adj",Name "ET1",Name "ET2"],Apply [Sym "n",Name "ET2",Name "ET3"]]
 -}
 
 expandTerm0D xs as bs = do
-  putStrLn $ "expandTerm1 "++show xs++" "++show as++" "++show bs
-  z <- expandTerm1D xs as bs
-  putStrLn $ " = "++show z
-  return z
+   putStrLn $ "expandTerm1 "++show xs++" "++show as++" "++show bs
+   z <- expandTerm1D xs as bs
+   putStrLn $ " = "++show z
+   return z
 
 expandTerm1D [             ] [    ] [    ] = return []
 expandTerm1D (x@(Sym {}):xs) (a:as) (b:bs) = do z <- expandTerm0D xs as bs; return (Apply [x, a, b]             :z)
@@ -188,8 +216,8 @@ contractEList = map contractEnv1
 contractList (Sym "nil") env = List []
 contractList (Apply [Sym "cons", x, xs]) env = cons (getvarsub x env) $ contractList xs env
 contractList (Var var) env = case I.lookup var env of
-  Just next -> contractList next env
-  Nothing -> Var var
+   Just next -> contractList next env
+   Nothing -> Var var
 contractList other env = other
 
 contractSym (List xs) = if all isSym xs then Sym $ concatMap unsym xs else List xs
@@ -212,26 +240,26 @@ rename env (Name n) = Var $ env M.! n
 rename env (Apply as) = Apply $ map (rename env) as
 rename _ x = x
 
-rename1 renv (Var n) = Name $ renv I.! n
-rename1 renv (Apply as) = Apply $ map (rename1 renv) as
-rename1 _ x = x
+rename1 env renv (Var n) = fromMaybe (maybe (Var n) Name $ I.lookup n renv) $ I.lookup n env
+rename1 env renv (Apply as) = Apply $ map (rename1 env renv) as
+rename1 _ _ x = x
 
-setv var val = modify (\env -> I.insert (getvarref var env) val env)
-
-getvarstate var = gets (getvar var)
-
-getvar var env = I.lookup (getvarref var env) env
+setv var val = modify (\(Env1 env n) -> Env1 (I.insert (getvarref var env) val env) n)
 
 getvarref var env = case I.lookup var env of
-  Just (Var next) -> getvarref next env
-  _ -> var
+   Just (Var next) -> getvarref next env
+   _ -> var
+
+getv var = do
+   Env1 env n <- get
+   return $ getvarsub var env
 
 getvarsub (Var var) env = case I.lookup var env of
-  Just next -> getvarsub next env
-  Nothing -> Var var
+   Just next -> getvarsub next env
+   Nothing -> Var var
 getvarsub other env = other
 
-assert a = if a then lift $ Just () else lift Nothing
+assert a = lift $ if a then [()] else []
 
 {- >>> execStateT (unify (Var 1) (Sym "nil")) M.empty
 Just (fromList [(1,Sym "nil")])
@@ -243,24 +271,23 @@ Nothing
 Apply [Apply [Sym "append",Sym "nil",Name "Bs",Name "Bs"]]
 -}
 
-unify :: Expr -> Expr -> StateT Env Maybe ()
-unify (I      a) (I      b) = assert $ a == b
-unify (Sym    a) (Sym    b) = assert $ a == b
-unify (Str    a) (Str    b) = assert $ a == b
-unify (Apply as) (Apply bs) = do assert $ length as == length bs; zipWithM_ unify as bs
-unify (Var    a) (Var    b) = do
-  a1 <- getvarstate a
-  case a1 of
-    Nothing -> setv a (Var b)
-    Just a2 -> do
-      b1 <- getvarstate b
-      case b1 of
-        Nothing -> setv b a2
-        Just b2 -> unify a2 b2
+unify1 (I     a ) (I     b ) = assert $ a == b
+unify1 (Sym   a ) (Sym   b ) = assert $ a == b
+unify1 (Str   a ) (Str   b ) = assert $ a == b
+unify1 (Apply as) (Apply bs) = do assert $ length as == length bs; zipWithM_ unify as bs
+unify1 (Var    a) b          = setv a b
+unify1 a          (Var   b ) = setv b a
+unify1 _          _          = lift []
+
+unify a b = do
+   a1 <- getv a
+   b1 <- getv b
+   trace ("a=" ++ show a ++ " b=" ++ show b) $ unify1 a1 b1
+{-
 unify (Var a) b = do a1 <- getvarstate a; case a1 of Nothing -> setv a b; Just a2 -> unify a2 b
 unify a (Var b) = do b1 <- getvarstate b; case b1 of Nothing -> setv b a; Just b2 -> unify a b2
 unify _ _ = assert False
-
+-}
 {- The result is a list of var assignments for each thread
  -
  - append([], Bs, Bs).

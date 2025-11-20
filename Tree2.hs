@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LexicalNegation #-}
 
-module Tree where
+module Tree2 where
 
 import Favs
 
@@ -16,7 +16,7 @@ import qualified Data.IntMap as I
 data Tree v = Node { key::Int, left::Tree v, right::Tree v } | Leaf { key::Int, val::v } | Empty
 
 instance Show v => Show (Tree v) where
-   show = unlines . showTree1
+   show = showTree
 
 instance Eq (Tree v) where
    Leaf a _ == Leaf b _ = a == b
@@ -52,34 +52,27 @@ lookupMax Empty = Nothing
 (!) = flip Tree.lookup
 
 insert k v n@(Node k1 l r)
-   | k < k1    = if k1 > k4 && k < k4
-                     then Node k4 (Leaf k v) (shift (-k4) n)
-                     else Node k1 (insert k v l) r
+   | k < k1    = Node k1 (insert k v l) r
    | k >= k2   = Node k3 n (Leaf (k-k3) v)
    | otherwise = Node k1 l (insert (k-k1) v r)
       where
          k2 = k1 * 2
-         k3 = power2 k
-         k4 = power2 k1
+         k3 = nextKey k
 
 insert k v l@(Leaf k1 v1) = let
    k2 = nextKey2 k k1
 
-   in if k >= k2 && k1 >= k2 
-         then
-            Node k2 Empty (insert (k-k2) v (Leaf (k1-k2) v1))
-         else
-            case compare k k1 of
-               LT -> Node k2 (Leaf k v) (Leaf (k1-k2) v1)
-               GT -> Node k2 l          (Leaf ( k-k2) v )
-               EQ -> Leaf k v
+   in case compare k k1 of
+         LT -> Node k2 (Leaf k v) (Leaf (k1-k2) v1)
+         GT -> Node k2 l          (Leaf ( k-k2) v )
+         EQ -> Leaf k v
 
 insert k v Empty = Leaf k v
 
 
 log2 k = ceiling $ logBase 2 $ fromIntegral k
 
-power2 k = B.shift 1 $ msbit k
+nextKey k = B.shift 1 $ msbit k
 
 nextKey2 k k1 = let
    k2 = k `B.xor` k1
@@ -112,33 +105,20 @@ snoc e t = insert (snd $ Tree.span t) e t
 --treezip (Leaf 
 
 slice from to (Node k l r) = let
-   l1 = if from <  k then slice  from     to    l else Empty
+   l1 = if from <= k then slice from to l         else Empty
    r1 = if to   >= k then slice (from-k) (to-k) r else Empty
 
    in case (l1, r1) of
       (Empty, Empty) -> Empty
       (l1   , Empty) -> l1
-      (Empty, r1   ) -> shift k r1
-      (l1   , r1   ) -> Node k l1 r1
+      (Empty, r1   ) -> r1
+      (l1   , r1   ) -> Node (k-from) l1 r1
 
 slice from to leaf@(Leaf k v)
-   | from <= k && to >= k = Leaf k v
+   | from <= k && to >= k = Leaf (k-from) v
    | otherwise            = Empty
 
-union (Node kn ln rn) (Node k l r)
-   | kn < k = Node k (Node kn (union ln (slice 0 (kn-1) l)) (union (slice 0 (k-1) rn) (shift -kn $ slice kn 1000000000 l))) (union (shift (k-kn) $ slice k 1000000000 rn) r)
-
-imin = -9223372036854775808
-imax = 9223372036854775807
-
-union2 a b = let
-   (amin, amax) = Tree.span a
-   (bmin, bmax) = Tree.span b
-   in 0
-
---union3 fn bn (Node kn ln rn) f b (Node k l r)
-
-union1 n t = L.foldr (uncurry insert) t $ toList n
+union n t = L.foldr (uncurry insert) t $ toList n
 
 unionWithShift s n t = L.foldr (uncurry insert) t $ toList $ shift s n
 {-
@@ -236,46 +216,32 @@ balance3 sub leaves = let
    rr = balance3 m r
 
    in Node (m - sub) lr rr
-t = fromList $ zip [1..] "hello there"
+t = fromList $ zip [0..] "hello there"
 
 {-
->>> slice 3 8 t
-              Leaf 3 'l'
-       Node 4
-                            Leaf 4 'l'
-                     Node 5
-                            Leaf 5 'o'
-              Node 6
-                            Leaf 6 ' '
-                     Node 7
-                            Leaf 7 't'
-Node 8
-       Leaf 8 'h'
+>>> toList $ slice 4 8 t
+[(0,'o'),(1,' '),(2,'t'),(3,'h'),(4,'e')]
 
->>> union t $ shift 5 t
-/home/brett/swissarmyknife/Tree.hs:(128,1)-(129,172): Non-exhaustive patterns in function union
-
-
-
-                     Leaf 1 'h'
-              Node 2
-                            Leaf 2 'e'
-                     Node 3
-                            Leaf 3 'l'
-       Node 4
-                            Leaf 4 'l'
+>>> t
+                     Leaf 0 'h'
+              Node 1
+                     Leaf 0 'e'
+       Node 2
+                     Leaf 0 'l'
+              Node 1
+                            Leaf 0 'l'
+                     Node 1
+                            Leaf 0 'o'
 Node 5
-               Leaf 5 'o'
-       Node 6
-                     Leaf 6 ' '
-               Node 7
-                      Leaf 7 't'
-   Node 8
-                      Leaf 8 'h'
-               Node 9
-                      Leaf 9 'e'
-       Node 10
-                       Leaf 10 'r'
-               Node 11
-                       Leaf 11 'e'
+                     Leaf 0 ' '
+              Node 1
+                            Leaf 0 't'
+                     Node 1
+                            Leaf 0 'h'
+       Node 3
+                     Leaf 0 'e'
+              Node 1
+                            Leaf 0 'r'
+                     Node 1
+                            Leaf 0 'e'
 -}
