@@ -22,7 +22,7 @@ import MHashDynamic2 hiding (Apply, Frame, name, tl, (!), (==))
 import MyPretty2
 import Parser4 hiding (Frame, Range)
 import Parser4 qualified as P
-import Shell hiding (contents, fields, main, year, (@))
+import Shell hiding (contents, fields, main, year, (/))
 import Show1
 import ShowTuple
 
@@ -45,11 +45,10 @@ import Data.Bits
 import Data.Char
 import Data.List hiding (concat, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
 import Data.List qualified
-import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
+import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, last, (!!), (++), (/))
+import qualified Prelude
 
 -- import Data.Algorithm.Diff
-import Data.Array.IArray hiding (range)
-
 -- was Data.Word8 on Windows
 
 import Data.Array.IArray qualified as A
@@ -74,25 +73,26 @@ t4 = filtree [inis $= "dt", ininis "iaw"] artistd
 
 baseDir = if linux then "/home/brett/Music" else "d:/music"
 
-infixr 5 @
-p @ s = if last p == convertChar '/' then p ++ s else p ++ cons (convertChar '/') s
+infixr 5 /
+p / s = if last p == convertChar '/' then p ++ s else p ++ cons (convertChar '/') s
 
-backupDir = baseDir @ "Backup"
-artistd = baseDir @ "Artists"
-unsharedd = baseDir @ "Unshared"
-compd = baseDir @ "Compilations"
-misc = baseDir @ "Misc"
+a // b = a Prelude./ b
+
+backupDir = baseDir / "Backup"
+artistd   = baseDir / "Artists"
+unsharedd = baseDir / "Unshared"
+compd     = baseDir / "Compilations"
+misc      = baseDir / "Misc"
 
 f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
-m = do
-  AP.string baseDir
-  ar <- upto "/"
-  yr <- upto " - "
-  al <- upto "/"
-  tr <- upto " - "
-  so <- upto "."
-  return (ar, yr, al, tr, so)
+m = Build $ Seq [
+  Artist <-- AnyTill (String "/"  ),
+  Year   <-- AnyTill (String " - "),
+  Album  <-- AnyTill (String "/"  ),
+  Track  <-- AnyTill (String " - "),
+  Song   <-- AnyTill (String "."  )]
+  
 {-
 m1 = do
   tod Artist
@@ -105,21 +105,21 @@ m1 = do
 
 upto x = AP.manyTill AP.anyWord8 $ AP.string x
 to x y = AP.manyTill AP.anyWord8 $ AP.string y
-ft = fileTree
-fta = fileTree artistd
-fds = fieldsFromString f d
-down = "/home/brett/Downloads/"
+ft     = fileTree
+fta    = fileTree artistd
+fds    = fieldsFromString f d
+down   = "/home/brett/Downloads/"
 
-p = play
+p          = play
 play files = runInteractiveProcess "vlc" ("--one-instance" : files) Nothing Nothing
-pft f dir = play $ filtree f dir
+pft f dir  = play $ filtree f dir
 
-low = map toLower
-inlow x = isInfixOf (low x) . low
+low      = map toLower
+inlow  x = isInfixOf (low x) . low
 prelow x = isPrefixOf (low x) . low
-inis x = map head $ split " " $ low x
+inis   x = map head $ split " " $ low x
 ininis x y = low x `isInfixOf` inis y
-inli x y = inlow x y || ininis x y
+inli   x y = inlow x y || ininis x y
 
 -- fm filt = filtree (filt . metaFromString f d)
 
@@ -149,8 +149,8 @@ split1WithM pred str = case catMaybes $ zipWith (\a b -> (a,) <$> pred b) (inits
 ok = const Match
 ok2 f s = True
 ok3 a b c = True
-filtree [] p = map (p @) (fileNames p) ++ concatMap (filtree [] . (p @)) (dirNames p)
-filtree (pred : fds) p = map (p @) (filter pred $ fileNames p) ++ concatMap (filtree fds . (p @)) (filter pred $ dirNames p)
+filtree [] p = map (p /) (fileNames p) ++ concatMap (filtree [] . (p /)) (dirNames p)
+filtree (pred : fds) p = map (p /) (filter pred $ fileNames p) ++ concatMap (filtree fds . (p /)) (filter pred $ dirNames p)
 artistp a = filter (inlow a) $ dirPaths artistd
 artistt = fileTree . (artistd ++)
 albump a = filter (inlow a) $ cdirPaths $ dirPaths artistd
@@ -166,16 +166,14 @@ tagTreeM1 d =
 
 -- test = afl . ta . tagTree2
 
-afl = arrayFromList (ByteStr "")
-
 ta = concat . zipWith (\n -> map (\fr -> ((frid fr, n), val fr))) [1 ..]
 
-para = artistd @ "Paradise Lost"
-satyr = artistd @ "Satyricon"
-super = artistd @ "Superior"
-volc = satyr @ "2002 - Volcano"
-obsid = para @ "2020 - Obsidian"
-tf = obsid @ "02 Fall from Grace.mp3"
+para  = artistd / "Paradise Lost"
+satyr = artistd / "Satyricon"
+super = artistd / "Superior"
+volc  = satyr   / "2002 - Volcano"
+obsid = para    / "2020 - Obsidian"
+tf    = obsid   / "02 Fall from Grace.mp3"
 
 test3 = parseTag $ unsafePerformIO $ readFile tf
 
@@ -198,19 +196,19 @@ data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} 
 blankFT = FileTimes 0 0 0
 
 data Meta = Meta
-  { byId :: M.Map FrameID Dynamic
-  , isDir :: Bool
-  , path :: T.Text
-  , audio :: T.Text
-  , artist :: T.Text
-  , album :: T.Text
+  { byId        :: M.Map FrameID Dynamic
+  , isDir       :: Bool
+  , path        :: T.Text
+  , audio       :: T.Text
+  , artist      :: T.Text
+  , album       :: T.Text
   , albumartist :: T.Text
-  , track :: T.Text
-  , song :: T.Text
-  , year :: Int
-  , genre :: T.Text
-  , times :: FileTimes
-  , orig :: FileTimes
+  , track       :: T.Text
+  , song        :: T.Text
+  , year        :: Int
+  , genre       :: T.Text
+  , times       :: FileTimes
+  , orig        :: FileTimes
   }
   deriving (Eq, Ord, Show, Read)
 
@@ -220,8 +218,8 @@ data Encoding = ISO8859 | UCS2
   deriving (Eq, Ord, Show)
 
 -- test1 = putGrid $ transpose1 $
-test1 = differences $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
-test1a = commonSubsequencesList $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
+test1 = differences $ fileTree $ unsharedd / "Portion Control" / "2007 - Onion Jack IV"
+test1a = commonSubsequencesList $ fileTree $ unsharedd / "Portion Control" / "2007 - Onion Jack IV"
 
 test2 db = play $ map (c . path) $ filter (album $= "Paradise Lost") $ tl db
 
@@ -300,57 +298,57 @@ instance P.Frame FrameID Dynamic Meta where
   myset1 = setField
 
 setField id val meta = case id of
-  Bisdir -> meta{isDir = fromDyn1 val}
-  Bpath -> meta{path = fromDyn1 val}
-  Baudio -> meta{audio = fromDyn1 val}
-  Track -> meta{track = fromDyn1 val}
-  Album -> meta{album = fromDyn1 val}
-  Artist -> meta{artist = fromDyn1 val}
+  Bisdir      -> meta{isDir       = fromDyn1 val}
+  Bpath       -> meta{path        = fromDyn1 val}
+  Baudio      -> meta{audio       = fromDyn1 val}
+  Track       -> meta{track       = fromDyn1 val}
+  Album       -> meta{album       = fromDyn1 val}
+  Artist      -> meta{artist      = fromDyn1 val}
   AlbumArtist -> meta{albumartist = fromDyn1 val}
-  Song -> meta{song = fromDyn1 val}
-  Year -> meta{year = fromDyn1 val}
-  Genre -> meta{genre = fromDyn1 val}
-  Btimes -> meta{times = fromDyn1 val}
-  Borig -> meta{orig = fromDyn1 val}
-  _ -> setField1 id val meta
+  Song        -> meta{song        = fromDyn1 val}
+  Year        -> meta{year        = fromDyn1 val}
+  Genre       -> meta{genre       = fromDyn1 val}
+  Btimes      -> meta{times       = fromDyn1 val}
+  Borig       -> meta{orig        = fromDyn1 val}
+  _           -> setField1 id val meta
 
 fields1 meta =
-  [ (Bisdir, toDyn $ isDir meta)
-  , (Bpath, toDyn $ path meta)
-  , (Baudio, toDyn $ audio meta)
-  , (Track, toDyn $ track meta)
-  , (Album, toDyn $ album meta)
-  , (Artist, toDyn $ artist meta)
+  [ (Bisdir     , toDyn $ isDir       meta)
+  , (Bpath      , toDyn $ path        meta)
+  , (Baudio     , toDyn $ audio       meta)
+  , (Track      , toDyn $ track       meta)
+  , (Album      , toDyn $ album       meta)
+  , (Artist     , toDyn $ artist      meta)
   , (AlbumArtist, toDyn $ albumartist meta)
-  , (Song, toDyn $ song meta)
-  , (Year, toDyn $ year meta)
-  , (Genre, toDyn $ genre meta)
-  , (Btimes, toDyn $ times meta)
-  , (Borig, toDyn $ orig meta)
+  , (Song       , toDyn $ song        meta)
+  , (Year       , toDyn $ year        meta)
+  , (Genre      , toDyn $ genre       meta)
+  , (Btimes     , toDyn $ times       meta)
+  , (Borig      , toDyn $ orig        meta)
   ]
     ++ M.toList (byId meta)
 
 field1 id meta = case id of
-  Track -> toDyn $ track meta
-  Album -> toDyn $ album meta
+  Track       -> toDyn $ track  meta
+  Album       -> toDyn $ album  meta
   AlbumArtist -> toDyn $ artist meta
-  Song -> toDyn $ song meta
-  Year -> toDyn $ year meta
-  Bpath -> toDyn $ path meta
+  Song        -> toDyn $ song   meta
+  Year        -> toDyn $ year   meta
+  Bpath       -> toDyn $ path   meta
 
 isfixed id = case id of
-  Bisdir -> True
-  Bpath -> True
-  Baudio -> True
-  Track -> True
-  Album -> True
-  Artist -> True
+  Bisdir      -> True
+  Bpath       -> True
+  Baudio      -> True
+  Track       -> True
+  Album       -> True
+  Artist      -> True
   AlbumArtist -> True
-  Song -> True
-  Year -> True
-  Btimes -> True
-  Borig -> True
-  _ -> False
+  Song        -> True
+  Year        -> True
+  Btimes      -> True
+  Borig       -> True
+  _           -> False
 
 mapfield name = mapMaybe (\case FrameText name1 val -> ifJust (name == name1) val; x -> Nothing)
 
@@ -420,78 +418,6 @@ applyU7 (f, g, h, i, j, k, l) x = (f x, g x, h x, i x, j x, k x, l x)
 
 applyV7 f (t, u, v, w, x, y, z) = (f t, f u, f v, f w, f x, f y, f z)
 applyL fs x = map ($ x) fs
-
-data XYMapArray x y v = XYMapArray
-  { dat :: Array (Int, Int) v
-  , xAxis :: M.Map x Int
-  , yAxis :: M.Map y Int
-  , mapzero :: v
-  }
-
-lookup x y a = do
-  xi <- M.lookup x (xAxis a)
-  yi <- M.lookup y (yAxis a)
-  return $ dat a ! (xi, yi)
-
--- foldr (+) a [1,2,3] = (1+(2+(3+a)))
-{-
-arrayFromList :: (Ord x, Ord y) => v -> [((x,y),v)] -> XYMapArray x y v
-arrayFromList zero xylist = let
-   xmap   = M.fromList $ zip (S.toList $ S.fromList $ map (\((x,y),v) -> x) xylist) [0..]
-   ymap   = M.fromList $ zip (S.toList $ S.fromList $ map (\((x,y),v) -> y) xylist) [0..]
-   xsize  = M.size xmap
-   ysize  = M.size ymap
-   s      = xsize*ysize
-   ixl    = (-1, zero):map (\((x,y),v) -> (unjust (M.lookup x xmap)*ysize+unjust (M.lookup y ymap), v)) xylist
-   ix2    = foldr (\(a,b) ((c,d):rest) -> (a,b) : zip [a+1..c-1] (repeat zero) ++ (c,d) : rest) [(s, zero)] ixl
-   vals   = map snd $ tail ix2
-
-   in XYMapArray (take xsize $ groupN ysize vals) xmap ymap zero
--}
-arrayFromList zero xylist =
-  let
-    xmap = M.fromList $ zip (S.toList $ S.fromList $ map (\((x, y), v) -> x) xylist) [0 ..]
-    ymap = M.fromList $ zip (S.toList $ S.fromList $ map (\((x, y), v) -> y) xylist) [0 ..]
-    xmax = M.size xmap - 1
-    ymax = M.size ymap - 1
-    ixl = map (\((x, y), v) -> ((unjust (M.lookup x xmap), unjust (M.lookup y ymap)), v)) xylist
-    c1 e a = a
-   in
-    XYMapArray (accumArray c1 zero ((0, 0), (xmax, ymax)) ixl) xmap ymap zero
-
-cols a =
-  let
-    ((xl, yl), (xu, yu)) = bounds a
-   in
-    crossWith (curry (a !)) (A.range (xl, xu)) (A.range (yl, yu))
-
-showa1 :: Int -> (x -> String) -> (b -> String) -> (v -> String) -> XYMapArray x b v -> String
-showa1 w fx fy f a =
-  let xh = map (fx . fst) $ M.toList $ xAxis a
-      yh = map (fy . fst) $ M.toList $ yAxis a
-      tbl = zipWith (:) ("" : xh) (yh : transpose (map2 f (cols $ dat a))) :: [[String]]
-   in showGridW w tbl
-
-{-
-showa3 w fx fy f a = let xh = map (fx . fst) $ M.toList $ xAxis a
-                         yh = map (fy . fst) $ M.toList $ yAxis a
-                         tbl = zipWith (:) ("" : xh) (yh : transpose (map2 f (cols $ dat a))) :: [[String]]
-
-                     in tryGridF colWidths1 w tbl
--}
-showa2 w fx fy f a =
-  let xh = map (fx . fst) $ M.toList $ xAxis a
-      yh = map (fy . fst) $ M.toList $ yAxis a
-      xs = length xh
-      ys = length yh
-      xhs = length $ head xh
-      yhs = length $ head yh
-      spc = replicate xhs $ replicate yhs ""
-      tbl = zipWith (++) (spc ++ xh) (transpose yh ++ map2 f (cols $ dat a))
-   in showGridW w tbl
-
-instance (Show1 x, Show1 y, Show1 v) => Show (XYMapArray x y v) where
-  show = showa1 width show1 show1 show1
 
 -- partPart :: P.ParsecT String u e String
 -- pathPart = P.manyTill (P.char '/') $ P.string "/"
@@ -618,10 +544,10 @@ commonSubsequences2 a b  = let
    (res, _, _, _) = c !! length a !! length b
    in reverse res
 -}
-dbpath = baseDir @ "haskelldb.bin"
+dbpath = baseDir / "haskelldb.bin"
 
 -- dbroots = map (baseDir ++) ["Artists/Paradise Lost/2015 - The Plague Within"]
-dbroots = map (artistd @) ["Paradise Lost", "Isis"] :: [T.Text]
+dbroots = map (artistd /) ["Paradise Lost", "Isis"] :: [T.Text]
 
 type DB = M.Map T.Text Meta
 type FS = Meta
@@ -954,14 +880,14 @@ convertMPEGFrame f = [
 combineMPEGFrames totalBytes [] = []
 combineMPEGFrames totalBytes frs =
   let
-    readBytes = sum $ map mpegFrameBytes frs
-    readTime = sum $ map mpegFrameTime frs
-    bitRate = round $ realToFrac readBytes * 8 / realToFrac readTime
-    totalTime = realToFrac $ fromIntegral totalBytes / fromIntegral bitRate * 8 / 1000
-    readSamps = sum $ map framesamps frs
-    sampRate = round $ realToFrac readBytes / realToFrac readSamps
-    mVersion = mode $ map version frs
-    mLayer = mode $ map layer frs
+    readBytes = sum        $ map mpegFrameBytes frs
+    readTime  = sum        $ map mpegFrameTime frs
+    bitRate   = round      $ realToFrac readBytes * 8 // realToFrac readTime
+    totalTime = realToFrac $ fromIntegral totalBytes // fromIntegral bitRate * 8 // 1000
+    readSamps = sum        $ map framesamps frs
+    sampRate  = round      $ realToFrac readBytes // realToFrac readSamps
+    mVersion  = mode       $ map version frs
+    mLayer    = mode       $ map layer frs
    in
     [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
 
@@ -1386,170 +1312,170 @@ data Var =
 data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
 frameIDList =
-  [ FT "4.20 " Aenc "AENC" "Audio encryption" ""
-  , FT "4.15 " Apic "APIC" "Picture" "Attached picture"
-  , FT "4.11 " Comm "COMM" "Comments" ""
-  , FT "4.25 " Comr "COMR" "Commercial" "Commercial frame"
-  , FT "4.26 " Encr "ENCR" "Encryption method registration" ""
-  , FT "4.13 " Equa "EQUA" "Equalizn" "Equalization"
-  , FT "4.6  " Etco "ETCO" "Events" "Event timing codes"
-  , FT "4.16 " Geob "GEOB" "Object" "General encapsulated object"
-  , FT "4.27 " Grid "GRID" "Group ID" "Group identification registration"
-  , FT "4.4  " Ipls "IPLS" "People" "Involved people list"
-  , FT "4.21 " Link "LINK" "Link" "Linked information"
-  , FT "4.5  " Mcdi "MCDI" "CD ID" "Music CD identifier"
-  , FT "4.7  " Mllt "MLLT" "Loc. Grid" "MPEG location lookup Grid"
-  , FT "4.24 " Owne "OWNE" "Owner" "Ownership frame"
-  , FT "4.28 " Priv "PRIV" "Private" "Private frame"
-  , FT "4.17 " Pcnt "PCNT" "# Plays" "Play counter"
-  , FT "4.18 " Popm "POPM" "Popularimeter" ""
-  , FT "4.22 " Poss "POSS" "Position synchronisation frame" ""
-  , FT "4.19 " Rbuf "RBUF" "Recommended buffer size" ""
-  , FT "4.12 " Rvad "RVAD" "Relative volume adjustment" ""
-  , FT "4.14 " Rvrb "RVRB" "Reverb" ""
-  , FT "4.10 " Sylt "SYLT" "Synchronized lyric/text" ""
-  , FT "4.8  " Sytc "SYTC" "Synchronized tempo codes" ""
-  , FT "4.2.1" Album "TALB" "Album" "Album/Movie/Show title"
-  , FT "4.2.1" Tbpm "TBPM" "BPM" "BPM [beats per minute]"
-  , FT "4.2.1" Tcom "TCOM" "Composer" ""
-  , FT "4.2.1" Genre "TCON" "Genre" "Content type"
-  , FT "4.2.1" Tcop "TCOP" "Copyright" "Copyright message"
-  , FT "4.2.1" Tdat "TDAT" "Date" ""
-  , FT "4.2.1" Tdly "TDLY" "Playlist delay" ""
-  , FT "4.2.1" Tenc "TENC" "Encoded by" ""
-  , FT "4.2.1" Text "TEXT" "Lyrics by" "Lyricist/Text writer"
-  , FT "4.2.1" Tflt "TFLT" "File type" ""
-  , FT "4.2.1" Time "TIME" "Time" ""
-  , FT "4.2.1" Tit1 "TIT1" "Content group" "Content group description"
-  , FT "4.2.1" Song "TIT2" "Song" "Title/songname/content description"
-  , FT "4.2.1" Tit3 "TIT3" "Subtitle/Description refinement" ""
-  , FT "4.2.1" Tkey "TKEY" "Initial key" ""
-  , FT "4.2.1" Tlan "TLAN" "Language" ""
-  , FT "4.2.1" Tlen "TLEN" "Length [ms]" "Length"
-  , FT "4.2.1" Tmed "TMED" "Media type" ""
-  , FT "4.2.1" Toal "TOAL" "Original album" "Original album/movie/show title"
-  , FT "4.2.1" Tofn "TOFN" "Original filename" ""
-  , FT "4.2.1" Toly "TOLY" "Original lyricist" "Original lyricist[s]/text writer[s]"
-  , FT "4.2.1" Tope "TOPE" "Original artist" "Original artist[s]/performer[s]"
-  , FT "4.2.1" Tory "TORY" "Original release year" ""
-  , FT "4.2.1" Town "TOWN" "File owner/licensee" ""
-  , FT "4.2.1" Artist "TPE1" "Artist" "Lead performer[s]/Soloist[s]"
-  , FT "4.2.1" AlbumArtist "TPE2" "Album Artist" "Band/orchestra/accompaniment"
-  , FT "4.2.1" Tpe3 "TPE3" "Conductor/performer refinement" ""
-  , FT "4.2.1" Tpe4 "TPE4" "Interpreted, remixed, or otherwise modified by" ""
-  , FT "4.2.1" Tpos "TPOS" "Disc" "Part of a set"
-  , FT "4.2.1" Tpub "TPUB" "Publisher" ""
-  , FT "4.2.1" Track "TRCK" "#" "Track number/Position in set"
-  , FT "4.2.1" Trda "TRDA" "Recording dates" ""
-  , FT "4.2.1" Trsn "TRSN" "Internet radio station name" ""
-  , FT "4.2.1" Trso "TRSO" "Internet radio station owner" ""
-  , FT "4.2.1" Tsiz "TSIZ" "Size" ""
-  , FT "4.2.1" Tsrc "TSRC" "ISRC" "ISRC [international standard recording code]"
-  , FT "4.2.1" Tsse "TSSE" "Settings" "Software/Hardware and settings used for encoding"
-  , FT "4.2.1" Year "TYER" "Year" ""
-  , FT "4.2.2" Txxx "TXXX" "User text" "User defined text information frame"
-  , FT "4.1  " Ufid "UFID" "Unique file identifier" ""
-  , FT "4.23 " User "USER" "Terms of use" ""
-  , FT "4.9  " Uslt "USLT" "U Lyrics" "Unsychronized lyric/text transcription"
-  , FT "4.3.1" Wcom "WCOM" "Commercial information" ""
-  , FT "4.3.1" Wcop "WCOP" "Copyright/Legal information" ""
-  , FT "4.3.1" Woaf "WOAF" "Official audio file webpage" ""
-  , FT "4.3.1" Woar "WOAR" "Official artist/performer webpage" ""
-  , FT "4.3.1" Woas "WOAS" "Official audio source webpage" ""
-  , FT "4.3.1" Wors "WORS" "Official internet radio station homepage" ""
-  , FT "4.3.1" Wpay "WPAY" "Payment" ""
-  , FT "4.3.1" Wpub "WPUB" "Publishers official webpage" ""
-  , FT "4.3.2" Wxxx "WXXX" "User defined URL link frame" ""
+  [ FT "4.20 " Aenc "AENC" "Audio encryption"       ""
+  , FT "4.15 " Apic "APIC" "Picture"                "Attached picture"
+  , FT "4.11 " Comm "COMM" "Comments"               "Comments"
+  , FT "4.25 " Comr "COMR" "Commercial"             "Commercial frame"
+  , FT "4.26 " Encr "ENCR" "Encrypt meth reg"       "Encryption method registration"   
+  , FT "4.13 " Equa "EQUA" "Equalizn"               "Equalization"
+  , FT "4.6  " Etco "ETCO" "Events"                 "Event timing codes"
+  , FT "4.16 " Geob "GEOB" "Object"                 "General encapsulated object"
+  , FT "4.27 " Grid "GRID" "Group ID"               "Group identification registration"
+  , FT "4.4  " Ipls "IPLS" "People"                 "Involved people list"
+  , FT "4.21 " Link "LINK" "Link"                   "Linked information"
+  , FT "4.5  " Mcdi "MCDI" "CD ID"                  "Music CD identifier"
+  , FT "4.7  " Mllt "MLLT" "Loc. Grid"              "MPEG location lookup Grid"
+  , FT "4.24 " Owne "OWNE" "Owner"                  "Ownership frame"
+  , FT "4.28 " Priv "PRIV" "Private"                "Private frame"
+  , FT "4.17 " Pcnt "PCNT" "# Plays"                "Play counter"
+  , FT "4.18 " Popm "POPM" "Score"                  "Popularimeter"                    
+  , FT "4.22 " Poss "POSS" "Pos sync frame"         "Position synchronisation frame"   
+  , FT "4.19 " Rbuf "RBUF" "Recmd buf size"         "Recommended buffer size"          
+  , FT "4.12 " Rvad "RVAD" "Rel vol adj"            "Relative volume adjustment"       
+  , FT "4.14 " Rvrb "RVRB" "Reverb"                 ""
+  , FT "4.10 " Sylt "SYLT" "Sync lyric"             "Synchronized lyric/text"          
+  , FT "4.8  " Sytc "SYTC" "Sync tempo code"        "Synchronized tempo codes"        
+  , FT "4.2.1" Album "TALB" "Album"                 "Album/Movie/Show title"
+  , FT "4.2.1" Tbpm "TBPM" "BPM"                    "BPM [beats per minute]"
+  , FT "4.2.1" Tcom "TCOM" "Composer"               ""
+  , FT "4.2.1" Genre "TCON" "Genre"                 "Content type"
+  , FT "4.2.1" Tcop "TCOP" "Copyright"              "Copyright message"
+  , FT "4.2.1" Tdat "TDAT" "Date"                   ""
+  , FT "4.2.1" Tdly "TDLY" "Playlist delay"         ""
+  , FT "4.2.1" Tenc "TENC" "Encoded by"             ""
+  , FT "4.2.1" Text "TEXT" "Lyrics by"              "Lyricist/Text writer"
+  , FT "4.2.1" Tflt "TFLT" "File type"              ""
+  , FT "4.2.1" Time "TIME" "Time"                   ""
+  , FT "4.2.1" Tit1 "TIT1" "Content group"          "Content group description"
+  , FT "4.2.1" Song "TIT2" "Song"                   "Title/songname/content description"
+  , FT "4.2.1" Tit3 "TIT3" "Subtitle"               "Subtitle/Description refinement"  
+  , FT "4.2.1" Tkey "TKEY" "Initial key"            ""
+  , FT "4.2.1" Tlan "TLAN" "Language"               ""
+  , FT "4.2.1" Tlen "TLEN" "Length [ms]"            "Length"
+  , FT "4.2.1" Tmed "TMED" "Media type"             ""
+  , FT "4.2.1" Toal "TOAL" "Original album"         "Original album/movie/show title"
+  , FT "4.2.1" Tofn "TOFN" "Original filename"      ""
+  , FT "4.2.1" Toly "TOLY" "Original lyricist"      "Original lyricist[s]/text writer[s]"
+  , FT "4.2.1" Tope "TOPE" "Original artist"        "Original artist[s]/performer[s]"
+  , FT "4.2.1" Tory "TORY" "Original release year"  ""
+  , FT "4.2.1" Town "TOWN" "File owner/licensee"    ""
+  , FT "4.2.1" Artist "TPE1" "Artist"               "Lead performer[s]/Soloist[s]"
+  , FT "4.2.1" AlbumArtist "TPE2" "Album Artist"    "Band/orchestra/accompaniment"
+  , FT "4.2.1" Tpe3 "TPE3" "Conductor"              "Conductor/performer refinement"  
+  , FT "4.2.1" Tpe4 "TPE4" "Remixed by"             "Interpreted, remixed, or otherwise modified by" 
+  , FT "4.2.1" Tpos "TPOS" "Disc"                   "Part of a set"
+  , FT "4.2.1" Tpub "TPUB" "Publisher"              ""
+  , FT "4.2.1" Track "TRCK" "#"                     "Track number/Position in set"
+  , FT "4.2.1" Trda "TRDA" "Recording dates"        ""
+  , FT "4.2.1" Trsn "TRSN" "Internet radio name"    "Internet radio station name" 
+  , FT "4.2.1" Trso "TRSO" "Internet radio owner"   "Internet radio station owner"
+  , FT "4.2.1" Tsiz "TSIZ" "Size"                   ""
+  , FT "4.2.1" Tsrc "TSRC" "ISRC"                   "ISRC [international standard recording code]"
+  , FT "4.2.1" Tsse "TSSE" "Settings"               "Software/Hardware and settings used for encoding"
+  , FT "4.2.1" Year "TYER" "Year"                   ""
+  , FT "4.2.2" Txxx "TXXX" "User text"              "User defined text information frame"
+  , FT "4.1  " Ufid "UFID" "Unique file ID"         "Unique file identifier"          
+  , FT "4.23 " User "USER" "Terms of use"           ""
+  , FT "4.9  " Uslt "USLT" "U Lyrics"               "Unsychronized lyric/text transcription"
+  , FT "4.3.1" Wcom "WCOM" "Commercial URL"         "Commercial information"         
+  , FT "4.3.1" Wcop "WCOP" "Copyright URL"          "Copyright/Legal information"     
+  , FT "4.3.1" Woaf "WOAF" "File URL"               "Official audio file webpage"      
+  , FT "4.3.1" Woar "WOAR" "Artist URL"             "Official artist/performer webpage" 
+  , FT "4.3.1" Woas "WOAS" "Audio URL"              "Official audio source webpage"    
+  , FT "4.3.1" Wors "WORS" "Internet radio URL"     "Official internet radio station homepage"
+  , FT "4.3.1" Wpay "WPAY" "Payment URL"            ""
+  , FT "4.3.1" Wpub "WPUB" "Publisher URL"          "Publishers official webpage"      
+  , FT "4.3.2" Wxxx "WXXX" "User URL"               "User defined URL link frame"      
   , -- seen in the wild but not part of the standard
-    FT "" Atxt "ATXT" "ATXT" ""
-  , FT "" Chap "CHAP" "ID3 Chapter" ""
-  , FT "" Ctoc "CTOC" "ID3 Table Of Contents" ""
-  , FT "" Rgad "RGAD" "RGAD" ""
-  , FT "" Tcmp "TCMP" "Comp" "Set to 1 if the song is part of a compilation"
-  , FT "" Tso2 "TSO2" "TSO2" ""
-  , FT "" Tsoc "TSOC" "TSOC" ""
-  , FT "" Xrva "XRVA" "XRVA" ""
-  , FT "" Ntrk "NTRK" "Total number of tracks" ""
+    FT "" Atxt "ATXT" "ATXT"                        ""
+  , FT "" Chap "CHAP" "ID3 Chapter"                 ""
+  , FT "" Ctoc "CTOC" "ID3 Table Of Contents"       ""
+  , FT "" Rgad "RGAD" "RGAD"                        ""
+  , FT "" Tcmp "TCMP" "Comp"                        "Set to 1 if the song is part of a compilation"
+  , FT "" Tso2 "TSO2" "TSO2"                        ""
+  , FT "" Tsoc "TSOC" "TSOC"                        ""
+  , FT "" Xrva "XRVA" "XRVA"                        ""
+  , FT "" Ntrk "NTRK" "Total number of tracks"      ""
   , -- id3v2.4
     FT "4.19 " Aspi "ASPI" "Audio seek point index" ""
-  , FT "4.12 " Equ2 "EQU2" "Equalisation" ""
-  , FT "4.11 " Rva2 "RVA2" "Relative volume adjustment" ""
-  , FT "4.29 " Seek "SEEK" "Seek" ""
-  , FT "4.28 " Sign "SIGN" "Signature" ""
-  , FT "4.2.5" Tden "TDEN" "Encoding time" ""
-  , FT "4.2.5" Tdor "TDOR" "Original release time" ""
-  , FT "4.2.5" Tdrc "TDRC" "Recording time" ""
-  , FT "4.2.5" Tdrl "TDRL" "Release time" ""
-  , FT "4.2.5" Tdtg "TDTG" "Tagging time" ""
-  , FT "4.2.2" Tipl "TIPL" "Involved people" "Involved people list"
-  , FT "4.2.2" Tmcl "TMCL" "Musician credits list" ""
-  , FT "4.2.3" Tmoo "TMOO" "Mood" ""
-  , FT "4.2.4" Tpro "TPRO" "Production notice" ""
-  , FT "4.2.5" Tsoa "TSOA" "Album sort" "Album sort order"
-  , FT "4.2.5" Tsop "TSOP" "Perf sort" "Performer sort order"
-  , FT "4.2.5" Tsot "TSOT" "Title sort" "Title sort order"
-  , FT "4.2.1" Tsst "TSST" "Set subtitle" ""
+  , FT "4.12 " Equ2 "EQU2" "Equalisation"           ""
+  , FT "4.11 " Rva2 "RVA2" "Rel vol adj"            "Relative volume adjustment"      
+  , FT "4.29 " Seek "SEEK" "Seek"                   ""
+  , FT "4.28 " Sign "SIGN" "Signature"              ""
+  , FT "4.2.5" Tden "TDEN" "Encoding time"          ""
+  , FT "4.2.5" Tdor "TDOR" "Original release time"  ""
+  , FT "4.2.5" Tdrc "TDRC" "Recording time"         ""
+  , FT "4.2.5" Tdrl "TDRL" "Release time"           ""
+  , FT "4.2.5" Tdtg "TDTG" "Tagging time"           ""
+  , FT "4.2.2" Tipl "TIPL" "Involved people"        "Involved people list"
+  , FT "4.2.2" Tmcl "TMCL" "Musician credits list"  ""
+  , FT "4.2.3" Tmoo "TMOO" "Mood"                   ""
+  , FT "4.2.4" Tpro "TPRO" "Production notice"      ""
+  , FT "4.2.5" Tsoa "TSOA" "Album sort"             "Album sort order"
+  , FT "4.2.5" Tsop "TSOP" "Perf sort"              "Performer sort order"
+  , FT "4.2.5" Tsot "TSOT" "Title sort"             "Title sort order"
+  , FT "4.2.1" Tsst "TSST" "Set subtitle"           ""
   , -- id3v2.2
-    FT "4.19 " Buf "BUF" "Recommended buffer size" ""
-  , FT "4.17 " Cnt "CNT" "# Plays" ""
-  , FT "4.11 " Comm "COM" "Comments" ""
-  , FT "4.21 " Aenc "CRA" "Audio encryption" ""
-  , FT "4.20 " Crm "CRM" "Encrypted meta frame" ""
-  , FT "4.6  " Etco "ETC" "Events" ""
-  , FT "4.13 " Equa "EQU" "Equalization" ""
-  , FT "4.16 " Geob "GEO" "Object" ""
-  , FT "4.4  " Ipls "IPL" "Involved people" ""
-  , FT "4.22 " Link "LNK" "Link" "Linked information"
-  , FT "4.5  " Mcdi "MCI" "CD ID" "Music CD Identifier"
-  , FT "4.7  " Mllt "MLL" "Loc. Grid" "MPEG location lookup Grid"
-  , FT "4.15 " Apic "PIC" "Picture" ""
-  , FT "4.18 " Popm "POP" "Popularimeter" ""
-  , FT "4.14 " Rvrb "REV" "Reverb" ""
-  , FT "4.12 " Rvad "RVA" "Relative volume adjustment" ""
-  , FT "4.10 " Sylt "SLT" "Synchronized lyric/text" ""
-  , FT "4.8  " Album "TAL" "Album" "Album/Movie/Show title"
-  , FT "4.2.1" Tbpm "TBP" "BPM" "BPM [Beats Per Minute]"
-  , FT "4.2.1" Tcom "TCM" "Composer" ""
-  , FT "4.2.1" Genre "TCO" "Genre" "Content type"
-  , FT "4.2.1" Tcop "TCR" "Copyright" "Copyright message"
-  , FT "4.2.1" Tdat "TDA" "Date" ""
-  , FT "4.2.1" Tdly "TDY" "Playlist delay" ""
-  , FT "4.2.1" Tenc "TEN" "Encoded by" ""
-  , FT "4.2.1" Tflt "TFT" "File type" ""
-  , FT "4.2.1" Time "TIM" "Time" ""
-  , FT "4.2.1" Tkey "TKE" "Initial key" ""
-  , FT "4.2.1" Tlan "TLA" "Language" ""
-  , FT "4.2.1" Tlen "TLE" "Length [ms]" "Length"
-  , FT "4.2.1" Tmed "TMT" "Media type" ""
-  , FT "4.2.1" Tope "TOA" "Original artist[s]/performer[s]" ""
-  , FT "4.2.1" Tofn "TOF" "Original filename" ""
-  , FT "4.2.1" Toly "TOL" "Original Lyricist[s]/text writer[s]" ""
-  , FT "4.2.1" Tory "TOR" "Original release year" ""
-  , FT "4.2.1" Toal "TOT" "Original album" "Original album/Movie/Show title"
-  , FT "4.2.1" Artist "TP1" "Artist" "Lead artist[s]/Lead performer[s]/Soloist[s]/Performing group"
-  , FT "4.2.1" AlbumArtist "TP2" "Album Artist" "Band/Orchestra/Accompaniment"
-  , FT "4.2.1" Tpe3 "TP3" "Conductor/Performer refinement" ""
-  , FT "4.2.1" Tpe4 "TP4" "Interpreted, remixed, or otherwise modified by" ""
-  , FT "4.2.1" Tpos "TPA" "Disc" "Part of a set"
-  , FT "4.2.1" Tpub "TPB" "Publisher" ""
-  , FT "4.2.1" Tsrc "TRC" "ISRC" "ISRC [International Standard Recording Code]"
-  , FT "4.2.1" Trda "TRD" "Recording dates" ""
-  , FT "4.2.1" Track "TRK" "#" "Track number/Position in set"
-  , FT "4.2.1" Tsiz "TSI" "Size" ""
-  , FT "4.2.1" Tsse "TSS" "Settings" "Software/hardware and settings used for encoding"
-  , FT "4.2.1" Tit1 "TT1" "Content group description" ""
-  , FT "4.2.1" Song "TT2" "Song" "Title/Songname/Content description"
-  , FT "4.2.1" Tit3 "TT3" "Subtitle/Description refinement" ""
-  , FT "4.2.1" Text "TXT" "Lyrics by" "Lyricist/text writer"
-  , FT "4.2.2" Txxx "TXX" "User text" "User defined text information frame"
-  , FT "4.2.1" Year "TYE" "Year" ""
-  , FT "4.1  " Ufid "UFI" "Unique file identifier" ""
-  , FT "4.9  " Uslt "ULT" "U Lyrics" "Unsychronized lyric/text transcription"
-  , FT "4.3.1" Woaf "WAF" "Official audio file webpage" ""
-  , FT "4.3.1" Woar "WAR" "Official artist/performer webpage" ""
-  , FT "4.3.1" Woas "WAS" "Official audio source webpage" ""
-  , FT "4.3.1" Wcom "WCM" "Commercial information" ""
-  , FT "4.3.1" Wcop "WCP" "Copyright/Legal information" ""
-  , FT "4.3.1" Wpub "WPB" "Publishers official webpage" ""
-  , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
+    FT "4.19 " Buf "BUF" "Recommended buffer size"  ""
+  , FT "4.17 " Cnt "CNT" "# Plays"                  ""
+  , FT "4.11 " Comm "COM" "Comments"                ""
+  , FT "4.21 " Aenc "CRA" "Audio encryption"        ""
+  , FT "4.20 " Crm "CRM" "Encrypted meta frame"     ""
+  , FT "4.6  " Etco "ETC" "Events"                  ""
+  , FT "4.13 " Equa "EQU" "Equalization"            ""
+  , FT "4.16 " Geob "GEO" "Object"                  ""
+  , FT "4.4  " Ipls "IPL" "Involved people"         ""
+  , FT "4.22 " Link "LNK" "Link"                    "Linked information"
+  , FT "4.5  " Mcdi "MCI" "CD ID"                   "Music CD Identifier"
+  , FT "4.7  " Mllt "MLL" "Loc. Grid"               "MPEG location lookup Grid"
+  , FT "4.15 " Apic "PIC" "Picture"                 ""
+  , FT "4.18 " Popm "POP" "Popularimeter"           ""
+  , FT "4.14 " Rvrb "REV" "Reverb"                  ""
+  , FT "4.12 " Rvad "RVA" "Rel vol adj"             "Relative volume adjustment"        
+  , FT "4.10 " Sylt "SLT" "Sync lyrics"             "Synchronized lyric/text"           
+  , FT "4.8  " Album "TAL" "Album"                  "Album/Movie/Show title"
+  , FT "4.2.1" Tbpm "TBP" "BPM"                     "BPM [Beats Per Minute]"
+  , FT "4.2.1" Tcom "TCM" "Composer"                ""
+  , FT "4.2.1" Genre "TCO" "Genre"                  "Content type"
+  , FT "4.2.1" Tcop "TCR" "Copyright"               "Copyright message"
+  , FT "4.2.1" Tdat "TDA" "Date"                    ""
+  , FT "4.2.1" Tdly "TDY" "Playlist delay"          ""
+  , FT "4.2.1" Tenc "TEN" "Encoded by"              ""
+  , FT "4.2.1" Tflt "TFT" "File type"               ""
+  , FT "4.2.1" Time "TIM" "Time"                    ""
+  , FT "4.2.1" Tkey "TKE" "Initial key"             ""
+  , FT "4.2.1" Tlan "TLA" "Language"                ""
+  , FT "4.2.1" Tlen "TLE" "Length [ms]"             "Length [ms]"
+  , FT "4.2.1" Tmed "TMT" "Media type"              ""
+  , FT "4.2.1" Tope "TOA" "Original artist"         "Original artist[s]/performer[s]"   
+  , FT "4.2.1" Tofn "TOF" "Original filename"       ""
+  , FT "4.2.1" Toly "TOL" "Lyricist"                "Original Lyricist[s]/text writer[s]"
+  , FT "4.2.1" Tory "TOR" "Original year"           "Original release year"            
+  , FT "4.2.1" Toal "TOT" "Original album"          "Original album/Movie/Show title"
+  , FT "4.2.1" Artist "TP1" "Artist"                "Lead artist[s]/Lead performer[s]/Soloist[s]/Performing group"
+  , FT "4.2.1" AlbumArtist "TP2" "Album Artist"     "Band/Orchestra/Accompaniment"
+  , FT "4.2.1" Tpe3 "TP3" "Conductor"               "Conductor/Performer refinement"    
+  , FT "4.2.1" Tpe4 "TP4" "Remixed by"              "Interpreted, remixed, or otherwise modified by"
+  , FT "4.2.1" Tpos "TPA" "Disc"                    "Part of a set"
+  , FT "4.2.1" Tpub "TPB" "Publisher"               ""
+  , FT "4.2.1" Tsrc "TRC" "ISRC"                    "ISRC [International Standard Recording Code]"
+  , FT "4.2.1" Trda "TRD" "Recording dates"         ""
+  , FT "4.2.1" Track "TRK" "#"                      "Track number/Position in set"
+  , FT "4.2.1" Tsiz "TSI" "Size"                    ""
+  , FT "4.2.1" Tsse "TSS" "Settings"                "Software/hardware and settings used for encoding"
+  , FT "4.2.1" Tit1 "TT1" "Content group"           "Content group description"
+  , FT "4.2.1" Song "TT2" "Song"                    "Title/Songname/Content description"
+  , FT "4.2.1" Tit3 "TT3" "Subtitle"                "Subtitle/Description refinement"   
+  , FT "4.2.1" Text "TXT" "Lyrics by"               "Lyricist/text writer"
+  , FT "4.2.2" Txxx "TXX" "User text"               "User defined text information frame"
+  , FT "4.2.1" Year "TYE" "Year"                    ""
+  , FT "4.1  " Ufid "UFI" "Unique file ID"          ""
+  , FT "4.9  " Uslt "ULT" "Unsync Lyrics"           "Unsychronized lyric/text transcription"
+  , FT "4.3.1" Woaf "WAF" "File webpage"            "Official audio file webpage"      
+  , FT "4.3.1" Woar "WAR" "Artist webpage"          "Official artist/performer webpage"
+  , FT "4.3.1" Woas "WAS" "Audio webpage"           "Official audio source webpage"     
+  , FT "4.3.1" Wcom "WCM" "Commercial information"  ""
+  , FT "4.3.1" Wcop "WCP" "Copyright"               "Copyright/Legal information"       
+  , FT "4.3.1" Wpub "WPB" "Publisher webpage"       "Publishers official webpage"       
+  , FT "4.3.2" Wxxx "WXX" "User URL"                "User defined URL link frame"       
   ]

@@ -1207,16 +1207,16 @@ frame = Build emptyFrame $ Alt [
     Apply (I.satisfy (==3)) (Get VerMajorK) :+
     FrameIDK   <-- rep char 4 :+
     FrameSizeK <-- int4 0x100 :+
-    SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (bits 8) :+
-    SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (bits 8) :+
+    SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :+
+    SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :+
     DatK       <-- Count (Get FrameSizeK) char,
 
   
     Apply (I.satisfy (==4)) (Get VerMajorK) :+
     FrameIDK   <-- rep char 4 :+
     FrameSizeK <-- int4 0x80 :+
-    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK) (bits 8) :+
-    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK) (bits 8) :+
+    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 (bits 8)) :+
+    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK) (Apply tuple8 (bits 8)) :+
     DatK       <-- Apply isync1 (Seq [Count (Get FrameSizeK) char, Get UnsyncFrK])]
     --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
   --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
@@ -1333,6 +1333,8 @@ mpegFrameF = do
 maxFrameSize = 5764 -- 1152 / 8 * 320 * 1000 / 8000 + 4
 
 ibsofs = I.total bsofs sofbs
+
+tuple8 = I.Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h)) (\(a :- b :- c :- d :- e :- f :- g :- h) -> Just [a, b, c, d, e, f, g, h])
 
 bits n = Apply (ibits n) int
 
