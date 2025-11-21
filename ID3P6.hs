@@ -15,6 +15,7 @@
 module ID3P6 where
 
 import ApplyTuple
+import NewTuple
 import BString
 import Favs hiding (range, split, split1With, splitWith)
 import Iso qualified as I
@@ -66,7 +67,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Word qualified as W
 import GHC.Generics hiding (Meta)
-
+{-
 -- things to try
 t1 db = putt $ artists db
 t2 = p fta
@@ -178,7 +179,7 @@ obsid = para @ "2020 - Obsidian"
 tf = obsid @ "02 Fall from Grace.mp3"
 
 test3 = parseTag $ unsafePerformIO $ readFile tf
-
+-}
 type MyString = B.ByteString
 
 data Frame
@@ -186,12 +187,13 @@ data Frame
   | Frame {frameID :: MyString, frameSize :: Int, flags :: Frame, contents :: B.ByteString}
   | FrameText {frid :: FrameID, val :: T.Text}
   | FrameFlags {tagAltPrsv :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool}
-  | MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString}
   | FrameTruncated
   | Invalid B.ByteString
   | Bytes Int
   | Nowt
   deriving (Eq, Ord, Show, Read, Generic)
+
+data MPEGFrame = MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString} deriving (Eq, Ord, Show)
 
 data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} deriving (Eq, Ord, Show, Read)
 
@@ -218,7 +220,7 @@ n = track
 
 data Encoding = ISO8859 | UCS2
   deriving (Eq, Ord, Show)
-
+{-
 -- test1 = putGrid $ transpose1 $
 test1 = differences $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
 test1a = commonSubsequencesList $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
@@ -300,57 +302,57 @@ instance P.Frame FrameID Dynamic Meta where
   myset1 = setField
 
 setField id val meta = case id of
-  Bisdir -> meta{isDir = fromDyn1 val}
-  Bpath -> meta{path = fromDyn1 val}
-  Baudio -> meta{audio = fromDyn1 val}
-  Track -> meta{track = fromDyn1 val}
-  Album -> meta{album = fromDyn1 val}
-  Artist -> meta{artist = fromDyn1 val}
+  Bisdir      -> meta{isDir       = fromDyn1 val}
+  Bpath       -> meta{path        = fromDyn1 val}
+  Baudio      -> meta{audio       = fromDyn1 val}
+  Track       -> meta{track       = fromDyn1 val}
+  Album       -> meta{album       = fromDyn1 val}
+  Artist      -> meta{artist      = fromDyn1 val}
   AlbumArtist -> meta{albumartist = fromDyn1 val}
-  Song -> meta{song = fromDyn1 val}
-  Year -> meta{year = fromDyn1 val}
-  Genre -> meta{genre = fromDyn1 val}
-  Btimes -> meta{times = fromDyn1 val}
-  Borig -> meta{orig = fromDyn1 val}
-  _ -> setField1 id val meta
+  Song        -> meta{song        = fromDyn1 val}
+  Year        -> meta{year        = fromDyn1 val}
+  Genre       -> meta{genre       = fromDyn1 val}
+  Btimes      -> meta{times       = fromDyn1 val}
+  Borig       -> meta{orig        = fromDyn1 val}
+  _           -> setField1 id val meta
 
 fields1 meta =
-  [ (Bisdir, toDyn $ isDir meta)
-  , (Bpath, toDyn $ path meta)
-  , (Baudio, toDyn $ audio meta)
-  , (Track, toDyn $ track meta)
-  , (Album, toDyn $ album meta)
-  , (Artist, toDyn $ artist meta)
+  [ (Bisdir     , toDyn $ isDir       meta)
+  , (Bpath      , toDyn $ path        meta)
+  , (Baudio     , toDyn $ audio       meta)
+  , (Track      , toDyn $ track       meta)
+  , (Album      , toDyn $ album       meta)
+  , (Artist     , toDyn $ artist      meta)
   , (AlbumArtist, toDyn $ albumartist meta)
-  , (Song, toDyn $ song meta)
-  , (Year, toDyn $ year meta)
-  , (Genre, toDyn $ genre meta)
-  , (Btimes, toDyn $ times meta)
-  , (Borig, toDyn $ orig meta)
+  , (Song       , toDyn $ song        meta)
+  , (Year       , toDyn $ year        meta)
+  , (Genre      , toDyn $ genre       meta)
+  , (Btimes     , toDyn $ times       meta)
+  , (Borig      , toDyn $ orig        meta)
   ]
     ++ M.toList (byId meta)
 
 field1 id meta = case id of
-  Track -> toDyn $ track meta
-  Album -> toDyn $ album meta
+  Track       -> toDyn $ track  meta
+  Album       -> toDyn $ album  meta
   AlbumArtist -> toDyn $ artist meta
-  Song -> toDyn $ song meta
-  Year -> toDyn $ year meta
-  Bpath -> toDyn $ path meta
+  Song        -> toDyn $ song   meta
+  Year        -> toDyn $ year   meta
+  Bpath       -> toDyn $ path   meta
 
 isfixed id = case id of
-  Bisdir -> True
-  Bpath -> True
-  Baudio -> True
-  Track -> True
-  Album -> True
-  Artist -> True
+  Bisdir      -> True
+  Bpath       -> True
+  Baudio      -> True
+  Track       -> True
+  Album       -> True
+  Artist      -> True
   AlbumArtist -> True
-  Song -> True
-  Year -> True
-  Btimes -> True
-  Borig -> True
-  _ -> False
+  Song        -> True
+  Year        -> True
+  Btimes      -> True
+  Borig       -> True
+  _           -> False
 
 mapfield name = mapMaybe (\case FrameText name1 val -> ifJust (name == name1) val; x -> Nothing)
 
@@ -812,7 +814,7 @@ readTagM readAudio f1 = do
   h <- openBinaryFile f ReadMode
   hdat <- hGetContents h
   case parse tag hdat of
-    Done dyn _ rest -> fromDyn1 dyn
+    Done res _ rest -> return res
     _ -> do
       hClose h
       return []
@@ -1171,21 +1173,19 @@ isync1 = totald
     in toDyn $ if u then unsync1 rest else rest)
 
 --unparseFrames frs = B.concat $ map unframe frs
-
-tag :: Rule Var Dynamic Char
+-}
 tag = Build $ Seq [
   header,
-  Dat <-- Apply isync1 (Seq [Count (Get TagSize) char, Get Unsync]),
-  Frames <-- Redo Dat frame,
+  DatK    <-- Apply isync1 (Seq [Count (Get TagSizeK) char, Get UnsyncK]),
+  FramesK <-- Redo DatK frame,
   Rest]
 
-header :: Rule Var Dynamic Char
 header = Seq [
-  Id3 <-- rep char 3,
-  VerMajor <-- int,
-  VerMinor <-- int,
-  SetM [Unsync, ExtHdr, Experi, Footer, Z, Z, Z, Z] (bits 8),
-  TagSize <-- int4 0x80]
+  Id3K      <-- rep char 3,
+  VerMajorK <-- int,
+  VerMinorK <-- int,
+  SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK) (bits 8),
+  TagSizeK  <-- int4 0x80]
 
 {-
 let unsync = flags .&. 0x80 /= 0
@@ -1194,29 +1194,30 @@ let experi = flags .&. 0x20 /= 0 -- v2.3 & 2.4
 let footer = flags .&. 0x10 /= 0 -- v2.4 only
 -}
 
-frame :: Rule Var Dynamic Char
-frame = Build $ Alt [
-  Seq [
-    Apply (I.satisfy (==2)) $ Get VerMajor,
-    FrameID <-- rep char 3,
-    FrameSize <-- int4 0x100,
-    Dat <-- Count (Get FrameSize) char],
+emptyFrame = undefined
 
-  Seq [
-    Apply (I.satisfy (==3)) $ Get VerMajor,
-    FrameID <-- rep char 4,
-    FrameSize <-- int4 0x100,
-    SetM [TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z, Z] $ bits 8,
-    SetM [Compression, Encryption, Grouping, Z, Z, Z, Z, Z] $ bits 8,
-    Dat <-- Count (Get FrameSize) char],
+frame = Build emptyFrame $ Alt [
+  
+    Apply (I.satisfy (==2)) (Get VerMajorK) :+
+    FrameIDK   <-- rep char 3 :+
+    FrameSizeK <-- int4 0x100 :+
+    DatK       <-- Count (Get FrameSizeK) char,
 
-  Seq [
-    Apply (I.satisfy (==4)) $ Get VerMajor,
-    FrameID <-- rep char 4,
-    FrameSize <-- int4 0x80,
-    SetM [Z, TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z] $ bits 8,
-    SetM [Z, Grouping, Z, Z, Compression, Encryption, UnsyncFr, DataLenI] $ bits 8,
-    Dat <-- Apply isync1 (Seq [Count (Get FrameSize) char, Get UnsyncFr])]]
+  
+    Apply (I.satisfy (==3)) (Get VerMajorK) :+
+    FrameIDK   <-- rep char 4 :+
+    FrameSizeK <-- int4 0x100 :+
+    SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (bits 8) :+
+    SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (bits 8) :+
+    DatK       <-- Count (Get FrameSizeK) char,
+
+  
+    Apply (I.satisfy (==4)) (Get VerMajorK) :+
+    FrameIDK   <-- rep char 4 :+
+    FrameSizeK <-- int4 0x80 :+
+    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK) (bits 8) :+
+    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK) (bits 8) :+
+    DatK       <-- Apply isync1 (Seq [Count (Get FrameSizeK) char, Get UnsyncFrK])]
     --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
   --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
   --let dat1 = if unsyncFr then resync dat else dat
@@ -1234,20 +1235,43 @@ snarf (x : xs) = x : snarf xs
 
 invalid = ManyTill char (Token (chr 0xFF))
 
+data MPEGVersion = MPEGV1 | MPEGV2 | MPEGV2_5
+
 mpegv1 = 1
 
 mpegv2 = 2
 
 mpegv2_5 = 3
 
-mpeg12Layer1 = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0] -- Layer 1
-mpeg12Layer2 = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0] -- Layer 2
-mpeg12Layer3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0] -- Layer 3
-mpeg25Layer1 = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0] -- MPEG2.5 Layer 1
-mpeg25Layer23 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0] -- MPEG2.5 Layer 2/3
-allZeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+mpeg12Layer1 =  [0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,   0] -- Layer 1
+mpeg12Layer2 =  [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0] -- Layer 2
+mpeg12Layer3 =  [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0] -- Layer 3
+mpeg25Layer1 =  [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0] -- MPEG2.5 Layer 1
+mpeg25Layer23 = [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0] -- MPEG2.5 Layer 2/3
+allZeros =      [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]
 
-mpegFrameOK = Build $ Seq [
+bitRates =       [[0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,   0], -- Layer 1
+                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0], -- Layer 2
+                  [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0], -- Layer 3
+                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0], -- MPEG2.5 Layer 1
+                  [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0], -- MPEG2.5 Layer 2/3
+                  [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]]
+
+sampRates =      [[0, 44100, 22050, 11025],
+                  [0, 48000, 24000, 12000],
+                  [0, 32000, 16000,  8000],
+                  [0,     0,     0,     0]]
+    
+--          !! sampRateEnc
+--          !! version
+
+sampPerFrames =  [[0,    0,    0,    0],
+                  [0,  384,  384,  384],
+                  [0, 1152, 1152, 1152],
+                  [0, 1152,  576,  576]]
+          
+
+mpegFrameOK = Build emptyMPEGFrame $ Seq [
   --AP.word8 0xFF
   SetM [AllOnes2, AllOnes1, AllOnes0, VersionEnc1, VersionEnc0, LayerEnc1, LayerEnc0, Z, BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0, SampRateEnc1, SampRateEnc0, Padding, ChannelMode1, ChannelMode0] (int3 0x100),
   AllOnes     <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
@@ -1264,26 +1288,26 @@ mpegFrameF = do
 
   let bitRate =
         ( if version == mpegv1
-            then [allZeros, mpeg12Layer1, mpeg12Layer2, mpeg12Layer3]
+            then [allZeros, mpeg12Layer1, mpeg12Layer2 , mpeg12Layer3 ]
             else [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]
         )
           !! layer
           !! bitRateEnc
 
   let sampRate =
-        [ [0, 0, 0, 0]
+        [ [    0,     0,     0, 0]
         , [44100, 48000, 32000, 0]
         , [22050, 24000, 16000, 0]
-        , [11025, 12000, 8000, 0]
+        , [11025, 12000,  8000, 0]
         ]
           !! version
           !! sampRateEnc
 
   let sampPerFrame =
-        [ [0, 0, 0, 0]
-        , [0, 384, 384, 384]
+        [ [0,    0,    0,    0]
+        , [0,  384,  384,  384]
         , [0, 1152, 1152, 1152]
-        , [0, 1152, 576, 576]
+        , [0, 1152,  576,  576]
         ]
           !! layer
           !! version
@@ -1308,38 +1332,38 @@ mpegFrameF = do
 -}
 maxFrameSize = 5764 -- 1152 / 8 * 320 * 1000 / 8000 + 4
 
-ibsofs = totald bsofs sofbs
+ibsofs = I.total bsofs sofbs
 
-bits n = Apply (ibits n) $ rep int n
+bits n = Apply (ibits n) int
 
-ibits n = totald (dobits n) unbits
+ibits n = I.total (dobits n) undobits
 
-dobits :: Int -> Word8 -> [Bool]
+dobits :: Int -> Int -> [Bool]
 dobits n = take n . map odd . iterate (`shift` (-1))
 
 -- curry $ unfoldr (\(bn, bx) -> ifJust (bn > 0) (bx .&. 1 /= 0, (bn-1, shift bx (-1))))
 
-unbits :: [Bool] -> W.Word8
-unbits = foldl (\a x -> shift a 1 .|. (if x then 1 else 0)) 0
+undobits :: [Bool] -> Int
+undobits = foldl (\a x -> shift a 1 .|. (if x then 1 else 0)) 0
 
-intn n m = Apply (totald (dointn m) (unint n m)) $ rep int n
+intn n m = Apply (I.total (dointn m) (undoint n m)) $ Count (Pure n) int
 
-dointn :: Int -> [Dynamic] -> Int
-dointn m = foldl (\a b -> a * m + fromDyn1 b) 0
+dointn :: Int -> [Int] -> Int
+dointn m = foldl (\a b -> a * m + b) 0
 
-int = Apply (totald ord chr) char
+int = Apply (I.total ord chr) char
 --int = fromIntegral <$> AP.anyWord8
 
-int2 m = Seq [int, int]
+--int2 m = Seq [int, int]
 
 --int2 = intn 2
 int3 = intn 3
 int4 = intn 4
 
-unint 0 _ _ = []
-unint n m x =
+undoint 0 _ _ = []
+undoint n m x =
   let (q, r) = divMod x (m ^ (n - 1))
-   in toDyn (fromIntegral q :: Int) : unint (n - 1) m r
+   in q : undoint (n - 1) m r
 
 rep p n = Seq $ replicate n p
 
@@ -1360,28 +1384,50 @@ data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, 
 
 data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
 
-data Var =
-  Id3 |
-  VerMajor |
-  VerMinor |
-  Unsync | ExtHdr | Experi | Footer |
-  TagSize |
-
-  Frames |
-
-  FrameID |
-  FrameSize |
-  TagAltPrsv | FileAltPrsv | ReadOnly | Grouping | Compression | Encryption | UnsyncFr | DataLenI | Z |
-  Dat |
-
-  AllOnes2 | AllOnes1 | AllOnes0 | VersionEnc1 | VersionEnc0 | LayerEnc1 | LayerEnc0 | BitRateEnc3 | BitRateEnc2 | BitRateEnc1 | BitRateEnc0 | SampRateEnc1 | SampRateEnc0 | Padding | ChannelMode1 | ChannelMode0 |
-  AllOnes     |
-  VersionEnc  |
-  LayerEnc    |
-  BitRateEnc  |
-  SampRateEnc |
-  ChannelMode
-  deriving (Eq, Ord, Show)
+data Id3K          = Id3K          deriving (Eq, Ord, Show)       
+data VerMajorK     = VerMajorK     deriving (Eq, Ord, Show)     
+data VerMinorK     = VerMinorK     deriving (Eq, Ord, Show)     
+data UnsyncK       = UnsyncK       deriving (Eq, Ord, Show)   
+data ExtHdrK       = ExtHdrK       deriving (Eq, Ord, Show)   
+data ExperiK       = ExperiK       deriving (Eq, Ord, Show)   
+data FooterK       = FooterK       deriving (Eq, Ord, Show)   
+data TagSizeK      = TagSizeK      deriving (Eq, Ord, Show)    
+data FramesK       = FramesK       deriving (Eq, Ord, Show)   
+data FrameIDK      = FrameIDK      deriving (Eq, Ord, Show)    
+data FrameSizeK    = FrameSizeK    deriving (Eq, Ord, Show)      
+data TagAltPrsvK   = TagAltPrsvK   deriving (Eq, Ord, Show)       
+data FileAltPrsvK  = FileAltPrsvK  deriving (Eq, Ord, Show)        
+data ReadOnlyK     = ReadOnlyK     deriving (Eq, Ord, Show)     
+data GroupingK     = GroupingK     deriving (Eq, Ord, Show)     
+data CompressionK  = CompressionK  deriving (Eq, Ord, Show)        
+data EncryptionK   = EncryptionK   deriving (Eq, Ord, Show)       
+data UnsyncFrK     = UnsyncFrK     deriving (Eq, Ord, Show)     
+data DataLenIK     = DataLenIK     deriving (Eq, Ord, Show)     
+data ZK            = ZK            deriving (Eq, Ord, Show)        
+data DatK          = DatK          deriving (Eq, Ord, Show)           
+data AllOnes2K     = AllOnes2K     deriving (Eq, Ord, Show)     
+data AllOnes1K     = AllOnes1K     deriving (Eq, Ord, Show)     
+data AllOnes0K     = AllOnes0K     deriving (Eq, Ord, Show)     
+data VersionEnc1K  = VersionEnc1K  deriving (Eq, Ord, Show)        
+data VersionEnc0K  = VersionEnc0K  deriving (Eq, Ord, Show)        
+data LayerEnc1K    = LayerEnc1K    deriving (Eq, Ord, Show)      
+data LayerEnc0K    = LayerEnc0K    deriving (Eq, Ord, Show)      
+data BitRateEnc3K  = BitRateEnc3K  deriving (Eq, Ord, Show)        
+data BitRateEnc2K  = BitRateEnc2K  deriving (Eq, Ord, Show)        
+data BitRateEnc1K  = BitRateEnc1K  deriving (Eq, Ord, Show)        
+data BitRateEnc0K  = BitRateEnc0K  deriving (Eq, Ord, Show)        
+data SampRateEnc1K = SampRateEnc1K deriving (Eq, Ord, Show)         
+data SampRateEnc0K = SampRateEnc0K deriving (Eq, Ord, Show)         
+data PaddingK      = PaddingK      deriving (Eq, Ord, Show)    
+data ChannelMode1K = ChannelMode1K deriving (Eq, Ord, Show)         
+data ChannelMode0K = ChannelMode0K deriving (Eq, Ord, Show)         
+data AllOnesK      = AllOnesK      deriving (Eq, Ord, Show)    
+data VersionEncK   = VersionEncK   deriving (Eq, Ord, Show)       
+data LayerEncK     = LayerEncK     deriving (Eq, Ord, Show)     
+data BitRateEncK   = BitRateEncK   deriving (Eq, Ord, Show)       
+data SampRateEncK  = SampRateEncK  deriving (Eq, Ord, Show)        
+data ChannelModeK  = ChannelModeK  deriving (Eq, Ord, Show)        
+  
 
 data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 

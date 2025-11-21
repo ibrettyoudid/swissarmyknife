@@ -654,19 +654,19 @@ mapOfList = M.fromList . mapfxx path
 
 blankMeta =
   Meta
-    { isDir = False
-    , path = empty
-    , audio = empty
-    , byId = M.empty
-    , artist = empty
-    , album = empty
+    { isDir       = False
+    , path        = empty
+    , audio       = empty
+    , byId        = M.empty
+    , artist      = empty
+    , album       = empty
     , albumartist = empty
-    , track = empty
-    , song = empty
-    , year = 0
-    , genre = empty
-    , times = FileTimes 0 0 0
-    , orig = FileTimes 0 0 0
+    , track       = empty
+    , song        = empty
+    , year        = 0
+    , genre       = empty
+    , times       = FileTimes 0 0 0
+    , orig        = FileTimes 0 0 0
     }
 makeDir k = blankMeta{isDir = True, path = k}
 
