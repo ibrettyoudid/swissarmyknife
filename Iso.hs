@@ -13,14 +13,14 @@ import SyntaxCIPU
 
 import NewTuple
 
-import Prelude (Show, show)
+import Prelude hiding (foldl, foldr, iterate, id, (.))
 
-import Prelude qualified
+import qualified Prelude as P
 
 import Data.Bool (Bool, otherwise)
 import Data.Either (Either (Left, Right))
 import Data.Eq (Eq ((==)))
-import Data.Maybe (Maybe (Just, Nothing))
+import Data.Maybe 
 import Data.List qualified
 
 -- module Control.Isomorphism.Partial.Derived 
@@ -42,6 +42,8 @@ import Language.Haskell.TH
 --import Control.Monad
 import Data.List (find)
 import Data.Char (toLower)
+import Chess (coln)
+import Favs (crossList)
 
 -- module Control.Isomorphism.Partial.Unsafe
 
@@ -193,6 +195,28 @@ total f g = Iso (Just . f) (Just . g)
 satisfy p = Iso f f where f x = if p x then Just x else Nothing
 
 (!!) list = Iso (Just . (list Prelude.!!)) (`Data.List.elemIndex` list)
+
+(!!!) lists = Iso 
+  (\[row, col] -> Just (lists P.!! row P.!! col))
+  (\e -> do (row, blah) <- findWithIndex2 (== e) lists; (col, val) <- blah; return [row, col])
+
+(!!!!) lists = Iso 
+  (\[page, row, col] -> Just (lists P.!! page P.!! row P.!! col))
+  (\e -> findWithIndex3 (== e) lists)
+{-}    
+map (\[a, b, c] -> lists P.!! page P.!! row P.!! col)
+  crossList [[0..pages-1], [0..rows-1], [0..cols-1]]
+  from
+  find isJust $ zip [0..] $ map (find ((>= 0) . snd) $ zip [0..] $ map (fromMaybe (-1) . Data.List.elemIndex e)) lists)
+-}
+findWithIndex p xs = find (p . snd) $ zip [0..] xs
+
+findWithIndex2 p xss = findWithIndex isJust $ map (findWithIndex p) xss
+
+findWithIndex3 p xsss = case findWithIndex isJust $ map (findWithIndex isJust . map (findWithIndex p)) xsss of
+  Just (a, Just (b, Just (c, d))) -> Just [a, b, c]
+  _ -> Nothing
+xx listss [page, row, col] = listss P.!! page P.!! row P.!! col
 -- module Control.Isomorphism.Partial.TH 
 {-
 -- | Extract the name of a constructor:- e.g. ":" or "Just".

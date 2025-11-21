@@ -738,7 +738,7 @@ readTagM readAudio f1 = do
   h <- openBinaryFile f ReadMode
   hdat <- hGetContents h
   case parse tag hdat of
-    Done dyn _ rest -> fromDyn1 dyn
+    Done rest _ dyn -> fromDyn1 dyn
     _ -> do
       hClose h
       return []
@@ -858,7 +858,7 @@ readSomeAudio1 h pos = do
   case parse (rep mpegFrameP 8) audio of
     -- Left l        -> error ++ show l
     -- Right r       -> return r
-    Done m _ _ -> return $ (fromDyn1 m :: M.Map Var Dynamic)
+    Done _ _ m -> return (fromDyn1 m :: M.Map Var Dynamic)
 
 middle l = l !! (length l `div` 2)
 
@@ -1000,7 +1000,7 @@ decodeText text = case head text of
 decodeUCS2 str = case B.take 2 str of
   "\255\254" -> T.decodeUtf16LE $ B.drop 2 str
   "\254\255" -> T.decodeUtf16BE $ B.drop 2 str
-  _ -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
+  _          -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
 
 countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off .. length s - 1]
 
@@ -1018,14 +1018,14 @@ readFileU2 = unsafePerformIO . readFile
 
 z = parseTag $ readFileU2 tf
 
-readTag2 f = parseTag <$> readFile f
 readTag = unsafePerformIO . readTag2
+readTag2 f = parseTag <$> readFile f
 
 unright (Right r) = r
 
 parseTag str =
   let 
-    Done hd1 _ rest1 = parse header str
+    Done rest1 _ hd1 = parse header str
     hd = fromDyn1 hd1 :: M.Map Var Dynamic
     rest = if myget1C VerMajor hd == (3::Int) && myget1C Unsync hd then resync1 rest1 else rest1
    in case myget1C Id3 hd :: String of
@@ -1058,7 +1058,7 @@ unparseTag1 totalSize framedat =
 
 parseFrames str
   | length str > 10 = case parse frame str of
-      Done dyn _ rest -> 
+      Done rest _ dyn -> 
         let fr = fromDyn1 dyn :: M.Map Var Dynamic
         in if isValidID $ sofbs $ fromDyn1 $ fromJust $ myget1 FrameID fr
               then fr : parseFrames rest
@@ -1098,14 +1098,14 @@ isync1 = totald
 
 --unparseFrames frs = B.concat $ map unframe frs
 
-tag :: Rule Var Dynamic Char
+tag :: Rule Char Dynamic Var
 tag = Build $ Seq [
   header,
   Dat <-- Apply isync1 (Seq [Count (Get TagSize) char, Get Unsync]),
   Frames <-- Redo Dat frame,
   Rest]
 
-header :: Rule Var Dynamic Char
+header :: Rule Char Dynamic Var
 header = Seq [
   Id3 <-- rep char 3,
   VerMajor <-- int,
@@ -1120,36 +1120,36 @@ let experi = flags .&. 0x20 /= 0 -- v2.3 & 2.4
 let footer = flags .&. 0x10 /= 0 -- v2.4 only
 -}
 
-frame :: Rule Var Dynamic Char
+frame :: Rule Char Dynamic Var
 frame = Build $ Alt [
   Seq [
     Apply (I.satisfy (==2)) $ Get VerMajor,
-    FrameID <-- rep char 3,
+    FrameID   <-- rep char 3,
     FrameSize <-- int4 0x100,
-    Dat <-- Count (Get FrameSize) char],
+    Dat       <-- Count (Get FrameSize) char],
 
   Seq [
     Apply (I.satisfy (==3)) $ Get VerMajor,
-    FrameID <-- rep char 4,
+    FrameID   <-- rep char 4,
     FrameSize <-- int4 0x100,
     SetM [TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z, Z] $ bits 8,
     SetM [Compression, Encryption, Grouping, Z, Z, Z, Z, Z] $ bits 8,
-    Dat <-- Count (Get FrameSize) char],
+    Dat       <-- Count (Get FrameSize) char],
 
   Seq [
     Apply (I.satisfy (==4)) $ Get VerMajor,
-    FrameID <-- rep char 4,
+    FrameID   <-- rep char 4,
     FrameSize <-- int4 0x80,
     SetM [Z, TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z] $ bits 8,
     SetM [Z, Grouping, Z, Z, Compression, Encryption, UnsyncFr, DataLenI] $ bits 8,
-    Dat <-- Apply isync1 (Seq [Count (Get FrameSize) char, Get UnsyncFr])]]
+    Dat       <-- Apply isync1 (Seq [Count (Get FrameSize) char, Get UnsyncFr])]]
     --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
   --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
   --let dat1 = if unsyncFr then resync dat else dat
 
 parseMPEGFrame audio = do
   case parse mpegFrameP audio of
-    Done r _ i -> r : parseMPEGFrame i
+    Done i _ r -> r : parseMPEGFrame i
     --AP.Partial c -> []
 
 mpegFrameP = Alt [mpegFrameOK, Seq [invalid, mpegFrameP], Seq []]
@@ -1166,65 +1166,79 @@ mpegv2 = 2
 
 mpegv2_5 = 3
 
-mpeg12Layer1 = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0] -- Layer 1
-mpeg12Layer2 = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0] -- Layer 2
-mpeg12Layer3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0] -- Layer 3
-mpeg25Layer1 = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0] -- MPEG2.5 Layer 1
-mpeg25Layer23 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0] -- MPEG2.5 Layer 2/3
-allZeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+mpeg12Layer1  = [0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,   0] -- Layer 1
+mpeg12Layer2  = [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0] -- Layer 2
+mpeg12Layer3  = [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0] -- Layer 3
+mpeg25Layer1  = [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0] -- MPEG2.5 Layer 1
+mpeg25Layer23 = [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0] -- MPEG2.5 Layer 2/3
+allZeros      = [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]
+
+bitRates =       [[0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,   0], -- Layer 1
+                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0], -- Layer 2
+                  [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0], -- Layer 3
+                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0], -- MPEG2.5 Layer 1
+                  [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0], -- MPEG2.5 Layer 2/3
+                  [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]]
+
+sampRates =      [[0, 44100, 22050, 11025],
+                  [0, 48000, 24000, 12000],
+                  [0, 32000, 16000,  8000],
+                  [0,     0,     0,     0]]
+    
+--          !! sampRateEnc
+--          !! version
+
+sampPerFrames =  [[0,    0,    0,    0],
+                  [0,  384,  384,  384],
+                  [0, 1152, 1152, 1152],
+                  [0, 1152,  576,  576]]
+--          !! layer
+--          !! version
+
+          
 
 mpegFrameOK = Build $ Seq [
   --AP.word8 0xFF
   SetM [AllOnes2, AllOnes1, AllOnes0, VersionEnc1, VersionEnc0, LayerEnc1, LayerEnc0, Z, BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0, SampRateEnc1, SampRateEnc0, Padding, ChannelMode1, ChannelMode0] (int3 0x100),
-  AllOnes     <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
-  VersionEnc  <-- Apply (I.inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
-  LayerEnc    <-- Apply (I.inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
-  BitRateEnc  <-- Apply (I.inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
-  SampRateEnc <-- Apply (I.inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
-  ChannelMode <-- Apply (I.inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0])]
-{-
-mpegFrameF = do
-  let version = [mpegv2_5, 0, mpegv2, mpegv1] !! versionEnc
+  AllOnes       <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
+  VersionEnc    <-- Apply (I.inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
+  LayerEnc      <-- Apply (I.inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
+  BitRateEnc    <-- Apply (I.inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
+  SampRateEnc   <-- Apply (I.inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
+  ChannelMode   <-- Apply (I.inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0]),
 
-  let layer = [0, 3, 2, 1] !! layerEnc
+  Version       <-- Apply (P.isod ([mpegv2_5, 0, mpegv2, mpegv1] I.!!)) (Get VersionEnc),
 
-  let bitRate =
-        ( if version == mpegv1
-            then [allZeros, mpeg12Layer1, mpeg12Layer2, mpeg12Layer3]
-            else [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]
-        )
-          !! layer
-          !! bitRateEnc
+  Layer         <-- Apply ([0, 3, 2, 1] I.!!) (Get LayerEnc),
 
-  let sampRate =
-        [ [0, 0, 0, 0]
-        , [44100, 48000, 32000, 0]
-        , [22050, 24000, 16000, 0]
-        , [11025, 12000, 8000, 0]
-        ]
-          !! version
-          !! sampRateEnc
+  BitRate       <-- Apply ([[allZeros, allZeros    , allZeros     , allZeros     ],
+                            [allZeros, mpeg12Layer1, mpeg12Layer2 , mpeg12Layer3 ],
+                            [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23],
+                            [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]] I.!!!!) (GetM [Version, Layer, BitRateEnc])
 
-  let sampPerFrame =
-        [ [0, 0, 0, 0]
-        , [0, 384, 384, 384]
-        , [0, 1152, 1152, 1152]
-        , [0, 1152, 576, 576]
-        ]
-          !! layer
-          !! version
+  SampRate      <-- Apply ([[    0,     0,     0,     0],
+                            [44100, 48000, 32000,     0],
+                            [22050, 24000, 16000,     0],
+                            [11025, 12000,  8000,     0]] I.!!!) (GetM [Version, SampRateEnc]),
+                          
+  SampPerFrame  <-- Apply ([[0,    0,    0,    0],
+                            [0,  384,  384,  384],
+                            [0, 1152, 1152, 1152],
+                            [0, 1152,  576,  576]] I.!!!) (GetM [Layer, Version])]
+{-}
+  bitsPerSamp = fromIntegral sampPerFrame / 8
 
-  let bitsPerSamp = fromIntegral sampPerFrame / 8
+  slotSize = [0, 4, 1, 1] !! layer
 
-  let slotSize = [0, 4, 1, 1] !! layer
-
-  let mpegFrameBytes =
+  mpegFrameBytes =
         floor (bitsPerSamp * fromIntegral bitRate * 1000 / fromIntegral sampRate)
           + if padding /= 0 then slotSize else 0
 
-  let mpegFrameTime =
+  mpegFrameTime =
         realToFrac
           (fromIntegral mpegFrameBytes * 8 / fromIntegral bitRate)
+
+  in 
 
   if allOnes == 0x7 && version > 0 && layer > 0 && bitRate > 0 && sampRate > 0
     then do

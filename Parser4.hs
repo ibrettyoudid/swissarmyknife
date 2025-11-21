@@ -19,32 +19,32 @@ newtype Ig a = Ig a
 data Lens a b
    = Lens (a -> b) (b -> a -> a)
 
-data Rule name value tok
-   = Many     (Rule name value tok)
-   | Seq      [Rule name value tok]
-   | Alt      [Rule name value tok]
-   | And      [Rule name value tok]
-   | Not      (Rule name value tok)
-   | Ignore   (Rule name value tok)
-   | Then     (Rule name value tok) (Rule name value tok)
-   | ManyTill (Rule name value tok) (Rule name value tok)
-   | AnyTill  (Rule name value tok)
-   | Apply    (Iso Dynamic Dynamic) (Rule name value tok)
-   | Count    (Rule name value tok) (Rule name value tok)
+data Rule tok value name
+   = Many     (Rule tok value name)
+   | Seq      [Rule tok value name]
+   | Alt      [Rule tok value name]
+   | And      [Rule tok value name]
+   | Not      (Rule tok value name)
+   | Ignore   (Rule tok value name)
+   | Then     (Rule tok value name) (Rule tok value name)
+   | ManyTill (Rule tok value name) (Rule tok value name)
+   | AnyTill  (Rule tok value name)
+   | Apply    (Iso Dynamic Dynamic) (Rule tok value name)
+   | Count    (Rule tok value name) (Rule tok value name)
    | Pure     Dynamic
-   | Try      (Rule name value tok)
+   | Try      (Rule tok value name)
    | AnyToken
    | String   [tok]
    | Token    tok
    | Range    tok    tok
    | Get       name
    | GetM     [name]
-   | Set       name  (Rule name value tok)
-   | Let      [name] (Rule name value tok)
-   | SetM     [name] (Rule name value tok)
-   | Build           (Rule name value tok)
-   | Redo      name  (Rule name value tok)
-   | Name     String (Rule name value tok)
+   | Set       name  (Rule tok value name)
+   | Let      [name] (Rule tok value name)
+   | SetM     [name] (Rule tok value name)
+   | Build           (Rule tok value name)
+   | Redo      name  (Rule tok value name)
+   | Name     String (Rule tok value name)
    | Rest
    deriving (Show)
 
@@ -56,7 +56,7 @@ newtype Pos = Pos { fromPos :: Int }
 --
 -- This type is an instance of 'Functor', where 'fmap' transforms the
 -- value in a 'Done' result.
-data IResult r f i
+data IResult i f r 
    = Fail String [f] [i]
     -- ^ The parse1 failed.  The @i@ parameter is the input that had
     -- not yet been consumed when the failure occurred.  The
@@ -70,7 +70,7 @@ data IResult r f i
     --
     -- __Note__: if you get a 'Partial' result, do not call its
     -- continuation more than once.
-   | Done r [f] [i]
+   | Done [i] [f] r
     -- ^ The parse1 succeeded.  The @i@ parameter is the input that had
     -- not yet been consumed (if any) when the parse1 succeeded.
       deriving Show
@@ -109,14 +109,14 @@ parse rule str = parse1 rule [] str id
 
 format rule r = format1 rule [] r
 
-parse1 :: (Ord name, Show name, Typeable name) => Rule name Dynamic Char -> [M.Map name Dynamic] -> [Char] -> (IResult Dynamic (M.Map name Dynamic) Char -> IResult Dynamic (M.Map name Dynamic) Char) -> IResult Dynamic (M.Map name Dynamic) Char
+parse1 :: (Ord name, Show name, Typeable name) => Rule Char Dynamic name -> [M.Map name Dynamic] -> [Char] -> (IResult Char (M.Map name Dynamic) Dynamic -> IResult Char (M.Map name Dynamic) Dynamic) -> IResult Char (M.Map name Dynamic) Dynamic
 parse1 AnyToken fs []     c = c $ Fail "Expecting any token but got end of input" fs []
-parse1 AnyToken fs (i:is) c = c $ Done (toDyn i) fs is
+parse1 AnyToken fs (i:is) c = c $ Done is fs (toDyn i)
 
 parse1 (Token tok) fs []     c = c $ Fail ("Expecting token "++show tok) fs []
 parse1 (Token tok) fs (i:is) c =
    if i == tok
-      then Done (toDyn i) fs is
+      then Done is fs (toDyn i)
       else Fail ("Expecting token "++show tok) fs (i:is)
 
 parse1 r@(Range from to) fs i c =
@@ -124,19 +124,19 @@ parse1 r@(Range from to) fs i c =
       []      -> Fail ("EOF when expecting "++show r) fs i
       (i1:is) ->
          if from <= i1 && i1 <= to
-            then Done (toDyn i1) fs is
+            then Done is fs (toDyn i1)
             else Fail ("expecting "++show r) fs i
 
 parse1 (String str) fs i c =
    case stripPrefix str i of
-      Just  j -> Done (toDyn str) fs j
+      Just  j -> Done j fs (toDyn str)
       Nothing -> Fail ("Expecting string "++str) fs i
 
 parse1 (Then a b) fs i c =
    case parse1 a fs i c of
-      Done ar fs1 i1 ->
+      Done i1 fs1 ar ->
          case parse1 b fs1 i1 c of
-            Done br fs2 i2 -> Done (toDyn (ar, br)) fs2 i2
+            Done i2 fs2 br -> Done i2 fs2 (toDyn (ar, br))
             fail@Fail {}   -> fail
       fail@Fail {} -> fail
 
@@ -144,106 +144,106 @@ parse1 (Seq as) fs i c =
    case as of
       (a:as1) ->
          case parse1 a fs i c of
-            Done ar1 fs1 i1 ->
+            Done i1 fs1 ar1 ->
                case parse1 (Seq as1) fs1 i1 c of
-                  Done asr1 fs2 i2 ->
+                  Done i2 fs2 asr1 ->
                      case a of
-                        Ignore ig -> Done (toDyn asr1) fs2 i2
-                        _         -> Done (toDyn (ar1:fromDyn1 asr1)) fs2 i2
+                        Ignore ig -> Done i2 fs2 (toDyn asr1)
+                        _         -> Done i2 fs2 (toDyn (ar1:fromDyn1 asr1))
                   fail@Fail {}     -> fail
             fail@Fail {} -> fail
-      [] -> Done (toDyn ([] :: [Dynamic])) fs i
+      [] -> Done i fs (toDyn ([] :: [Dynamic])) 
 
 parse1 (Alt as) fs i c =
    case as of
       (a:as1) ->
          case parse1 a fs i c of
-            Done ar1 fs1 i1 -> Done ar1 fs1 i1
+            Done i1 fs1 ar1 -> Done i1 fs1 ar1
             fail@Fail {} -> parse1 (Alt as1) fs i c
       [] -> Fail i fs "no alternatives match"
 
 parse1 m@(Many a) fs i c =
    case parse1 a fs i c of
-      Done ar fs1 i1 ->
+      Done i1 fs1 ar ->
          case parse1 m fs1 i1 c of
-            Done mr fs2 i2 -> Done (toDyn (ar:fromDyn1 mr)) fs2 i2
+            Done i2 fs2 mr -> Done i2 fs2 (toDyn (ar:fromDyn1 mr))
             fail@Fail {}   -> fail
-      Fail em fs1 i1 -> Done (toDyn ([] :: [Dynamic])) fs i
+      Fail em fs1 i1 -> Done i fs (toDyn ([] :: [Dynamic]))
 
 parse1 m@(ManyTill a b) fs i c =
    case parse1 b fs i c of
-      Done br fs1 i1 -> Done (toDyn ([] :: [Dynamic])) fs i
+      Done  i1 fs1 br -> Done i fs (toDyn ([] :: [Dynamic]))
       Fail em fs1 i1 ->
          case parse1 a fs i c of
-            Done ar fs2 i2 ->
+            Done i2 fs2 ar ->
                case parse1 m fs2 i2 c of
-                  Done mr fs3 i3 -> Done (toDyn (ar:fromDyn1 mr)) fs3 i3
+                  Done i3 fs3 mr -> Done i3 fs3 (toDyn (ar:fromDyn1 mr))
                   fail@Fail {}   -> fail
-            Fail em fs2 i2 -> Done (toDyn ([] :: [Dynamic])) fs i
+            Fail em fs2 i2 -> Done i fs (toDyn ([] :: [Dynamic])) 
 
 parse1 m@(AnyTill b) fs i c =
    case parse1 b fs i c of
-      Done br fs1 i1 -> Done (toDyn ([] :: String)) fs i
+      Done i1 fs1 br -> Done i fs (toDyn ([] :: String))
       Fail em fs1 i1 ->
          case i of
             (ar:i2) ->
                case parse1 m fs1 i2 c of
-                  Done mr fs3 i3 -> Done (toDyn (ar:fromDyn1 mr)) fs3 i3
+                  Done  i3 fs3 mr -> Done i3 fs3 (toDyn (ar:fromDyn1 mr))
                   fail@Fail {}   -> fail
-            [] -> Done (toDyn ([] :: [Dynamic])) fs i
+            [] -> Done i fs (toDyn ([] :: [Dynamic]))
 
 parse1 (Apply iso a) fs i c =
    case parse1 a fs i c of
-      Done ar fs1 i1 ->
+      Done i1 fs1 ar ->
          case apply iso ar of
-            Just  j -> Done j fs1 i1
+            Just  j -> Done i1 fs1 j
             Nothing -> Fail "apply failed" fs i
       fail@Fail {} -> fail
 
 parse1 (Count n x) fs i c =
    case parse1 n fs i c of
-      Done nr fs1 i1 -> parse1count x fs i $ fromDyn1 nr
+      Done  i1 fs1 nr -> parse1count x fs i $ fromDyn1 nr
       fail@Fail {}   -> fail
 
 parse1 (Let names rule) fs i c =
    case parse1 rule (M.fromList (map (, toDyn "") names):fs) i c of
-      Done r (f:fs1) i1 -> Done r fs1 i1
+      Done  i1 (f:fs1) r -> Done i1 fs1 r
       fail@Fail { }     -> fail
 
 parse1 (Set name rule) fs i c =
    case parse1 rule fs i c of
-      Done r fs i1 -> Done r (myset name r fs) i1
+      Done i1 fs r -> Done i1 (myset name r fs) r
       Fail m fs i1 -> Fail m fs i1
 
-parse1 (Get name) fs i c = Done (myget fs name) fs i
+parse1 (Get name) fs i c = Done i fs (myget fs name)
 
 parse1 (SetM names rule) fs i c =
    case parse1 rule fs i c of
-      Done r fs i1 -> Done r (Data.List.foldr (uncurry myset) fs (zip names $ fromDyn1 r)) i1
+      Done i1 fs r -> Done i1 (Data.List.foldr (uncurry myset) fs (zip names $ fromDyn1 r)) r
       Fail m fs i1 -> Fail m fs i1
 
-parse1 (GetM names) fs i c = Done (toDyn $ map (myget fs) names) fs i
+parse1 (GetM names) fs i c = Done i fs (toDyn $ map (myget fs) names)
 
 parse1 (Build rule) fs i c =
    case parse1 rule (M.empty:fs) i c of
-      Done r (f:fs1) i1 -> Done (toDyn f) fs1 i1
+      Done  i1 (f:fs1) r -> Done i1 fs1 (toDyn f)
       fail@Fail { }     -> fail
 
 parse1 (Redo name rule) fs i c = parse1 rule fs (fromDyn1 $ myget fs name) c
 
-parse1 Rest fs i c = Done (toDyn i) fs []
+parse1 Rest fs i c = Done [] fs (toDyn i)
 
 parse1 (Ignore a) fs i c = parse1 a fs i c
 
 parse1 a b c d = error $ show (a, b, c)
 
-parse1count :: (Show t, Ord t, Typeable t) => Rule t Dynamic Char -> [M.Map t Dynamic] -> [Char] -> Int -> IResult Dynamic (M.Map t Dynamic) Char
-parse1count x fs i 0 = Done (toDyn ([] :: [Dynamic])) fs i
+parse1count :: (Show t, Ord t, Typeable t) => Rule Char Dynamic t -> [M.Map t Dynamic] -> [Char] -> Int -> IResult Char (M.Map t Dynamic) Dynamic
+parse1count x fs i 0 = Done i fs (toDyn ([] :: [Dynamic]))
 parse1count x fs i n =
    case parse1 x fs i id of
-      Done xr fs1 i1 ->
+      Done  i1 fs1 xr ->
          case parse1count x fs1 i1 (n-1) of
-            Done xsr fs2 i2 -> Done (toDyn $ xr:fromDyn1 xsr) fs2 i2
+            Done  i2 fs2 xsr -> Done i2 fs2 (toDyn $ xr:fromDyn1 xsr) 
 
 --formatcount (r:rs) fs x 0 = FDone [] fs
 formatcount x fs []     = FDone [] fs
@@ -440,7 +440,7 @@ diff3 [Range a b] = Range a b
 diff3 (a:b:cs) = Alt (a:b:cs)
 
 
-filename :: Rule String Dynamic Char
+filename :: Rule Char Dynamic String
 filename = doManyTill $ Seq [Many AnyToken, Token '.', Many AnyToken]
 
 t = parse filename "abc.mp3"
