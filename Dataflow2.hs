@@ -304,8 +304,8 @@ main = do
             [wrl, wrw] = [wlu, wwu] <*> (hitAt <-> tat wt0)
          return $ if wrl >= 0 && wrl < wll && abs wrw < 5
                then if | wrl / wll < 0.25 -> [(abs wrw, ref, wtr0)]
-                       | wrl / wll > 0.75 -> [(abs wrw, ref, wtr1)]
-                       | True             -> [(abs wrw, ref, null1)]
+                        | wrl / wll > 0.75 -> [(abs wrw, ref, wtr1)]
+                        | True             -> [(abs wrw, ref, null1)]
                else
                   []
 {-

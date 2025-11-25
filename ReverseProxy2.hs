@@ -163,10 +163,10 @@ proxy2 = runTCPServer Nothing "8888" talk
                   Nothing -> readLine buf1 s
 
 fileNameFromUrl url =
-  let
-    s = replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
+   let
+   s = replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
    in
-    "/home/brett/mycache/"++s
+   "/home/brett/mycache/"++s
 
 --connection :: Socket -> Socket -> IO ()
 connection url browser server = do

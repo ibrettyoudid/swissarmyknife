@@ -163,16 +163,16 @@ x=y+5
 data Complex a = Complex a a
 
 instance (Num a, Floating a) => Num (Complex a) where
-  Complex a b + Complex c d = Complex (a + c) (b + d)
-  Complex a b - Complex c d = Complex (a - c) (b - d)
-  Complex a b * Complex c d = Complex (a * c - b * d) (a * d + b * c)
-  fromInteger a = Complex (fromInteger a) 0
-  signum (Complex a b) = Complex (signum a) (signum b)
-  abs (Complex a b) = Complex (sqrt (a^2 + b^2)) 0
+   Complex a b + Complex c d = Complex (a + c) (b + d)
+   Complex a b - Complex c d = Complex (a - c) (b - d)
+   Complex a b * Complex c d = Complex (a * c - b * d) (a * d + b * c)
+   fromInteger a = Complex (fromInteger a) 0
+   signum (Complex a b) = Complex (signum a) (signum b)
+   abs (Complex a b) = Complex (sqrt (a^2 + b^2)) 0
   
 instance Floating a => Fractional (Complex a) where
-  Complex a b / Complex c d = let e = c*c - d*d in Complex (a / e) (b / e)
-  fromRational a = Complex (fromRational a) 0 
+   Complex a b / Complex c d = let e = c*c - d*d in Complex (a / e) (b / e)
+   fromRational a = Complex (fromRational a) 0 
 
 instance RealFloat a => Floating (Complex a) where
    log c = let

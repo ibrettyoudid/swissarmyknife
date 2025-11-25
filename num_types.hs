@@ -37,20 +37,20 @@ ceiling        :: RealFrac -> Integral
 floor          :: RealFrac -> Integral
 {-
             Ord   Num     
-              \   / \   
+               \   / \   
                \ /   \  
          Enum  Real Fractional
-           \   / \   / \                   
+            \   / \   / \                   
             \ /   \ /   \                  
       Integral RealFrac Floating                
-     /      /     / \   /  
-    /      /     /   \ /
-  Int Integr Rational RealFloat
+      /      /     / \   /  
+   /      /     /   \ /
+   Int Integr Rational RealFloat
                      / \
-                    /   \
-                 Float  Double
+                     /   \
+                  Float  Double
 
-                 
+                  
 Num       Fractional
 Real      RealFrac
 Integral 
@@ -65,7 +65,7 @@ class (Eq a, Show a) => Num a  where
 
    x - y         = x + negate y
    negate x      = 0 - x
-    
+   
 class (Num a, Ord a) => Real a where
    toRational :: a -> Rational
    

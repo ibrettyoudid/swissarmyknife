@@ -36,7 +36,7 @@ showTree2 k1 (Node k l r) = let
 showTree2 k1 Empty = ["Empty"]
 
 lookup k1 (Node k l r) | k1 <  k   = Tree.lookup k1 l
-                       | otherwise = Tree.lookup (k1-k) r
+                        | otherwise = Tree.lookup (k1-k) r
 lookup k1 (Leaf k v) | k1 == k   = Just v
                      | otherwise = Nothing 
 lookup k1 Empty = Nothing
@@ -240,17 +240,17 @@ t = fromList $ zip [1..] "hello there"
 
 {-
 >>> slice 3 8 t
-              Leaf 3 'l'
-       Node 4
-                            Leaf 4 'l'
+               Leaf 3 'l'
+      Node 4
+                           Leaf 4 'l'
                      Node 5
-                            Leaf 5 'o'
-              Node 6
-                            Leaf 6 ' '
+                           Leaf 5 'o'
+               Node 6
+                           Leaf 6 ' '
                      Node 7
-                            Leaf 7 't'
+                           Leaf 7 't'
 Node 8
-       Leaf 8 'h'
+      Leaf 8 'h'
 
 >>> union t $ shift 5 t
 /home/brett/swissarmyknife/Tree.hs:(128,1)-(129,172): Non-exhaustive patterns in function union
@@ -258,24 +258,24 @@ Node 8
 
 
                      Leaf 1 'h'
-              Node 2
-                            Leaf 2 'e'
+               Node 2
+                           Leaf 2 'e'
                      Node 3
-                            Leaf 3 'l'
-       Node 4
-                            Leaf 4 'l'
+                           Leaf 3 'l'
+      Node 4
+                           Leaf 4 'l'
 Node 5
                Leaf 5 'o'
-       Node 6
+      Node 6
                      Leaf 6 ' '
                Node 7
-                      Leaf 7 't'
+                     Leaf 7 't'
    Node 8
-                      Leaf 8 'h'
+                     Leaf 8 'h'
                Node 9
-                      Leaf 9 'e'
-       Node 10
-                       Leaf 10 'r'
+                     Leaf 9 'e'
+      Node 10
+                        Leaf 10 'r'
                Node 11
-                       Leaf 11 'e'
+                        Leaf 11 'e'
 -}

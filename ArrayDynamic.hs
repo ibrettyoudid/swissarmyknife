@@ -300,7 +300,7 @@ readUniqueHeaders (h:hs) mult = let
    in h1 : readUniqueHeaders hs (mult * length h1)
 
 groupN1 n (SubArrayD (DimInt dl du dm:ds) o p) | mod l n == 0 = SubArrayD (DimInt 0 (div l n - 1) (dm * n) : DimInt 0 (n-1) dm : ds) o p
-                                               | otherwise = error ("not divisible into groups of "++show n)
+                                                | otherwise = error ("not divisible into groups of "++show n)
                                                    where l = du - dl + 1
 
 groupMulti ns a = foldr groupN1 a ns

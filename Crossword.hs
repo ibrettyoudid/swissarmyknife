@@ -69,9 +69,11 @@ vocab = vocab0
 vocabr = vocabrf vocab
 
 -- filter reversible words (argument is a list of words)
-vocabrf v = let forwards  = S.fromList v
-                backwards = S.fromList $ map reverse v
-            in  S.toList $ S.intersection forwards backwards
+vocabrf v = let
+   forwards  = S.fromList v
+   backwards = S.fromList $ map reverse v
+   
+   in  S.toList $ S.intersection forwards backwards
 
 vocab0 = voc 95
 
@@ -84,17 +86,17 @@ vocabl = words $ map toLower $ readFileU "scrabble.txt"
 voc n = ("biden":) $ nubSet $ concatMap vocf $ filter (vf n) $ paths path
 
 vf n f = let lst = split "." f in case lst of 
-                                         -- [a, b]    -> readInt b <= n
-                                         -- [a, b]    -> "english" `isPrefixOf` a && readInt b <= n
-                                         [a, b]    -> "words" `isInfixOf` a && readInt b <= n && readInt b > 0
-                                         -- [a, b]    -> a == "english-words" && readInt b <= n
-                                         _         -> False
+               -- [a, b]    -> readInt b <= n
+               -- [a, b]    -> "english" `isPrefixOf` a && readInt b <= n
+               [a, b]    -> "words" `isInfixOf` a && readInt b <= n && readInt b > 0
+               -- [a, b]    -> a == "english-words" && readInt b <= n
+               _         -> False
 
 vocf fi = nubSet $ words $ map toLower $ readFileU fi
 
 readFiles dir filt = concatMap (\f -> readFileU (dir++f)) 
-                   $ filter filt $ filter (\a -> a /= "." && a /= "..") 
-                   $ unsafePerformIO $ getDirectoryContents dir
+                  $ filter filt $ filter (\a -> a /= "." && a /= "..") 
+                  $ unsafePerformIO $ getDirectoryContents dir
 
 match1 ' ' c = True
 match1 a   b = a == b
@@ -104,14 +106,14 @@ match m w = length m == length w && and (zipWith match1 m w)
 vocm m = filter (match m) vocab
 
 data Clue = Clue { x0      :: Int, 
-                   y0      :: Int, 
-                   x1      :: Int, 
-                   y1      :: Int, 
-                   horiz   :: Bool, 
-                   len     :: Int, 
-                   nans    :: Int, 
-                   possibles :: [String], 
-                   num     :: Int } deriving (Eq, Ord, Show)
+                  y0      :: Int, 
+                  x1      :: Int, 
+                  y1      :: Int, 
+                  horiz   :: Bool, 
+                  len     :: Int, 
+                  nans    :: Int, 
+                  possibles :: [String], 
+                  num     :: Int } deriving (Eq, Ord, Show)
 
 type Grid = [String]
 
@@ -197,7 +199,7 @@ clues = cluesVocab vocab
 -- find the clues (empty word slots) in a grid
 cluesVocab vocab grid = map (\c -> let done = readClue grid c
                                        a    = filter (match done) vocab
-                            
+                           
                         in c { possibles = a, nans = length a } ) $ vhclues grid
 
 cluesR size = filter (\clue -> if horiz clue then y0 clue * 2 + 1 >= size else x0 clue * 2 + 1 <= size)
@@ -259,8 +261,8 @@ tryWordD grid clues clue word = let
 fillGridH :: String -> Int -> Int -> Grid -> Grid
 fillGridH word x y = zipWith
    (\thisy line -> if thisy /= y 
-                      then line
-                      else take x line ++ word ++ drop (x + length word) line)
+                     then line
+                     else take x line ++ word ++ drop (x + length word) line)
    [0..]
 
 fillGridV :: String -> Int -> Int -> Grid -> Grid
@@ -270,10 +272,10 @@ fillGrid :: Clue -> String -> Grid -> Grid
 fillGrid clue word = (if horiz clue then fillGridH else fillGridV) word (x0 clue) (y0 clue)
 
 transposec clue = clue { x0 = y0 clue, 
-                         y0 = x0 clue,  
-                         x1 = y1 clue, 
-                         y1 = x1 clue, 
-                         horiz = not $ horiz clue }
+                        y0 = x0 clue,  
+                        x1 = y1 clue, 
+                        y1 = x1 clue, 
+                        horiz = not $ horiz clue }
 
 opposite size clue = clue { x0 = size - 1 - x1 clue, y0 = size - 1 - y1 clue, x1 = size - 1 - x0 clue, y1 = size - 1 - y0 clue }
 
@@ -288,18 +290,18 @@ charOfClue c x y = if horiz c then x - x0 c else y - y0 c
 
 fillClue :: Clue -> String -> Clue -> Maybe Clue
 fillClue fillc with otherc
-  | sameClue fillc otherc = Nothing -- this removes the clue we've just filled from the list
-  | cluesCross fillc otherc = let
-              (cx, cy) = crossAt fillc otherc
-              cpos     = charOfClue otherc cx cy
-              dpos     = charOfClue fillc  cx cy
-              newa     = filter (\a -> {-a /= with &&-} a !! cpos == with !! dpos) $ possibles otherc
-              
-              in Just otherc { possibles = newa, nans = length newa }
-              
-  | otherwise = let newa = filter (/= with) $ possibles otherc
+   | sameClue fillc otherc = Nothing -- this removes the clue we've just filled from the list
+   | cluesCross fillc otherc = let
+               (cx, cy) = crossAt fillc otherc
+               cpos     = charOfClue otherc cx cy
+               dpos     = charOfClue fillc  cx cy
+               newa     = filter (\a -> {-a /= with &&-} a !! cpos == with !! dpos) $ possibles otherc
+               
+               in Just otherc { possibles = newa, nans = length newa }
+               
+   | otherwise = let newa = filter (/= with) $ possibles otherc
    
-        in  Just otherc { possibles = newa, nans = length newa }
+         in  Just otherc { possibles = newa, nans = length newa }
 
 main = fmt $ cwrp $ empty 10
 
@@ -363,18 +365,18 @@ tryWordRD grid clues clue word = let
    
 fillGridR clue word grid = fillGrid clue word $
                            fillGrid (transposec clue) word grid
-                      
+                     
 fillClueR :: Int -> Clue -> String -> Clue -> Maybe Clue
 fillClueR size fillc with otherc = 
    if      sameClue   fillc otherc then Nothing -- this removes the clue we've just filled from the list
    else let
-              -- (cx, cy) = crossAt fillc (transposec otherc)
-              fpos1    = y0 otherc
-              opos1    = y0 fillc
-              newa     = filter (\possible -> possible !! opos1 == with !! fpos1) $ possibles otherc
-              
-              in Just otherc { possibles = newa, nans = length newa }
-     
+               -- (cx, cy) = crossAt fillc (transposec otherc)
+               fpos1    = y0 otherc
+               opos1    = y0 fillc
+               newa     = filter (\possible -> possible !! opos1 == with !! fpos1) $ possibles otherc
+               
+               in Just otherc { possibles = newa, nans = length newa }
+      
 cws grid = cws1 grid $ cluesS (length grid) $ cluesVocab vocabr grid
 
 cws1 :: Grid -> [Clue] -> [Grid]
@@ -420,29 +422,29 @@ fillGridS clue word grid = fillGrid clue word $
                            fillGrid (transposec clue) word $
                            fillGrid (opposite l clue) (reverse word) $
                            fillGrid (transposec $ opposite l clue) (reverse word) grid
-                             where
-                               l = length grid
-                      
+                              where
+                              l = length grid
+                     
 fillClueS :: Int -> Clue -> String -> Clue -> Maybe Clue
 fillClueS size fillc with otherc = 
    if      sameClue   fillc otherc then Nothing -- this removes the clue we've just filled from the list
    else let
-              -- (cx, cy) = crossAt fillc (transposec otherc)
-              fpos1    = y0 otherc
-              opos1    = y0 fillc
-              fpos2    = size - 1 - fpos1
-              opos2    = size - 1 - opos1
-              newa     = filter (\possible -> possible !! opos1 == with !! fpos1 && possible !! opos2 == with !! fpos2) $ possibles otherc
-              
-              in Just otherc { possibles = newa, nans = length newa }
-     
+               -- (cx, cy) = crossAt fillc (transposec otherc)
+               fpos1    = y0 otherc
+               opos1    = y0 fillc
+               fpos2    = size - 1 - fpos1
+               opos2    = size - 1 - opos1
+               newa     = filter (\possible -> possible !! opos1 == with !! fpos1 && possible !! opos2 == with !! fpos2) $ possibles otherc
+               
+               in Just otherc { possibles = newa, nans = length newa }
+      
 {-                 01234
 fillc = x0=0 y0=0 0STANG4  1 3
 otherc  x0=0 y0=1 1TENON3  0 4
                   2AN NA2
                   3NONET1
                   4GNATS0
-                   43210  
+                  43210  
 crossAt 0,1 and 1,0 and 0,4 and 4,0
 -}
 biden = ["biden",
@@ -452,8 +454,8 @@ biden = ["biden",
          "nonce"]
 
 easy = ["ado",
-        " # ",
-        "   "]
+         " # ",
+         "   "]
 
 easy1 = ["     ",
          " ### ",
@@ -470,22 +472,22 @@ easy2 = ["       ",
          "       "]
 
 hard = ["######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "                 ",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########",
-        "######## ########"]
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "                 ",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########",
+         "######## ########"]
 
 hard1 = ["      ## ##      ",
          " # ###     ### # ",
@@ -556,8 +558,10 @@ rotate90 = map rotate901
 
 rotate180 = rotate90 . rotate90 . reverse
 
-vocabrof v = let forwards  = S.fromList v
-                 backwards = S.fromList $ map rotate180 v
-             in  S.toList $ S.intersection forwards backwards
+vocabrof v = let 
+   forwards  = S.fromList v
+   backwards = S.fromList $ map rotate180 v
+   
+   in  S.toList $ S.intersection forwards backwards
 
 

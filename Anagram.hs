@@ -31,7 +31,7 @@ vocab = vocab0
 -- filter reversible words (argument is a list of words)
 vocabr v = let forwards  = S.fromList v
                backwards = S.fromList $ map reverse v
-           in  S.toList $ S.intersection forwards backwards
+            in  S.toList $ S.intersection forwards backwards
 
 vocab0 = voc 100
 
@@ -45,17 +45,17 @@ vocab3 = words $ map toLower $ readFileU "/home/brett/code/haskell/swissarmyknif
 voc n = nubSet $ (["a","i","o"]++) $ concatMap vocf $ filter (vf n) $ names path
 
 vf n f = let lst = split "." f in case lst of
-                                         -- [a, b]    -> readInt b <= n
-                                         -- [a, b]    -> "english" `isPrefixOf` a && readInt b <= n
-                                         -- [a, b]    -> "words" `isInfixOf` a && readInt b <= n
-                                         [a, b]    -> a == "english-words" && readInt b <= n
-                                         _         -> False
+                                          -- [a, b]    -> readInt b <= n
+                                          -- [a, b]    -> "english" `isPrefixOf` a && readInt b <= n
+                                          -- [a, b]    -> "words" `isInfixOf` a && readInt b <= n
+                                          [a, b]    -> a == "english-words" && readInt b <= n
+                                          _         -> False
 
 vocf fi = nubSet $ filter (\w -> length w > 1 && notElem '-' w) $ words $ map toLower $ readFileU (path++fi)
 
 readFiles dir filt = concatMap (\f -> readFileU (dir++f))
-                   $ filter filt $ filter (\a -> a /= "." && a /= "..")
-                   $ unsafePerformIO $ getDirectoryContents dir
+                  $ filter filt $ filter (\a -> a /= "." && a /= "..")
+                  $ unsafePerformIO $ getDirectoryContents dir
 
 match1 ' ' c = True
 match1 a   b = a == b

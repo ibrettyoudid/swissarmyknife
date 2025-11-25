@@ -145,7 +145,7 @@ many1 :: Typeable a => RuleR t a -> RuleR t [a]
 many1 p = icons >$< p >*< many p
 
 sepBy x sep = Parser3.pure []
-          <|> icons >$< x >*< many (sep *< x)
+         <|> icons >$< x >*< many (sep *< x)
 
 groupOf i = sepBy i (text ";") -- <|> aligned i
 
@@ -156,11 +156,11 @@ chainr1 arg op f = f >$< arg >*< (op >*< chainr1 arg op f) <|> arg
 
 {-
 aligned (ParserIO i) = do
-  ((_, l, c):_) <- ParserIO $ lift get
-  many $ ParserIO $ do
-    ((_::String, l1::Int, c1::Int):_) <- lift get
-    guard $ l1 > l && c == c1
-    i
+   ((_, l, c):_) <- ParserIO $ lift get
+   many $ ParserIO $ do
+   ((_::String, l1::Int, c1::Int):_) <- lift get
+   guard $ l1 > l && c == c1
+   i
 -}
 translate :: Typeable a => RuleR t a -> Rule t
 translate (AltR as) = Alt $ map translate as
@@ -377,10 +377,10 @@ test = parseED (Seq [Not (Token 'b'), Token 'a']) "a"
 
 {-
 pD s t = do
-    states <- parseED s t
-    tableZ t $ concatMap S.toList states
-    tableZ t $ filter isCompleteZ $ concatMap S.toList states
-    return $ tree s states
+   states <- parseED s t
+   tableZ t $ concatMap S.toList states
+   tableZ t $ filter isCompleteZ $ concatMap S.toList states
+   return $ tree s states
 -}
 parseE r t =
    let
@@ -452,7 +452,7 @@ closure1 f done current =
       new = f done current
       newdone = S.union done new
       newnew = new S.\\ done
-    in
+   in
       if S.null new then done else closure1 f newdone newnew
 
 closureA f items = closureA1 f items items
@@ -461,7 +461,7 @@ closureA1 f done current =
    let
       (a, newdone) = f done current
       newnew  = SL.fromList $ catMaybes a
-    in
+   in
       if SL.null newnew then done else closureA1 f newdone newnew
 
 closureD f items = closureD1 f items items
@@ -603,14 +603,14 @@ complete2D (State b c sub) (State a b1 main) = do
       else return []
 
 complete3 main@(Item r@(Seq as) s (ISeq n)) sub
-  | result sub == Fail = [Item r Fail         (ISeq  n     )]
-  | n + 1 == length as = [Item r (result sub) (ISeq (n + 1))]
-  | otherwise          = [Item r Running      (ISeq (n + 1))]
+   | result sub == Fail = [Item r Fail         (ISeq  n     )]
+   | n + 1 == length as = [Item r (result sub) (ISeq (n + 1))]
+   | otherwise          = [Item r Running      (ISeq (n + 1))]
 
 complete3 main@(Item x@(Alt as) q (IAlt n)) sub
-  | passi sub     = [Item x (result sub) (IAlt  n     )]
-  | n < length as = [Item x Running      (IAlt (n + 1))]
-  | otherwise     = [Item x (result sub) (IAlt  n     )]
+   | passi sub     = [Item x (result sub) (IAlt  n     )]
+   | n < length as = [Item x Running      (IAlt (n + 1))]
+   | otherwise     = [Item x (result sub) (IAlt  n     )]
 
 complete3 main@(Item x@(Name d e) q i2) sub = [Item x (result sub) i2]
 
@@ -746,13 +746,13 @@ scan4 c t = Nothing
 -}
 
 children states (State f t i) = do
-    s1@(State f1 t1 i1) <- S.toList $ states !! t
-    if subitem i i1 && pass (result i1)
+   s1@(State f1 t1 i1) <- S.toList $ states !! t
+   if subitem i i1 && pass (result i1)
          then do
-             s2@(State f2 t2 i2) <- S.toList $ states !! f1
-             if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
+            s2@(State f2 t2 i2) <- S.toList $ states !! f1
+            if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
                   then if pos i2 > 0 then map (s1:) $ children states s2 else [[s1]]
-             else []
+            else []
          else []
 
 data Tree z = Tree (State z) [Tree z] | Trees [Tree z] deriving (Eq, Ord)
@@ -760,7 +760,7 @@ data Tree z = Tree (State z) [Tree z] | Trees [Tree z] deriving (Eq, Ord)
 tree start states =
    let
       [end] = filter ((0 ==) . from2) $ S.toList $ last states
-    in
+   in
       tree1 states end
 
 tree1 states end = Tree end $ tree2 $ reverse $ map reverse $ map2 (tree1 states) $ children states end
@@ -772,7 +772,7 @@ tree2 xs = map Trees xs
 only [x] = x
 
 instance Show z => Show (Tree z) where
-    show tree = MyPretty2.format1 1 $ convTree tree
+   show tree = MyPretty2.format1 1 $ convTree tree
 
 convTree (Tree a b) = MyPretty2.Data (show a) $ map convTree b
 convTree (Trees b) = MyPretty2.Data "TREES" $ map convTree b
@@ -830,7 +830,7 @@ tableZ str states =
       nums1 = map (taux3D ends nums ) [0..length str]
       toks  = map (taux4D ends str  ) [0..length str-1]
       axis  = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
-    in
+   in
       unlines $ axis : show1 ++ [axis]
 {- 
 ends !! 0 = 0
@@ -933,21 +933,21 @@ indent2 n = map (replicate n ' ' ++)
 
 -- sequential append
 sapp (Doc2 aw ah at) (Doc2 bw bh (bth : btt)) =
-  let
-    ati = init at
-    atl = last at
+   let
+   ati = init at
+   atl = last at
    in
-    ts $ ati ++ ((atl ++ bth) : indent2 (length atl) btt)
+   ts $ ati ++ ((atl ++ bth) : indent2 (length atl) btt)
 
 (<\>) = sapp
 
 scat ds = Prelude.foldl1 sapp ds
 
 vcat ds =
-  Doc2
-    (maximum $ map docWidth ds)
-    (sum $ map docHeight ds)
-    (concat $ map docText ds)
+   Doc2
+   (maximum $ map docWidth ds)
+   (sum $ map docHeight ds)
+   (concat $ map docText ds)
 
 vapp a b = vcat [a, b]
 

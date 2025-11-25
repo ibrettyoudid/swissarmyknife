@@ -18,119 +18,119 @@ import Data.Char
 import Data.Word
 
 class Show s => BString s where
-  empty :: s
-  tail :: s -> s
-  (++) :: s -> s -> s
-  take :: Int -> s -> s
-  drop :: Int -> s -> s
-  inits :: s -> [s]
-  tails :: s -> [s]
-  null :: s -> Bool
-  length :: s -> Int
-  intercalate :: s -> [s] -> s
+   empty :: s
+   tail :: s -> s
+   (++) :: s -> s -> s
+   take :: Int -> s -> s
+   drop :: Int -> s -> s
+   inits :: s -> [s]
+   tails :: s -> [s]
+   null :: s -> Bool
+   length :: s -> Int
+   intercalate :: s -> [s] -> s
 
 class BString s => BStringC c s | s -> c where
-  cons :: c -> s -> s
-  head :: s -> c
-  last :: s -> c
-  (!!) :: s -> Int -> c
-  find :: (c -> Bool) -> s -> Maybe c
-  elem :: c -> s -> Bool
-  notElem :: c -> s -> Bool
+   cons :: c -> s -> s
+   head :: s -> c
+   last :: s -> c
+   (!!) :: s -> Int -> c
+   find :: (c -> Bool) -> s -> Maybe c
+   elem :: c -> s -> Bool
+   notElem :: c -> s -> Bool
 
-  smap  :: (c -> c) -> s -> s
+   smap  :: (c -> c) -> s -> s
 
-  -- these are here because of the Eq class on the characters
-  stripPrefix :: s -> s -> Maybe s
-  isPrefixOf :: s -> s -> Bool
-  isSuffixOf :: s -> s -> Bool
-  isInfixOf :: s -> s -> Bool
+   -- these are here because of the Eq class on the characters
+   stripPrefix :: s -> s -> Maybe s
+   isPrefixOf :: s -> s -> Bool
+   isSuffixOf :: s -> s -> Bool
+   isInfixOf :: s -> s -> Bool
 
 instance Show a => BString [a] where
-  empty = []
-  tail = P.tail
-  (++) = (P.++)
-  take = P.take
-  drop = P.drop
-  inits = L.inits
-  tails = L.tails
-  null = P.null
-  length = P.length
-  intercalate = L.intercalate
+   empty = []
+   tail = P.tail
+   (++) = (P.++)
+   take = P.take
+   drop = P.drop
+   inits = L.inits
+   tails = L.tails
+   null = P.null
+   length = P.length
+   intercalate = L.intercalate
 
 --   split = F.split
 
 instance (Eq a, Show a) => BStringC a [a] where
-  cons = (:)
-  head = P.head
-  last = P.last
-  (!!) = (P.!!)
-  find = L.find
-  elem = L.elem
-  notElem = L.notElem
+   cons = (:)
+   head = P.head
+   last = P.last
+   (!!) = (P.!!)
+   find = L.find
+   elem = L.elem
+   notElem = L.notElem
 
-  smap = L.map
+   smap = L.map
 
-  stripPrefix = L.stripPrefix
-  isPrefixOf = L.isPrefixOf
-  isSuffixOf = L.isSuffixOf
-  isInfixOf = L.isInfixOf
+   stripPrefix = L.stripPrefix
+   isPrefixOf = L.isPrefixOf
+   isSuffixOf = L.isSuffixOf
+   isInfixOf = L.isInfixOf
 
 instance BString B.ByteString where
-  empty = B.empty
-  tail = B.tail
-  (++) = B.append
-  take = B.take
-  drop = B.drop
-  inits = B.inits
-  tails = B.tails
-  null = B.null
-  length = B.length
-  intercalate = B.intercalate
+   empty = B.empty
+   tail = B.tail
+   (++) = B.append
+   take = B.take
+   drop = B.drop
+   inits = B.inits
+   tails = B.tails
+   null = B.null
+   length = B.length
+   intercalate = B.intercalate
 
 instance BStringC Word8 B.ByteString where
-  cons = B.cons
-  head = B.head
-  last = B.last
-  (!!) = B.index
-  find = B.find
-  elem = B.elem
-  notElem = B.notElem
+   cons = B.cons
+   head = B.head
+   last = B.last
+   (!!) = B.index
+   find = B.find
+   elem = B.elem
+   notElem = B.notElem
 
-  smap = B.map
+   smap = B.map
 
-  stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
-  isPrefixOf = B.isPrefixOf
-  isSuffixOf = B.isSuffixOf
-  isInfixOf = B.isInfixOf
+   stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
+   isPrefixOf = B.isPrefixOf
+   isSuffixOf = B.isSuffixOf
+   isInfixOf = B.isInfixOf
 
 instance BString T.Text where
-  empty = T.empty
-  tail = T.tail
-  (++) = T.append
-  take = T.take
-  drop = T.drop
-  inits = T.inits
-  tails = T.tails
-  null = T.null
-  length = T.length
-  intercalate = T.intercalate
+   empty = T.empty
+   tail = T.tail
+   (++) = T.append
+   take = T.take
+   drop = T.drop
+   inits = T.inits
+   tails = T.tails
+   null = T.null
+   length = T.length
+   intercalate = T.intercalate
 
 instance BStringC Char T.Text where
-  cons = T.cons
-  head = T.head
-  last = T.last
-  (!!) = T.index
-  find = T.find
-  elem = T.elem
-  notElem c s = not $ T.elem c s
+   cons = T.cons
+   head = T.head
+   last = T.last
+   (!!) = T.index
+   find = T.find
+   elem = T.elem
+   notElem c s = not $ T.elem c s
 
-  smap = T.map
+   smap = T.map
 
-  stripPrefix = T.stripPrefix
-  isPrefixOf = T.isPrefixOf
-  isSuffixOf = T.isSuffixOf
-  isInfixOf = T.isInfixOf
+   stripPrefix = T.stripPrefix
+   isPrefixOf = T.isPrefixOf
+   isSuffixOf = T.isSuffixOf
+   isInfixOf = T.isInfixOf
 
 concat xs = foldr (++) empty xs
 
@@ -143,52 +143,52 @@ split1With pred str = F.firstJustElse (str, empty) (zipWith (\a b -> (a,) <$> pr
 splitWith pred = L.unfoldr (\s -> F.ifJust (not $ null s) $ split1With pred s)
 
 class ConvertString a b where
-  convertString :: a -> b
+   convertString :: a -> b
 
 instance ConvertString P.String B.ByteString where
-  convertString = B.pack . L.map (fromIntegral . ord)
+   convertString = B.pack . L.map (fromIntegral . ord)
 
 instance ConvertString B.ByteString P.String where
-  convertString = L.map (chr . fromIntegral) . B.unpack
+   convertString = L.map (chr . fromIntegral) . B.unpack
 
 instance ConvertString B.ByteString LB.ByteString where
-  convertString = B.fromStrict
+   convertString = B.fromStrict
 
 instance ConvertString LB.ByteString B.ByteString where
-  convertString = B.toStrict
+   convertString = B.toStrict
 
 instance ConvertString P.String LB.ByteString where
-  convertString = LB.pack . L.map (fromIntegral . ord)
+   convertString = LB.pack . L.map (fromIntegral . ord)
 
 instance ConvertString LB.ByteString P.String where
-  convertString = L.map (chr . fromIntegral) . LB.unpack
+   convertString = L.map (chr . fromIntegral) . LB.unpack
 
 instance ConvertString P.String T.Text where
-  convertString = T.pack
+   convertString = T.pack
 
 instance ConvertString T.Text P.String where
-  convertString = T.unpack
+   convertString = T.unpack
 
 instance ConvertString a a where
-  convertString = id
+   convertString = id
 
 instance ConvertString T.Text B.ByteString where
-  convertString s = convertString (convertString s :: P.String)
+   convertString s = convertString (convertString s :: P.String)
 
 instance ConvertString B.ByteString T.Text where
-  convertString s = convertString (convertString s :: P.String)
+   convertString s = convertString (convertString s :: P.String)
 
 class ConvertChar a b where
-  convertChar :: a -> b
+   convertChar :: a -> b
 
 instance ConvertChar Char Word8 where
-  convertChar = fromIntegral . ord
+   convertChar = fromIntegral . ord
 
 instance ConvertChar Word8 Char where
-  convertChar = chr . fromIntegral
+   convertChar = chr . fromIntegral
 
 instance ConvertChar a a where
-  convertChar = id
+   convertChar = id
 
 bytestring :: B.ByteString
 bytestring = "abra"

@@ -22,14 +22,14 @@ import TestBoomerang (id3Base)
 {-
 data Expr = 
    Apply [Expr]
-    | I Int
-    | Sym String 
-    | Str String 
-    | Var (TVar Assign)
-    | Name String 
-    | List [Expr] 
-    | Imp [Expr] Expr
-    deriving (Eq)
+   | I Int
+   | Sym String 
+   | Str String 
+   | Var (TVar Assign)
+   | Name String 
+   | List [Expr] 
+   | Imp [Expr] Expr
+   deriving (Eq)
 
 data Assign = Blank | Assign Branch Expr (TVar Assign)
 
@@ -181,8 +181,8 @@ Apply [Apply [Sym "append",Sym "nil",Name "Bs",Name "Bs"]]
 
 unifyList bra as bs = 
    if | null as && null bs -> return True
-       | null as || null bs -> return False
-       | otherwise -> do 
+      | null as || null bs -> return False
+      | otherwise -> do 
                next <- unify bra (head as) (head bs)
                if next
                   then unifyList bra (tail as) (tail bs)
@@ -237,8 +237,8 @@ common bra brb = let
 
 unifyList bra brb as bs = 
    if | null as && null bs -> return True
-       | null as || null bs -> return False
-       | otherwise -> do 
+      | null as || null bs -> return False
+      | otherwise -> do 
                next <- unify bra brb (head as) (head bs)
                if next
                   then unifyList bra brb (tail as) (tail bs)
@@ -271,32 +271,32 @@ unify bra brb (Var    a) (Var    b) = do
 unify bra brb (Var a) b = do a1 <- readTVar a; case a1 of E -> setv a b; a2 -> unify bra brb a2 b
 unify bra brb a (Var b) = do b1 <- readTVar b; case b1 of E -> setv b a; b2 -> unify bra brb a b2
 unify bra brb _ _ = return False
- -
- - append([], Bs, Bs).
- - append([A|As], Bs, [A|Cs]) :- append(As, Bs, Cs).
- -
- - ? append(X, Y, "hello")
- - append(X=[], Y=Bs1, Bs1="hello")
- - X = ""
- - Y = "hello"
- -
- - append(X=[A1=h|As1], Y=Bs2, [A1=h|Cs1="ello"])
- - append(As1=[], Bs2=Bs3, Bs3=Cs1="ello").
- - X = "h"
- - Y = "ello"
- -
- - how to share data between threads
- - need to keep track of which point threads have split at
- -
- - need to unify assignments made since split on rejoining
- - create new variables where they're different
- -
- - make sure to end up with the same number of answers as threads
- - don't cross-contaminate
- - X = "h"
- - Y = "hello"
- - is not a valid answer
- -
+-
+- append([], Bs, Bs).
+- append([A|As], Bs, [A|Cs]) :- append(As, Bs, Cs).
+-
+- ? append(X, Y, "hello")
+- append(X=[], Y=Bs1, Bs1="hello")
+- X = ""
+- Y = "hello"
+-
+- append(X=[A1=h|As1], Y=Bs2, [A1=h|Cs1="ello"])
+- append(As1=[], Bs2=Bs3, Bs3=Cs1="ello").
+- X = "h"
+- Y = "ello"
+-
+- how to share data between threads
+- need to keep track of which point threads have split at
+-
+- need to unify assignments made since split on rejoining
+- create new variables where they're different
+-
+- make sure to end up with the same number of answers as threads
+- don't cross-contaminate
+- X = "h"
+- Y = "hello"
+- is not a valid answer
+-
 
 sent --> np, vp.
 
@@ -335,6 +335,6 @@ branch(B, b(B, B, B)).
 
 
 
- - -}
+- -}
 
 -}

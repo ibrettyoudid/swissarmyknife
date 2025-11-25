@@ -36,6 +36,6 @@ fixi = mapM (\fn -> do
             in if cidiff >= 0 
                then replicate cidiff ' ' ++ tx
                else drop (negate cidiff) tx) mycounts mylines
-   writeFile fn text) 
+   writeFile fn $ unlines lines2) 
                   $ filter (ext $= ".hs") $ filePaths "/home/brett/swissarmyknife/"
 

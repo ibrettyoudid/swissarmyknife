@@ -58,7 +58,7 @@ instance Floating a => Floating (Degrees a) where
 --sin a = Prelude.sin (a / 180 * pi)
 {-
 makepages = mapM_ (\n -> writeFile ("page"++fmt n++".html") $
-    formatHtml $ html [] $ gridH [
+   formatHtml $ html [] $ gridH [
          "<html>",
          "    <body>",
          "         <table>",
@@ -364,7 +364,7 @@ join2 = do
          let t = testrot rot r cam sc
 
          withImageSurface FormatRGB24 1920 1080 $ \surface -> do
-       -- Perform Cairo operations on the surface
+      -- Perform Cairo operations on the surface
             pixbuf <- pixbufNewFromFile fi
             renderWith surface $ do
                setSourcePixbuf pixbuf 0 0
@@ -571,14 +571,14 @@ test = do
 
 {-
 lamconOfSph lam0 phi0 phi1 phi2 rad [[lat, long]] = [[rho * sin (n * (long - lam0)), rho0 - rho * cos (n * (long - lam0))]]
- where
+where
    rho = rad * f * cot (pi / 4 + lat / 2) ** n
    rho0 = rad * f * cot (pi / 4 + phi0 / 2) ** n
    f = cos phi1 * tan (pi / 4 + phi1 / 2) ** n / n
    n = log (cos phi1 * sec phi2) / log (tan (pi / 4 + phi2 / 2) * cot (pi / 4 + phi1 / 2))
 
 sphOfLamcon lam0 phi0 phi1 phi2 rad [[x, y]] = [[lat, long]]
- where
+where
    lat = 2 * acot ((rho / rad / f) ** (1 / n)) - pi / 2
    long = atan2 x (rho0 - y) / n + lam0
    rho = sqrt (x ^ 2 + (rho0 - y) ^ 2)
@@ -606,18 +606,18 @@ movTo [[x, y]] = moveTo x y
 linTo [[x, y]] = lineTo x y
 
 lamconOfSph lam0 phi1 phi2 rad [[lat, long]] = [[rho * sin (n * (long - lam0)), rho * cos (n * (long - lam0))]]
- where
-   rho = rad * f * cot (pi / 4 + lat / 2) ** n
-   f = cos phi1 * tan (pi / 4 + phi1 / 2) ** n / n
-   n = log (cos phi1 * sec phi2) / log (tan (pi / 4 + phi2 / 2) * cot (pi / 4 + phi1 / 2))
+   where
+      rho = rad * f * cot (pi / 4 + lat / 2) ** n
+      f = cos phi1 * tan (pi / 4 + phi1 / 2) ** n / n
+      n = log (cos phi1 * sec phi2) / log (tan (pi / 4 + phi2 / 2) * cot (pi / 4 + phi1 / 2))
 
 sphOfLamcon lam0 phi1 phi2 rad [[x, y]] = [[lat, long]]
- where
-   lat = 2 * acot ((rho / rad / f) ** (1 / n)) - pi / 2
-   long = atan2 x y / n + lam0
-   rho = sqrt (x ^ 2 + y ^ 2)
-   f = cos phi1 * tan (pi / 4 + phi1 / 2) ** n / n
-   n = log (cos phi1 * sec phi2) / log (tan (pi / 4 + phi2 / 2) * cot (pi / 4 + phi1 / 2))
+   where
+      lat = 2 * acot ((rho / rad / f) ** (1 / n)) - pi / 2
+      long = atan2 x y / n + lam0
+      rho = sqrt (x ^ 2 + y ^ 2)
+      f = cos phi1 * tan (pi / 4 + phi1 / 2) ** n / n
+      n = log (cos phi1 * sec phi2) / log (tan (pi / 4 + phi2 / 2) * cot (pi / 4 + phi1 / 2))
 
 sec theta = 1 / cos theta
 cot theta = 1 / tan theta
@@ -648,7 +648,7 @@ cart3OfSph [[r, lat, long]] =
    let
       [[z, greenLen]] = cartOfPol [[r, lat]]
       [[x, y]] = cartOfPol [[greenLen, long]]
-    in
+   in
       [[x, y, z]]
 -}
 cart3OfSph [[r, lat, long]] = [[r * sin long * cos lat, -(r * sin lat),   r * cos long * cos lat]]
@@ -657,8 +657,8 @@ lamaziOfSph (scale, sh, longsh) v = scalesh (scale, sh) $ cartOfPol $ lamaziOfSp
 sphOfLamazi (scale, sh, longsh) v = (<-> vec 0 longsh) $ sphOfLamazi1 $ polOfCart v
 
 lamaziCart3OfCart [[x, y]] = [[sqrt (1 - r2 / 4) * x, sqrt (1 - r2 / 4) * y, 1 - r2 / 2]]
- where
-   r2 = x ^ 2 + y ^ 2
+   where
+      r2 = x ^ 2 + y ^ 2
 
 sing x = [x]
 only [x] = x
@@ -693,7 +693,7 @@ lamaziParams (v0, ll0, v1, ll1) =
       -- longsh = 2.5
       v0b = lamaziOfSph (scale, vec 0 0, longsh) ll0
       sh = v0 <-> v0b
-    in
+   in
       (scale, sh, longsh)
 
 initl = [[1, 0, 0, 0, 0, 0, 0]] :: [[Double]]
@@ -703,7 +703,7 @@ uo xs =
    let
       u = mean xs
       o = sqrt (mean (map (\x -> (x - u) ^ 2) xs)) / u
-    in
+   in
       o
 
 vmean vs = recip (fromIntegral $ length vs) |*| [map sum $ transpose vs]
@@ -728,7 +728,7 @@ getrsrs f =
       args = hjk (scale, rot, shift)
       -- residuals = zipWith (<->) vs1a vs2c
       residuals = (vs1 <->) $ f args lls
-    in
+   in
       (residuals, (scale, rot, shift))
 
 getrsrsD f = let
@@ -771,7 +771,7 @@ xo2 = a * xi2 + b * yi2 + p
 
 [ a b p ] [ xi0 xi1 xi2 ] = [ xo0 xo1 xo2 ]
 [ c d q ] [ yi0 yi1 yi2 ]   [ yo0 yo1 yo2 ]
-          [   1   1   1 ]
+         [   1   1   1 ]
       M    *     I        = O
       M                   = O * I^-1
 
@@ -789,7 +789,7 @@ yo2 = c * xi2 + d * yi2 + q
                         [ xi0^2*yi0  xi1^2*yi1      xi9^2*yi9 ]
                         [ xi0*yi0^2  xi1*yi1^2      xi9*yi9^2 ]
                         [   1          1              1       ]
- -}
+-}
 
 add1s = map (++ [1])
 
@@ -839,7 +839,7 @@ search f c r n i =
       xs = crossList xs1
       fxxs = mapfxx f xs
       min = minimum fxxs
-    in
+   in
       search f (snd min) (map (/ 1.2) r) n (i - 1)
 
 sh = searchD getRes [0, 0] [12, 24] [8, 12]
@@ -855,7 +855,7 @@ searchD f c r n =
       xs = crossList xs1
       fxxs = mapfxx f xs
       --min = minimum fxxs
-    in
+   in
       fromAssocsD $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
 
 searchDD f c r n =
@@ -1143,7 +1143,7 @@ main2 = do
 {-
 [a b c] [x] = ax+by+c
 [d e f] [y]   dx+ey+f
-        [1]
+         [1]
 
 [1 0 -c] [ax+by+c]   [ax+by]
 [0 1 -f] [dx+ey+f] = [dx+ey]
@@ -1374,7 +1374,7 @@ fgAux im x y =
       bp = b1*50/t
       z = max 0 $ 255 - (5 * abs (rp - 10) * abs (gp - 20)^2 * abs (bp - 20)^2 * sqrt (abs (t - 500)))
       z1 = round z
-    in
+   in
       PixelRGB8 z1 z1 z1
 
 lvs =
@@ -1434,7 +1434,7 @@ arcCentre x0 y0 x1 y1 x2 y2 =
       -- in mat
 
       [[_, _, x], [_, _, y]] = gaussElim [[xc, yc, e], [xd, yd, f]]
-    in
+   in
       (x, y, sqrt ((x - x1) ^ 2 + (y - y1) ^ 2))
 
 t = arcCentre 419 3603 3305 3928 5619 3679

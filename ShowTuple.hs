@@ -7,7 +7,7 @@ module ShowTuple where
 import Show1
 
 class ShowTuple a where
-  showT :: a -> [String]
+   showT :: a -> [String]
 
 instance (Show1 a, Show1 b) => ShowTuple (a, b) where showT (a, b) = [show1 a, show1 b]
 instance (Show1 a, Show1 b, Show1 c) => ShowTuple (a, b, c) where showT (a, b, c) = [show1 a, show1 b, show1 c]
@@ -30,19 +30,19 @@ instance (Show1 a, Show1 b, Show1 c, Show1 d, Show1 e, Show1 f, Show1 g, Show1 h
 instance (Show1 a, Show1 b, Show1 c, Show1 d, Show1 e, Show1 f, Show1 g, Show1 h, Show1 i, Show1 j, Show1 kk, Show1 l, Show1 m, Show1 n, Show1 o, Show1 p, Show1 q, Show1 r, Show1 s, Show1 t) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r, s, t) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r, s, t) = [show1 a, show1 b, show1 c, show1 d, show1 e, show1 f, show1 g, show1 h, show1 i, show1 j, show1 kk, show1 l, show1 m, show1 n, show1 o, show1 p, show1 q, show1 r, show1 s, show1 t]
 
 class ConsTuple a b c where
-  consT :: a -> b -> c
+   consT :: a -> b -> c
 
 instance ConsTuple a (b, c) (a, b, c) where
-  consT a (b, c) = (a, b, c)
+   consT a (b, c) = (a, b, c)
 
 instance ConsTuple a (b, c, d) (a, b, c, d) where
-  consT a (b, c, d) = (a, b, c, d)
+   consT a (b, c, d) = (a, b, c, d)
 
 instance ConsTuple a (b, c, d, e) (a, b, c, d, e) where
-  consT a (b, c, d, e) = (a, b, c, d, e)
+   consT a (b, c, d, e) = (a, b, c, d, e)
 
 class ConcatTuple a b c where
-  concatT :: a -> b -> c
+   concatT :: a -> b -> c
 
 instance ConcatTuple (a, b) (c, d) (a, b, c, d) where
-  concatT (a, b) (c, d) = (a, b, c, d)
+   concatT (a, b) (c, d) = (a, b, c, d)

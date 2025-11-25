@@ -3,14 +3,14 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Favs (
-  module Favs,
-  fromMaybe,
-  catMaybes,
-  mapMaybe,
-  listToMaybe,
-  sortOn,
-  fromJust,
-  isJust,
+      module Favs,
+      fromMaybe,
+      catMaybes,
+      mapMaybe,
+      listToMaybe,
+      sortOn,
+      fromJust,
+      isJust,
 )
 where
 
@@ -43,29 +43,29 @@ f $= b = \x -> f x == b
 f $< b = \x -> b `isPrefixOf` f x
 
 replaceIndex index new list =
-  let
-    (before, _ : after) = splitAt index list
-   in
-    before ++ new : after
+      let
+            (before, _ : after) = splitAt index list
+         in
+            before ++ new : after
 
 deleteIndex index list = let (before, _ : after) = splitAt index list in before ++ after
 
 insertIndex index new list =
-  let
-    (before, after) = splitAt index list
-   in
-    before ++ new : after
+      let
+            (before, after) = splitAt index list
+         in
+            before ++ new : after
 
 modifyIndex index modify list =
-  let
-    (before, x : after) = splitAt index list
-   in
-    before ++ modify x : after
+      let
+            (before, x : after) = splitAt index list
+         in
+            before ++ modify x : after
 
 insertWith2 combine zero (k, v) map = M.alter f k map
- where
-  f Nothing = Just $ combine v zero
-  f (Just v2) = Just $ combine v v2
+   where
+      f Nothing = Just $ combine v zero
+      f (Just v2) = Just $ combine v v2
 
 mapFromList combine zero list = foldr (insertWith2 combine zero) M.empty list
 
@@ -103,8 +103,8 @@ readNum :: (Read a, Num a) => String -> a
 readNum = (\r -> if null r then 0 else read r) . takeWhile (`elem` ".+-eE0123456789") . filter (`notElem` ", ")
 
 readFileB f = do
-  handle <- openBinaryFile f ReadMode
-  hGetContents handle
+      handle <- openBinaryFile f ReadMode
+      hGetContents handle
 
 readFileU f = unsafePerformIO $ readFileB f
 
@@ -153,8 +153,8 @@ splitWith pred = unfoldr (\s -> ifJust (not $ null s) $ split1With pred s)
 split1With pred str = firstJustElse (str, []) (zipWith (\a b -> (a,) <$> pred b) (inits str) (tails str))
 
 split1WithM pred str = case catMaybes $ zipWith (\a b -> (a,) <$> pred b) (inits str) (tails str) of
-  [] -> Nothing
-  (x : _) -> Just x
+      [] -> Nothing
+      (x : _) -> Just x
 
 -- disallow zero length entries
 splitNZ :: (Eq a) => [a] -> [a] -> [[a]]
@@ -163,14 +163,14 @@ splitNZ sep str = filter (not . null) $ split sep str
 {-
 split :: (Eq a) => [a] -> [a] -> [[a]]
 split sep str = let l                   = length sep
-                    split2 accum []     = [accum]
-                    split2 accum (x:xs) = let (tak, drp) = splitAt l (x:xs)
+                                                            split2 accum []     = [accum]
+                                                            split2 accum (x:xs) = let (tak, drp) = splitAt l (x:xs)
 
-                                          in if tak == sep
-                                                   then accum : split2 [] drp
-                                                   else split2 (accum ++ [x]) xs
+                                                                                                                              in if tak == sep
+                                                                                                                                                         then accum : split2 [] drp
+                                                                                                                                                         else split2 (accum ++ [x]) xs
 
-                in split2 [] str
+                                                in split2 [] str
 -}
 
 -- note that pred has type [a] -> Bool
@@ -178,24 +178,24 @@ split sep str = let l                   = length sep
 split1When :: ([a] -> Bool) -> [a] -> ([a], [a])
 split1When _ [] = ([], [])
 split1When pred str =
-  if pred str
-    then ([], str)
-    else let (before, after) = split1When pred (tail str) in (head str : before, after)
+      if pred str
+            then ([], str)
+            else let (before, after) = split1When pred (tail str) in (head str : before, after)
 
 -- pred returns Just rest on successful split
 -- split once
 split1WithB _ [] = ([], [])
 split1WithB pred str = case pred str of
-  Just rest -> ([], rest)
-  Nothing ->
-    let
-      (before, after) = split1WithB pred (tail str)
-     in
-      (head str : before, after)
+      Just rest -> ([], rest)
+      Nothing ->
+            let
+                  (before, after) = split1WithB pred (tail str)
+               in
+                  (head str : before, after)
 
 split1WithA1 pred str = case findIndex pred str of
-  Just n -> splitAt n str
-  Nothing -> (str, [])
+      Just n -> splitAt n str
+      Nothing -> (str, [])
 
 -- split all
 -- splitWith pred str = unfoldr (\s -> let (a,b) = split1With pred s in if a /= [] || b /= [] then Just (a,b) else Nothing) str
@@ -265,8 +265,8 @@ mapFJE else1 f = firstJustElse else1 . map f
 forFJE else1 xs f = mapFJE else1 f xs
 
 unfoldr1 f x =
-  let (a, b) = f x
-   in a : unfoldr1 f b
+      let (a, b) = f x
+         in a : unfoldr1 f b
 
 tapp (f, g) (x, y) = (f x, g y)
 tmap f (x, y) = (f x, f y)
@@ -287,14 +287,16 @@ spat (a, b) = Just (a, b)
 groupN n = unfoldr (spat . splitAt n)
 
 replace from to lst =
-  let l = length from
-      rep [] = []
-      rep (x : xs) =
-        let (tak, drp) = splitAt l (x : xs)
-         in if tak == from
-              then to ++ rep drp
-              else x : rep xs
-   in rep lst
+      let 
+            l = length from
+            fif [] = []
+            fif (x : xs) = let
+                  (tak, drp) = splitAt l (x : xs)
+      
+                  in if tak == from
+                        then to ++ fif drp
+                        else x : fif xs
+      in fif lst
 
 -- indent all but first line
 indent1 n str = indent2 (replicate n ' ') str
@@ -342,27 +344,28 @@ crossWith7 f ts us vs ws xs ys zs = map (\t -> map (\u -> map (\v -> map (\w -> 
 
 crossWithR f xs ys = map (\x -> map (f x) ys) xs
 
-ppCross f xs ys =
-  let shownxs = map show xs
+ppCross f xs ys = let
+      shownxs = map show xs
       shownys = map show ys
       tab1 = crossWith (show .: f) xs ys
       tab2 = ("" : shownxs) : zipWith (:) shownys tab1
       tab3 = map (\(a : b) -> a : "|" : b) tab2
       (h : t) = map concat $ padTable tab3
       tab5 = h : replicate (length h) '-' : t
-   in putStr $ intercalate1 "\n" tab5
+      
+      in putStr $ intercalate1 "\n" tab5
 
 {-
 ppCross f xs ys = let shownxs = map show xs
-                      shownys = map show ys
-                  in
-                      putStr
-                      $ intercalate1 "\n"
-                      $ (\(h:t) -> h : replicate (length h) '-': t)
-                      $ map concat
-                      $ padTable
-                      $ map (\(a:b) -> a:"|":b)
-                      $ ("" : shownxs) : (zipWith (:) shownys $ crossWith ((show .) . f) xs ys)
+                                                                  shownys = map show ys
+                                                      in
+                                                                  putStr
+                                                                  $ intercalate1 "\n"
+                                                                  $ (\(h:t) -> h : replicate (length h) '-': t)
+                                                                  $ map concat
+                                                                  $ padTable
+                                                                  $ map (\(a:b) -> a:"|":b)
+                                                                  $ ("" : shownxs) : (zipWith (:) shownys $ crossWith ((show .) . f) xs ys)
 -}
 padl = padLWith1 ' '
 padr = padRWith1 ' '
@@ -377,16 +380,16 @@ padLWith1 z n list = replicate (n - length list) z ++ list
 padRWith1 z n list = list ++ replicate (n - length list) z
 
 padLWith z lists =
-  let
-    m = maximum $ map length lists
-   in
-    map (padLWith1 z m) lists
+      let
+            m = maximum $ map length lists
+         in
+            map (padLWith1 z m) lists
 
 padRWith z lists =
-  let
-    m = maximum $ map length lists
-   in
-    map (padRWith1 z m) lists
+      let
+            m = maximum $ map length lists
+         in
+            map (padRWith1 z m) lists
 
 transpose1 = transposez []
 
@@ -430,20 +433,21 @@ maxOn f xs = M.findMax $ M.fromListWith const $ mapfxx f xs
 
 range xs = (minimum xs, maximum xs)
 rangeOn f xs =
-  let
-    map1 = M.fromListWith const $ mapfxx f xs
-    min1 = M.findMin map1
-    max1 = M.findMax map1
-   in
-    (min1, max1)
+      let
+            map1 = M.fromListWith const $ mapfxx f xs
+            min1 = M.findMin map1
+            max1 = M.findMax map1
+         in
+            (min1, max1)
 
-table1a cols =
-  let lengths = map2 length cols
-      maxlens = map maximum lengths
-      padded = zipWith (\maxl col -> map (pad (maxl + 1)) col) maxlens cols
-      rows2 = transpose padded
-      result = intercalate1 "\n" $ map concat rows2
-   in putStr result
+table1a cols = let
+            lengths = map2 length cols
+            maxlens = map maximum lengths
+            padded = zipWith (\maxl col -> map (pad (maxl + 1)) col) maxlens cols
+            rows2 = transpose padded
+            result = intercalate1 "\n" $ map concat rows2
+      
+      in putStr result
 
 infixl 0 >-
 a >- b = b $ a
@@ -452,13 +456,13 @@ infixl 9 >.
 a >. b = b . a
 
 table1b rows =
-  rows
-    >- transpose
-    >- map padcol
-    >- transpose
-    >- map concat
-    >- intercalate1 "\n"
-    >- putStr
+      rows
+            >- transpose
+            >- map padcol
+            >- transpose
+            >- map concat
+            >- intercalate1 "\n"
+            >- putStr
 
 -- equalise the widths in a list of lists of strings
 padTable = transpose . map padcoll . transpose
@@ -473,22 +477,22 @@ ppTable :: (Show a) => [[a]] -> IO ()
 ppTable = putStr . intercalate1 "\n" . map concat . padTable . map2 show
 
 table1c rows =
-  transpose $
-    map
-      ( \col ->
-          let res1 =
-                map
-                  ( \el ->
-                      let sh = show el
-                          le = length sh
-                          padded = pad (maxl + 1) sh
-                       in (le, padded)
+      transpose $
+            map
+                  ( \col -> let 
+                        res1 = map
+                              ( \el -> let
+                                    sh = show el
+                                    le = length sh
+                                    padded = pad (maxl + 1) sh
+                                    
+                                    in (le, padded)
+                              ) col
+                        maxl = maximum $ map fst res1
+                        
+                        in map snd res1
                   )
-                  col
-              maxl = maximum $ map fst res1
-           in map snd res1
-      )
-      (transpose rows)
+                  (transpose rows)
 
 intersperse1 _ [] = []
 intersperse1 sep (x : xs) = x : sep : intersperse1 sep xs
@@ -505,10 +509,10 @@ headComp f (l1 : ls1) (l2 : ls2) = f l1 l2
 {-
 mergeBy1 f [] = []
 mergeBy1 f ((x : xs) : ys) =
-  x
-    : if xs == []
-      then mergeBy1 f ys
-      else mergeBy1 f (insertBy f xs ys)
+      x
+            : if xs == []
+                  then mergeBy1 f ys
+                  else mergeBy1 f (insertBy f xs ys)
 
 mergeBy f lst = mergeBy1 f $ filter (/= []) lst
 
@@ -520,29 +524,29 @@ merge = mergeBy (headComp compare)
 mergeS = merge2 . S.fromList . map HCList . filter (/= [])
 
 merge1 set =
-  if S.null set
-    then []
-    else
-      let
-        (m : ms) = S.findMin set
-        set1 = S.deleteMin set
-       in
-        m : merge1 (if ms == [] then set1 else S.insert ms set1)
+      if S.null set
+            then []
+            else
+                  let
+                        (m : ms) = S.findMin set
+                        set1 = S.deleteMin set
+                     in
+                        m : merge1 (if ms == [] then set1 else S.insert ms set1)
 
 merge2 set =
-  if S.null set
-    then []
-    else
-      let
-        HCList (m : ms) = S.findMin set
-        set1 = S.deleteMin set
-       in
-        m : merge2 (if ms == [] then set1 else S.insert (HCList ms) set1)
+      if S.null set
+            then []
+            else
+                  let
+                        HCList (m : ms) = S.findMin set
+                        set1 = S.deleteMin set
+                     in
+                        m : merge2 (if ms == [] then set1 else S.insert (HCList ms) set1)
 
 data HCList a = HCList [a] deriving (Eq)
 
 instance (Ord a) => Ord (HCList a) where
-  compare (HCList a) (HCList b) = compare (head a) (head b)
+      compare (HCList a) (HCList b) = compare (head a) (head b)
 
 rmerge :: (Ord a) => [[a]] -> [a]
 rmerge = mergeBy (headComp (flip compare))
@@ -556,9 +560,9 @@ password n = sequence $ replicate n randChar
 passworda n = sequence $ replicate n $ randomRIO ('a', 'z')
 
 noise = do
-  c <- randChar
-  putChar c
-  noise
+      c <- randChar
+      putChar c
+      noise
 
 gears from to n = take (round n) $ iterate (* ((to / from) ** (1 / (n - 1)))) from
 
@@ -567,10 +571,10 @@ decodeurl (a : rest) = a : decodeurl rest
 decodeurl [] = []
 
 decodehex a
-  | isDigit a = ord a - ord '0'
-  | a >= 'a' && a <= 'f' = ord a - ord 'a' + 10
-  | a >= 'A' && a <= 'F' = ord a - ord 'A' + 10
-  | otherwise = -1
+      | isDigit a = ord a - ord '0'
+      | a >= 'a' && a <= 'f' = ord a - ord 'a' + 10
+      | a >= 'A' && a <= 'F' = ord a - ord 'A' + 10
+      | otherwise = -1
 
 {-
 foldl f z [] = z
@@ -578,21 +582,21 @@ foldl f z (x:xs) = foldl f (f z x) xs
 
 foldl :: (a -> b -> a) -> a -> [b] -> a
 foldl f zero xs0 = lgo zero xs0
-             where
-                lgo accum []     = z
-                lgo accum (x:xs) = lgo (f z x) xs
+                                       where
+                                                lgo accum []     = z
+                                                lgo accum (x:xs) = lgo (f z x) xs
 
 foldl f   z [a,b,c] = f (f (f z a) b) c
-                    =
+                                                            =
 foldl (+) z [a,b,c] = z + a + b + c
 
 foldr f z [] = z
 foldr f z (x:xs) = f x (foldr f z xs)
 
 foldr f z xs = go xs
-               where
-                 go []     = z
-                 go (x:xs) = f x (go xs)
+                                             where
+                                                   go []     = z
+                                                   go (x:xs) = f x (go xs)
 
 foldr f   z [a,b,c] = f a (f b (f c z))
 
@@ -602,9 +606,9 @@ foldr (+) z [a,b,c] = a + (b + (c + z))
 intersectionByS comp [] _ = []
 intersectionByS comp _ [] = []
 intersectionByS comp (x : xs) (y : ys) = case comp x y of
-  EQ -> x : intersectionByS comp xs ys
-  LT -> intersectionByS comp xs (y : ys)
-  GT -> intersectionByS comp (x : xs) ys
+      EQ -> x : intersectionByS comp xs ys
+      LT -> intersectionByS comp xs (y : ys)
+      GT -> intersectionByS comp (x : xs) ys
 
 intersectionS = intersectionByS compare
 
@@ -658,19 +662,19 @@ joinMapsNotRight l r = l M.\\ r
 -- Map k a -> Map k b -> Map k (Maybe a, Maybe b)
 -- keys in either
 joinMapsOuter l r =
-  let
-    inner = M.map (\(a, b) -> (Just a, Just b)) $ joinMaps l r
-    left1 = M.map (\a -> (Just a, Nothing)) $ l M.\\ r
-    right1 = M.map (\b -> (Nothing, Just b)) $ r M.\\ l
-   in
-    left1 `M.union` inner `M.union` right1
+      let
+            inner = M.map (\(a, b) -> (Just a, Just b)) $ joinMaps l r
+            left1 = M.map (\a -> (Just a, Nothing)) $ l M.\\ r
+            right1 = M.map (\b -> (Nothing, Just b)) $ r M.\\ l
+         in
+            left1 `M.union` inner `M.union` right1
 
 joinMapsOuter2 l r =
-  let
-    l1 = M.map (\(lv, rv) -> (Just lv, rv)) $ joinMapsLeft l r
-    r1 = M.map (\rv -> (Nothing, Just rv)) $ joinMapsNotRight r l
-   in
-    M.union l1 r1
+      let
+            l1 = M.map (\(lv, rv) -> (Just lv, rv)) $ joinMapsLeft l r
+            r1 = M.map (\rv -> (Nothing, Just rv)) $ joinMapsNotRight r l
+         in
+            M.union l1 r1
 
 -- f is used to combine records instead of ( , )
 -- (l -> r -> x) -> M.Map k l -> M.Map k r -> M.Map k x
@@ -695,14 +699,14 @@ lofmbn n (Just r) = r
 lofmbn n Nothing = n
 
 joinLists2 z l r =
-  let
-    ae = replicate (length $ M.findMin l) z
-    be = replicate (length $ M.findMin r) z
-    inner = M.map (\(a, b) -> a ++ b) $ joinMaps l r
-    left1 = M.map (\a -> a ++ be) $ l M.\\ r
-    right1 = M.map (\b -> ae ++ b) $ r M.\\ l
-   in
-    left1 `M.union` inner `M.union` right1
+      let
+            ae = replicate (length $ M.findMin l) z
+            be = replicate (length $ M.findMin r) z
+            inner = M.map (\(a, b) -> a ++ b) $ joinMaps l r
+            left1 = M.map (\a -> a ++ be) $ l M.\\ r
+            right1 = M.map (\b -> ae ++ b) $ r M.\\ l
+         in
+            left1 `M.union` inner `M.union` right1
 
 joinLists z ls = lofm $ foldr1 (joinLists2 z) $ map mofl ls
 
@@ -711,64 +715,64 @@ join3 (fl, fi, fr) l r = (M.map fl (l M.\\ r), M.intersectionWith fi l r, M.map 
 join3a fi l r = (l M.\\ r, M.intersectionWith fi l r, r M.\\ l)
 
 join3b z (lt, l) (rt, r) =
-  let
-    ae = replicate (length lt) z
-    be = replicate (length rt) z
-   in
-    join3 ((++ be), (++), (ae ++)) l r
+      let
+            ae = replicate (length lt) z
+            be = replicate (length rt) z
+         in
+            join3 ((++ be), (++), (ae ++)) l r
 
 joinTMapsFuzzy z (lt, l) (rt, r) =
-  let
-    lz = replicate (length lt) z
-    rz = replicate (length rt) z
-   in
-    (lt ++ rt, joinMapsFuzzy ((++ rz), (++), (lz ++)) l r)
+      let
+            lz = replicate (length lt) z
+            rz = replicate (length rt) z
+         in
+            (lt ++ rt, joinMapsFuzzy ((++ rz), (++), (lz ++)) l r)
 
 joinMapsFuzzy (fl, fi, fr) l r =
-  let
-    (l1, i, r1) = (l M.\\ r, M.intersectionWith fi l r, r M.\\ l)
-    levs = sort $ concat $ crossWith (\(lk, lv) (rk, rv) -> (levenshtein lk rk, lk, rk, lv ++ rv)) (M.toList l1) (M.toList r1)
-    (l2, i2, r2) = foldr joinMapsFuzzyAux (l1, i, r1) levs
-   in
-    (M.map fl l2) `M.union` i2 `M.union` (M.map fr r2)
+      let
+            (l1, i, r1) = (l M.\\ r, M.intersectionWith fi l r, r M.\\ l)
+            levs = sort $ concat $ crossWith (\(lk, lv) (rk, rv) -> (levenshtein lk rk, lk, rk, lv ++ rv)) (M.toList l1) (M.toList r1)
+            (l2, i2, r2) = foldr joinMapsFuzzyAux (l1, i, r1) levs
+         in
+            (M.map fl l2) `M.union` i2 `M.union` (M.map fr r2)
 
 joinMapsFuzzyAux (lev, lk, rk, a) (lks, res, rks) =
-  if M.member lk lks && M.member rk rks
-    then (M.delete lk lks, M.insert lk a res, M.delete rk rks)
-    else (lks, res, rks)
+      if M.member lk lks && M.member rk rks
+            then (M.delete lk lks, M.insert lk a res, M.delete rk rks)
+            else (lks, res, rks)
 
 trimBrackets1 l r [] = []
 trimBrackets1 l r a = case elemIndex l a of
-  Just c ->
-    let (b, d) = splitAt c a
-     in case elemIndex r d of
-          Just f -> let (e, g) = splitAt (f + 1) d in b ++ trimBrackets1 l r g
-          Nothing -> a
-  Nothing -> a
+      Just c ->
+            let (b, d) = splitAt c a
+               in case elemIndex r d of
+                              Just f -> let (e, g) = splitAt (f + 1) d in b ++ trimBrackets1 l r g
+                              Nothing -> a
+      Nothing -> a
 
 trimBrackets = trim . trimBrackets1 '[' ']' . trimBrackets1 '(' ')'
 
 isNumeric xs =
-  let
-    c = sum $ map length xs
-    d = sum $ map (length . filter isDigit) xs
-   in
-    d * 100 > c * 75
+      let
+            c = sum $ map length xs
+            d = sum $ map (length . filter isDigit) xs
+         in
+            d * 100 > c * 75
 
 tmofl ((_ : x) : xs) =
-  let
-    (as, bs) = unzip $ map (\(d : ds) -> (d, ds)) xs
-    cs = map trimBrackets as
-   in
-    if isNumeric cs then tmofl (x : bs) else (x, mofl $ zipWith (:) cs bs)
+      let
+            (as, bs) = unzip $ map (\(d : ds) -> (d, ds)) xs
+            cs = map trimBrackets as
+         in
+            if isNumeric cs then tmofl (x : bs) else (x, mofl $ zipWith (:) cs bs)
 tmofl _ = ([], M.empty)
 
 tmofl1 t ((_ : x) : xs) =
-  let
-    (as, bs) = unzip $ map (\(d : ds) -> (d, ds)) xs
-    cs = map trimBrackets as
-   in
-    if isNumeric cs then tmofl1 t (x : bs) else (map (t,) x, mofl $ zipWith (:) cs bs)
+      let
+            (as, bs) = unzip $ map (\(d : ds) -> (d, ds)) xs
+            cs = map trimBrackets as
+         in
+            if isNumeric cs then tmofl1 t (x : bs) else (map (t,) x, mofl $ zipWith (:) cs bs)
 tmofl1 t _ = ([], M.empty)
 
 loftm z (x, xs) = ((z : x) : lofm xs)
@@ -780,22 +784,22 @@ joinTLists z ls = loftm z $ foldr1 (joinTMapsFuzzy z) $ map tmofl ls
 foldm f z xs = foldm0 f z $ groupN 2 xs
 
 foldm0 f z xss =
-  let
-    ys = map (foldm3 f) xss
-   in
-    if length ys <= 1
-      then head ys
-      else foldm0 f z $ groupN 2 ys
+      let
+            ys = map (foldm3 f) xss
+         in
+            if length ys <= 1
+                  then head ys
+                  else foldm0 f z $ groupN 2 ys
 
 foldm1 f xs = foldm2 f $ groupN 2 xs
 
 foldm2 f xss =
-  let
-    ys = map (foldm3 f) xss
-   in
-    if length ys <= 1
-      then head ys
-      else foldm2 f $ groupN 2 ys
+      let
+            ys = map (foldm3 f) xss
+         in
+            if length ys <= 1
+                  then head ys
+                  else foldm2 f $ groupN 2 ys
 
 foldm3 f [] = error "[] in foldm3"
 foldm3 f [a] = a
@@ -805,17 +809,17 @@ scanm1 f xs = scanm2 f $ groupN 2 xs
 
 scanm2 :: (a -> a -> a) -> [[a]] -> [a]
 scanm2 f xss =
-  let
-    ys = map (foldm3 f) xss
-   in
-    if length ys <= 1
-      then ys
-      else ys ++ scanm2 f (groupN 2 ys)
+      let
+            ys = map (foldm3 f) xss
+         in
+            if length ys <= 1
+                  then ys
+                  else ys ++ scanm2 f (groupN 2 ys)
 
 joinTLists1 z ls = (concat titles :) $ joinLists z ls1
- where
-  titles = map (\(x : xs) -> x) ls
-  ls1 = map (\(x : xs) -> xs) ls
+   where
+      titles = map (\(x : xs) -> x) ls
+      ls1 = map (\(x : xs) -> xs) ls
 
 g987 (k, r) [] = [(k, [r])]
 g987 (k, r) ((ks, rs) : xs) = if k == ks then (k, r : rs) : xs else (k, [r]) : (ks, rs) : xs
@@ -826,19 +830,19 @@ groupT = foldr g987 []
 
 {-
 joinLists1 l0 r0 =
-   let
-      l = group $ sort l0
-      r = group $ sort r0
+         let
+                  l = group $ sort l0
+                  r = group $ sort r0
 
-   in
+         in
 -}
 joinLists1 l r =
-  map
-    ( \(k, l1) -> case lookup k r of
-        Just r1 -> (k, l1, r1)
-        Nothing -> (k, l1, [])
-    )
-    l
+      map
+            ( \(k, l1) -> case lookup k r of
+                        Just r1 -> (k, l1, r1)
+                        Nothing -> (k, l1, [])
+            )
+            l
 
 swapMap :: (Ord k, Ord a) => M.Map a k -> M.Map k a
 swapMap = M.fromList . map swap . M.toList
@@ -849,57 +853,57 @@ data Fuzzy = FuzzyDiff Int Int | FuzzyCommon Int
 --A* = never overestimate
 
 commonSubsequences a b =
-  let
-    c = crossWith commonSubsequencesA [0 .. length a] [0 .. length b]
-    commonSubsequencesA an bn
-      | an == 0 || bn == 0 = ([], [], 0, 1, True)
-      | otherwise =
-          let
-            (as, at, al, aw, ap) = c !! (an - 1) !! bn
-            (bs, bt, bl, bw, bp) = c !! an !! (bn - 1)
-            (cs, ct, cl, cw, cp) = c !! (an - 1) !! (bn - 1)
+      let
+            c = crossWith commonSubsequencesA [0 .. length a] [0 .. length b]
+            commonSubsequencesA an bn
+                  | an == 0 || bn == 0 = ([], [], 0, 1, True)
+                  | otherwise =
+                              let
+                                    (as, at, al, aw, ap) = c !! (an - 1) !! bn
+                                    (bs, bt, bl, bw, bp) = c !! an !! (bn - 1)
+                                    (cs, ct, cl, cw, cp) = c !! (an - 1) !! (bn - 1)
 
-            ac = a !! (an - 1)
-            bc = b !! (bn - 1)
-           in
-            if ac == bc
-              then (ac : cs, ct, cl + 1, cw, True)
-              else
-                if al > bl || al == bl && aw < bw
-                  then
-                    if null as
-                      then ([], at, al, aw, False)
-                      else ([], as : at, al, aw + 1, False)
-                  else
-                    if null bs
-                      then ([], bt, bl, bw, False)
-                      else ([], bs : bt, bl, bw + 1, False)
-    (r, rs, _, _, _) = c !! length a !! length b
-   in
-    reverse $ map reverse $ if null r then rs else r : rs
+                                    ac = a !! (an - 1)
+                                    bc = b !! (bn - 1)
+                                 in
+                                    if ac == bc
+                                          then (ac : cs, ct, cl + 1, cw, True)
+                                          else
+                                                if al > bl || al == bl && aw < bw
+                                                      then
+                                                            if null as
+                                                                  then ([], at, al, aw, False)
+                                                                  else ([], as : at, al, aw + 1, False)
+                                                      else
+                                                            if null bs
+                                                                  then ([], bt, bl, bw, False)
+                                                                  else ([], bs : bt, bl, bw + 1, False)
+            (r, rs, _, _, _) = c !! length a !! length b
+         in
+            reverse $ map reverse $ if null r then rs else r : rs
 
 levenshtein a b =
-  let
-    c = crossWith commonSubsequencesA [0 .. length a] [0 .. length b]
-    commonSubsequencesA an bn
-      | an == 0 || bn == 0 = max an bn
-      | otherwise =
-          let
-            al = c !! (an - 1) !! bn
-            bl = c !! an !! (bn - 1)
-            cl = c !! (an - 1) !! (bn - 1)
+      let
+            c = crossWith commonSubsequencesA [0 .. length a] [0 .. length b]
+            commonSubsequencesA an bn
+                  | an == 0 || bn == 0 = max an bn
+                  | otherwise =
+                              let
+                                    al = c !! (an - 1) !! bn
+                                    bl = c !! an !! (bn - 1)
+                                    cl = c !! (an - 1) !! (bn - 1)
 
-            ac = a !! (an - 1)
-            bc = b !! (bn - 1)
-           in
-            if ac == bc
-              then cl
-              else
-                if al < bl
-                  then al + 1
-                  else bl + 1
-   in
-    c !! length a !! length b
+                                    ac = a !! (an - 1)
+                                    bc = b !! (bn - 1)
+                                 in
+                                    if ac == bc
+                                          then cl
+                                          else
+                                                if al < bl
+                                                      then al + 1
+                                                      else bl + 1
+         in
+            c !! length a !! length b
 
 dsqrt n = floor $ sqrt $ fromIntegral n
 fsqrt = floor . sqrt . fromIntegral
@@ -916,16 +920,16 @@ after sub lst = do s <- subIndex sub lst; return $ drop s lst
 before sub lst = do s <- subIndex sub lst; return $ take s lst
 
 sbreak sub lst = aux 0 lst
- where
-  aux _ [] = Nothing
-  aux done todo = if isPrefixOf sub todo then Just (take done lst, drop (length sub) todo) else aux (done + 1) (tail todo)
+   where
+      aux _ [] = Nothing
+      aux done todo = if isPrefixOf sub todo then Just (take done lst, drop (length sub) todo) else aux (done + 1) (tail todo)
 
 sbetween a b lst = do lsta <- after a lst; before b lsta
 sbetweens a b lst = case sbreak a lst of
-  Nothing -> []
-  Just (_, l1) -> case sbreak b l1 of
-    Nothing -> []
-    Just (l2, l3) -> l2 : sbetweens a b l3
+      Nothing -> []
+      Just (_, l1) -> case sbreak b l1 of
+            Nothing -> []
+            Just (l2, l3) -> l2 : sbetweens a b l3
 
 readHx = fst . head . readHex
 
@@ -975,102 +979,102 @@ showFF d n = pad (d + 3) $ showFFloat (Just d) n ""
 
 -- secantMethod::(Double -> Double) -> Double -> Double -> Double -> Int -> Double
 secantMethod n x0 x1 f = search x0 x1 (f x0) (f x1) n
-  where
-    search x0 x1 fx0 fx1 n =
-      let
-        x2 = (x0 * fx1 - x1 * fx0) / (fx1 - fx0)
-        fx2 = f x2
-      in if n <= 0
-          then x2
-          else search x1 x2 fx1 fx2 (n - 1)
+      where
+            search x0 x1 fx0 fx1 n =
+                  let
+                        x2 = (x0 * fx1 - x1 * fx0) / (fx1 - fx0)
+                        fx2 = f x2
+                  in if n <= 0
+                              then x2
+                              else search x1 x2 fx1 fx2 (n - 1)
 
 -- secantMethodD::(Double -> Double) -> Double -> Double -> Double -> Int -> IO Double
 falsePos epsilon f = falsePos1 epsilon f $ getBrackets f
 
 falsePos1 epsilon f = loop
-  where
-    loop ((lx, ly), (rx, ry)) = let
-      x = (lx * ry - rx * ly) / (ry - ly)
-      y = f x
-      in if abs y < epsilon
-        then x
-        else case signum ly * signum y of
-          1 -> loop ((x, y), (rx, ry))
-          0 -> x
-          -1 -> loop ((lx, ly), (x, y))
+      where
+            loop ((lx, ly), (rx, ry)) = let
+                  x = (lx * ry - rx * ly) / (ry - ly)
+                  y = f x
+                  in if abs y < epsilon
+                        then x
+                        else case signum ly * signum y of
+                              1 -> loop ((x, y), (rx, ry))
+                              0 -> x
+                              -1 -> loop ((lx, ly), (x, y))
 
 itp epsilon f = itp1 epsilon f $ getBrackets f
 
 itp1 = itp2 0.1 2 1 
 
 itp2 k1 k2 n0 epsilon f ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
- where
-  nh = ceiling $ logBase 2 ((rx - lx) / (2 * epsilon))
-  nmax = nh + n0
-  loop j ((lx, ly), (rx, ry)) =
-    let
-      r = epsilon * 2 ^ (nmax - j) - (rx - lx) / 2
-      xh = (lx + rx) / 2
-      xf = (ry * lx - ly * rx) / (ry - ly)
-      sigma = signum (xh - xf)
-      delta = k1 * abs (rx - lx) ^ k2
-      xt = if delta <= abs (xh - xf) then xf + sigma * delta else xh
-      xitp = if abs (xt - xh) <= r then xt else xh - sigma * r
-      yitp = f xitp
-     in
-      if rx - lx > 2 * epsilon
-        then case signum yitp of
-          1 -> loop (j + 1) ((lx, ly), (xitp, yitp))
-          0 -> xitp
-          -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
-        else xh
+   where
+      nh = ceiling $ logBase 2 ((rx - lx) / (2 * epsilon))
+      nmax = nh + n0
+      loop j ((lx, ly), (rx, ry)) =
+            let
+                  r = epsilon * 2 ^ (nmax - j) - (rx - lx) / 2
+                  xh = (lx + rx) / 2
+                  xf = (ry * lx - ly * rx) / (ry - ly)
+                  sigma = signum (xh - xf)
+                  delta = k1 * abs (rx - lx) ^ k2
+                  xt = if delta <= abs (xh - xf) then xf + sigma * delta else xh
+                  xitp = if abs (xt - xh) <= r then xt else xh - sigma * r
+                  yitp = f xitp
+               in
+                  if rx - lx > 2 * epsilon
+                        then case signum yitp of
+                              1 -> loop (j + 1) ((lx, ly), (xitp, yitp))
+                              0 -> xitp
+                              -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
+                        else xh
 
 itp1d k1 k2 n0 epsilon f lx rx = itp2d k1 k2 n0 epsilon f ((lx, f lx), (rx, f rx))
 
 itp2d k1 k2 n0 epsilon f ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
- where
-  nh = ceiling $ logBase 2 ((rx - lx) / (2 * epsilon))
-  nmax = nh + n0
-  loop j ((lx, ly), (rx, ry)) =
-    let
-      r = epsilon * 2 ^ (nmax - j) - (rx - lx) / 2
-      xh = (lx + rx) / 2
-      xf = (ry * lx - ly * rx) / (ry - ly)
-      sigma = signum (xh - xf)
-      delta = k1 * abs (rx - lx) ^ k2
-      xt = if delta <= abs (xh - xf) then xf + sigma * delta else xh
-      xitp = if abs (xt - xh) <= r then xt else xh - sigma * r
-      yitp = f xitp
-     in
-      if rx - lx > 2 * epsilon
-        then
-          (xitp, lx, rx, ly, ry, j, nh, nmax, r, xf, sigma, delta, xt, xitp, yitp)
-            : case signum yitp of
-              --        then xitp : case signum yitp of
-              1 -> loop (j + 1) ((lx, ly), (xitp, yitp))
-              0 -> []
-              -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
-        else [(xh, lx, rx, ly, ry, j, nh, nmax, r, xf, sigma, delta, xt, xitp, yitp)]
+   where
+      nh = ceiling $ logBase 2 ((rx - lx) / (2 * epsilon))
+      nmax = nh + n0
+      loop j ((lx, ly), (rx, ry)) =
+            let
+                  r = epsilon * 2 ^ (nmax - j) - (rx - lx) / 2
+                  xh = (lx + rx) / 2
+                  xf = (ry * lx - ly * rx) / (ry - ly)
+                  sigma = signum (xh - xf)
+                  delta = k1 * abs (rx - lx) ^ k2
+                  xt = if delta <= abs (xh - xf) then xf + sigma * delta else xh
+                  xitp = if abs (xt - xh) <= r then xt else xh - sigma * r
+                  yitp = f xitp
+               in
+                  if rx - lx > 2 * epsilon
+                        then
+                              (xitp, lx, rx, ly, ry, j, nh, nmax, r, xf, sigma, delta, xt, xitp, yitp)
+                                    : case signum yitp of
+                                          --        then xitp : case signum yitp of
+                                          1 -> loop (j + 1) ((lx, ly), (xitp, yitp))
+                                          0 -> []
+                                          -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
+                        else [(xh, lx, rx, ly, ry, j, nh, nmax, r, xf, sigma, delta, xt, xitp, yitp)]
 
 getBrackets f = getBrackets1 6 11 1 2 f 0 (f 0) 
 
 getBrackets1 smult zmult s z f c fc = loop s z
-  where
-    loop s z =
-      let
-        fxs = mapxfx f [c - z, c - z + s .. c + z]
-      in
-        case find (\(_, a) -> fc * a < 0) fxs of
-          Just b -> maybeSwap ((c, fc), b)
-          Nothing -> loop (s * smult) (z * zmult)
+      where
+            loop s z =
+                  let
+                        fxs = mapxfx f [c - z, c - z + s .. c + z]
+                  in
+                        case find (\(_, a) -> fc * a < 0) fxs of
+                              Just b -> maybeSwap ((c, fc), b)
+                              Nothing -> loop (s * smult) (z * zmult)
 
 getBracketsD s z f c = do
-  putStrLn $ "getBracketsD s=" ++ showFF 8 s ++ " c=" ++ showFF 8 c ++ " z=" ++ showFF 8 z
-  let fxs = mapxfx f [c - z, c - z + s .. c + z]
-  mapM_ print fxs
-  case find (\((_, a) : (_, b) : _) -> a * b < 0) $ init $ init $ tails fxs of
-    Just (l : r : _) -> return (l, r)
-    Nothing -> getBracketsD (s / 2) (z * 2) f c
+      putStrLn $ "getBracketsD s=" ++ showFF 8 s ++ " c=" ++ showFF 8 c ++ " z=" ++ showFF 8 z
+      let fxs = mapxfx f [c - z, c - z + s .. c + z]
+      mapM_ print fxs
+      case find (\((_, a) : (_, b) : _) -> a * b < 0) $ init $ init $ tails fxs of
+            Just (l : r : _) -> return (l, r)
+            Nothing -> getBracketsD (s / 2) (z * 2) f c
 
 findy f y x = f x - y
 

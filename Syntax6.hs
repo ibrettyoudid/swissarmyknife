@@ -112,20 +112,20 @@ nothing = Iso (const Nothing) (\Nothing -> Just ())
 left :: Iso alpha (Either alpha beta)
 left =
    Iso
-     (Just . Left)
-     ( \case
-           Left x -> Just x
-           Right x -> Nothing
-     )
+      (Just . Left)
+      ( \case
+            Left x -> Just x
+            Right x -> Nothing
+      )
 
 right :: Iso beta (Either alpha beta)
 right =
    Iso
-     (Just . Right)
-     ( \case
-           Left x -> Nothing
-           Right x -> Just x
-     )
+      (Just . Right)
+      ( \case
+            Left x -> Nothing
+            Right x -> Just x
+      )
 -}
 {-
 instance Category Iso where
@@ -193,7 +193,7 @@ optional x = just >$< x <|> nothing >$< text ""
 sepBy :: (Syntax delta) => delta alpha -> delta () -> delta [alpha]
 sepBy x sep =
    nil >$< text ""
-     <|> 
+      <|> 
    cons >$< x >*< many (sep *< x)
 
 comma :: (Syntax delta) => delta ()
@@ -247,7 +247,7 @@ PARSERS                                                                 PARSERS
 {-
 012345
 if | a ->
-     b
+      b
    | c -> d
 
 start off in Inner 0
@@ -322,7 +322,7 @@ instance Syntax Parser where
                Inner -> if column s >  indent s then p s else []
          )
 
-  -- groupOf (Parser p) = Parser (\s -> groupOf1 p s { mode = First })
+   -- groupOf (Parser p) = Parser (\s -> groupOf1 p s { mode = First })
 
    groupOf = groupOfLB
    n <=> p = p
@@ -341,10 +341,10 @@ groupOfB p = text "{" *< (cons >$< p >*< many (text ";" *< p {- >* text ";" -}))
 
 groupOfL p = Parser (\s -> let
                   Parser p1 = cons 
-                      >$< setMode First 
-                      *< p 
-                      >*< many (setMode Next *< p)
-                      >* setState (\s2 -> s2{mode = mode s, column = column s})
+                     >$< setMode First 
+                     *< p 
+                     >*< many (setMode Next *< p)
+                     >* setState (\s2 -> s2{mode = mode s, column = column s})
                   
                   in p1 s)
 
@@ -369,10 +369,10 @@ instance IsoFunctor A.Parser where
          Nothing -> empty
 
 instance Syntax A.Parser where
-  -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
-  -- (>*<)   ::  A.Parser alpha -> A.Parser beta  -> A.Parser (alpha, beta)
-  -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
-  -- empty   ::  A.Parser alpha
+   -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
+   -- (>*<)   ::  A.Parser alpha -> A.Parser beta  -> A.Parser (alpha, beta)
+   -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
+   -- empty   ::  A.Parser alpha
    pure = return
    token = chr . fromIntegral <$> A.anyWord8
 
@@ -456,10 +456,10 @@ instance IsoFunctor Psr where
          Nothing -> empty
 
 instance Syntax Psr where
-  -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
-  -- (>*<)   ::  A.Parser alpha -> A.Parser beta  -> A.Parser (alpha, beta)
-  -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
-  -- empty   ::  A.Parser alpha
+   -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
+   -- (>*<)   ::  A.Parser alpha -> A.Parser beta  -> A.Parser (alpha, beta)
+   -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
+   -- empty   ::  A.Parser alpha
    pure = return
    token = P.anyChar
 
@@ -626,7 +626,7 @@ printIO :: PrinterIO alpha -> alpha -> IO (Maybe Doc)
 printIO (PrinterIO p) = p
 
 instance IsoFunctor PrinterIO where
-  --   iso >$< PrinterIO p = PrinterIO (\b -> p Prelude.>$< unapply iso b)
+   --   iso >$< PrinterIO p = PrinterIO (\b -> p Prelude.>$< unapply iso b)
    iso >$< PrinterIO p = PrinterIO (\b -> case unapply iso b of Just j -> p j; Nothing -> return Nothing)
 
 instance ProductFunctor PrinterIO where
@@ -831,8 +831,8 @@ isoif = Iso (\(c, t, e) -> if c then t else e) undefined
 -- instance Alternative (Iso a b) where
 f </> g =
    Iso
-     (\x -> apply f x `mplus` apply g x)
-     (\y -> unapply f y `mplus` unapply g y)
+      (\x -> apply f x `mplus` apply g x)
+      (\y -> unapply f y `mplus` unapply g y)
 
 -- a <=> b = Iso (swap a b) (swap b a)
 
@@ -963,14 +963,14 @@ foldl i =
 -- Control.Isomorphism.Partial.Constructors
 {-
 module Control.Isomorphism.Partial.Constructors
-  ( nil
-  , cons
-  , listCases
-  , left
-  , right
-  , nothing
-  , just
-  ) where
+   ( nil
+   , cons
+   , listCases
+   , left
+   , right
+   , nothing
+   , just
+   ) where
 import Prelude ()
 
 import Data.Either (Either (Left, Right))
@@ -1001,7 +1001,7 @@ listCases = Iso f g
 
 -------------------------------------------------------------------------------
 foldl1 i =
-  -- alpha
+   -- alpha
    inverse unit
       -- (alpha, ())
       . (id *** inverse nil)
@@ -1018,7 +1018,7 @@ step i =
 -------------------------------------------------------------------------------
 {-
 myfoldr f = (z, []    ) <=> []
-        <|> (z, (x:xs)) <=> (f x (myfoldr f z xs))
+         <|> (z, (x:xs)) <=> (f x (myfoldr f z xs))
 -}
 
 {-
@@ -1027,7 +1027,7 @@ myfoldr f = (z, []    ) <=> []
 blah . foo
 
 foldr k z = go
-          where
+         where
             go []     = z
             go (y:ys) = y `k` go ys
 
@@ -1036,9 +1036,9 @@ foldr k z (y:ys) = y `k` foldr k z ys
 foldr k z (y:ys) = k y (foldr k z ys)
 
 foldl f z0 xs0 = lgo z0 xs0
-             where
-                lgo z []     =  z
-                lgo z (x:xs) = lgo (f z x) xs
+            where
+               lgo z []     =  z
+               lgo z (x:xs) = lgo (f z x) xs
 
 foldl f z []     = z
 foldl f z (x:xs) = foldl f (f z x) xs
@@ -1047,12 +1047,12 @@ foldl f z l = if l == [] then z else foldl f (f z x) xs
 
 iterate :: Iso alpha alpha -> Iso alpha alpha
 iterate step = Iso f g where
-  f = Just . driver (apply step)
-  g = Just . driver (unapply step)
+   f = Just . driver (apply step)
+   g = Just . driver (unapply step)
 
-  driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
-  driver step state
-    =  case step state of
+   driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
+   driver step state
+   =  case step state of
          Just state'  ->  driver step state'
          Nothing      ->  state
 
@@ -1063,52 +1063,52 @@ Iso b c . Iso a b = Iso a c
 
 foldl :: Iso (alpha, beta) alpha -> Iso (alpha, [beta]) alpha
 foldl i = inverse unit
-        . (id *** inverse nil)    -- Iso (alpha, [beta]) (alpha, ())
-        . iterate (step i) where  -- Iso (alpha, [beta]) (alpha, [beta])
+         . (id *** inverse nil)    -- Iso (alpha, [beta]) (alpha, ())
+         . iterate (step i) where  -- Iso (alpha, [beta]) (alpha, [beta])
 -}
 {-
 newtype Parser u alpha
-  = Parser ((String, u) -> [(alpha, (String, u))])
+   = Parser ((String, u) -> [(alpha, (String, u))])
 
 parse :: Parser u alpha -> String -> u -> [alpha]
 parse (Parser p) s u = [ x | (x, ("", u)) <- p (s, u) ]
 
 parseM :: Monad m => Parser u alpha -> String -> u -> m alpha
 parseM p s u
-  =  case parse p s u of
-       []        ->  fail "parse error"
-       [result]  ->  return result
-       _         ->  fail "ambiguous input"
+   =  case parse p s u of
+      []        ->  fail "parse error"
+      [result]  ->  return result
+      _         ->  fail "ambiguous input"
 
 instance IsoFunctor (Parser u) where
-  iso >$< Parser p
-    = Parser (\s ->  [  (y, s1)
+   iso >$< Parser p
+   = Parser (\s ->  [  (y, s1)
                      |  (x, s1)  <-  p s
                      ,  Just y   <-  [apply iso x] ])
 
 instance ProductFunctor (Parser u) where
-  Parser p >*< Parser q
-    = Parser (\s ->  [  ((x, y), s2)
+   Parser p >*< Parser q
+   = Parser (\s ->  [  ((x, y), s2)
                      |  (x,  s1)  <- p  s
                      ,  (y,  s2)  <- q  s1 ])
 
 instance Alternative (Parser u) where
-  Parser p <|> Parser q = Parser (\s -> p s ++ q s)
-  empty = Parser (\s -> [])
+   Parser p <|> Parser q = Parser (\s -> p s ++ q s)
+   empty = Parser (\s -> [])
 
 instance Syntax (Parser u) where
-  pure x  =  Parser (\s -> [(x, s)])
-  token   =  Parser f where
-    f ([]    , _)  =  []
-    f ((t:ts), u)  =  [(t, (ts, u))]
+   pure x  =  Parser (\s -> [(x, s)])
+   token   =  Parser f where
+   f ([]    , _)  =  []
+   f ((t:ts), u)  =  [(t, (ts, u))]
 -}
 {-
 data Type = TypeName String
-          | Ptr { to :: Type }
-          | Ref { to :: Type }
-          | Hole
-          | Func Type [String]
-          deriving (Eq, Ord, Show)
+         | Ptr { to :: Type }
+         | Ref { to :: Type }
+         | Hole
+         | Func Type [String]
+         deriving (Eq, Ord, Show)
 
 ctype1   = typeName >$< identifier
 
@@ -1155,7 +1155,7 @@ dtype2a bt = text "*" *< (dtype2a (Ptr bt))
 -- parser for a c++ type and an identifier since they are intermixed "char f[50]".
 -- the supplied qid parameter parses the ident (use qident,noident or maybeident for this)
 ctype2 qid    = do t       <- ctype2a
-                   (i, t1) <-
+                  (i, t1) <-
                                  -- parentheses around the identifier/pointer
                                  -- dont match an empty ( ) here
                                  -- can occur in an "operator Type ()"
@@ -1164,16 +1164,16 @@ ctype2 qid    = do t       <- ctype2a
                                     c <- ctype2 qid
                                     symbol ")"
                                     return c
-                               <|>
+                              <|>
                                  -- this bit is ok
                                  do i <- qid; return (i, id)
-                   t2      <- ctype2c
-                   return (i, t1 . t2 . t)
+                  t2      <- ctype2c
+                  return (i, t1 . t2 . t)
 
 -- stuff before the identifier
 ctype2a       =
 
-                         do try $ symbol "*"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ptr bt)
+                        do try $ symbol "*"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ptr bt)
                      <|> do try $ symbol "&"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ref bt)
                      <|> do try $ reserved "__cdecl"   ; c <- ctype2a; return (\bt -> c (CDecl    bt))
                      <|> do try $ reserved "__thiscall"; c <- ctype2a; return (\bt -> c (ThisCall bt))

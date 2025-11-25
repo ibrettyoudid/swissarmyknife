@@ -49,7 +49,7 @@ runM db goals =
          )
          $ Env1 I.empty 0
       )
-  -}
+   -}
 
 run db goals = 
    map 
@@ -289,27 +289,27 @@ unify a (Var b) = do b1 <- getvarstate b; case b1 of Nothing -> setv b a; Just b
 unify _ _ = assert False
 -}
 {- The result is a list of var assignments for each thread
- -
- - append([], Bs, Bs).
- - append([A|As], Bs, [A|Cs]) :- append(As, Bs, Cs).
- -
- - ? append(X, Y, "hello")
- - X = ""
- - Y = "hello"
- -
- - X = "h"
- - Y = "ello"
- -
- - how to share data between threads
- - need to keep track of which point threads have split at
- -
- - need to unify assignments made since split on rejoining
- - create new variables where they're different
- -
- - make sure to end up with the same number of answers as threads
- - don't cross-contaminate
- - X = "h"
- - Y = "hello"
- - is not a valid answer
- -
- - -}
+-
+- append([], Bs, Bs).
+- append([A|As], Bs, [A|Cs]) :- append(As, Bs, Cs).
+-
+- ? append(X, Y, "hello")
+- X = ""
+- Y = "hello"
+-
+- X = "h"
+- Y = "ello"
+-
+- how to share data between threads
+- need to keep track of which point threads have split at
+-
+- need to unify assignments made since split on rejoining
+- create new variables where they're different
+-
+- make sure to end up with the same number of answers as threads
+- don't cross-contaminate
+- X = "h"
+- Y = "hello"
+- is not a valid answer
+-
+- -}

@@ -65,23 +65,23 @@ infixr 6 >*<
 
 {-
 class ProductFunctor f where
-  (>+<) :: f b c -> f a b -> f a c
-  (>*<) :: f a b -> f b c -> f a c
+   (>+<) :: f b c -> f a b -> f a c
+   (>*<) :: f a b -> f b c -> f a c
 
 class Alternative f where
-  (>|<) :: f alpha beta -> f alpha beta -> f alpha beta
-  empty :: f alpha alpha
+   (>|<) :: f alpha beta -> f alpha beta -> f alpha beta
+   empty :: f alpha alpha
 
 class IsoFunctor f where
-  (>$<) :: Iso beta gamma -> f alpha beta -> f alpha gamma
+   (>$<) :: Iso beta gamma -> f alpha beta -> f alpha gamma
 
 class (IsoFunctor delta, ProductFunctor delta, Alternative delta) => Syntax delta where
-  -- (>$<)   ::  Iso alpha beta -> delta alpha -> delta beta
-  -- (>*<)   ::  delta alpha -> delta beta -> delta (alpha, beta)
-  -- (<|>)   ::  delta alpha -> delta alpha -> delta alpha
-  -- empty   ::  delta alpha
-  pure :: (Eq alpha) => (alpha -> beta) -> delta alpha beta
-  token :: delta a (Char, a)
+   -- (>$<)   ::  Iso alpha beta -> delta alpha -> delta beta
+   -- (>*<)   ::  delta alpha -> delta beta -> delta (alpha, beta)
+   -- (<|>)   ::  delta alpha -> delta alpha -> delta alpha
+   -- empty   ::  delta alpha
+   pure :: (Eq alpha) => (alpha -> beta) -> delta alpha beta
+   token :: delta a (Char, a)
 -}
 test = anytoken >*< anytoken
 
@@ -90,17 +90,17 @@ newtype Printer a b = Printer { runPrinter :: (String, a) -> [(String, b)] }
 data Yoyo a b = Yoyo (Parser a b) (Printer b a)
 
 class Syntax f where
-  (>*<) :: f a b -> f b c -> f a c
+   (>*<) :: f a b -> f b c -> f a c
 
 -- instance ProductFunctor Parser where
 instance Syntax Parser where
-  Parser f >*< Parser g = Parser (\s0 -> [s2 | s1 <- f s0, s2 <- g s1])
+   Parser f >*< Parser g = Parser (\s0 -> [s2 | s1 <- f s0, s2 <- g s1])
 
 instance Syntax Printer where
-  Printer f >*< Printer g = Printer (\s0 -> [s2 | s1 <- f s0, s2 <- g s1])
+   Printer f >*< Printer g = Printer (\s0 -> [s2 | s1 <- f s0, s2 <- g s1])
 
 instance Syntax Yoyo where
-  Yoyo p q >*< Yoyo r s = Yoyo (p >*< r) (s >*< q)
+   Yoyo p q >*< Yoyo r s = Yoyo (p >*< r) (s >*< q)
 
 (>+<) = flip (>*<)
 
@@ -114,12 +114,12 @@ iso >$< Parser p = Parser (\s0 -> do (s1, (r1, rs)) <- p s0; case apply iso r1 o
 
 -- instance Syntax Parser where
 yoyoOfIso iso = Yoyo
-  (Parser  (\(s, (r0, r2)) -> case   apply iso r0 of Just r1 -> [(s, (r1, r2))]; Nothing -> []))
-  (Printer (\(s, (r1, r2)) -> case unapply iso r1 of Just r0 -> [(s, (r0, r2))]; Nothing -> []))
+   (Parser  (\(s, (r0, r2)) -> case   apply iso r0 of Just r1 -> [(s, (r1, r2))]; Nothing -> []))
+   (Printer (\(s, (r1, r2)) -> case unapply iso r1 of Just r0 -> [(s, (r0, r2))]; Nothing -> []))
 
 isoOfYoyo (Yoyo (Parser p) (Printer q)) = Iso 
-  (\r0 -> case p (undefined, (r0, undefined)) of [(_, (r1, _))] -> Just r1; [] -> Nothing)
-  (\r1 -> case q (undefined, (r1, undefined)) of [(_, (r0, _))] -> Just r0; [] -> Nothing)
+   (\r0 -> case p (undefined, (r0, undefined)) of [(_, (r1, _))] -> Just r1; [] -> Nothing)
+   (\r1 -> case q (undefined, (r1, undefined)) of [(_, (r0, _))] -> Just r0; [] -> Nothing)
 
 xlift f g = Yoyo (Parser (\(s0, r0) -> [(s0, f r0)])) (Printer (\(s0, r0) -> [(s0, g r0)]))
 
@@ -156,25 +156,25 @@ digit = Iso (`L.elemIndex` digits) (Just . (digits !!)) >$< anytoken
 newtype Parser1 a b = Parser1 {runParser1 :: String -> [(String, a -> b)]}
 
 instance ProductFunctor Parser1 where
-  Parser1 f >*< Parser1 g = Parser1 (\s0 -> do (s1, p) <- f s0; (s2, q) <- g s1; return (s2, p . q))
+   Parser1 f >*< Parser1 g = Parser1 (\s0 -> do (s1, p) <- f s0; (s2, q) <- g s1; return (s2, p . q))
 
 instance Alternative Parser1
 
 instance IsoFunctor Parser1
 
 instance Syntax Parser1 where
-  token = Parser1 (\(h : t) -> [(t, (h,))])
+   token = Parser1 (\(h : t) -> [(t, (h,))])
 
 --data Parser2 t a b = (MonadState String (t []), MonadTrans t) => Parser2 (t [] (a -> b))
 newtype Parser2 t a b = Parser2 (t [] (a -> b))
 
 instance Monad (t []) => ProductFunctor (Parser2 t) where
-  Parser2 p >*< Parser2 q = Parser2 (do f <- p; g <- q; return (f . g))
-  Parser2 p >+< Parser2 q = Parser2 (do f <- p; g <- q; return (g . f))
+   Parser2 p >*< Parser2 q = Parser2 (do f <- p; g <- q; return (f . g))
+   Parser2 p >+< Parser2 q = Parser2 (do f <- p; g <- q; return (g . f))
 
 instance (Monad (t []), MonadTrans t) => Alternative (Parser2 t) where
-  Parser2 p >|< Parser2 q = Parser2 (join $ lift [p, q])
-  empty = Parser2 $ return id
+   Parser2 p >|< Parser2 q = Parser2 (join $ lift [p, q])
+   empty = Parser2 $ return id
 
 instance IsoFunctor (Parser2 t) where
 --  Iso f _ >$< Parser2 p = Parser2 (do g <- p; f . g))
@@ -184,22 +184,22 @@ instance IsoFunctor (Parser2 t) where
 newtype Parser3 a b = Parser3 (A.Parser (a -> b))
 
 instance ProductFunctor Parser3 where
-  Parser3 p >*< Parser3 q = Parser3 (do f <- p; g <- q; return (g . f))
-  Parser3 p >+< Parser3 q = Parser3 (do f <- p; g <- q; return (f . g))
+   Parser3 p >*< Parser3 q = Parser3 (do f <- p; g <- q; return (g . f))
+   Parser3 p >+< Parser3 q = Parser3 (do f <- p; g <- q; return (f . g))
 
 instance Alternative Parser3 where
-  Parser3 a >|< Parser3 b = Parser3 $ A.choice [a, b]
-  empty = Parser3 mzero
+   Parser3 a >|< Parser3 b = Parser3 $ A.choice [a, b]
+   empty = Parser3 mzero
 
 instance IsoFunctor Parser3 where
 
 instance Syntax Parser3 where
-  -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
-  -- (>*<)   ::  A.Parser alpha -> A.Parser beta -> A.Parser (alpha, beta)
-  -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
-  -- empty   ::  A.Parser alpha
-  pure f = Parser3 $ return f
-  token = Parser3 (do c <- A.anyWord8; return (chr $ fromIntegral c,))
+   -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
+   -- (>*<)   ::  A.Parser alpha -> A.Parser beta -> A.Parser (alpha, beta)
+   -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
+   -- empty   ::  A.Parser alpha
+   pure f = Parser3 $ return f
+   token = Parser3 (do c <- A.anyWord8; return (chr $ fromIntegral c,))
 -}
 {-
 \*********************************************************************************
@@ -217,37 +217,37 @@ nothing = Iso (const Nothing) (\Nothing -> Just ())
 
 left :: Iso alpha (Either alpha beta)
 left =
-  Iso
-    (Just . Left)
-    ( \case
-        Left x -> Just x
-        Right x -> Nothing
-    )
+   Iso
+      (Just . Left)
+      ( \case
+            Left x -> Just x
+            Right x -> Nothing
+      )
 
 right :: Iso beta (Either alpha beta)
 right =
-  Iso
-    (Just . Right)
-    ( \case
-        Left x -> Nothing
-        Right x -> Just x
-    )
+   Iso
+      (Just . Right)
+      ( \case
+            Left x -> Nothing
+            Right x -> Just x
+      )
 
 instance Category Iso where
-  g . f =
-    Iso
-      (apply f >=> apply g)
-      (unapply g >=> unapply f)
-  id = Iso Just Just
+   g . f =
+      Iso
+         (apply f >=> apply g)
+         (unapply g >=> unapply f)
+   id = Iso Just Just
 
 -- derived combinators
 many :: (Syntax delta) => delta alpha -> delta [alpha]
 many p =
-  nil
-    >$< pure ()
-    <|> cons
-    >$< p
-    >*< many p
+   nil
+      >$< pure ()
+      <|> cons
+      >$< p
+      >*< many p
 
 many1 :: (Syntax delta) => delta alpha -> delta [alpha]
 many1 p = cons >$< p >*< many p
@@ -259,9 +259,9 @@ p <+> q = (left >$< p) <|> (right >$< q)
 text :: (Syntax delta) => String -> delta ()
 text [] = pure ()
 text (c : cs) =
-  inverse (match ((), ()))
-    >$< (inverse (match c) >$< token)
-    >*< text cs
+   inverse (match ((), ()))
+      >$< (inverse (match c) >$< token)
+      >*< text cs
 
 {- | This variant of `>*<` ignores its left result.
 In contrast to its counterpart derived from the `Applicative` class, the ignored
@@ -297,11 +297,11 @@ optional x = just >$< x <|> nothing >$< text ""
 
 sepBy :: (Syntax delta) => delta alpha -> delta () -> delta [alpha]
 sepBy x sep =
-  nil
-    >$< text ""
-    <|> cons
-    >$< x
-    >*< many (sep *< x)
+   nil
+      >$< text ""
+      <|> cons
+      >$< x
+      >*< many (sep *< x)
 
 comma :: (Syntax delta) => delta ()
 comma = text ","
@@ -354,8 +354,8 @@ PARSERS                                                                 PARSERS
 {-
 012345
 if | a ->
-     b
-   | c -> d
+      b
+      | c -> d
 
 start off in Inner 0
 parse if
@@ -383,56 +383,56 @@ parse (Parser p) s = [x | (x, PState "" _ _ _) <- p $ PState s 0 Inner -1]
 
 parseM :: (MonadFail m) => Parser alpha -> String -> m alpha
 parseM p s =
-  case parse p s of
-    [] -> fail "parse error"
-    [result] -> return result
-    _ -> fail "ambiguous input"
+   case parse p s of
+      [] -> fail "parse error"
+      [result] -> return result
+      _ -> fail "ambiguous input"
 
 instance IsoFunctor Parser where
-  iso >$< Parser p =
-    Parser
-      ( \s0 ->
-          [ (y, s1)
-          | (x, s1) <- p s0
-          , Just y <- [apply iso x]
-          ]
-      )
+   iso >$< Parser p =
+      Parser
+         ( \s0 ->
+               [ (y, s1)
+               | (x, s1) <- p s0
+               , Just y <- [apply iso x]
+               ]
+         )
 
 instance ProductFunctor Parser where
-  Parser p >*< Parser q =
-    Parser
-      ( \s0 ->
-          [ ((x, y), s2)
-          | (x, s1) <- p s0
-          , (y, s2) <- q s1
-          ]
-      )
+   Parser p >*< Parser q =
+      Parser
+         ( \s0 ->
+               [ ((x, y), s2)
+               | (x, s1) <- p s0
+               , (y, s2) <- q s1
+               ]
+         )
 
 instance Alternative Parser where
-  Parser p <|> Parser q = Parser (\s -> p s ++ q s)
-  empty = Parser (\s -> [])
+   Parser p <|> Parser q = Parser (\s -> p s ++ q s)
+   empty = Parser (\s -> [])
 
 instance Syntax Parser where
-  pure x = Parser (\s -> [(x, s)])
-  token =
-    Parser
-      ( \s -> case todo s of
-          [] -> []
-          (t : ts) -> [(t, PState ts (case t of '\n' -> 0; _ -> column s + 1) (mode s) (indent s))]
-      )
-  ci (Parser p) =
-    Parser
-      ( \s ->
-          case mode s of
-            First -> p s{mode = Inner, indent = column s}
-            Next -> if column s == indent s then p s{mode = Inner} else []
-            Inner -> if column s > indent s then p s else []
-      )
+   pure x = Parser (\s -> [(x, s)])
+   token =
+      Parser
+         ( \s -> case todo s of
+               [] -> []
+               (t : ts) -> [(t, PState ts (case t of '\n' -> 0; _ -> column s + 1) (mode s) (indent s))]
+         )
+   ci (Parser p) =
+      Parser
+         ( \s ->
+               case mode s of
+                  First -> p s{mode = Inner, indent = column s}
+                  Next -> if column s == indent s then p s{mode = Inner} else []
+                  Inner -> if column s > indent s then p s else []
+         )
 
-  -- groupOf (Parser p) = Parser (\s -> groupOf1 p s { mode = First })
+   -- groupOf (Parser p) = Parser (\s -> groupOf1 p s { mode = First })
 
-  groupOf = groupOfLB
-  n <=> p = p
+   groupOf = groupOfLB
+   n <=> p = p
 
 setMode m = Parser (\s -> [((), s{mode = m})])
 
@@ -447,80 +447,80 @@ groupOfLB p = groupOfL p <|> groupOfB p
 groupOfB p = text "{" *< (cons >$< p >*< many (text ";" *< p {- >* text ";" -})) >* text "}"
 
 groupOfL p =
-  Parser
-    ( \s ->
-        let
-          Parser p1 =
-            cons
-              >$< setMode First
-              *< p
-              >*< many (setMode Next *< p)
-              >* setState (\s2 -> s2{mode = mode s, column = column s})
-         in
-          p1 s
-    )
+   Parser
+      ( \s ->
+            let
+               Parser p1 =
+                  cons
+                     >$< setMode First
+                     *< p
+                     >*< many (setMode Next *< p)
+                     >* setState (\s2 -> s2{mode = mode s, column = column s})
+            in
+               p1 s
+      )
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Atto
 -------------------------------------------------------------------------------
 instance ProductFunctor A.Parser where
-  a >*< b = do
-    ra <- a
-    rb <- b
-    return (ra, rb)
+   a >*< b = do
+      ra <- a
+      rb <- b
+      return (ra, rb)
 
 instance Alternative A.Parser where
-  a <|> b = A.choice [a, b]
-  empty = mzero
+   a <|> b = A.choice [a, b]
+   empty = mzero
 
 instance IsoFunctor A.Parser where
-  f >$< a = do
-    ra <- a
-    case apply f ra of
-      Just j -> return j
-      Nothing -> empty
+   f >$< a = do
+      ra <- a
+      case apply f ra of
+         Just j -> return j
+         Nothing -> empty
 
 instance Syntax A.Parser where
-  -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
-  -- (>*<)   ::  A.Parser alpha -> A.Parser beta -> A.Parser (alpha, beta)
-  -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
-  -- empty   ::  A.Parser alpha
-  pure = return
-  token = chr . fromIntegral <$> A.anyWord8
+   -- (>$<)   ::  Iso alpha beta -> A.Parser alpha -> A.Parser beta
+   -- (>*<)   ::  A.Parser alpha -> A.Parser beta -> A.Parser (alpha, beta)
+   -- (<|>)   ::  A.Parser alpha -> A.Parser alpha -> A.Parser alpha
+   -- empty   ::  A.Parser alpha
+   pure = return
+   token = chr . fromIntegral <$> A.anyWord8
 
 instance SyntaxA B.ByteString A.Parser where
-  textA t = do A.string t; return ()
+   textA t = do A.string t; return ()
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- Earley
 -------------------------------------------------------------------------------
 {-
 data Earley :: Type -> Type where
-   EProd  :: Earley alpha -> Earley beta -> Earley (alpha, beta)
-   EAlt   :: Earley alpha -> Earley alpha -> Earley alpha
-   EEmpty :: Earley alpha
+      EProd  :: Earley alpha -> Earley beta -> Earley (alpha, beta)
+      EAlt   :: Earley alpha -> Earley alpha -> Earley alpha
+      EEmpty :: Earley alpha
 --   EIso   :: Iso alpha beta -> Earley alpha -> Earley beta
-   EPure  :: Eq alpha => alpha -> Earley alpha
-   EToken :: Earley Char
+      EPure  :: Eq alpha => alpha -> Earley alpha
+      EToken :: Earley Char
 
 instance ProductFunctor Earley where
-   a >*< b = EProd a b
+      a >*< b = EProd a b
 
 instance Alternative Earley where
-   a <|> b = EAlt a b
-   empty   = EEmpty
+      a <|> b = EAlt a b
+      empty   = EEmpty
 
 instance IsoFunctor Earley where
-   (>$<) = EIso
+      (>$<) = EIso
 
 instance Syntax Earley where
-   pure = EPure
-   token = EToken
+      pure = EPure
+      token = EToken
 
 parsees :: Earley alpha -> String -> alpha
 parsees e (s:ss) = case e of
-   EPure  p -> p
-   EToken   -> s
+      EPure  p -> p
+      EToken   -> s
 -}
 
 -------------------------------------------------------------------------------
@@ -547,27 +547,27 @@ printM :: (MonadFail m) => Printer alpha -> alpha -> m Doc
 printM p x = maybe (fail "print error") return $ print p x
 
 instance IsoFunctor Printer where
-  iso >$< Printer p = Printer (\b -> unapply iso b >>= p)
+   iso >$< Printer p = Printer (\b -> unapply iso b >>= p)
 
 instance ProductFunctor Printer where
-  Printer p >*< Printer q = Printer (\(x, y) -> DSeq <$> sequence [p x, q y])
+   Printer p >*< Printer q = Printer (\(x, y) -> DSeq <$> sequence [p x, q y])
 
 instance Alternative Printer where
-  Printer p <|> Printer q = Printer (\s -> mplus (p s) (q s))
-  empty = Printer (\s -> Nothing)
+   Printer p <|> Printer q = Printer (\s -> mplus (p s) (q s))
+   empty = Printer (\s -> Nothing)
 
 instance Syntax Printer where
-  pure x =
-    Printer
-      ( \y ->
-          if x == y
-            then Just $ DStr ""
-            else Nothing
-      )
-  token = Printer (\s -> Just $ DStr [s])
-  ci = id
-  groupOf (Printer p) = Printer (\a -> DGroup <$> mapM p a)
-  n <=> p = p
+   pure x =
+      Printer
+         ( \y ->
+               if x == y
+                  then Just $ DStr ""
+                  else Nothing
+         )
+   token = Printer (\s -> Just $ DStr [s])
+   ci = id
+   groupOf (Printer p) = Printer (\a -> DGroup <$> mapM p a)
+   n <=> p = p
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------------------- PrinterIO
@@ -578,65 +578,65 @@ printIO :: PrinterIO alpha -> alpha -> IO (Maybe Doc)
 printIO (PrinterIO p) = p
 
 instance IsoFunctor PrinterIO where
-  --   iso >$< PrinterIO p = PrinterIO (\b -> p Prelude.>$< unapply iso b)
-  iso >$< PrinterIO p = PrinterIO (\b -> case unapply iso b of Just j -> p j; Nothing -> return Nothing)
+   --   iso >$< PrinterIO p = PrinterIO (\b -> p Prelude.>$< unapply iso b)
+   iso >$< PrinterIO p = PrinterIO (\b -> case unapply iso b of Just j -> p j; Nothing -> return Nothing)
 
 instance ProductFunctor PrinterIO where
-  PrinterIO p >*< PrinterIO q =
-    PrinterIO
-      ( \(x, y) ->
-          do
-            mp <- p x
-            case mp of
-              Just j -> do
-                mq <- q y
-                case mq of
-                  Just k -> return $ Just $ DSeq [j, k]
-                  Nothing -> return Nothing
-              Nothing -> return Nothing
-      )
+   PrinterIO p >*< PrinterIO q =
+      PrinterIO
+         ( \(x, y) ->
+               do
+                  mp <- p x
+                  case mp of
+                     Just j -> do
+                        mq <- q y
+                        case mq of
+                           Just k -> return $ Just $ DSeq [j, k]
+                           Nothing -> return Nothing
+                     Nothing -> return Nothing
+         )
 
 --   PrinterIO p >*< PrinterIO q = PrinterIO (\(x, y) -> let a = fmap (fmap DSeq . sequence) $ sequence [p x, q y] in a)
 --   PrinterIO p >*< PrinterIO q = PrinterIO (\(x, y) -> DSeq Prelude.>$< fmap sequence $ sequence [p x, q y])
 
 instance Alternative PrinterIO where
-  PrinterIO p <|> PrinterIO q =
-    PrinterIO
-      ( \s ->
-          do
-            mp <- p s
-            case mp of
-              Just j -> return $ Just j
-              Nothing -> do
-                mq <- q s
-                case mq of
-                  Just k -> return $ Just k
-                  Nothing -> return Nothing
-      )
+   PrinterIO p <|> PrinterIO q =
+      PrinterIO
+         ( \s ->
+               do
+                  mp <- p s
+                  case mp of
+                     Just j -> return $ Just j
+                     Nothing -> do
+                        mq <- q s
+                        case mq of
+                           Just k -> return $ Just k
+                           Nothing -> return Nothing
+         )
 
-  empty = PrinterIO (\s -> return Nothing)
+   empty = PrinterIO (\s -> return Nothing)
 
 instance Syntax PrinterIO where
-  pure x =
-    PrinterIO
-      ( \y ->
-          return $
-            if x == y
-              then Just $ DStr ""
-              else Nothing
-      )
-  token = PrinterIO (\s -> return $ Just $ DStr [s])
-  ci = id
-  groupOf (PrinterIO p) = PrinterIO (fmap (fmap DGroup . sequence) . mapM p)
-  n <=> (PrinterIO p) =
-    PrinterIO
-      ( \s ->
-          do
-            putStrLn ("-> " ++ n)
-            r <- p s
-            putStrLn ("<- " ++ n ++ "=" ++ case r of Just j -> format j; _ -> "Nothing")
-            return r
-      )
+   pure x =
+      PrinterIO
+         ( \y ->
+               return $
+                  if x == y
+                     then Just $ DStr ""
+                     else Nothing
+         )
+   token = PrinterIO (\s -> return $ Just $ DStr [s])
+   ci = id
+   groupOf (PrinterIO p) = PrinterIO (fmap (fmap DGroup . sequence) . mapM p)
+   n <=> (PrinterIO p) =
+      PrinterIO
+         ( \s ->
+               do
+                  putStrLn ("-> " ++ n)
+                  r <- p s
+                  putStrLn ("<- " ++ n ++ "=" ++ case r of Just j -> format j; _ -> "Nothing")
+                  return r
+         )
 
 wrap w d = d
 
@@ -665,21 +665,21 @@ indent1 n (Doc2 w h t) = Doc2 (w + n) h $ indent2 n t
 indent2 n = map (replicate n ' ' ++)
 
 sapp (Doc2 aw ah at) (Doc2 bw bh (bth : btt)) =
-  let
-    ati = init at
-    atl = last at
-   in
-    ts $ ati ++ ((atl ++ bth) : indent2 (length atl) btt)
+   let
+      ati = init at
+      atl = last at
+      in
+      ts $ ati ++ ((atl ++ bth) : indent2 (length atl) btt)
 
 (<\>) = sapp
 
 scat ds = Prelude.foldl1 sapp ds
 
 vcat ds =
-  Doc2
-    (maximum $ map docWidth ds)
-    (sum $ map docHeight ds)
-    (concat $ map docText ds)
+   Doc2
+      (maximum $ map docWidth ds)
+      (sum $ map docHeight ds)
+      (concat $ map docText ds)
 
 vapp a b = vcat [a, b]
 
@@ -739,10 +739,10 @@ int n m = total (\(a, b) -> a * m ^ (n - 1) + b) (`divMod` m) >$< intChar >*< in
 word = invol fromIntegral >$< intChar
 
 flags =
-  total
-    (\a -> (a .&. 0x80 /= 0, a .&. 0x40 /= 0, a .&. 0x20 /= 0, a .&. 0x10 /= 0))
-    (\(a, b, c, d) -> if a then 0x80 else 0 + if b then 0x40 else 0 + if c then 0x20 else 0 + if d then 0x10 else 0)
-    >$< word
+   total
+      (\a -> (a .&. 0x80 /= 0, a .&. 0x40 /= 0, a .&. 0x20 /= 0, a .&. 0x10 /= 0))
+      (\(a, b, c, d) -> if a then 0x80 else 0 + if b then 0x40 else 0 + if c then 0x20 else 0 + if d then 0x10 else 0)
+      >$< word
 
 file = tag >*< many token
 
@@ -754,11 +754,11 @@ rep p 0 = pure []
 rep p n = total (uncurry (:)) (\(a : b) -> (a, b)) >$< p >*< rep p (n - 1)
 
 frame23 =
-  subset (\(a, (b, (c, d))) -> length d == b)
-    >$< rep token 4
-    >*< int4 0x100
-    >*< int2 0x100
-    >*< many token
+   subset (\(a, (b, (c, d))) -> length d == b)
+      >$< rep token 4
+      >*< int4 0x100
+      >*< int2 0x100
+      >*< many token
 
 x = unsafePerformIO $ readFile "D:\\Music\\Artists\\Paradise Lost\\2020 - Obsidian\\01 Darker Thoughts.mp3"
 
@@ -785,9 +785,9 @@ isoif = Iso (\(c, t, e) -> if c then t else e) undefined
 
 -- instance Alternative (Iso a b) where
 f </> g =
-  Iso
-    (\x -> apply f x `mplus` apply g x)
-    (\y -> unapply f y `mplus` unapply g y)
+   Iso
+      (\x -> apply f x `mplus` apply g x)
+      (\y -> unapply f y `mplus` unapply g y)
 
 -- a <=> b = Iso (swap a b) (swap b a)
 
@@ -811,9 +811,9 @@ unapply = apply . inverse
 {-
 ignore :: alpha -> Iso alpha ()
 ignore x = Iso f g
- where
-  f _ = Just ()
-  g () = Just x
+where
+   f _ = Just ()
+   g () = Just x
 
 -- | the product type constructor `(,)` is a bifunctor from
 
@@ -825,9 +825,9 @@ ignore x = Iso f g
 
 (***) :: Iso alpha beta -> Iso gamma delta -> Iso (alpha, gamma) (beta, delta)
 i *** j = Iso f g
- where
-  f (a, b) = liftM2 (,) (apply i a) (apply j b)
-  g (c, d) = liftM2 (,) (unapply i c) (unapply j d)
+where
+   f (a, b) = liftM2 (,) (apply i a) (apply j b)
+   g (c, d) = liftM2 (,) (unapply i c) (unapply j d)
 
 -- | The mediating arrow for sums constructed with `Either`.
 
@@ -835,39 +835,39 @@ i *** j = Iso f g
 
 (|||) :: Iso alpha gamma -> Iso beta gamma -> Iso (Either alpha beta) gamma
 i ||| j = Iso f g
- where
-  f (Left x) = apply i x
-  f (Right x) = apply j x
-  g y = (Left `fmap` unapply i y) `mplus` (Right `fmap` unapply j y)
+where
+   f (Left x) = apply i x
+   f (Right x) = apply j x
+   g y = (Left `fmap` unapply i y) `mplus` (Right `fmap` unapply j y)
 
 -- | Nested products associate.
 associate :: Iso (alpha, (beta, gamma)) ((alpha, beta), gamma)
 associate = Iso f g
- where
-  f (a, (b, c)) = Just ((a, b), c)
-  g ((a, b), c) = Just (a, (b, c))
+where
+   f (a, (b, c)) = Just ((a, b), c)
+   g ((a, b), c) = Just (a, (b, c))
 
 -- | Products commute.
 commute :: Iso (alpha, beta) (beta, alpha)
 commute = Iso f f
- where
-  f (a, b) = Just (b, a)
+where
+   f (a, b) = Just (b, a)
 
 -- | `()` is the unit element for products.
 unit :: Iso alpha (alpha, ())
 unit = Iso f g
- where
-  f a = Just (a, ())
-  g (a, ()) = Just a
+where
+   f a = Just (a, ())
+   g (a, ()) = Just a
 
 -- | Products distribute over sums.
 distribute :: Iso (alpha, Either beta gamma) (Either (alpha, beta) (alpha, gamma))
 distribute = Iso f g
- where
-  f (a, Left b) = Just (Left (a, b))
-  f (a, Right c) = Just (Right (a, c))
-  g (Left (a, b)) = Just (a, Left b)
-  g (Right (a, b)) = Just (a, Right b)
+where
+   f (a, Left b) = Just (Left (a, b))
+   f (a, Right c) = Just (Right (a, c))
+   g (Left (a, b)) = Just (a, Left b)
+   g (Right (a, b)) = Just (a, Right b)
 
 -- | `element x` is the partial isomorphism between `()` and the
 
@@ -875,14 +875,14 @@ distribute = Iso f g
 
 match :: (Eq alpha) => alpha -> Iso () alpha
 match x =
-  Iso
-    (\() -> Just x)
-    (\b -> if x == b then Just () else Nothing)
+   Iso
+      (\() -> Just x)
+      (\b -> if x == b then Just () else Nothing)
 
 match1 x =
-  Iso
-    (\x1 -> if x == x1 then Just x else Nothing)
-    (\x1 -> if x == x1 then Just x else Nothing)
+   Iso
+      (\x1 -> if x == x1 then Just x else Nothing)
+      (\x1 -> if x == x1 then Just x else Nothing)
 
 -- | For a predicate `p`, `subset p` is the identity isomorphism
 
@@ -890,44 +890,44 @@ match1 x =
 
 subset :: (alpha -> Bool) -> Iso alpha alpha
 subset p = Iso f f
- where
-  f x | p x = Just x | otherwise = Nothing
+where
+   f x | p x = Just x | otherwise = Nothing
 
 iterate :: Iso alpha alpha -> Iso alpha alpha
 iterate step = Iso f g
- where
-  f = Just . driver (apply step)
-  g = Just . driver (unapply step)
+where
+   f = Just . driver (apply step)
+   g = Just . driver (unapply step)
 
-  driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
-  driver step' state =
-    case step' state of
-      Just state' -> driver step' state'
-      Nothing -> state
+   driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
+   driver step' state =
+      case step' state of
+         Just state' -> driver step' state'
+         Nothing -> state
 
 -- Control.Isomorphism.Partial.Derived
 foldl :: Iso (alpha, beta) alpha -> Iso (alpha, [beta]) alpha
 foldl i =
-  inverse unit
-    . (id *** inverse nil)
-    . iterate (step i)
- where
-  step i' =
-    (i' *** id)
-      . associate
-      . (id *** inverse cons)
+   inverse unit
+      . (id *** inverse nil)
+      . iterate (step i)
+where
+   step i' =
+      (i' *** id)
+         . associate
+         . (id *** inverse cons)
 
 -- Control.Isomorphism.Partial.Constructors
 {-
 module Control.Isomorphism.Partial.Constructors
-  ( nil
-  , cons
-  , listCases
-  , left
-  , right
-  , nothing
-  , just
-  ) where
+   ( nil
+   , cons
+   , listCases
+   , left
+   , right
+   , nothing
+   , just
+   ) where
 import Prelude ()
 
 import Data.Either (Either (Left, Right))
@@ -936,46 +936,46 @@ import Data.Maybe (Maybe (Just, Nothing))
 
 nil :: Iso () [alpha]
 nil = Iso f g
- where
-  f () = Just []
-  g [] = Just ()
-  g _ = Nothing
+where
+   f () = Just []
+   g [] = Just ()
+   g _ = Nothing
 
 cons :: Iso (alpha, [alpha]) [alpha]
 cons = Iso f g
- where
-  f (x, xs) = Just (x : xs)
-  g (x : xs) = Just (x, xs)
-  g _ = Nothing
+where
+   f (x, xs) = Just (x : xs)
+   g (x : xs) = Just (x, xs)
+   g _ = Nothing
 
 listCases :: Iso (Either () (alpha, [alpha])) [alpha]
 listCases = Iso f g
- where
-  f (Left ()) = Just []
-  f (Right (x, xs)) = Just (x : xs)
-  g [] = Just (Left ())
-  g (x : xs) = Just (Right (x, xs))
+where
+   f (Left ()) = Just []
+   f (Right (x, xs)) = Just (x : xs)
+   g [] = Just (Left ())
+   g (x : xs) = Just (Right (x, xs))
 
 -------------------------------------------------------------------------------
 foldl1 i =
-  -- alpha
-  inverse unit
-    -- (alpha, ())
-    . (id *** inverse nil)
-    -- (alpha, [beta])
-    . iterate (step i)
+   -- alpha
+   inverse unit
+      -- (alpha, ())
+      . (id *** inverse nil)
+      -- (alpha, [beta])
+      . iterate (step i)
 
 -- (alpha, [beta])
 
 step i =
-  (i *** id)
-    . associate
-    . (id *** inverse cons)
+   (i *** id)
+      . associate
+      . (id *** inverse cons)
 
 -------------------------------------------------------------------------------
 {-
 myfoldr f = (z, []    ) <=> []
-        <|> (z, (x:xs)) <=> (f x (myfoldr f z xs))
+            <|> (z, (x:xs)) <=> (f x (myfoldr f z xs))
 -}
 
 {-
@@ -984,18 +984,18 @@ myfoldr f = (z, []    ) <=> []
 rep . foo
 
 foldr k z = go
-          where
-            go []     = z
-            go (y:ys) = y `k` go ys
+               where
+                  go []     = z
+                  go (y:ys) = y `k` go ys
 
 foldr k z []     = z
 foldr k z (y:ys) = y `k` foldr k z ys
 foldr k z (y:ys) = k y (foldr k z ys)
 
 foldl f z0 xs0 = lgo z0 xs0
-             where
-                lgo z []     =  z
-                lgo z (x:xs) = lgo (f z x) xs
+                  where
+                        lgo z []     =  z
+                        lgo z (x:xs) = lgo (f z x) xs
 
 foldl f z []     = z
 foldl f z (x:xs) = foldl f (f z x) xs
@@ -1004,14 +1004,14 @@ foldl f z l = if l == [] then z else foldl f (f z x) xs
 
 iterate :: Iso alpha alpha -> Iso alpha alpha
 iterate step = Iso f g where
-  f = Just . driver (apply step)
-  g = Just . driver (unapply step)
+   f = Just . driver (apply step)
+   g = Just . driver (unapply step)
 
-  driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
-  driver step state
-    =  case step state of
-         Just state'  ->  driver step state'
-         Nothing      ->  state
+   driver :: (alpha -> Maybe alpha) -> (alpha -> alpha)
+   driver step state
+      =  case step state of
+            Just state'  ->  driver step state'
+            Nothing      ->  state
 
 -}
 
@@ -1020,52 +1020,52 @@ Iso b c . Iso a b = Iso a c
 
 foldl :: Iso (alpha, beta) alpha -> Iso (alpha, [beta]) alpha
 foldl i = inverse unit
-        . (id *** inverse nil)    -- Iso (alpha, [beta]) (alpha, ())
-        . iterate (step i) where  -- Iso (alpha, [beta]) (alpha, [beta])
+            . (id *** inverse nil)    -- Iso (alpha, [beta]) (alpha, ())
+            . iterate (step i) where  -- Iso (alpha, [beta]) (alpha, [beta])
 -}
 {-
 newtype Parser u alpha
-  = Parser ((String, u) -> [(alpha, (String, u))])
+   = Parser ((String, u) -> [(alpha, (String, u))])
 
 parse :: Parser u alpha -> String -> u -> [alpha]
 parse (Parser p) s u = [ x | (x, ("", u)) <- p (s, u) ]
 
 parseM :: Monad m => Parser u alpha -> String -> u -> m alpha
 parseM p s u
-  =  case parse p s u of
-       []        ->  fail "parse error"
-       [result]  ->  return result
-       _         ->  fail "ambiguous input"
+   =  case parse p s u of
+            []        ->  fail "parse error"
+            [result]  ->  return result
+            _         ->  fail "ambiguous input"
 
 instance IsoFunctor (Parser u) where
-  iso >$< Parser p
-    = Parser (\s ->  [  (y, s1)
-                     |  (x, s1)  <-  p s
-                     ,  Just y   <-  [apply iso x] ])
+   iso >$< Parser p
+      = Parser (\s ->  [  (y, s1)
+                              |  (x, s1)  <-  p s
+                              ,  Just y   <-  [apply iso x] ])
 
 instance ProductFunctor (Parser u) where
-  Parser p >*< Parser q
-    = Parser (\s ->  [  ((x, y), s2)
-                     |  (x,  s1)  <- p  s
-                     ,  (y,  s2)  <- q  s1 ])
+   Parser p >*< Parser q
+      = Parser (\s ->  [  ((x, y), s2)
+                              |  (x,  s1)  <- p  s
+                              ,  (y,  s2)  <- q  s1 ])
 
 instance Alternative (Parser u) where
-  Parser p <|> Parser q = Parser (\s -> p s ++ q s)
-  empty = Parser (\s -> [])
+   Parser p <|> Parser q = Parser (\s -> p s ++ q s)
+   empty = Parser (\s -> [])
 
 instance Syntax (Parser u) where
-  pure x  =  Parser (\s -> [(x, s)])
-  token   =  Parser f where
-    f ([]    , _)  =  []
-    f ((t:ts), u)  =  [(t, (ts, u))]
+   pure x  =  Parser (\s -> [(x, s)])
+   token   =  Parser f where
+      f ([]    , _)  =  []
+      f ((t:ts), u)  =  [(t, (ts, u))]
 -}
 {-
 data Type = TypeName String
-          | Ptr { to :: Type }
-          | Ref { to :: Type }
-          | Hole
-          | Func Type [String]
-          deriving (Eq, Ord, Show)
+               | Ptr { to :: Type }
+               | Ref { to :: Type }
+               | Hole
+               | Func Type [String]
+               deriving (Eq, Ord, Show)
 
 ctype1   = typeName >$< identifier
 
@@ -1075,11 +1075,11 @@ ctype1   = typeName >$< identifier
 
 --ctype2a :: Syntax f => f (Iso Type Type)
 ctype2a = ptr >$< text "*" *< ctype2a
-      <|> ref >$< text "&" *< ctype2a
-      <|> hole >$< text ""
+         <|> ref >$< text "&" *< ctype2a
+         <|> hole >$< text ""
 
 ctype2c = func >$< (isoswap >$< (text "(" *< sepBy arg (text ",") >* text ")") >*< ctype2c)
-      <|> pure Hole
+         <|> pure Hole
 
 (>**<) = flip (>*<)
 
@@ -1095,8 +1095,8 @@ arg = identifier
 
 {-
 rep = Iso
-   (\c bt -> apply c $ apply ptr bt)
-   (\c x  -> unapply ptr $ unapply c x)
+      (\c bt -> apply c $ apply ptr bt)
+      (\c x  -> unapply ptr $ unapply c x)
 -}
 
 isoid = Iso Just Just
@@ -1112,54 +1112,54 @@ dtype2a bt = text "*" *< (dtype2a (Ptr bt))
 -- parser for a c++ type and an identifier since they are intermixed "char f[50]".
 -- the supplied qid parameter parses the ident (use qident,noident or maybeident for this)
 ctype2 qid    = do t       <- ctype2a
-                   (i, t1) <-
-                                 -- parentheses around the identifier/pointer
-                                 -- dont match an empty ( ) here
-                                 -- can occur in an "operator Type ()"
-                                 do notFollowedBy (do symbol "("; symbol ")"); -- fail if ( ) would match
-                                    symbol "("
-                                    c <- ctype2 qid
-                                    symbol ")"
-                                    return c
-                               <|>
-                                 -- this bit is ok
-                                 do i <- qid; return (i, id)
-                   t2      <- ctype2c
-                   return (i, t1 . t2 . t)
+                              (i, t1) <-
+                                                -- parentheses around the identifier/pointer
+                                                -- dont match an empty ( ) here
+                                                -- can occur in an "operator Type ()"
+                                                do notFollowedBy (do symbol "("; symbol ")"); -- fail if ( ) would match
+                                                      symbol "("
+                                                      c <- ctype2 qid
+                                                      symbol ")"
+                                                      return c
+                                                <|>
+                                                -- this bit is ok
+                                                do i <- qid; return (i, id)
+                              t2      <- ctype2c
+                              return (i, t1 . t2 . t)
 
 -- stuff before the identifier
 ctype2a       =
 
-                         do try $ symbol "*"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ptr bt)
-                     <|> do try $ symbol "&"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ref bt)
-                     <|> do try $ reserved "__cdecl"   ; c <- ctype2a; return (\bt -> c (CDecl    bt))
-                     <|> do try $ reserved "__thiscall"; c <- ctype2a; return (\bt -> c (ThisCall bt))
-                     <|> try (do ct <- ctype1; reservedOp "::"; reservedOp "*"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ PtrMem ct bt))
-                     <|> return id
-                     <?> "ctype2a"
+                                    do try $ symbol "*"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ptr bt)
+                              <|> do try $ symbol "&"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ Ref bt)
+                              <|> do try $ reserved "__cdecl"   ; c <- ctype2a; return (\bt -> c (CDecl    bt))
+                              <|> do try $ reserved "__thiscall"; c <- ctype2a; return (\bt -> c (ThisCall bt))
+                              <|> try (do ct <- ctype1; reservedOp "::"; reservedOp "*"; cv <- cvMod; c <- ctype2a; return (\bt -> c $ cv $ PtrMem ct bt))
+                              <|> return id
+                              <?> "ctype2a"
 
 -- stuff after the identifier
 ctype2c       =          do reservedOp "["; n <- eexpr; reservedOp "]"; c <- ctype2c; return (\bt -> Array n (c bt))
-                     <|> try (do symbol "(";
-                                 a1 <- sepBy declArg (symbol ",")
-                                 a <- option a1 (do symbol "..."; return (a1 ++ [VarArgs]))
-                                 symbol ")";
-                                 try $ many (try (try (reserved "const") <|> try (reserved "volatile") <|> try (throwSpec)))
-                                 c <- ctype2c;
-                                 return (\bt -> FuncT (c bt) a))
-                     <|> return id
-                     <?> "ctype2c"
+                              <|> try (do symbol "(";
+                                                a1 <- sepBy declArg (symbol ",")
+                                                a <- option a1 (do symbol "..."; return (a1 ++ [VarArgs]))
+                                                symbol ")";
+                                                try $ many (try (try (reserved "const") <|> try (reserved "volatile") <|> try (throwSpec)))
+                                                c <- ctype2c;
+                                                return (\bt -> FuncT (c bt) a))
+                              <|> return id
+                              <?> "ctype2c"
 
 throwSpec = do
-   reserved "throw"
-   symbol "("
-   sepBy (identifier <|> symbol "...") (symbol ",")
-   symbol ")"
+      reserved "throw"
+      symbol "("
+      sepBy (identifier <|> symbol "...") (symbol ",")
+      symbol ")"
 
 ctype qid = do
-   bt      <- ctype1
-   (i, c)  <- ctype2 qid
-   return (i, c bt)
+      bt      <- ctype1
+      (i, c)  <- ctype2 qid
+      return (i, c bt)
 
 ctypeni = do (_, t) <- ctype (return ()); return t
 -}

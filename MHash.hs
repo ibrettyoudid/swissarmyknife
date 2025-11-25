@@ -62,205 +62,205 @@ instance Functor (State s) where
    fmap a b = do b1 <- b; return (a b1)
 -}
 untilM done action seed = do
-  new <- action seed
-  if done new then return new else untilM done action new
+   new <- action seed
+   if done new then return new else untilM done action new
 
 main = repl
 
 repl :: IO ()
 repl = do
-  env <- convEnv env1
-  repl1 [env]
+   env <- convEnv env1
+   repl1 [env]
 
 x = (:) <$> getLine
 
 repl1 :: Env -> IO ()
 repl1 env = do
-  putStr "M#> "
-  -- ex <- parseH <$> getLine
-  hSetBinaryMode stdin True
-  li <- getLine
-  li2 <- if li == "\\"
-    then let 
+   putStr "M#> "
+   -- ex <- parseH <$> getLine
+   hSetBinaryMode stdin True
+   li <- getLine
+   li2 <- if li == "\\"
+   then let 
       aux = do
-        l <- getLine
-        if null l then return [] else do r <- aux; return (l:r)
+         l <- getLine
+         if null l then return [] else do r <- aux; return (l:r)
       in unlines <$> aux 
-    else return li
-  putStrLn li2
-  putStrLn "parsing"
-  --ex <- head <$> S3.parseIO expr li2
-  let ex = Value u 0
-  putStrLn "doing vars"
-  let ex1 = runDoVars ex (map fconstr env)
-  putStrLn "print ex"
-  print ex
-  putStrLn "print ex1"
-  print ex1
-  putStrLn "unparsing"
-  ex2 <- S3.printIO expr ex1
-  let ex2a = fromJust ex2
-  print ex2a
-  print $ S3.mergeDocs ex2a
-  putStrLn "formatting"
-  putStrLn $ S3.format ex2a
-  putStrLn ""
-  (res, env3) <- case ex1 of
-    Block _ constr exprs -> do
+   else return li
+   putStrLn li2
+   putStrLn "parsing"
+   --ex <- head <$> S3.parseIO expr li2
+   let ex = Value u 0
+   putStrLn "doing vars"
+   let ex1 = runDoVars ex (map fconstr env)
+   putStrLn "print ex"
+   print ex
+   putStrLn "print ex1"
+   print ex1
+   putStrLn "unparsing"
+   ex2 <- S3.printIO expr ex1
+   let ex2a = fromJust ex2
+   print ex2a
+   print $ S3.mergeDocs ex2a
+   putStrLn "formatting"
+   putStrLn $ S3.format ex2a
+   putStrLn ""
+   (res, env3) <- case ex1 of
+   Block _ constr exprs -> do
       fr <- makeFrame constr
       let env2 = fr : env
       res <- eval2 env2 exprs
       return (res, env2)
-    _ -> do
+   _ -> do
       res <- eval env ex1
       return (res, env)
-  putDynLn res
-  repl1 env3
+   putDynLn res
+   repl1 env3
 
 eval :: Env -> Expr -> IO Dynamic
 eval env stat = do
-  putStrLn ("eval -> " ++ show stat)
-  res <- eval1 env stat
-  putStr "<- eval="
-  putDynLn res
-  return res
+   putStrLn ("eval -> " ++ show stat)
+   res <- eval1 env stat
+   putStr "<- eval="
+   putDynLn res
+   return res
 
 eval1 :: Env -> Expr -> IO Dynamic
 eval1 env expr = case expr of
-  Value _ v -> return v
-  VarRef _ name nFr nV -> do
-    return $ items (env !! nFr) !! nV
-  VarRef1 t "quit" -> error "quit"
-  VarRef1 t "env" -> return $ toDyn env
-  VarRef1 t "frame" -> return $ toDyn $ head env
-  VarRef1 t name -> return $ lookups name env
-  Lambda _ args stat -> return $ toDyn $ Closure args stat env
-  If _ cases -> evalIf cases
-  Case t of1 cases -> do ofres <- eval env of1; evalCase ofres cases
-  Else -> return $ toDyn True
-  Apply t exprs -> do
-    res <- mapM (eval env) exprs
-    if fromDyn1 (head res) == mymem
+   Value _ v -> return v
+   VarRef _ name nFr nV -> do
+   return $ items (env !! nFr) !! nV
+   VarRef1 t "quit" -> error "quit"
+   VarRef1 t "env" -> return $ toDyn env
+   VarRef1 t "frame" -> return $ toDyn $ head env
+   VarRef1 t name -> return $ lookups name env
+   Lambda _ args stat -> return $ toDyn $ Closure args stat env
+   If _ cases -> evalIf cases
+   Case t of1 cases -> do ofres <- eval env of1; evalCase ofres cases
+   Else -> return $ toDyn True
+   Apply t exprs -> do
+   res <- mapM (eval env) exprs
+   if fromDyn1 (head res) == mymem
       then apply (take 2 res ++ [toDyn (exprs !! 2)])
       else apply res
-    apply res
-  Let t co exps stat -> do
-    newfr <- makeFrame co
-    let newenv = newfr : env
-    zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
-    eval newenv stat
-  Block t co exprs -> do
-    newfr <- makeFrame co
-    eval2 (newfr : env) exprs
- where
-  evalIf [] = return $ toDyn ()
-  evalIf ((cond :- then1) : rest) = do
-    condres <- eval env cond
-    case fromDynamic condres of
+   apply res
+   Let t co exps stat -> do
+   newfr <- makeFrame co
+   let newenv = newfr : env
+   zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
+   eval newenv stat
+   Block t co exprs -> do
+   newfr <- makeFrame co
+   eval2 (newfr : env) exprs
+where
+   evalIf [] = return $ toDyn ()
+   evalIf ((cond :- then1) : rest) = do
+   condres <- eval env cond
+   case fromDynamic condres of
       Nothing -> error "if condition must be boolean!"
       Just True -> eval env then1
       Just False -> evalIf rest
 
-  evalCase caseval [] = return $ toDyn ()
-  evalCase caseval ((when1 :- then1) : others) = do
-    whenval <- eval env when1
-    if caseval == whenval
+   evalCase caseval [] = return $ toDyn ()
+   evalCase caseval ((when1 :- then1) : others) = do
+   whenval <- eval env when1
+   if caseval == whenval
       then eval env then1
       else evalCase caseval others
 
 eval2 env exprs = do
-  res <- mapM (eval env) exprs
-  return $ last res
+   res <- mapM (eval env) exprs
+   return $ last res
 
 makeFrame co = do
-  newvals <- replicateM (length $ members co) (newIORef $ toDyn ())
-  return $ Frame co $ map toDyn newvals
+   newvals <- replicateM (length $ members co) (newIORef $ toDyn ())
+   return $ Frame co $ map toDyn newvals
 
 apply fxs = do
-  putStr "apply -> "
-  out <- mapM showDynIO fxs
-  putAnyLn $ intercalate "," out
-  res <- apply1 fxs
-  putStr "<- apply="
-  putDynLn res
-  return res
+   putStr "apply -> "
+   out <- mapM showDynIO fxs
+   putAnyLn $ intercalate "," out
+   res <- apply1 fxs
+   putStr "<- apply="
+   putDynLn res
+   return res
 
 apply1 [f] = return f
 apply1 (f : x : xs) =
-  if isFunc $ dynTypeRep f
-    then do
+   if isFunc $ dynTypeRep f
+   then do
       case dynApply f $ convertArg1 f x of
-        Just j -> do
-          k <- case fromDynamic j :: Maybe (IO Dynamic) of
+         Just j -> do
+         k <- case fromDynamic j :: Maybe (IO Dynamic) of
             Just l -> l
             Nothing -> return j
-          apply1 (k : xs)
-    else apply1a (f : x : xs)
+         apply1 (k : xs)
+   else apply1a (f : x : xs)
 
 apply1a :: [Dynamic] -> IO Dynamic
 apply1a (f : xs) =
-  {-
-    case dynTypeRep f of
+   {-
+   case dynTypeRep f of
       typeOf (undefined :: Maybe (IORef Dynamic)) ->
       -}
-  case fromDynamic f :: Maybe (IORef Dynamic) of
-    Just ref -> do putStrLn "readIORef"; dyn <- readIORef ref; apply1 (dyn : xs)
-    Nothing -> case fromDynamic f :: Maybe NamedValue of
+   case fromDynamic f :: Maybe (IORef Dynamic) of
+   Just ref -> do putStrLn "readIORef"; dyn <- readIORef ref; apply1 (dyn : xs)
+   Nothing -> case fromDynamic f :: Maybe NamedValue of
       Just named -> return $ nvalue named
       Nothing -> case fromDynamic f :: Maybe Closure of
-        Just (Closure con stat env) -> do
-          let lx = length xs
-          let ly = length $ members con
-          if lx >= ly
+         Just (Closure con stat env) -> do
+         let lx = length xs
+         let ly = length $ members con
+         if lx >= ly
             then do
-              xrefs <- mapM newIORef $ take ly xs
-              ev <- eval (Frame con (map toDyn xrefs) : env) stat
-              apply (ev : drop ly xs)
+               xrefs <- mapM newIORef $ take ly xs
+               ev <- eval (Frame con (map toDyn xrefs) : env) stat
+               apply (ev : drop ly xs)
             else
-              return $ toDyn $ PartApply xs con stat env
-        Nothing -> case fromDynamic f :: Maybe PartApply of
-          Just (PartApply oldxs con stat env) -> do
+               return $ toDyn $ PartApply xs con stat env
+         Nothing -> case fromDynamic f :: Maybe PartApply of
+         Just (PartApply oldxs con stat env) -> do
             let allxs = oldxs ++ xs
             let lx = length allxs
             let ly = length $ members con
             if lx >= ly
-              then do
-                xrefs <- mapM newIORef $ take ly allxs
-                ev <- eval (Frame con (map toDyn xrefs) : env) stat
-                apply (ev : drop ly allxs)
-              else
-                return $ toDyn $ PartApply allxs con stat env
-          Nothing -> do
+               then do
+               xrefs <- mapM newIORef $ take ly allxs
+               ev <- eval (Frame con (map toDyn xrefs) : env) stat
+               apply (ev : drop ly allxs)
+               else
+               return $ toDyn $ PartApply allxs con stat env
+         Nothing -> do
             case fromDynamic f :: Maybe Multimethod of
-              Just m -> do
-                putStrLn "multimethod"
-                a <- applyMultimethodIO m xs
-                case a of
+               Just m -> do
+               putStrLn "multimethod"
+               a <- applyMultimethodIO m xs
+               case a of
                   Left e -> return $ error e
                   Right r -> return r
-              Nothing -> do
-                putStrLn $ "could not apply " ++ showDyn f
-                return $ toDyn (0 :: Int)
+               Nothing -> do
+               putStrLn $ "could not apply " ++ showDyn f
+               return $ toDyn (0 :: Int)
 
 showType typ = show (typeRepTyCon typ)
 
 pushVar t name = do
-  fs <- get
-  let i = 0
-  let Constr cname tl members = fs !! i
-  let f = members ++ [Member t name]
-  put (replaceIndex i (Constr cname tl f) fs)
-  return $ length members
+   fs <- get
+   let i = 0
+   let Constr cname tl members = fs !! i
+   let f = members ++ [Member t name]
+   put (replaceIndex i (Constr cname tl f) fs)
+   return $ length members
 
 push x = modify (x :)
 
 -- pop = state (\(x : xs) -> (x, xs))
 pop :: State [Constr] Constr
 pop = do
-  r <- get
-  case r of
-    (x : xs) -> do put xs; return x
-    [] -> error "nothing to pop"
+   r <- get
+   case r of
+   (x : xs) -> do put xs; return x
+   [] -> error "nothing to pop"
 
 runDoVars :: Expr -> [Constr] -> Expr
 runDoVars stat env = evalState (do wrapBlock stat) env
@@ -271,69 +271,69 @@ deriving instance NFData (State [Constr] Expr)
 
 wrapBlock :: Expr -> State [Constr] Expr
 wrapBlock expr = do
-  push $ Co "" []
-  sres <- deepseq1 $ doVars expr
-  fnew <- pop
-  return $ Block u fnew [expr]
+   push $ Co "" []
+   sres <- deepseq1 $ doVars expr
+   fnew <- pop
+   return $ Block u fnew [expr]
 
 {-}
-  error "hello"
-  return $ case fnew of
-    Constr _ _ [] -> sres
-    fnew1 -> Block u fnew1 sres
+   error "hello"
+   return $ case fnew of
+   Constr _ _ [] -> sres
+   fnew1 -> Block u fnew1 sres
 -}
 findWithIndex p xs = find (p . snd) $ zip [0..] xs
 
 doVars :: Expr -> State [Constr] Expr
 doVars stat = case stat of
-  Lambda t vs stat -> do
-    push vs
-    sres <- wrapBlock stat
-    pop
-    return $ Lambda t vs sres
-  VarRef1 t name -> do
-    if name `elem` ["env", "frame", "quit"]
+   Lambda t vs stat -> do
+   push vs
+   sres <- wrapBlock stat
+   pop
+   return $ Lambda t vs sres
+   VarRef1 t name -> do
+   if name `elem` ["env", "frame", "quit"]
       then return $ VarRef1 t name
       else do
-        e <- get
-        case blah2 name e of
-          Just v -> return v
-          Nothing -> VarRef t name 0 <$> pushVar t name
-  Apply t exprs -> do
-    done <- mapM doVars exprs
-    if varname (head exprs) == "@"
+         e <- get
+         case blah2 name e of
+         Just v -> return v
+         Nothing -> VarRef t name 0 <$> pushVar t name
+   Apply t exprs -> do
+   done <- mapM doVars exprs
+   if varname (head exprs) == "@"
       then do
-        if isUnknown $ etype $ done !! 1
-          then return $ Apply u done
-          else do
+         if isUnknown $ etype $ done !! 1
+         then return $ Apply u done
+         else do
             push $ constr $ etype $ done !! 1
             done2 <- doVars $ done !! 2
             pop
             return $ Apply (etype done2) (take 2 done ++ [done2])
       else return $ Apply t done
-  If t cases -> If t <$> mapM (tmapM doVars) cases
-  Value t v -> return $ Value t v
-  other -> error (show other)
+   If t cases -> If t <$> mapM (tmapM doVars) cases
+   Value t v -> return $ Value t v
+   other -> error (show other)
 
 isUnknown typ = typ == u
 
 blah2 name e = case findWithIndex isJust $ map (findWithIndex (\x -> mname x == name) . members) e of
-  Just (i, Just (j, v2)) -> Just $ VarRef (mtype v2) (mname v2) i j
-  Nothing -> Nothing
+   Just (i, Just (j, v2)) -> Just $ VarRef (mtype v2) (mname v2) i j
+   Nothing -> Nothing
 
 -- look up name in a list of frames
 -- lookups :: String -> [[(String, a)]] -> a
 lookups name e = items (e !! frameIndex vr) !! memIndex vr
- where
-  vr = fromJust $ blah2 name $ map fconstr e
+where
+   vr = fromJust $ blah2 name $ map fconstr e
 
 mymem = NamedValue "mymem" $ toDyn $ \frame vr -> case vr of
-  VarRef1 _ name -> lookups name [frame]
-  VarRef mtype mname i j -> items frame !! j
+   VarRef1 _ name -> lookups name [frame]
+   VarRef mtype mname i j -> items frame !! j
 
 convEnv env = do
-  (ns, rs) <- unzip <$> mapM envNewRef env
-  return $ Frame (Co "env" ns) rs
+   (ns, rs) <- unzip <$> mapM envNewRef env
+   return $ Frame (Co "env" ns) rs
 
 convEnvRef env = newIORef <<= convEnv env
 
@@ -408,32 +408,32 @@ equalL =
    ,toDyn ((==) :: Bool    -> Bool    -> Bool)]
 -}
 env1 =
-  [ ("getStr", toDynIO getLine)
-  , --   ("getAny"  , toDynIO  (parseH <$> getLine)),
-    ("putDyn", toDynIO1 putDyn)
-  , ("putDynLn", toDynIO1 putDynLn)
-  , ("print", toDynIO1 (putDynLn :: Dynamic -> IO ()))
-  , ("putStr", toDynIO1 (putStr :: String -> IO ()))
-  , (":", toDyn ((:) :: Dynamic -> [Dynamic] -> [Dynamic]))
-  , ("[]", toDyn ([] :: [Dynamic]))
-  , ("head", toDyn (head :: [Dynamic] -> Dynamic))
-  , ("tail", toDyn (tail :: [Dynamic] -> [Dynamic]))
-  , ("++", toDyn ((++) :: [Dynamic] -> [Dynamic] -> [Dynamic]))
-  , ("map", toDyn mymap)
-  , --   ("foldl"  , toDyn    (\f x ys -> foldM (\x y -> apply1 [f,x,y]) x ys)),
+   [ ("getStr", toDynIO getLine)
+   , --   ("getAny"  , toDynIO  (parseH <$> getLine)),
+   ("putDyn", toDynIO1 putDyn)
+   , ("putDynLn", toDynIO1 putDynLn)
+   , ("print", toDynIO1 (putDynLn :: Dynamic -> IO ()))
+   , ("putStr", toDynIO1 (putStr :: String -> IO ()))
+   , (":", toDyn ((:) :: Dynamic -> [Dynamic] -> [Dynamic]))
+   , ("[]", toDyn ([] :: [Dynamic]))
+   , ("head", toDyn (head :: [Dynamic] -> Dynamic))
+   , ("tail", toDyn (tail :: [Dynamic] -> [Dynamic]))
+   , ("++", toDyn ((++) :: [Dynamic] -> [Dynamic] -> [Dynamic]))
+   , ("map", toDyn mymap)
+   , --   ("foldl"  , toDyn    (\f x ys -> foldM (\x y -> apply1 [f,x,y]) x ys)),
 
-    ("False", toDyn False)
-  , ("True", toDyn True)
-  , ("()", toDyn ())
-  , ("=", toDyn mySet)
-  , ("@", toDyn mymem)
-  ]
-    ++ numberOps
+   ("False", toDyn False)
+   , ("True", toDyn True)
+   , ("()", toDyn ())
+   , ("=", toDyn mySet)
+   , ("@", toDyn mymem)
+   ]
+   ++ numberOps
 
 mySet :: IORef Dynamic -> Dynamic -> IO Dynamic
 mySet r x = do
-  writeIORef r x
-  return x
+   writeIORef r x
+   return x
 
 mymap f xs = mapM (\x -> apply [f, x]) (xs :: [Dynamic])
 
@@ -460,19 +460,19 @@ nOps = nOps1 nOpsL
 
 nOps1 :: (forall n. (Typeable n, Num n) => n -> Env2) -> Env2
 nOps1 f =
-  concat
-    [ f (0 :: Int)
-    , f (0 :: Integer)
-    , f (0 :: Rational)
-    , f (0 :: Float)
-    , f (0 :: Double)
-    ]
+   concat
+   [ f (0 :: Int)
+   , f (0 :: Integer)
+   , f (0 :: Rational)
+   , f (0 :: Float)
+   , f (0 :: Double)
+   ]
 
 nOpsL a =
-  [ ("+", toDyn (\b c -> b + c `asTypeOf` a))
-  , ("-", toDyn (\b c -> b - c `asTypeOf` a))
-  , ("*", toDyn (\b c -> b * c `asTypeOf` a))
-  ]
+   [ ("+", toDyn (\b c -> b + c `asTypeOf` a))
+   , ("-", toDyn (\b c -> b - c `asTypeOf` a))
+   , ("*", toDyn (\b c -> b * c `asTypeOf` a))
+   ]
 
 testfn :: Integer -> Integer -> Integer
 testfn a b = a + b
@@ -499,26 +499,26 @@ iOps1 f = concat [f (0 :: Int), f (0 :: Integer)]
 
 iOpsL :: (Typeable t, Integral t) => t -> Env2
 iOpsL t =
-  [ ("quot", toDyn (\a b -> quot (a @= t) (b @= t) @= t))
-  , ("rem", toDyn (\a b -> rem (a @= t) (b @= t) @= t))
-  , ("div", toDyn (\a b -> div (a @= t) (b @= t) @= t))
-  , ("mod", toDyn (\a b -> mod (a @= t) (b @= t) @= t))
-  , ("quotRem", toDyn (\a b -> quotRem (a @= t) (b @= t) @= (t, t)))
-  , ("divMod", toDyn (\a b -> divMod (a @= t) (b @= t) @= (t, t)))
-  , ("toInteger", toDyn (\a -> toInteger (a @= t) :: Integer))
-  , ("even", toDyn (\a -> even (a @= t) :: Bool))
-  , ("odd", toDyn (\a -> odd (a @= t) :: Bool))
-  , ("gcd", toDyn (\a b -> gcd (a @= t) (b @= t) @= t))
-  , ("lcm", toDyn (\a b -> lcm (a @= t) (b @= t) @= t))
-  ]
+   [ ("quot", toDyn (\a b -> quot (a @= t) (b @= t) @= t))
+   , ("rem", toDyn (\a b -> rem (a @= t) (b @= t) @= t))
+   , ("div", toDyn (\a b -> div (a @= t) (b @= t) @= t))
+   , ("mod", toDyn (\a b -> mod (a @= t) (b @= t) @= t))
+   , ("quotRem", toDyn (\a b -> quotRem (a @= t) (b @= t) @= (t, t)))
+   , ("divMod", toDyn (\a b -> divMod (a @= t) (b @= t) @= (t, t)))
+   , ("toInteger", toDyn (\a -> toInteger (a @= t) :: Integer))
+   , ("even", toDyn (\a -> even (a @= t) :: Bool))
+   , ("odd", toDyn (\a -> odd (a @= t) :: Bool))
+   , ("gcd", toDyn (\a b -> gcd (a @= t) (b @= t) @= t))
+   , ("lcm", toDyn (\a b -> lcm (a @= t) (b @= t) @= t))
+   ]
 
 niOps = nOps1 (\n -> iOps1 (niOpsL n))
 
 niOpsL :: (Num n, Integral i, Typeable n, Typeable i) => n -> i -> Env2
 niOpsL n i =
-  [ ("^", toDyn (\a b -> (^) (a @= n) (b @= i) @= n))
-  , ("fromIntegral", toDyn (\a -> fromIntegral (a @= i) @= n))
-  ]
+   [ ("^", toDyn (\a b -> (^) (a @= n) (b @= i) @= n))
+   , ("fromIntegral", toDyn (\a -> fromIntegral (a @= i) @= n))
+   ]
 
 {-
 even           :: Integral -> Bool
@@ -553,32 +553,32 @@ class Floating a
 fOps = fOpsL (0 :: Float) ++ fOpsL (0 :: Double)
 
 fOpsL t =
-  -- [("pi"      , toDyn (pi @= t))
-  [ ("exp", toDyn (\a -> exp (a @= t) @= t))
-  , ("log", toDyn (\a -> log (a @= t) @= t))
-  , ("sqrt", toDyn (\a -> sqrt (a @= t) @= t))
-  , ("sin", toDyn (\a -> sin (a @= t) @= t))
-  , ("cos", toDyn (\a -> cos (a @= t) @= t))
-  , ("tan", toDyn (\a -> tan (a @= t) @= t))
-  , ("asin", toDyn (\a -> asin (a @= t) @= t))
-  , ("acos", toDyn (\a -> acos (a @= t) @= t))
-  , ("atan", toDyn (\a -> atan (a @= t) @= t))
-  , ("sinh", toDyn (\a -> sinh (a @= t) @= t))
-  , ("cosh", toDyn (\a -> cosh (a @= t) @= t))
-  , ("tanh", toDyn (\a -> tanh (a @= t) @= t))
-  , ("asinh", toDyn (\a -> asinh (a @= t) @= t))
-  , ("acosh", toDyn (\a -> acosh (a @= t) @= t))
-  , ("atanh", toDyn (\a -> atanh (a @= t) @= t))
-  , ("**", toDyn (\a b -> (**) (a @= t) (b @= t) @= t))
-  , ("logBase", toDyn (\a b -> logBase (a @= t) (b @= t) @= t))
-  ]
+   -- [("pi"      , toDyn (pi @= t))
+   [ ("exp", toDyn (\a -> exp (a @= t) @= t))
+   , ("log", toDyn (\a -> log (a @= t) @= t))
+   , ("sqrt", toDyn (\a -> sqrt (a @= t) @= t))
+   , ("sin", toDyn (\a -> sin (a @= t) @= t))
+   , ("cos", toDyn (\a -> cos (a @= t) @= t))
+   , ("tan", toDyn (\a -> tan (a @= t) @= t))
+   , ("asin", toDyn (\a -> asin (a @= t) @= t))
+   , ("acos", toDyn (\a -> acos (a @= t) @= t))
+   , ("atan", toDyn (\a -> atan (a @= t) @= t))
+   , ("sinh", toDyn (\a -> sinh (a @= t) @= t))
+   , ("cosh", toDyn (\a -> cosh (a @= t) @= t))
+   , ("tanh", toDyn (\a -> tanh (a @= t) @= t))
+   , ("asinh", toDyn (\a -> asinh (a @= t) @= t))
+   , ("acosh", toDyn (\a -> acosh (a @= t) @= t))
+   , ("atanh", toDyn (\a -> atanh (a @= t) @= t))
+   , ("**", toDyn (\a b -> (**) (a @= t) (b @= t) @= t))
+   , ("logBase", toDyn (\a b -> logBase (a @= t) (b @= t) @= t))
+   ]
 
 test =
-  "if 1 -> 1\n"
-    ++ "   2 -> 2\n"
+   "if 1 -> 1\n"
+   ++ "   2 -> 2\n"
 
 test2 =
-  "if blah1; blah2 -> blah3; blah4 | foo1; foo2 -> foo3; foo4 else snorg1; snorg2"
+   "if blah1; blah2 -> blah3; blah4 | foo1; foo2 -> foo3; foo4 else snorg1; snorg2"
 
 {-
 parseH t = parseC expr t
@@ -612,14 +612,14 @@ expr = buildExpressionParser optable terms
 terms = do t <- many1 term; return (case t of [t1] -> t1; ts -> Apply ts)
 
 term =     do f <- try forceFloating; return $ Value $ toDyn f
-       <|> do n <- natural; return $ Value $ toDyn n
-       <|> do s <- stringLiteral; return $ Value $ toDyn s
-       <|> do i <- identifier; return $ VarRef1 i
-       <|> do symbol "("; s <- stats; symbol ")"; return s
-       <|> do reservedOp "\\"; is <- many1 identifier; reservedOp "->"; s <- stats; return $ Lambda (Constr "lambda" is) s
-       <|> listP
-       <|> ifP
-       <|> caseP
+      <|> do n <- natural; return $ Value $ toDyn n
+      <|> do s <- stringLiteral; return $ Value $ toDyn s
+      <|> do i <- identifier; return $ VarRef1 i
+      <|> do symbol "("; s <- stats; symbol ")"; return s
+      <|> do reservedOp "\\"; is <- many1 identifier; reservedOp "->"; s <- stats; return $ Lambda (Constr "lambda" is) s
+      <|> listP
+      <|> ifP
+      <|> caseP
 
 listP = do
          symbol "["
@@ -748,8 +748,8 @@ formatCase w (cond, exec) = let
    res2   = fcond ++ "\n -> " ++ indent1 4 fexec
 
    in if width res1 <= w
-          then res1
-          else res2
+         then res1
+         else res2
 
 fit w [o]      = o
 fit w (o:opts) = if width o <= w then o else fit w opts
@@ -764,13 +764,13 @@ height s = count $ lines s
 formatS w s = toString $ formatStat w s
 
 data Doc
-  = Doc {docWidth :: Int, docHeight :: Int, docText :: [String]}
-  | Doc :-: Doc
-  | Doc :\: Doc
-  | Doc :^: Doc
-  | Doc :|: Doc
-  | DocFail
-  deriving (Eq, Ord, Show)
+   = Doc {docWidth :: Int, docHeight :: Int, docText :: [String]}
+   | Doc :-: Doc
+   | Doc :\: Doc
+   | Doc :^: Doc
+   | Doc :|: Doc
+   | DocFail
+   deriving (Eq, Ord, Show)
 
 t s = Doc (length s) 1 [s]
 ts :: [String] -> Doc
@@ -792,43 +792,43 @@ sumWidth ds = sum $ map docWidth ds
 
 fit :: Int -> [Doc] -> Doc
 fit w opts =
-  let
-    f1 = filter ((<= w) . docWidth) opts
-    f2 = filter ((<= 1) . docHeight) f1
+   let
+   f1 = filter ((<= w) . docWidth) opts
+   f2 = filter ((<= 1) . docHeight) f1
    in
-    if f2 /= []
+   if f2 /= []
       then minWidthDoc f2
       else
-        if f1 /= []
-          then minHeightDoc f1
-          else minWidthDoc opts
+         if f1 /= []
+         then minHeightDoc f1
+         else minWidthDoc opts
 
 indent n (Doc w h t) = Doc w h $ map (replicate n ' ' ++) t
 
 sapp (Doc aw ah at) (Doc bw bh (bth : btt)) =
-  let
-    ati = init at
-    atl = last at
+   let
+   ati = init at
+   atl = last at
    in
-    ts $ ati ++ ((atl ++ bth) : map (replicate (length atl) ' ' ++) btt)
+   ts $ ati ++ ((atl ++ bth) : map (replicate (length atl) ' ' ++) btt)
 
 (<\>) = sapp
 
 scat ds = foldl1 sapp ds
 
 hcat ds =
-  Doc
-    (sumWidth ds)
-    (maxHeight ds)
-    (map concat $ transpose $ map (padh (maxHeight ds)) ds)
+   Doc
+   (sumWidth ds)
+   (maxHeight ds)
+   (map concat $ transpose $ map (padh (maxHeight ds)) ds)
 
 padh maxh (Doc w h strs) = map (padl w) (strs ++ replicate (maxh - h) "")
 
 vcat ds =
-  Doc
-    (maximum $ map docWidth ds)
-    (sum $ map docHeight ds)
-    (concat $ map docText ds)
+   Doc
+   (maximum $ map docWidth ds)
+   (sum $ map docHeight ds)
+   (concat $ map docText ds)
 
 vapp a b = vcat [a, b]
 
@@ -840,23 +840,23 @@ formatStat w (Value _ v) = t $ showDyn v
 formatStat w (VarRef1 _ n) = t n
 formatStat w (Else) = t "else"
 formatStat w (Apply _ (f : xs)) =
-  fit
-    w
-    [ scat $ intersperse (t " ") $ map (formatStat w) (f : xs)
-    , formatStat w f <\> (vcat $ map (formatStat w) xs)
-    ]
+   fit
+   w
+   [ scat $ intersperse (t " ") $ map (formatStat w) (f : xs)
+   , formatStat w f <\> (vcat $ map (formatStat w) xs)
+   ]
 formatStat w (If _ cases) =
-  t "if "
-    <\> fit
+   t "if "
+   <\> fit
       (w - 3)
       [ scat $ zipWith (formatCase (w - 3)) [0 ..] cases
       , vcat $ zipWith (formatCase (w - 3)) (repeat 0) cases
       ]
 formatStat w (Case _ c cases) =
-  t "case "
-    <\> formatStat (w - 5) c
-    <\> t " of "
-    <\> fit
+   t "case "
+   <\> formatStat (w - 5) c
+   <\> t " of "
+   <\> fit
       (w - 5)
       [ scat $ zipWith (formatCase (w - 3)) [0 ..] cases
       , vcat $ zipWith (formatCase (w - 3)) (repeat 0) cases
@@ -865,8 +865,8 @@ formatStat w x = t $ show x
 
 formatCase :: Int -> Int -> (Expr, Expr) -> Doc
 formatCase w n (cond, exec) =
-  fit w $
-    (if n > 0 && notElse cond then map (t " | " <->) else id) $
+   fit w $
+   (if n > 0 && notElse cond then map (t " | " <->) else id) $
       [ formatStat (w - 4) cond <\> t " -> " <\> formatStat (w - 4) exec
       , formatStat w cond <:> (t " -> " <\> formatStat (w - 4) exec)
       ]
@@ -878,32 +878,32 @@ fmtStat (Value _ v) = t $ showDyn v
 fmtStat (VarRef1 _ n) = t n
 fmtStat (Else) = t "else"
 fmtStat (Apply _ (f : xs)) =
-  (foldr1 (:-:) $ intersperse (t " ") $ map fmtStat (f : xs))
-    :|: (foldr1 (:^:) $ map fmtStat (f : xs))
+   (foldr1 (:-:) $ intersperse (t " ") $ map fmtStat (f : xs))
+   :|: (foldr1 (:^:) $ map fmtStat (f : xs))
 
 fmt w h d@(Doc dw dh dt)
-  | dw <= w && (dh > 1) <= h = [d]
-  | True = []
+   | dw <= w && (dh > 1) <= h = [d]
+   | True = []
 fmt w h DocFail = []
 fmt w h (as :-: bs) = do
-  a <- fmt w False as
-  b <- fmt (w - docWidth a) False bs
-  return (a <-> b)
+   a <- fmt w False as
+   b <- fmt (w - docWidth a) False bs
+   return (a <-> b)
 fmt w h (as :^: bs) = do
-  guard h
-  a <- fmt w h as
-  b <- fmt w h bs
-  return (a <:> b)
+   guard h
+   a <- fmt w h as
+   b <- fmt w h bs
+   return (a <:> b)
 fmt w h (as :|: bs) = fmt w h as ++ fmt w h bs
 
 data CData = CData
-  { structDecls :: String
-  , funcDecls :: String
-  , structDefns :: String
-  , funcDefns :: String
-  , lambdaCounter :: Int
-  }
-  deriving (Eq, Show)
+   { structDecls :: String
+   , funcDecls :: String
+   , structDefns :: String
+   , funcDefns :: String
+   , lambdaCounter :: Int
+   }
+   deriving (Eq, Show)
 
 addStructDecl :: String -> State CData ()
 addStructDecl x = modify (\s -> s{structDecls = structDecls s ++ x})
@@ -917,12 +917,12 @@ incLambda :: State CData ()
 incLambda = modify (\s -> s{lambdaCounter = lambdaCounter s + 1})
 
 testCompile p = do
-  let (v, s) = runState p (CData "" "" "" "" 0)
-  putStr $ structDecls s
-  putStr $ funcDecls s
-  putStr $ structDefns s
-  putStr $ funcDefns s
-  return v
+   let (v, s) = runState p (CData "" "" "" "" 0)
+   putStr $ structDecls s
+   putStr $ funcDecls s
+   putStr $ structDefns s
+   putStr $ funcDefns s
+   return v
 
 type CWriter = State CData
 
@@ -936,27 +936,27 @@ interab a xs b = interabs a xs b []
 
 {-
 compileConstr c = do
-  addStructDecl ("struct " ++ cname c ++ ";\n")
-  addStructDefn
-    ( "struct "
-        ++ cname c
-        ++ "\n"
-        ++ "{\n"
-        ++ interab "   Any " (inames c) ";\n"
-        ++ cname c
-        ++ "("
-        ++ interas "Any " (inames c) ","
-        ++ ") : "
-        ++ intermap (\x -> x ++ "(" ++ x ++ ")") (inames c) ","
-        ++ " {}\n"
-        ++ "};\n"
-        ++ "\n"
-    )
+   addStructDecl ("struct " ++ cname c ++ ";\n")
+   addStructDefn
+   ( "struct "
+         ++ cname c
+         ++ "\n"
+         ++ "{\n"
+         ++ interab "   Any " (inames c) ";\n"
+         ++ cname c
+         ++ "("
+         ++ interas "Any " (inames c) ","
+         ++ ") : "
+         ++ intermap (\x -> x ++ "(" ++ x ++ ")") (inames c) ","
+         ++ " {}\n"
+         ++ "};\n"
+         ++ "\n"
+   )
 
 -- compile :: [[String]] -> Expr -> State CData String
 compile env (Apply _ stats) = do
-  r <- mapM (compile env) stats
-  return ((head r) ++ ".as<LambdaStr>()(" ++ intercalate "," (tail r) ++ ")")
+   r <- mapM (compile env) stats
+   return ((head r) ++ ".as<LambdaStr>()(" ++ intercalate "," (tail r) ++ ")")
 
 {-
 compile env (VarRef1 n) = do
@@ -965,30 +965,30 @@ compile env (VarRef1 n) = do
 -}
 
 compile env (Lambda _ vs s) = do
-  inner <- compile (vs : env) s
-  lc <- lambdaCounter <$> get
-  incLambda
-  let func = "lambda" ++ show lc
-  let decl = "Any " ++ func ++ "(" ++ interas "Any " (inames vs) "," ++ ");"
-  let struct = "lambdaFrame" ++ show lc
-  compileConstr vs
-  addFuncDecl (decl ++ ";")
-  addFuncDefn
-    ( decl
-        ++ "\n"
-        ++ "{\n"
-        ++ "   env = new "
-        ++ struct
-        ++ "(env, "
-        ++ intercalate "," (inames vs)
-        ++ ");\n"
-        ++ "   return "
-        ++ inner
-        ++ ";\n"
-        ++ "}\n"
-        ++ "\n"
-    )
-  return ("LambdaStr(" ++ func ++ ", env)")
+   inner <- compile (vs : env) s
+   lc <- lambdaCounter <$> get
+   incLambda
+   let func = "lambda" ++ show lc
+   let decl = "Any " ++ func ++ "(" ++ interas "Any " (inames vs) "," ++ ");"
+   let struct = "lambdaFrame" ++ show lc
+   compileConstr vs
+   addFuncDecl (decl ++ ";")
+   addFuncDefn
+   ( decl
+         ++ "\n"
+         ++ "{\n"
+         ++ "   env = new "
+         ++ struct
+         ++ "(env, "
+         ++ intercalate "," (inames vs)
+         ++ ");\n"
+         ++ "   return "
+         ++ inner
+         ++ ";\n"
+         ++ "}\n"
+         ++ "\n"
+   )
+   return ("LambdaStr(" ++ func ++ ", env)")
 -}
 {-
 
@@ -1011,8 +1011,8 @@ formatH w open sep close terms = let
       else open ++ "\n" ++ (indent indentStep $ intercalate "\n" $ fterms) ++ "\n" ++ close
       {-
       else if allEqual clens
-              then
-              then open ++ indent1 (length open) (intercalate (sep ++ "\n") fterms) ++ close
+               then
+               then open ++ indent1 (length open) (intercalate (sep ++ "\n") fterms) ++ close
       -}
 -}
 {-
@@ -1025,7 +1025,7 @@ or could format them originally for spreading as the spread indent is <= the ope
 (a (b (c (c c c c) d (d d d d)) (e f) (g h)) (i (j k) (l m)))
 
 (a (b (c (c c c c)
-       d (d d d d))
+      d (d d d d))
       (e f)
       (g h))
    (i (j k) (l m)))
@@ -1036,8 +1036,8 @@ or could format them originally for spreading as the spread indent is <= the ope
 
 on a line, unmatched close brackets must not be followed by anything
 => if a sub item spans lines, there must be a new line after it
- + there ought to be a new line between all of the sub items
- + there ought to be a new line after the last one
++ there ought to be a new line between all of the sub items
++ there ought to be a new line after the last one
 -}
 {-
 repl :: IO ((), Env)

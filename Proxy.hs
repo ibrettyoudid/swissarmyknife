@@ -67,16 +67,16 @@ a <.> b = (\x -> a <$> b x)
 convBytes xs = mapM (\x -> mychr <$> (convHex1 $ take 2 x)) $ groupN 3 xs
 
 mychr x =
-  if
-    | x == 10 -> '\n'
-    | x < 32 || x >= 127 -> '.'
-    | otherwise -> chr x
+   if
+      | x == 10 -> '\n'
+      | x < 32 || x >= 127 -> '.'
+      | otherwise -> chr x
 
 convLine xs = do
-  let (xs1, xs2) = splitAt 4 xs
-  addr <- convHex xs1
-  let xs3 = take 48 $ drop 2 xs2
-  convBytes xs3
+   let (xs1, xs2) = splitAt 4 xs
+   addr <- convHex xs1
+   let xs3 = take 48 $ drop 2 xs2
+   convBytes xs3
 
 {-
 Not sure how I'm gonna make the browsers accept this as a proxy on https
@@ -109,10 +109,10 @@ draw1 c = lift $ do cl <- get; put $ delete c cl
 {-
 pickCard :: (MonadIO m) => Int -> StateT Int m Int
 pickCard cardsLeft = do
-   cn <- lift $ uniformRM (0::Int, 59) globalStdGen
-   if shift 1 cn .&. cardsLeft == 0
-      then pickCard cardsLeft
-      else return cn
+      cn <- lift $ uniformRM (0::Int, 59) globalStdGen
+      if shift 1 cn .&. cardsLeft == 0
+         then pickCard cardsLeft
+         else return cn
 -}
 data Var = Var
 
@@ -120,19 +120,19 @@ breaks for inside = (a, B.drop (B.length for) b) where (a, b) = B.breakSubstring
 
 recvUpto :: B.ByteString -> StateT (Socket, B.ByteString) IO B.ByteString
 recvUpto delim = do
-  (s :: Socket, buf :: B.ByteString) <- get
-  loop s buf
- where
-  loop s buf = do
-    dat <- lift $ recv s 1024
-    let buf1 = B.append buf dat
-    let (b, a) = B.breakSubstring delim buf1
-    if B.null a
-      then do
-        loop s buf1
-      else do
-        put (s, B.drop (B.length delim) a)
-        return b
+   (s :: Socket, buf :: B.ByteString) <- get
+   loop s buf
+where
+   loop s buf = do
+      dat <- lift $ recv s 1024
+      let buf1 = B.append buf dat
+      let (b, a) = B.breakSubstring delim buf1
+      if B.null a
+         then do
+            loop s buf1
+         else do
+            put (s, B.drop (B.length delim) a)
+            return b
 
 bconcat ss = foldr B.append "" ss
 
@@ -141,43 +141,43 @@ bput s = B.putStr (B.append s "\n")
 cache = "~/.bcache"
 
 proxyserver = do
-  (s, _) <- get
-  line1 <- recvUpto "\n"
-  let (method : url : ver : _) = B.split 32 line1
-  lift $ bput $ bconcat ["method: ", method, " url: ", url, " ver: ", ver]
-  let (proto : gap : host1 : ufile) = split "/" url
-  let host = split "." host1
-  let rhost = reverse host
-  let subdir = rhost ++ ufile
-  let filename = sofbs $ cache & sintercalate "/" (rhost ++ ufile)
-  flag <- lift $ doesFileExist $ filename ++ ".hdr"
-  if flag
-    then lift $ do
-      hdr <- B.readFile $ filename ++ ".hdr"
-      sendAll s hdr
-      dat <- B.readFile filename
-      sendAll s dat
-    else do
-      -- let http = method & " " & "https://" & host1 & bconcat ufile & " " & ver
-      -- lift $ runTCPClient (sofbs host1) "443" (proxyclient http filename s)
-      lift $ runTCPClient (sofbs host1) "80" (proxyclient line1 filename s)
+   (s, _) <- get
+   line1 <- recvUpto "\n"
+   let (method : url : ver : _) = B.split 32 line1
+   lift $ bput $ bconcat ["method: ", method, " url: ", url, " ver: ", ver]
+   let (proto : gap : host1 : ufile) = split "/" url
+   let host = split "." host1
+   let rhost = reverse host
+   let subdir = rhost ++ ufile
+   let filename = sofbs $ cache & sintercalate "/" (rhost ++ ufile)
+   flag <- lift $ doesFileExist $ filename ++ ".hdr"
+   if flag
+      then lift $ do
+         hdr <- B.readFile $ filename ++ ".hdr"
+         sendAll s hdr
+         dat <- B.readFile filename
+         sendAll s dat
+      else do
+         -- let http = method & " " & "https://" & host1 & bconcat ufile & " " & ver
+         -- lift $ runTCPClient (sofbs host1) "443" (proxyclient http filename s)
+         lift $ runTCPClient (sofbs host1) "80" (proxyclient line1 filename s)
 
-      return ()
+         return ()
 
 proxyclient line1 filename ourclient = do
-  (s, _) <- get
-  lift $ sendAll s line1
-  hdr <- recvUpto "\n\n"
-  lift $ sendAll ourclient hdr
-  lift $ B.writeFile (filename ++ ".hdr") hdr
-  h <- lift $ openBinaryFile filename WriteMode
-  loop s h
- where
-  loop s h = do
-    chunk <- lift $ recv s 65536
-    lift $ sendAll ourclient chunk
-    lift $ B.hPutStr h chunk
-    loop s h
+   (s, _) <- get
+   lift $ sendAll s line1
+   hdr <- recvUpto "\n\n"
+   lift $ sendAll ourclient hdr
+   lift $ B.writeFile (filename ++ ".hdr") hdr
+   h <- lift $ openBinaryFile filename WriteMode
+   loop s h
+where
+   loop s h = do
+      chunk <- lift $ recv s 65536
+      lift $ sendAll ourclient chunk
+      lift $ B.hPutStr h chunk
+      loop s h
 
 minel xs = findel minimum xs
 
@@ -191,43 +191,43 @@ main = main1
 
 main1 :: IO ()
 main1 = do
-  runTCPServer Nothing "8888" proxyserver
+   runTCPServer Nothing "8888" proxyserver
 
 runTCPClient host port client = withSocketsDo $ do
-  addr <- resolve
-  E.bracket (open addr) close run
- where
-  resolve = do
-    let hints = defaultHints{addrSocketType = Stream}
-    head <$> getAddrInfo (Just hints) (Just host) (Just port)
-  open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
-    connect sock $ addrAddress addr
-    return sock
-  run sock = evalStateT client (sock, "")
+   addr <- resolve
+   E.bracket (open addr) close run
+where
+   resolve = do
+      let hints = defaultHints{addrSocketType = Stream}
+      head <$> getAddrInfo (Just hints) (Just host) (Just port)
+   open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
+      connect sock $ addrAddress addr
+      return sock
+   run sock = evalStateT client (sock, "")
 
 runTCPServer mhost port server = withSocketsDo $ do
-  addr <- resolve
-  E.bracket (open addr) close loop
- where
-  resolve = do
-    let hints =
-          defaultHints
-            { addrFlags = [AI_PASSIVE]
-            , addrSocketType = Stream
-            }
-    head <$> getAddrInfo (Just hints) mhost (Just port)
-  open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
-    setSocketOption sock ReuseAddr 1
-    withFdSocket sock setCloseOnExecIfNeeded
-    bind sock $ addrAddress addr
-    listen sock 128
-    return sock
-  loop sock = forever $
-    E.bracketOnError (accept sock) (close . fst) $
-      \(conn, _peer) ->
-        void $
-          -- 'forkFinally' alone is unlikely to fail thus leaking @conn@,
-          -- but 'E.bracketOnError' above will be necessary if some
-          -- non-atomic setups (e.g. spawning a subprocess to handle
-          -- @conn@) before proper cleanup of @conn@ is your case
-          forkFinally (evalStateT server (conn, "")) (const $ gracefulClose conn 5000)
+   addr <- resolve
+   E.bracket (open addr) close loop
+where
+   resolve = do
+      let hints =
+               defaultHints
+                  { addrFlags = [AI_PASSIVE]
+                  , addrSocketType = Stream
+                  }
+      head <$> getAddrInfo (Just hints) mhost (Just port)
+   open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
+      setSocketOption sock ReuseAddr 1
+      withFdSocket sock setCloseOnExecIfNeeded
+      bind sock $ addrAddress addr
+      listen sock 128
+      return sock
+   loop sock = forever $
+      E.bracketOnError (accept sock) (close . fst) $
+         \(conn, _peer) ->
+            void $
+               -- 'forkFinally' alone is unlikely to fail thus leaking @conn@,
+               -- but 'E.bracketOnError' above will be necessary if some
+               -- non-atomic setups (e.g. spawning a subprocess to handle
+               -- @conn@) before proper cleanup of @conn@ is your case
+               forkFinally (evalStateT server (conn, "")) (const $ gracefulClose conn 5000)

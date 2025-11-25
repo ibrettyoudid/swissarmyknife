@@ -140,11 +140,11 @@ createSquare y x = let
                               map (\(m, k, v) -> (m, k, 
                                  map (at1 masterboard) $ filter onboard $ map (pos1 <+>) v)) mkv))
                         [(White, [(False, True , [[-1,  1]]),
-                                  (False, True , [[ 1,  1]]), 
-                                  (True , False, [[ 0,  1]] ++ if y == 1 then [[ 0,  2]] else [])]),
-                         (Black, [(False, True , [[-1, -1]]),
-                                  (False, True , [[ 1, -1]]),
-                                  (True , False, [[ 0, -1]] ++ if y == 6 then [[ 0, -2]] else [])])]
+                                 (False, True , [[ 1,  1]]), 
+                                 (True , False, [[ 0,  1]] ++ if y == 1 then [[ 0,  2]] else [])]),
+                        (Black, [(False, True , [[-1, -1]]),
+                                 (False, True , [[ 1, -1]]),
+                                 (True , False, [[ 0, -1]] ++ if y == 6 then [[ 0, -2]] else [])])]
 
       }
 
@@ -316,8 +316,8 @@ pppppppp
 b      b
 p      p
    CC   
- pppppp 
- n KQ n 
+pppppp 
+n KQ n 
 -------
 CnbKQbnC
 pppppppp

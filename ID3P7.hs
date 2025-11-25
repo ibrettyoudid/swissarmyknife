@@ -89,20 +89,20 @@ f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
 {-
 m = Build $ Seq [
-  Artist <-- AnyTill (String "/"  ),
-  Year   <-- AnyTill (String " - "),
-  Album  <-- AnyTill (String "/"  ),
-  Track  <-- AnyTill (String " - "),
-  Song   <-- AnyTill (String "."  )]
+   Artist <-- AnyTill (String "/"  ),
+   Year   <-- AnyTill (String " - "),
+   Album  <-- AnyTill (String "/"  ),
+   Track  <-- AnyTill (String " - "),
+   Song   <-- AnyTill (String "."  )]
 -} 
 {-
 m1 = do
-  tod Artist
-  to Year " - "
-  tod Album
-  to Track " - "
-  to Song "."
-  toe Ext
+   tod Artist
+   to Year " - "
+   tod Album
+   to Track " - "
+   to Song "."
+   toe Ext
 -}
 
 upto x = AP.manyTill AP.anyWord8 $ AP.string x
@@ -128,8 +128,8 @@ data Split = SFail | Partial | Match deriving (Eq, Ord, Show)
 sp :: (String -> Bool) -> String -> (String -> Split) -> String -> Split
 sp pred delim cont [] = Partial
 sp pred delim cont str = case split1M delim str of
-  Just (b, a) -> if pred b   then cont a  else SFail
-  Nothing     -> if pred str then Partial else SFail
+   Just (b, a) -> if pred b   then cont a  else SFail
+   Nothing     -> if pred str then Partial else SFail
 
 sp1 pred delim = sp pred delim ok
 
@@ -143,8 +143,8 @@ split1 sep = split1With (stripPrefix sep)
 split1M sep = split1WithM (stripPrefix sep)
 
 split1WithM pred str = case catMaybes $ zipWith (\a b -> (a,) <$> pred b) (inits str) (tails str) of
-  [] -> Nothing
-  (x : _) -> Just x
+   [] -> Nothing
+   (x : _) -> Just x
 -}
 
 ok = const Match
@@ -162,8 +162,8 @@ artistmp3s a = mp3s $ artistd ++ a
 tagTree = unsafePerformIO . tagTreeM
 tagTreeM d = fromAssocsD . concat <$> tagTreeM1 d
 tagTreeM1 d =
-  mapM (\f -> map (\fr -> ([toDyn f, toDyn $ fst fr], snd fr)) . M.toList . metaOfFrames1 <$> readTagM (readSomeAudio 4) f) $
-    mp3s d
+   mapM (\f -> map (\fr -> ([toDyn f, toDyn $ fst fr], snd fr)) . M.toList . metaOfFrames1 <$> readTagM (readSomeAudio 4) f) $
+      mp3s d
 
 -- test = afl . ta . tagTree2
 
@@ -181,42 +181,42 @@ test3 = parseTag $ unsafePerformIO $ readFile tf
 type MyString = B.ByteString
 
 data Frame
-  = Header {id3 :: MyString, verMajor :: Int, verMinor :: Int, unsync :: Bool, extHdr :: Bool, experi :: Bool, footer :: Bool, tagSize :: Int}
-  | Frame {frameID :: MyString, frameSize :: Int, flags :: Frame, contents :: B.ByteString}
-  | FrameText {frid :: FrameID, val :: T.Text}
-  | FrameFlags {tagAltPrsv :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool}
-  | MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString}
-  | FrameTruncated
-  | Invalid B.ByteString
-  | Bytes Int
-  | Nowt
-  deriving (Eq, Ord, Show, Read, Generic)
+   = Header {id3 :: MyString, verMajor :: Int, verMinor :: Int, unsync :: Bool, extHdr :: Bool, experi :: Bool, footer :: Bool, tagSize :: Int}
+   | Frame {frameID :: MyString, frameSize :: Int, flags :: Frame, contents :: B.ByteString}
+   | FrameText {frid :: FrameID, val :: T.Text}
+   | FrameFlags {tagAltPrsv :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool}
+   | MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString}
+   | FrameTruncated
+   | Invalid B.ByteString
+   | Bytes Int
+   | Nowt
+   deriving (Eq, Ord, Show, Read, Generic)
 
 data FileTimes = FileTimes {created :: Pico, written :: Pico, accessed :: Pico} deriving (Eq, Ord, Show, Read)
 
 blankFT = FileTimes 0 0 0
 
 data Meta = Meta
-  { byId        :: M.Map FrameID Dynamic
-  , isDir       :: Bool
-  , path        :: T.Text
-  , audio       :: T.Text
-  , artist      :: T.Text
-  , album       :: T.Text
-  , albumartist :: T.Text
-  , track       :: T.Text
-  , song        :: T.Text
-  , year        :: Int
-  , genre       :: T.Text
-  , times       :: FileTimes
-  , orig        :: FileTimes
-  }
-  deriving (Eq, Ord, Show, Read)
+   { byId        :: M.Map FrameID Dynamic
+   , isDir       :: Bool
+   , path        :: T.Text
+   , audio       :: T.Text
+   , artist      :: T.Text
+   , album       :: T.Text
+   , albumartist :: T.Text
+   , track       :: T.Text
+   , song        :: T.Text
+   , year        :: Int
+   , genre       :: T.Text
+   , times       :: FileTimes
+   , orig        :: FileTimes
+   }
+   deriving (Eq, Ord, Show, Read)
 
 n = track
 
 data Encoding = ISO8859 | UCS2
-  deriving (Eq, Ord, Show)
+   deriving (Eq, Ord, Show)
 
 -- test1 = putGrid $ transpose1 $
 test1 = differences $ fileTree $ unsharedd / "Portion Control" / "2007 - Onion Jack IV"
@@ -226,10 +226,10 @@ test2 db = play $ map (c . path) $ filter (album $= "Paradise Lost") $ tl db
 
 {-
 fixalbumname = do
-  db <- loadDB
-  let fs = filter (album $= "Symbol of Life") $ tl db
-  let fs1 = map (\m -> m{album = "Symbol Of Life"}) fs
-  return $ updateDB1 db fs1
+   db <- loadDB
+   let fs = filter (album $= "Symbol of Life") $ tl db
+   let fs1 = map (\m -> m{album = "Symbol Of Life"}) fs
+   return $ updateDB1 db fs1
 -}
 timeFrame = mpegFrameTime . getMPEGFrame
 
@@ -239,27 +239,27 @@ fieldname ?= b = \fileframes -> field fieldname fileframes == b
 
 {-
 artists1 db =
-  map (applyT (mode ?? "Artist", range ?? "Year", countUnique ?? "Album", length :: [[Frame]] -> Int, mode ?? "Genre")) $ -- , sum $$ timeFrame, mode $$ genre))
-  -- \$ sortOn (minimum $$ yearInt)
-    groupBy1 artist $
-      tl db
-      -}
+   map (applyT (mode ?? "Artist", range ?? "Year", countUnique ?? "Album", length :: [[Frame]] -> Int, mode ?? "Genre")) $ -- , sum $$ timeFrame, mode $$ genre))
+   -- \$ sortOn (minimum $$ yearInt)
+      groupBy1 artist $
+         tl db
+         -}
 
 artists db =
-  map (applyT (head $$ artist, counts $$ year, countUnique $$ album)) $ -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre))
-    groupBy1 artist $
-      tl db
+   map (applyT (head $$ artist, counts $$ year, countUnique $$ album)) $ -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre)) -- , sum $$ timeFrame, mode $$ genre))
+      groupBy1 artist $
+         tl db
 
 artistalbums db =
-  map (applyT (hd $$ artist, hd $$ year, hd $$ album, mode $$ genre)) $ -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame,
-    groupBy1 (applyT (artist, year, album)) $
-      tl db
+   map (applyT (hd $$ artist, hd $$ year, hd $$ album, mode $$ genre)) $ -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame, -- sum $$ timeFrame,
+      groupBy1 (applyT (artist, year, album)) $
+         tl db
 
 albums db =
-  map (applyT (range $$ year, range $$ album)) $ -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame))
-    sortOn (minimum $$ year) $
-      groupBy1 album $
-        tl db
+   map (applyT (range $$ year, range $$ album)) $ -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame)) -- , sum  timeFrame))
+      sortOn (minimum $$ year) $
+         groupBy1 album $
+            tl db
 
 putt a = putGrid $ transpose $ map showT a
 
@@ -295,61 +295,61 @@ fields2 meta = M.fromList $ fields1 meta
 setField1 id val meta = meta{byId = M.alter (const $ Just $ toDyn val) id $ byId meta}
 
 instance P.Frame FrameID Dynamic Meta where
-  myget1 = getField
-  myset1 = setField
+   myget1 = getField
+   myset1 = setField
 
 setField id val meta = case id of
-  Bisdir      -> meta{isDir       = fromDyn1 val}
-  Bpath       -> meta{path        = fromDyn1 val}
-  Baudio      -> meta{audio       = fromDyn1 val}
-  Track       -> meta{track       = fromDyn1 val}
-  Album       -> meta{album       = fromDyn1 val}
-  Artist      -> meta{artist      = fromDyn1 val}
-  AlbumArtist -> meta{albumartist = fromDyn1 val}
-  Song        -> meta{song        = fromDyn1 val}
-  Year        -> meta{year        = fromDyn1 val}
-  Genre       -> meta{genre       = fromDyn1 val}
-  Btimes      -> meta{times       = fromDyn1 val}
-  Borig       -> meta{orig        = fromDyn1 val}
-  _           -> setField1 id val meta
+   Bisdir      -> meta{isDir       = fromDyn1 val}
+   Bpath       -> meta{path        = fromDyn1 val}
+   Baudio      -> meta{audio       = fromDyn1 val}
+   Track       -> meta{track       = fromDyn1 val}
+   Album       -> meta{album       = fromDyn1 val}
+   Artist      -> meta{artist      = fromDyn1 val}
+   AlbumArtist -> meta{albumartist = fromDyn1 val}
+   Song        -> meta{song        = fromDyn1 val}
+   Year        -> meta{year        = fromDyn1 val}
+   Genre       -> meta{genre       = fromDyn1 val}
+   Btimes      -> meta{times       = fromDyn1 val}
+   Borig       -> meta{orig        = fromDyn1 val}
+   _           -> setField1 id val meta
 
 fields1 meta =
-  [ (Bisdir     , toDyn $ isDir       meta)
-  , (Bpath      , toDyn $ path        meta)
-  , (Baudio     , toDyn $ audio       meta)
-  , (Track      , toDyn $ track       meta)
-  , (Album      , toDyn $ album       meta)
-  , (Artist     , toDyn $ artist      meta)
-  , (AlbumArtist, toDyn $ albumartist meta)
-  , (Song       , toDyn $ song        meta)
-  , (Year       , toDyn $ year        meta)
-  , (Genre      , toDyn $ genre       meta)
-  , (Btimes     , toDyn $ times       meta)
-  , (Borig      , toDyn $ orig        meta)
-  ]
-    ++ M.toList (byId meta)
+   [ (Bisdir     , toDyn $ isDir       meta)
+   , (Bpath      , toDyn $ path        meta)
+   , (Baudio     , toDyn $ audio       meta)
+   , (Track      , toDyn $ track       meta)
+   , (Album      , toDyn $ album       meta)
+   , (Artist     , toDyn $ artist      meta)
+   , (AlbumArtist, toDyn $ albumartist meta)
+   , (Song       , toDyn $ song        meta)
+   , (Year       , toDyn $ year        meta)
+   , (Genre      , toDyn $ genre       meta)
+   , (Btimes     , toDyn $ times       meta)
+   , (Borig      , toDyn $ orig        meta)
+   ]
+      ++ M.toList (byId meta)
 
 field1 id meta = case id of
-  Track       -> toDyn $ track  meta
-  Album       -> toDyn $ album  meta
-  AlbumArtist -> toDyn $ artist meta
-  Song        -> toDyn $ song   meta
-  Year        -> toDyn $ year   meta
-  Bpath       -> toDyn $ path   meta
+   Track       -> toDyn $ track  meta
+   Album       -> toDyn $ album  meta
+   AlbumArtist -> toDyn $ artist meta
+   Song        -> toDyn $ song   meta
+   Year        -> toDyn $ year   meta
+   Bpath       -> toDyn $ path   meta
 
 isfixed id = case id of
-  Bisdir      -> True
-  Bpath       -> True
-  Baudio      -> True
-  Track       -> True
-  Album       -> True
-  Artist      -> True
-  AlbumArtist -> True
-  Song        -> True
-  Year        -> True
-  Btimes      -> True
-  Borig       -> True
-  _           -> False
+   Bisdir      -> True
+   Bpath       -> True
+   Baudio      -> True
+   Track       -> True
+   Album       -> True
+   Artist      -> True
+   AlbumArtist -> True
+   Song        -> True
+   Year        -> True
+   Btimes      -> True
+   Borig       -> True
+   _           -> False
 
 mapfield name = mapMaybe (\case FrameText name1 val -> ifJust (name == name1) val; x -> Nothing)
 
@@ -361,29 +361,29 @@ setctimes = setFields "FT.Current"
 setotimes = setFields "FT.Original"
 -}
 class Zero a where
-  zero :: a
+   zero :: a
 
 {-
 instance Num a => Zero a where
-   zero = 0
+      zero = 0
 -}
 instance Zero Int where
-  zero = 0
+   zero = 0
 
 instance Zero Integer where
-  zero = 0
+   zero = 0
 
 instance Zero [a] where
-  zero = []
+   zero = []
 
 instance Zero Term where
-  zero = String1 ""
+   zero = String1 ""
 
 instance (Zero a, Zero b) => Zero (a, b) where
-  zero = (zero, zero)
+   zero = (zero, zero)
 
 instance Zero T.Text where
-  zero = ""
+   zero = ""
 
 hd [] = zero
 hd (a : as) = a
@@ -402,7 +402,7 @@ data Range a = Range a a
 range l = Range (mini l) (maxi l)
 
 instance (Eq a, Show a) => Show (Range a) where
-  show (Range a b) = if a == b then show a else show a ++ "-" ++ show b
+   show (Range a b) = if a == b then show a else show a ++ "-" ++ show b
 
 modez z [] = z
 modez _ xs = mode xs
@@ -425,35 +425,35 @@ applyL fs x = map ($ x) fs
 
 {-
 pattrn p = do field <- P.manyTill P.anyChar (P.string ">")
-              delim <- P.manyTill P.anyChar (P.string "<" <|> P.eof)
-              pattrn (do fieldvals <- p
-                         value <- P.manyTill P.anyChar $ P.string delim
-                         return $ (field, value):fieldvals)
+                     delim <- P.manyTill P.anyChar (P.string "<" <|> P.eof)
+                     pattrn (do fieldvals <- p
+                                    value <- P.manyTill P.anyChar $ P.string delim
+                                    return $ (field, value):fieldvals)
 -}
 pathParts = splitWith (stripPrefix "/")
 dirName str =
-  let
-    p = pathParts str
-    l = length p
-   in
-    p !! (l - 2)
+   let
+      p = pathParts str
+      l = length p
+      in
+      p !! (l - 2)
 
 fileName = last . pathParts
 
 elemIndexRev e f =
-  let
-    l = length f
-    r = reverse f
-    i = fromMaybe (-1) $ elemIndex e r
-   in
-    l - i - 1
+   let
+      l = length f
+      r = reverse f
+      i = fromMaybe (-1) $ elemIndex e r
+      in
+      l - i - 1
 
 extension str =
-  let
-    f = fileName str
-    i = elemIndexRev '.' f
-   in
-    drop i f
+   let
+      f = fileName str
+      i = elemIndexRev '.' f
+      in
+      drop i f
 
 interleave as bs = concat $ transpose [as, bs]
 
@@ -461,16 +461,16 @@ uninterleave = transpose . groupN 2
 
 {-
 stats = do
-  st <- filter ("Statement-" `isPrefixOf`) <$> listDirectory down
-  let template = ["Statement--601033-78450349--" "-" "-" "-" "-" "-" ".pdf"]
-  let st1 = mapMaybe (\x -> (x :) <$> infoFromString2 template x) st
-  putGrid $ transpose st1
-  let st2 = filter (\x -> (< 2000) $ readInt $ x !! 2) st1
-  putGrid $ transpose st2
-  let template = ["Statement--601033-78450349--" "-" "-" "--" "-" "-" ".pdf"]
-  let sta = map (\(f : _ : d1 : m1 : y1 : d2 : m2 : y2 : left) -> [f, concat $ Main.interleave template (y1 : m1 : d1 : y2 : m2 : d2 : left)]) st2
-  putGrid $ transpose sta
-  mapM_ (\[from, to] -> rename (down ++ from) (down ++ to)) sta
+   st <- filter ("Statement-" `isPrefixOf`) <$> listDirectory down
+   let template = ["Statement--601033-78450349--" "-" "-" "-" "-" "-" ".pdf"]
+   let st1 = mapMaybe (\x -> (x :) <$> infoFromString2 template x) st
+   putGrid $ transpose st1
+   let st2 = filter (\x -> (< 2000) $ readInt $ x !! 2) st1
+   putGrid $ transpose st2
+   let template = ["Statement--601033-78450349--" "-" "-" "--" "-" "-" ".pdf"]
+   let sta = map (\(f : _ : d1 : m1 : y1 : d2 : m2 : y2 : left) -> [f, concat $ Main.interleave template (y1 : m1 : d1 : y2 : m2 : d2 : left)]) st2
+   putGrid $ transpose sta
+   mapM_ (\[from, to] -> rename (down ++ from) (down ++ to)) sta
 
 -- let st3 = map (\x -> concat $ Main.interleave template $ (\[f,_,d1,m1,y1,d2,m2,y2] -> [y1,m1,d1, y2,m2,d2,""]) x) st2
 -- putGrid [st3]
@@ -479,18 +479,18 @@ stats = do
 differences strs = differences1 strs $ commonSubsequencesList strs
 
 differences1 strs delims =
-  let
-    info = map (infoFromString delims) strs
-    tran = transpose1 info
-   in
-    case diffcheck tran 0 of
-      Nothing -> filter (not . all (== "")) tran
-      Just n -> let (a, b : bs) = splitAt (n + 1) delims in differences1 strs (a ++ bs)
+   let
+      info = map (infoFromString delims) strs
+      tran = transpose1 info
+      in
+      case diffcheck tran 0 of
+         Nothing -> filter (not . all (== "")) tran
+         Just n -> let (a, b : bs) = splitAt (n + 1) delims in differences1 strs (a ++ bs)
 
 diffcheck (c1 : c2 : cs) n =
-  case M.toList $ counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of
-    [((False, True), a), ((True, False), b)] -> Just n
-    _ -> diffcheck (c2 : cs) (n + 1)
+   case M.toList $ counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of
+      [((False, True), a), ((True, False), b)] -> Just n
+      _ -> diffcheck (c2 : cs) (n + 1)
 diffcheck _ _ = Nothing
 
 differences2 :: [String] -> [[String]]
@@ -507,16 +507,16 @@ infoFromString1 :: [String] -> String -> [String]
 infoFromString1 _ [] = []
 infoFromString1 [] str = [str]
 infoFromString1 (delim : ds) str =
-  let
-    (word, rest) = split1With (stripPrefix delim) str
-   in
-    word : infoFromString1 ds rest
+   let
+      (word, rest) = split1With (stripPrefix delim) str
+      in
+      word : infoFromString1 ds rest
 
 infoFromString2 _ [] = Just []
 infoFromString2 [] str = Just [str]
 infoFromString2 (delim : ds) str = case split1WithM (stripPrefix delim) str of
-  Just (found, left) -> (found :) <$> infoFromString2 ds left
-  Nothing -> Nothing
+   Just (found, left) -> (found :) <$> infoFromString2 ds left
+   Nothing -> Nothing
 
 infoFromStringA delims str = let (found, left) = unzip $ zipWith split1 delims (str : left) in found
 
@@ -525,25 +525,25 @@ commonSubsequencesList ss = splitWith (stripPrefix "*") $ foldl1 (\a b -> interc
 
 {-
 commonSubsequences2 a b  = let
-   c  = map (\an -> map (commonSubsequences2A an) [0..length b]) [0..length a]
-   commonSubsequences2A an bn
-      | an == 0 || bn == 0 = ([], 0, 0, True)
-      | otherwise          = let
-         (as, al, aw, _ ) = c !! (an-1) !! bn
-         (bs, bl, bw, _ ) = c !! an !! (bn-1)
-         (cs, cl, cw, cp) = c !! (an-1) !! (bn-1)
+      c  = map (\an -> map (commonSubsequences2A an) [0..length b]) [0..length a]
+      commonSubsequences2A an bn
+         | an == 0 || bn == 0 = ([], 0, 0, True)
+         | otherwise          = let
+            (as, al, aw, _ ) = c !! (an-1) !! bn
+            (bs, bl, bw, _ ) = c !! an !! (bn-1)
+            (cs, cl, cw, cp) = c !! (an-1) !! (bn-1)
 
-         ac = a !! (an-1)
-         bc = b !! (bn-1)
-         in if ac == bc
-               then if cp
-                  then (ac:cs, cl+1, cw, True)
-                  else (ac:'*':cs, cl+1, cw+1, True)
-               else if al > bl || al == bl && aw < bw
-                  then (as, al, aw, False)
-                  else (bs, bl, bw, False)
-   (res, _, _, _) = c !! length a !! length b
-   in reverse res
+            ac = a !! (an-1)
+            bc = b !! (bn-1)
+            in if ac == bc
+                        then if cp
+                           then (ac:cs, cl+1, cw, True)
+                           else (ac:'*':cs, cl+1, cw+1, True)
+                        else if al > bl || al == bl && aw < bw
+                           then (as, al, aw, False)
+                           else (bs, bl, bw, False)
+      (res, _, _, _) = c !! length a !! length b
+      in reverse res
 -}
 dbpath = baseDir / "haskelldb.bin"
 
@@ -567,11 +567,11 @@ saveDB = writeFile dbpath . show
 -- writeDB1 = encodeFile dbpath
 updateDB :: M.Map T.Text Meta -> IO (M.Map T.Text Meta)
 updateDB db = do
-  dbnew <- updateDB1 db <$> readDB db dbroots
-  putStrLn "Writing..."
-  saveDB dbnew
-  putStrLn "Done"
-  return dbnew
+   dbnew <- updateDB1 db <$> readDB db dbroots
+   putStrLn "Writing..."
+   saveDB dbnew
+   putStrLn "Done"
+   return dbnew
 
 readDB db roots = mapOfList <$> readDB1 db dbroots
 
@@ -580,35 +580,35 @@ readDB1 db roots = concat <$> mapM (\k -> readFS db $ fromMaybe (makeDir k) $ M.
 mapOfList = M.fromList . mapfxx path
 
 blankMeta =
-  Meta
-    { isDir       = False
-    , path        = empty
-    , audio       = empty
-    , byId        = M.empty
-    , artist      = empty
-    , album       = empty
-    , albumartist = empty
-    , track       = empty
-    , song        = empty
-    , year        = 0
-    , genre       = empty
-    , times       = FileTimes 0 0 0
-    , orig        = FileTimes 0 0 0
-    }
+   Meta
+      { isDir       = False
+      , path        = empty
+      , audio       = empty
+      , byId        = M.empty
+      , artist      = empty
+      , album       = empty
+      , albumartist = empty
+      , track       = empty
+      , song        = empty
+      , year        = 0
+      , genre       = empty
+      , times       = FileTimes 0 0 0
+      , orig        = FileTimes 0 0 0
+      }
 makeDir k = blankMeta{isDir = True, path = k}
 
 updateDB1 bypathold bypathnew =
-  let
-    -- join on pathnames
-    (bypathmatch, bypathnewmiss, bypatholdmiss) = myJoinWith newdataoldtimes bypathnew bypathold
-    -- now try and match by audio
-    (byaudiomatch, byaudionewmiss, byaudiooldmiss) = myJoinWith newdataoldtimes (newkeys audio bypathnewmiss) (newkeys audio bypatholdmiss)
-   in
-    -- give up on the remaining unmatched and just add them
-    -- leave out nmdirs
+   let
+      -- join on pathnames
+      (bypathmatch, bypathnewmiss, bypatholdmiss) = myJoinWith newdataoldtimes bypathnew bypathold
+      -- now try and match by audio
+      (byaudiomatch, byaudionewmiss, byaudiooldmiss) = myJoinWith newdataoldtimes (newkeys audio bypathnewmiss) (newkeys audio bypatholdmiss)
+      in
+      -- give up on the remaining unmatched and just add them
+      -- leave out nmdirs
 
-    -- we keep everything that matched one way or the other plus new stuff with missing / nonmatching audio
-    bypathmatch `M.union` newkeys path byaudiomatch `M.union` bypathnewmiss `M.union` newkeys path byaudionewmiss
+      -- we keep everything that matched one way or the other plus new stuff with missing / nonmatching audio
+      bypathmatch `M.union` newkeys path byaudiomatch `M.union` bypathnewmiss `M.union` newkeys path byaudionewmiss
 
 updateDBMerge db listnew = M.union (M.fromList $ mapfxx path listnew) db
 
@@ -627,40 +627,40 @@ diffTimeToPicoseconds :: DiffTime -> Integer
 c = convertString
 readFS :: M.Map T.Text Meta -> Meta -> IO [Meta]
 readFS db f
-  | isDir f = do
-      putStrLn ("DIR " ++ c (path f))
-      let path1 = path f ++ "/"
-      (times1, orig1) <- readFileTimes f -- otimes1 is only different for a new dir
-      -- if field "FT.Current.Written" times1 > field "FT.Current.Written" f
-      putStrLn "hello"
-      if on (>) written times1 (times f)
-        then do
-          rdir <- listDirectory $ c path1
-          let rdir1 = map c rdir
-          rnew <- mapM (\p -> do d <- doesDirectoryExist $ c p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir1
-          let withnew = M.union (inDir path1 db) $ M.fromList $ mapfxx path rnew
-          updated <- mapM (readFS db) withnew -- recurse into subdirectories and files
-          return $ f{times = times1} : concat updated -- otimes1 is only updated if it's a new dir
-        else do
-          putStrLn "UH OH"
-          updated <- mapM (readFSD db) $ inDir path1 db -- recurse into subdirectories only
-          return $ f{times = times1} : concat updated
-  | otherwise = do
-      putStrLn $ c $ path f
-      let path1 = path f
-      (times1, orig1) <- readFileTimes f
-      -- if on (>) written times1 (times f)
-      if ((>) `on` written) times1 (times f)
-        -- if times1 `on (>) written` times f
-        then do
-          rfr <- readTagM (readSomeAudio 8) path1
-          return [metaOfFrames False path1 times1 orig1 rfr]
-        else
-          return [f]
+   | isDir f = do
+         putStrLn ("DIR " ++ c (path f))
+         let path1 = path f ++ "/"
+         (times1, orig1) <- readFileTimes f -- otimes1 is only different for a new dir
+         -- if field "FT.Current.Written" times1 > field "FT.Current.Written" f
+         putStrLn "hello"
+         if on (>) written times1 (times f)
+            then do
+               rdir <- listDirectory $ c path1
+               let rdir1 = map c rdir
+               rnew <- mapM (\p -> do d <- doesDirectoryExist $ c p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir1
+               let withnew = M.union (inDir path1 db) $ M.fromList $ mapfxx path rnew
+               updated <- mapM (readFS db) withnew -- recurse into subdirectories and files
+               return $ f{times = times1} : concat updated -- otimes1 is only updated if it's a new dir
+            else do
+               putStrLn "UH OH"
+               updated <- mapM (readFSD db) $ inDir path1 db -- recurse into subdirectories only
+               return $ f{times = times1} : concat updated
+   | otherwise = do
+         putStrLn $ c $ path f
+         let path1 = path f
+         (times1, orig1) <- readFileTimes f
+         -- if on (>) written times1 (times f)
+         if ((>) `on` written) times1 (times f)
+            -- if times1 `on (>) written` times f
+            then do
+               rfr <- readTagM (readSomeAudio 8) path1
+               return [metaOfFrames False path1 times1 orig1 rfr]
+            else
+               return [f]
 
 readFSD db f
-  | isDir f = readFS db f
-  | otherwise = return [f]
+   | isDir f = readFS db f
+   | otherwise = return [f]
 
 --writeFS f = writeTag (path f) $ framesOfMeta f
 
@@ -670,10 +670,10 @@ zeroTime = DateTime (posixSecondsToUTCTime 0)
 -- https://www.ubereats.com/gb/orders/d79a668a-365e-46fa-8d75-af17bd713bb0
 
 inDir d =
-  let
-    l = length d
-   in
-    M.takeWhileAntitone (\x -> isPrefixOf d x && notElem '/' (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
+   let
+      l = length d
+      in
+      M.takeWhileAntitone (\x -> isPrefixOf d x && notElem '/' (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
 
 inDir1 d = M.takeWhileAntitone (all (notElem '/') . stripPrefix d) . M.dropWhileAntitone (not . isPrefixOf d)
 
@@ -694,18 +694,18 @@ picoOfPosixTime = nominalDiffTimeToSeconds
 utcTimeOfPico = posixSecondsToUTCTime . secondsToNominalDiffTime
 
 readFileTimes fs = do
-  let path1 = path fs
-  fst <- getFileStatus $ c path1
-  let fadc = fti $ statusChangeTimeHiRes fst -- created
-  let fadw = fti $ modificationTimeHiRes fst -- written
-  let fada = fti $ accessTimeHiRes fst -- accessed
-  now <- fti <$> getPOSIXTime
-  let times1 = FileTimes fadc fadw fada
-  -- notice this only set otimes1 to what it's just read if FT.Original.Written is 0
-  -- ie. its a new file/dir
-  let otimes1 = if written (orig fs) == 0 then FileTimes fadc fadw now else orig fs
-  -- let otimes1 = if zeroTime == zeroTime then getFileTimes1 fadc fadw now "Original" else otimes fs
-  return (times1, otimes1)
+   let path1 = path fs
+   fst <- getFileStatus $ c path1
+   let fadc = fti $ statusChangeTimeHiRes fst -- created
+   let fadw = fti $ modificationTimeHiRes fst -- written
+   let fada = fti $ accessTimeHiRes fst -- accessed
+   now <- fti <$> getPOSIXTime
+   let times1 = FileTimes fadc fadw fada
+   -- notice this only set otimes1 to what it's just read if FT.Original.Written is 0
+   -- ie. its a new file/dir
+   let otimes1 = if written (orig fs) == 0 then FileTimes fadc fadw now else orig fs
+   -- let otimes1 = if zeroTime == zeroTime then getFileTimes1 fadc fadw now "Original" else otimes fs
+   return (times1, otimes1)
 
 -- xylistFromFS = concatMap (\f -> map (\fr -> ((path f, frid fr), val fr)) f)
 
@@ -734,132 +734,132 @@ unzip6 :: [(a,b,c,d,e,f)] -> ([a],[b],[c],[d],[e],[f])
 unzip6   =  foldr (\(a,b,c,d,e,f) ~(as,bs,cs,ds,es,fs) -> (a:as,b:bs,c:cs,d:ds,e:es,f:fs)) ([],[],[],[],[],[])
 -}
 readTagM readAudio f1 = do
-  print f1
-  let f = convertString f1 :: String
-  h <- openBinaryFile f ReadMode
-  hdat <- hGetContents h
-  case parse tag hdat of
-    Done rest _ dyn -> fromDyn1 dyn
-    _ -> do
-      hClose h
-      return []
+   print f1
+   let f = convertString f1 :: String
+   h <- openBinaryFile f ReadMode
+   hdat <- hGetContents h
+   case parse tag hdat of
+      Done rest _ dyn -> fromDyn1 dyn
+      _ -> do
+         hClose h
+         return []
 {-
 writeTag f1 t = do
-  let f = convertString f1 :: String
-  h <- openBinaryFile f ReadWriteMode
-  d <- hGet h 10
-  let Done rest _ hd = parse header d
-  let ts = myget1C TagSize hd
-  let FDone fd _ = unparseFrames t
-  let padLen = ts - length fd
-  if myget1C Id3 hd == "ID3"
-    then
-      if padLen >= 0
-        then do
-          hSeek h AbsoluteSeek 0
-          hPut h $ unparseTag t
-          hClose h
-        else shiftAudio h fd $ fromIntegral $ myget1C TagSize hd + 10
-    else shiftAudio h fd 0
- where
-  shiftAudio h fd pos = do
-    putStrLn "shifting audio"
-    fs <- hFileSize h
-    hSeek h AbsoluteSeek pos
-    audio <- hGet h $ fromIntegral $ fs - pos
-    hSeek h AbsoluteSeek 0
-    hPut h $ unparseTag1 (length fd * 2) fd
-    hPut h audio
-    hClose h
+   let f = convertString f1 :: String
+   h <- openBinaryFile f ReadWriteMode
+   d <- hGet h 10
+   let Done rest _ hd = parse header d
+   let ts = myget1C TagSize hd
+   let FDone fd _ = unparseFrames t
+   let padLen = ts - length fd
+   if myget1C Id3 hd == "ID3"
+      then
+         if padLen >= 0
+            then do
+               hSeek h AbsoluteSeek 0
+               hPut h $ unparseTag t
+               hClose h
+            else shiftAudio h fd $ fromIntegral $ myget1C TagSize hd + 10
+      else shiftAudio h fd 0
+where
+   shiftAudio h fd pos = do
+      putStrLn "shifting audio"
+      fs <- hFileSize h
+      hSeek h AbsoluteSeek pos
+      audio <- hGet h $ fromIntegral $ fs - pos
+      hSeek h AbsoluteSeek 0
+      hPut h $ unparseTag1 (length fd * 2) fd
+      hPut h audio
+      hClose h
 -}
 {-
 readTagM readAudio f1 = do
-  print f1
-  let f = convertString f1 :: String
-  h <- openBinaryFile f ReadMode
-  hdat <- replicateM 10 $ hGetChar h
-  case parse header hdat of
-    Done rest _ dyn ->
-      let hd = fromDyn1 dyn :: M.Map Var Dynamic
-      in if myget1 Id3 hd == "ID3"
-            then do
-              rest <- replicateM (myget1C TagSize hd) $ hGetChar h
-              let rest1 = if myget1C VerMajor hd == 3 && myget1C Unsync hd then resync1 rest else rest
-              m <- readAudio h $ myget1C TagSize hd
-              fileSize <- hFileSize h
-              hClose h
-              --            mapM_ print m
-              let t = parseFrames (myget1C VerMajor hd) rest1
-              let audioSize = fromInteger fileSize - myget1C TagSize hd - 10
-              return $ hd : t -- ++ combineMPEGFrames audioSize (getMPEGFrames m)
-            else do
-              hClose h
-              return []
-    _ -> do
-      hClose h
-      return []
+   print f1
+   let f = convertString f1 :: String
+   h <- openBinaryFile f ReadMode
+   hdat <- replicateM 10 $ hGetChar h
+   case parse header hdat of
+      Done rest _ dyn ->
+         let hd = fromDyn1 dyn :: M.Map Var Dynamic
+         in if myget1 Id3 hd == "ID3"
+                  then do
+                     rest <- replicateM (myget1C TagSize hd) $ hGetChar h
+                     let rest1 = if myget1C VerMajor hd == 3 && myget1C Unsync hd then resync1 rest else rest
+                     m <- readAudio h $ myget1C TagSize hd
+                     fileSize <- hFileSize h
+                     hClose h
+                     --            mapM_ print m
+                     let t = parseFrames (myget1C VerMajor hd) rest1
+                     let audioSize = fromInteger fileSize - myget1C TagSize hd - 10
+                     return $ hd : t -- ++ combineMPEGFrames audioSize (getMPEGFrames m)
+                  else do
+                     hClose h
+                     return []
+      _ -> do
+         hClose h
+         return []
 writeTag f1 t = do
-  let f = convertString f1 :: String
-  h <- openBinaryFile f ReadWriteMode
-  d <- hGet h 10
-  let Done rest _ hd = parse header d
-  let ts = myget1C TagSize hd
-  let FDone fd _ = unparseFrames t
-  let padLen = ts - length fd
-  if myget1C Id3 hd == "ID3"
-    then
-      if padLen >= 0
-        then do
-          hSeek h AbsoluteSeek 0
-          hPut h $ unparseTag1 ts fd
-          hClose h
-        else shiftAudio h fd $ fromIntegral $ myget1C TagSize hd + 10
-    else shiftAudio h fd 0
- where
-  shiftAudio h fd pos = do
-    putStrLn "shifting audio"
-    fs <- hFileSize h
-    hSeek h AbsoluteSeek pos
-    audio <- hGet h $ fromIntegral $ fs - pos
-    hSeek h AbsoluteSeek 0
-    hPut h $ unparseTag1 (length fd * 2) fd
-    hPut h audio
-    hClose h
+   let f = convertString f1 :: String
+   h <- openBinaryFile f ReadWriteMode
+   d <- hGet h 10
+   let Done rest _ hd = parse header d
+   let ts = myget1C TagSize hd
+   let FDone fd _ = unparseFrames t
+   let padLen = ts - length fd
+   if myget1C Id3 hd == "ID3"
+      then
+         if padLen >= 0
+            then do
+               hSeek h AbsoluteSeek 0
+               hPut h $ unparseTag1 ts fd
+               hClose h
+            else shiftAudio h fd $ fromIntegral $ myget1C TagSize hd + 10
+      else shiftAudio h fd 0
+where
+   shiftAudio h fd pos = do
+      putStrLn "shifting audio"
+      fs <- hFileSize h
+      hSeek h AbsoluteSeek pos
+      audio <- hGet h $ fromIntegral $ fs - pos
+      hSeek h AbsoluteSeek 0
+      hPut h $ unparseTag1 (length fd * 2) fd
+      hPut h audio
+      hClose h
 -}
 
 -- format the frame data for writing. this has to be different to the parseTag method
 -- because of having to move the audio
 readAllAudio h ts = do
-  fs <- fromIntegral <$> hFileSize h
-  let as = fs - ts - 10
-  audio <- hGet h as
-  return $ parseMPEGFrame audio
+   fs <- fromIntegral <$> hFileSize h
+   let as = fs - ts - 10
+   audio <- hGet h as
+   return $ parseMPEGFrame audio
 {-
 readAllAudio1 h ts = do
-  fs <- fromIntegral <$> hFileSize h
-  let as = fs - ts - 10
-  audio <- hGet h as
-  case parse mpegFramesP audio of
-    Done _ _ fr -> return fr
-    Fail i cs e -> error e
+   fs <- fromIntegral <$> hFileSize h
+   let as = fs - ts - 10
+   audio <- hGet h as
+   case parse mpegFramesP audio of
+      Done _ _ fr -> return fr
+      Fail i cs e -> error e
 -}
 readNoAudio h ts = return []
 
 readSomeAudio nf h ts = do
-  fs <- fromIntegral <$> hFileSize h
-  let as = fs - ts - 10
-  mapM (\n -> readSomeAudio1 h $ ts + 10 + n * (fs - ts - 10) `div` nf) [1 .. (nf - 1)]
+   fs <- fromIntegral <$> hFileSize h
+   let as = fs - ts - 10
+   mapM (\n -> readSomeAudio1 h $ ts + 10 + n * (fs - ts - 10) `div` nf) [1 .. (nf - 1)]
 
 hGet h n = replicateM n $ hGetChar h
 hPut h s = hPutStr h s
 
 readSomeAudio1 h pos = do
-  hSeek h AbsoluteSeek $ fromIntegral $ pos - maxFrameSize
-  audio <- hGet h $ maxFrameSize * 2
-  case parse (rep mpegFrameP 8) audio of
-    -- Left l        -> error ++ show l
-    -- Right r       -> return r
-    Done _ _ m -> return (fromDyn1 m :: M.Map Var Dynamic)
+   hSeek h AbsoluteSeek $ fromIntegral $ pos - maxFrameSize
+   audio <- hGet h $ maxFrameSize * 2
+   case parse (rep mpegFrameP 8) audio of
+      -- Left l        -> error ++ show l
+      -- Right r       -> return r
+      Done _ _ m -> return (fromDyn1 m :: M.Map Var Dynamic)
 
 middle l = l !! (length l `div` 2)
 
@@ -870,27 +870,27 @@ emptyMPEGFrame = MPEGFrame 0 0 0 0 0 0 BString.empty
 
 {-
 convertMPEGFrame f = [
-   FrameText "MPEGVersion" $ Int1 $ version f,
-   FrameText "MPEGLayer"   $ Int1 $ layer f,
-   FrameText "MPEGBits"    $ Int1 $ framebits f,
-   FrameText "MPEGSamples" $ Int1 $ framesamps f,
-   FrameText "MPEGBytes"   $ Int1 $ mpegFrameSize f,
-   FrameText "MPEGTime"    $ Int1 $ mpegFrameTime f]
+      FrameText "MPEGVersion" $ Int1 $ version f,
+      FrameText "MPEGLayer"   $ Int1 $ layer f,
+      FrameText "MPEGBits"    $ Int1 $ framebits f,
+      FrameText "MPEGSamples" $ Int1 $ framesamps f,
+      FrameText "MPEGBytes"   $ Int1 $ mpegFrameSize f,
+      FrameText "MPEGTime"    $ Int1 $ mpegFrameTime f]
 -}
 -- combineMPEGFrames1 :: Int -> [Frame] -> Frame
 combineMPEGFrames totalBytes [] = []
 combineMPEGFrames totalBytes frs =
-  let
-    readBytes = sum        $ map mpegFrameBytes frs
-    readTime  = sum        $ map mpegFrameTime frs
-    bitRate   = round      $ realToFrac readBytes * 8 // realToFrac readTime
-    totalTime = realToFrac $ fromIntegral totalBytes // fromIntegral bitRate * 8 // 1000
-    readSamps = sum        $ map framesamps frs
-    sampRate  = round      $ realToFrac readBytes // realToFrac readSamps
-    mVersion  = mode       $ map version frs
-    mLayer    = mode       $ map layer frs
-   in
-    [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
+   let
+      readBytes = sum        $ map mpegFrameBytes frs
+      readTime  = sum        $ map mpegFrameTime frs
+      bitRate   = round      $ realToFrac readBytes * 8 // realToFrac readTime
+      totalTime = realToFrac $ fromIntegral totalBytes // fromIntegral bitRate * 8 // 1000
+      readSamps = sum        $ map framesamps frs
+      sampRate  = round      $ realToFrac readBytes // realToFrac readSamps
+      mVersion  = mode       $ map version frs
+      mLayer    = mode       $ map layer frs
+      in
+      [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
 
 {-
 [ FrameText "MPEG Ver" $ c $ show $ mode $ map version frs
@@ -907,21 +907,21 @@ getMPEGFrames = filter (\case MPEGFrame{} -> True; _ -> False)
 {-
 combineMPEGFrames2 fs []  = emptyMPEGFrame
 combineMPEGFrames2 fs frs = let
-   --uz = unzip7 $ map (applyU7 (version, layer, framebits, framesamps, mpegFrameSize, mpegFrameTime, mpegFrameAudio)) frs
-   --(mVersion, mLayer, sBits, sSamples, sBytes, sTime, mAudio) = applyT7 (mode, mode, sum, sum, sum, sum, middle) uz
-   --(mVersion, mLayer, sBits, sSamples, sBytes, sTime, mAudio)
-   -- = applyT7 (mode, mode, sum, sum, sum, sum, middle) $ unzip7 $ map (applyU7 (version, layer, framebits, framesamps, mpegFrameSize, mpegFrameTime, mpegFrameAudio)) frs
-   --{-
-   mVersion = mode   $ map version        frs
-   mLayer   = mode   $ map layer          frs
-   sBits    = sum    $ map framebits      frs
-   sSamples = sum    $ map framesamps     frs
-   sBytes   = sum    $ map mpegFrameSize  frs
-   sTime    = sum    $ map mpegFrameTime  frs
-   mAudio   = middle $ map mpegFrameAudio frs
-   ---}
-   in
-      FrameMPEG mVersion mLayer (sBytes*8000`div`sTime) (sSamples`div`sTime) sBytes (sTime*fs`div`sBytes) mAudio
+      --uz = unzip7 $ map (applyU7 (version, layer, framebits, framesamps, mpegFrameSize, mpegFrameTime, mpegFrameAudio)) frs
+      --(mVersion, mLayer, sBits, sSamples, sBytes, sTime, mAudio) = applyT7 (mode, mode, sum, sum, sum, sum, middle) uz
+      --(mVersion, mLayer, sBits, sSamples, sBytes, sTime, mAudio)
+      -- = applyT7 (mode, mode, sum, sum, sum, sum, middle) $ unzip7 $ map (applyU7 (version, layer, framebits, framesamps, mpegFrameSize, mpegFrameTime, mpegFrameAudio)) frs
+      --{-
+      mVersion = mode   $ map version        frs
+      mLayer   = mode   $ map layer          frs
+      sBits    = sum    $ map framebits      frs
+      sSamples = sum    $ map framesamps     frs
+      sBytes   = sum    $ map mpegFrameSize  frs
+      sTime    = sum    $ map mpegFrameTime  frs
+      mAudio   = middle $ map mpegFrameAudio frs
+      ---}
+      in
+         FrameMPEG mVersion mLayer (sBytes*8000`div`sTime) (sSamples`div`sTime) sBytes (sTime*fs`div`sBytes) mAudio
 
 framebits fr = bitRate fr * mpegFrameTime fr
 
@@ -934,39 +934,39 @@ myget1A id framemap = c (fromDyn1 $ fromJust $ myget1 id framemap :: String)
 
 myget1B :: FrameID -> [M.Map Var Dynamic] -> Maybe (M.Map Var Dynamic)
 myget1B id frames = Data.List.find (\f -> isJust $ do
-  d <- M.lookup FrameID f
-  s <- fromDynamic d
-  j <- M.lookup s textIdMap
-  guard $ id == id1 j) frames
+   d <- M.lookup FrameID f
+   s <- fromDynamic d
+   j <- M.lookup s textIdMap
+   guard $ id == id1 j) frames
 
 metaOfFrames isDir1 path1 times1 orig1 = metaOfFrames2 isDir1 path1 times1 orig1 . metaOfFrames1
 
 metaOfFrames1 frs = M.fromList $ mapMaybe (\f -> do
-                        d <- M.lookup FrameID f
-                        s <- fromDynamic d
-                        j <- M.lookup s textIdMap
-                        z <- M.lookup Dat f
-                        return (id1 j, z)) frs
+                                    d <- M.lookup FrameID f
+                                    s <- fromDynamic d
+                                    j <- M.lookup s textIdMap
+                                    z <- M.lookup Dat f
+                                    return (id1 j, z)) frs
 
 
 myget1C id frame = fromDyn1 $ fromJust $ myget1 id frame
 
 metaOfFrames2 isDir1 path1 times1 orig1 byId1 =
-    Meta
-      { isDir       = isDir1
-      , path        = path1
-      , audio       = ""
-      , albumartist = myget1A AlbumArtist byId1
-      , artist      = myget1A Artist      byId1
-      , album       = myget1A Album       byId1
-      , track       = myget1A Track       byId1
-      , song        = myget1A Song        byId1
-      , year        = readInt $ c $ myget1A Year byId1
-      , genre       = myget1A Genre       byId1
-      , times       = times1
-      , orig        = orig1
-      , byId        = byId1
-      }
+      Meta
+         { isDir       = isDir1
+         , path        = path1
+         , audio       = ""
+         , albumartist = myget1A AlbumArtist byId1
+         , artist      = myget1A Artist      byId1
+         , album       = myget1A Album       byId1
+         , track       = myget1A Track       byId1
+         , song        = myget1A Song        byId1
+         , year        = readInt $ c $ myget1A Year byId1
+         , genre       = myget1A Genre       byId1
+         , times       = times1
+         , orig        = orig1
+         , byId        = byId1
+         }
 
 textIdMap = M.fromList $ mapfxx textId frameIDList
 idMap = M.fromList $ mapfxx id1 frameIDList
@@ -985,9 +985,9 @@ decodeText1 x = []
 decodeUCS2 (255 : 254 : rest) = decodeLE rest
 decodeUCS2 (254 : 255 : rest) = decodeBE rest
 decodeUCS2 str =
-  let ez = countZero $ alternateChars str
-      oz = countZero $ alternateChars $ tail str
-   in if ez >= oz then decodeBE str else decodeLE str
+   let ez = countZero $ alternateChars str
+         oz = countZero $ alternateChars $ tail str
+      in if ez >= oz then decodeBE str else decodeLE str
 
 decodeLE [] = []
 decodeLE (a : b : rest) = chr (a + b * 0x100) : decodeLE rest
@@ -999,18 +999,18 @@ itext = I.Iso decodeText encodeText
 --text = Apply itext 
 
 decodeText t = do 
-  [hdd, textd :: Dynamic] <- fromDynamic t 
-  hd   <- fromDynamic hdd
-  text <- fromDynamic textd
-  return $ toDyn $ 
-    (case hd :: Int of
-        0 -> T.decodeLatin1
-        1 -> decodeUCS2) text
+   [hdd, textd :: Dynamic] <- fromDynamic t 
+   hd   <- fromDynamic hdd
+   text <- fromDynamic textd
+   return $ toDyn $ 
+      (case hd :: Int of
+            0 -> T.decodeLatin1
+            1 -> decodeUCS2) text
 
 decodeUCS2 (str :: B.ByteString) = case take 2 str of
-  "\255\254" -> T.decodeUtf16LE $ drop 2 str
-  "\254\255" -> T.decodeUtf16BE $ drop 2 str
-  _          -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
+   "\255\254" -> T.decodeUtf16LE $ drop 2 str
+   "\254\255" -> T.decodeUtf16BE $ drop 2 str
+   _          -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
 
 countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off .. length s - 1]
 
@@ -1025,12 +1025,12 @@ encodeTextA = B.pack . map fromIntegral . encodeTextB
 encodeTextB x = 0 : map ord x
 
 encodeText text = do
-  t <- fromDynamic text
-  return $ toDyn [toDyn (1::Int), toDyn $ encodeUCS2 t]
+   t <- fromDynamic text
+   return $ toDyn [toDyn (1::Int), toDyn $ encodeUCS2 t]
 
 encodeText1 hd text = case hd of
-  0 -> T.encodeUtf8 text
-  1 -> encodeUCS2   text
+   0 -> T.encodeUtf8 text
+   1 -> encodeUCS2   text
 
 encodeUCS2 str = T.encodeUtf16BE str
 
@@ -1044,48 +1044,48 @@ readTag2 f = parseTag <$> readFile f
 unright (Right r) = r
 
 parseTag str =
-  let 
-    Done rest1 _ hd1 = parse header str
-    hd = fromDyn1 hd1 :: M.Map Var Dynamic
-    rest = if myget1C VerMajor hd == (3::Int) && myget1C Unsync hd then resync1 rest1 else rest1
-   in case myget1C Id3 hd :: String of
-        "ID3" -> hd : parseFrames rest
-        _ -> []
+   let 
+      Done rest1 _ hd1 = parse header str
+      hd = fromDyn1 hd1 :: M.Map Var Dynamic
+      rest = if myget1C VerMajor hd == (3::Int) && myget1C Unsync hd then resync1 rest1 else rest1
+      in case myget1C Id3 hd :: String of
+            "ID3" -> hd : parseFrames rest
+            _ -> []
 
 -- add the header onto the frame data
 unparseTag :: M.Map Var Dynamic -> String
 unparseTag tg = 
-  case P.format tag (toDyn tg) of
-    FDone t _ -> t
-    FFail em _ _ -> error em
+   case P.format tag (toDyn tg) of
+      FDone t _ -> t
+      FFail em _ _ -> error em
 {-
 unparseTag1 totalSize framedat =
-  let
-    frLen = length framedat
-    padLen = totalSize - frLen
-    padding = replicate padLen ' '
-   in
-    if padLen < 0
-      then error "unparseTag1 called with totalSize less than frLen!"
-      else let
-        FDone r _ = P.format header hd
-        in concat
-          [ r
-          , framedat
-          , padding
-          ]
+   let
+      frLen = length framedat
+      padLen = totalSize - frLen
+      padding = replicate padLen ' '
+      in
+      if padLen < 0
+         then error "unparseTag1 called with totalSize less than frLen!"
+         else let
+            FDone r _ = P.format header hd
+            in concat
+               [ r
+               , framedat
+               , padding
+               ]
 -}
 
 parseFrames str
-  | length str > 10 = case parse frame str of
-      Done rest _ dyn -> 
-        let fr = fromDyn1 dyn :: M.Map Var Dynamic
-        in if isValidID $ sofbs $ fromDyn1 $ fromJust $ myget1 FrameID fr
-              then fr : parseFrames rest
-              else []
-      Fail e cs i -> error e
-      --AP.Partial c -> [FrameTruncated]
-  | otherwise = []
+   | length str > 10 = case parse frame str of
+         Done rest _ dyn -> 
+            let fr = fromDyn1 dyn :: M.Map Var Dynamic
+            in if isValidID $ sofbs $ fromDyn1 $ fromJust $ myget1 FrameID fr
+                     then fr : parseFrames rest
+                     else []
+         Fail e cs i -> error e
+         --AP.Partial c -> [FrameTruncated]
+   | otherwise = []
 
 unparseFrames :: [M.Map Var Dynamic] -> FResult Char [M.Map Var Dynamic]
 unparseFrames r = P.format frame (toDyn r)
@@ -1105,33 +1105,33 @@ unsync1 ('\255' : rest) = '\255' : '\0' : unsync1 rest
 unsync1 (a : rest) = a : unsync1 rest
 
 isync1 = totald
-  (\d -> let 
-    [rest1, u1] = fromDyn1 d
-    rest = fromDyn1 rest1
-    u    = fromDyn1 u1
-    in toDyn $ if u then resync1 rest else rest)
-  (\d -> let 
-    [rest1, u1] = fromDyn1 d
-    rest = fromDyn1 rest1
-    u    = fromDyn1 u1
-    in toDyn $ if u then unsync1 rest else rest)
+   (\d -> let 
+      [rest1, u1] = fromDyn1 d
+      rest = fromDyn1 rest1
+      u    = fromDyn1 u1
+      in toDyn $ if u then resync1 rest else rest)
+   (\d -> let 
+      [rest1, u1] = fromDyn1 d
+      rest = fromDyn1 rest1
+      u    = fromDyn1 u1
+      in toDyn $ if u then unsync1 rest else rest)
 
 --unparseFrames frs = B.concat $ map unframe frs
 
 tag :: Rule Char Dynamic Var
 tag = Build $ Seq [
-  header,
-  Dat <-- Apply isync1 (Seq [Count (Get TagSize) char, Get Unsync]),
-  Frames <-- Redo Dat frame,
-  Rest]
+   header,
+   Dat <-- Apply isync1 (Seq [Count (Get TagSize) char, Get Unsync]),
+   Frames <-- Redo Dat frame,
+   Rest]
 
 header :: Rule Char Dynamic Var
 header = Seq [
-  Id3 <-- rep char 3,
-  VerMajor <-- int,
-  VerMinor <-- int,
-  SetM [Unsync, ExtHdr, Experi, Footer, Z, Z, Z, Z] (bits 8),
-  TagSize <-- int4 0x80]
+   Id3 <-- rep char 3,
+   VerMajor <-- int,
+   VerMinor <-- int,
+   SetM [Unsync, ExtHdr, Experi, Footer, Z, Z, Z, Z] (bits 8),
+   TagSize <-- int4 0x80]
 
 {-
 let unsync = flags .&. 0x80 /= 0
@@ -1142,51 +1142,51 @@ let footer = flags .&. 0x10 /= 0 -- v2.4 only
 
 frame :: Rule Char Dynamic Var
 frame = Build $ Alt [
-  Seq [
-    Apply (I.satisfy (==2)) $ Get VerMajor,
-    FrameID   <-- rep char 3,
-    FrameSize <-- int4 0x100,
-    Dat       <-- Count (Get FrameSize) char],
+   Seq [
+      Apply (I.satisfy (==2)) $ Get VerMajor,
+      FrameID   <-- rep char 3,
+      FrameSize <-- int4 0x100,
+      Dat       <-- Count (Get FrameSize) char],
 
-  Seq [
-    Apply (I.satisfy (==3)) $ Get VerMajor,
-    FrameID   <-- rep char 4,
-    FrameSize <-- int4 0x100,
-    SetM [TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z, Z] $ bits 8,
-    SetM [Compression, Encryption, Grouping, Z, Z, Z, Z, Z] $ bits 8,
-    Dat       <-- Count (Get FrameSize) char],
+   Seq [
+      Apply (I.satisfy (==3)) $ Get VerMajor,
+      FrameID   <-- rep char 4,
+      FrameSize <-- int4 0x100,
+      SetM [TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z, Z] $ bits 8,
+      SetM [Compression, Encryption, Grouping, Z, Z, Z, Z, Z] $ bits 8,
+      Dat       <-- Count (Get FrameSize) char],
 
-  Seq [
-    Apply (I.satisfy (==4)) $ Get VerMajor,
-    FrameID   <-- rep char 4,
-    FrameSize <-- int4 0x80,
-    SetM [Z, TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z] $ bits 8,
-    SetM [Z, Grouping, Z, Z, Compression, Encryption, UnsyncFr, DataLenI] $ bits 8,
-    Dat       <-- Apply isync1 (Seq [Count (Get FrameSize) char, Get UnsyncFr])]]
-    --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
-  --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
-  --let dat1 = if unsyncFr then resync dat else dat
+   Seq [
+      Apply (I.satisfy (==4)) $ Get VerMajor,
+      FrameID   <-- rep char 4,
+      FrameSize <-- int4 0x80,
+      SetM [Z, TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z] $ bits 8,
+      SetM [Z, Grouping, Z, Z, Compression, Encryption, UnsyncFr, DataLenI] $ bits 8,
+      Dat       <-- Apply isync1 (Seq [Count (Get FrameSize) char, Get UnsyncFr])]]
+      --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
+   --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
+   --let dat1 = if unsyncFr then resync dat else dat
 
 zeroTerm enc = case enc of
-   0 -> AnyTill $ Token '\0'
-   1 -> AnyTill $ String "\0\0"
+      0 -> AnyTill $ Token '\0'
+      1 -> AnyTill $ String "\0\0"
 
 textFrame = Build $ Seq [
-  TextEncoding<-- int,
-  Dat1        <-- Rest,
-  Value       <-- Apply itext (GetM [TextEncoding, Dat])]
+   TextEncoding<-- int,
+   Dat1        <-- Rest,
+   Value       <-- Apply itext (GetM [TextEncoding, Dat])]
 
 userText = Build $
-  int >>== (\encoding ->
-      Description <-- zeroTerm encoding :+
-      Dat1        <-- Rest :+
-      Value       <-- Apply itext (GetM [TextEncoding, Dat1]))
+   int >>== (\encoding ->
+         Description <-- zeroTerm encoding :+
+         Dat1        <-- Rest :+
+         Value       <-- Apply itext (GetM [TextEncoding, Dat1]))
 
 
 parseMPEGFrame audio = do
-  case parse mpegFrameP audio of
-    Done i _ r -> r : parseMPEGFrame i
-    --AP.Partial c -> []
+   case parse mpegFrameP audio of
+      Done i _ r -> r : parseMPEGFrame i
+      --AP.Partial c -> []
 
 mpegFrameP = Alt [mpegFrameOK, Seq [invalid, mpegFrameP], Seq []]
 
@@ -1210,78 +1210,78 @@ mpeg25Layer23 = [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 
 allZeros      = [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0] :: [Int]
 
 bitRates =       [[0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,   0], -- Layer 1
-                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0], -- Layer 2
-                  [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0], -- Layer 3
-                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0], -- MPEG2.5 Layer 1
-                  [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0], -- MPEG2.5 Layer 2/3
-                  [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]]
+                           [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0], -- Layer 2
+                           [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0], -- Layer 3
+                           [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0], -- MPEG2.5 Layer 1
+                           [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0], -- MPEG2.5 Layer 2/3
+                           [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]]
 
 sampRates =      [[0, 44100, 22050, 11025],
-                  [0, 48000, 24000, 12000],
-                  [0, 32000, 16000,  8000],
-                  [0,     0,     0,     0]]
+                           [0, 48000, 24000, 12000],
+                           [0, 32000, 16000,  8000],
+                           [0,     0,     0,     0]]
     
 --          !! sampRateEnc
 --          !! version
 
 sampPerFrames =  [[0,    0,    0,    0],
-                  [0,  384,  384,  384],
-                  [0, 1152, 1152, 1152],
-                  [0, 1152,  576,  576]]
+                           [0,  384,  384,  384],
+                           [0, 1152, 1152, 1152],
+                           [0, 1152,  576,  576]]
 --          !! layer
 --          !! version
 
           
 
 mpegFrameOK = Build $ Seq [
-  --AP.word8 0xFF
-  SetM [AllOnes2, AllOnes1, AllOnes0, VersionEnc1, VersionEnc0, LayerEnc1, LayerEnc0, Z, BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0, SampRateEnc1, SampRateEnc0, Padding, ChannelMode1, ChannelMode0] (int3 0x100),
+   --AP.word8 0xFF
+   SetM [AllOnes2, AllOnes1, AllOnes0, VersionEnc1, VersionEnc0, LayerEnc1, LayerEnc0, Z, BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0, SampRateEnc1, SampRateEnc0, Padding, ChannelMode1, ChannelMode0] (int3 0x100),
 
-  AllOnes       <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
-  VersionEnc    <-- Apply (I.inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
-  LayerEnc      <-- Apply (I.inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
-  BitRateEnc    <-- Apply (I.inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
-  SampRateEnc   <-- Apply (I.inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
-  ChannelMode   <-- Apply (I.inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0]),
+   AllOnes       <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
+   VersionEnc    <-- Apply (I.inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
+   LayerEnc      <-- Apply (I.inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
+   BitRateEnc    <-- Apply (I.inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
+   SampRateEnc   <-- Apply (I.inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
+   ChannelMode   <-- Apply (I.inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0]),
 
-  Version       <-- Apply (P.isod ([mpegv2_5, 0, mpegv2, mpegv1] I.!!)) (Get VersionEnc),
+   Version       <-- Apply (P.isod ([mpegv2_5, 0, mpegv2, mpegv1] I.!!)) (Get VersionEnc),
 
-  Layer         <-- Apply (P.isod ([0, 3, 2, 1::Int] I.!!)) (Get LayerEnc),
+   Layer         <-- Apply (P.isod ([0, 3, 2, 1::Int] I.!!)) (Get LayerEnc),
 
-  BitRate       <-- Apply (P.isod ([[allZeros, allZeros    , allZeros     , allZeros     ],
-                                    [allZeros, mpeg12Layer1, mpeg12Layer2 , mpeg12Layer3 ],
-                                    [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23],
-                                    [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]] I.!!!!)) (GetM [Version, Layer, BitRateEnc]),
+   BitRate       <-- Apply (P.isod ([[allZeros, allZeros    , allZeros     , allZeros     ],
+                                                      [allZeros, mpeg12Layer1, mpeg12Layer2 , mpeg12Layer3 ],
+                                                      [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23],
+                                                      [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]] I.!!!!)) (GetM [Version, Layer, BitRateEnc]),
 
-  SampRate      <-- Apply (P.isod ([[    0,     0,     0,     0],
-                                    [44100, 48000, 32000,     0],
-                                    [22050, 24000, 16000,     0],
-                                    [11025, 12000,  8000,     0] :: [Int]] I.!!!)) (GetM [Version, SampRateEnc]),
+   SampRate      <-- Apply (P.isod ([[    0,     0,     0,     0],
+                                                      [44100, 48000, 32000,     0],
+                                                      [22050, 24000, 16000,     0],
+                                                      [11025, 12000,  8000,     0] :: [Int]] I.!!!)) (GetM [Version, SampRateEnc]),
                           
-  SampPerFrame  <-- Apply (P.isod ([[0,    0,    0,    0],
-                                    [0,  384,  384,  384],
-                                    [0, 1152, 1152, 1152],
-                                    [0, 1152,  576,  576] :: [Int]] I.!!!)) (GetM [Layer, Version])]
+   SampPerFrame  <-- Apply (P.isod ([[0,    0,    0,    0],
+                                                      [0,  384,  384,  384],
+                                                      [0, 1152, 1152, 1152],
+                                                      [0, 1152,  576,  576] :: [Int]] I.!!!)) (GetM [Layer, Version])]
 {-}
-  bitsPerSamp = fromIntegral sampPerFrame / 8
+   bitsPerSamp = fromIntegral sampPerFrame / 8
 
-  slotSize = [0, 4, 1, 1] !! layer
+   slotSize = [0, 4, 1, 1] !! layer
 
-  mpegFrameBytes =
-        floor (bitsPerSamp * fromIntegral bitRate * 1000 / fromIntegral sampRate)
-          + if padding /= 0 then slotSize else 0
+   mpegFrameBytes =
+            floor (bitsPerSamp * fromIntegral bitRate * 1000 / fromIntegral sampRate)
+               + if padding /= 0 then slotSize else 0
 
-  mpegFrameTime =
-        realToFrac
-          (fromIntegral mpegFrameBytes * 8 / fromIntegral bitRate)
+   mpegFrameTime =
+            realToFrac
+               (fromIntegral mpegFrameBytes * 8 / fromIntegral bitRate)
 
-  in 
+   in 
 
-  if allOnes == 0x7 && version > 0 && layer > 0 && bitRate > 0 && sampRate > 0
-    then do
-      audio <- AP.take (mpegFrameBytes - 4)
-      return $ MPEGFrame version layer bitRate sampRate mpegFrameBytes mpegFrameTime audio
-    else fail "not a valid mpeg frame"
+   if allOnes == 0x7 && version > 0 && layer > 0 && bitRate > 0 && sampRate > 0
+      then do
+         audio <- AP.take (mpegFrameBytes - 4)
+         return $ MPEGFrame version layer bitRate sampRate mpegFrameBytes mpegFrameTime audio
+      else fail "not a valid mpeg frame"
 -}
 maxFrameSize = 5764 -- 1152 / 8 * 320 * 1000 / 8000 + 4
 
@@ -1315,8 +1315,8 @@ int4 = intn 4
 
 undoint 0 _ _ = []
 undoint n m x =
-  let (q, r) = divMod x (m ^ (n - 1))
-   in q : undoint (n - 1) m r
+   let (q, r) = divMod x (m ^ (n - 1))
+      in q : undoint (n - 1) m r
 
 rep p n = Seq $ replicate n p
 
@@ -1331,8 +1331,8 @@ char = AnyToken
 -- intn n m = do a <- intn (n-1) m; b <- int; return $ a*m + b
 {-
 data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, doTimes :: FileTime }
-         | File { fpath :: String, frames :: [Frame], fTimes :: FileTime, foTimes :: FileTime }
-         deriving (Generic)
+            | File { fpath :: String, frames :: [Frame], fTimes :: FileTime, foTimes :: FileTime }
+            deriving (Generic)
 -}
 
 data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
@@ -1411,8 +1411,8 @@ int4 = intn 4
 
 unint 0 _ _ = []
 unint n m x =
-  let (q, r) = divMod x (m ^ (n - 1))
-   in toDyn (fromIntegral q :: Int) : unint (n - 1) m r
+   let (q, r) = divMod x (m ^ (n - 1))
+      in toDyn (fromIntegral q :: Int) : unint (n - 1) m r
 
 rep p n = Seq $ replicate n p
 
@@ -1427,208 +1427,208 @@ char = AnyToken
 -- intn n m = do a <- intn (n-1) m; b <- int; return $ a*m + b
 {-
 data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, doTimes :: FileTime }
-         | File { fpath :: String, frames :: [Frame], fTimes :: FileTime, foTimes :: FileTime }
-         deriving (Generic)
+            | File { fpath :: String, frames :: [Frame], fTimes :: FileTime, foTimes :: FileTime }
+            deriving (Generic)
 -}
 
 data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
 data Var =
-  Id3 |
-  VerMajor |
-  VerMinor |
-  Unsync | ExtHdr | Experi | Footer |
-  TagSize |
+   Id3 |
+   VerMajor |
+   VerMinor |
+   Unsync | ExtHdr | Experi | Footer |
+   TagSize |
 
-  Frames |
+   Frames |
 
-  FrameID |
-  FrameSize |
-  TagAltPrsv | FileAltPrsv | ReadOnly | Grouping | Compression | Encryption | UnsyncFr | DataLenI | Z |
-  Dat | Dat1 |
+   FrameID |
+   FrameSize |
+   TagAltPrsv | FileAltPrsv | ReadOnly | Grouping | Compression | Encryption | UnsyncFr | DataLenI | Z |
+   Dat | Dat1 |
 
-  AllOnes2 | AllOnes1 | AllOnes0 | VersionEnc1 | VersionEnc0 | LayerEnc1 | LayerEnc0 | BitRateEnc3 | BitRateEnc2 | BitRateEnc1 | BitRateEnc0 | SampRateEnc1 | SampRateEnc0 | Padding | ChannelMode1 | ChannelMode0 |
-  AllOnes      |
-  VersionEnc   | Version  |
-  LayerEnc     | Layer    |
-  BitRateEnc   | BitRate  |
-  SampRateEnc  | SampRate |
-  SampPerFrame |
-  ChannelMode  |
+   AllOnes2 | AllOnes1 | AllOnes0 | VersionEnc1 | VersionEnc0 | LayerEnc1 | LayerEnc0 | BitRateEnc3 | BitRateEnc2 | BitRateEnc1 | BitRateEnc0 | SampRateEnc1 | SampRateEnc0 | Padding | ChannelMode1 | ChannelMode0 |
+   AllOnes      |
+   VersionEnc   | Version  |
+   LayerEnc     | Layer    |
+   BitRateEnc   | BitRate  |
+   SampRateEnc  | SampRate |
+   SampPerFrame |
+   ChannelMode  |
 
-  TextEncoding |
-  Value |
-  Description 
-  deriving (Eq, Ord, Show)
+   TextEncoding |
+   Value |
+   Description 
+   deriving (Eq, Ord, Show)
 -}
 
 data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
 frameIDList =
-  [ FT "4.20 " Aenc "AENC" "Audio encryption"       ""
-  , FT "4.15 " Apic "APIC" "Picture"                "Attached picture"
-  , FT "4.11 " Comm "COMM" "Comments"               "Comments"
-  , FT "4.25 " Comr "COMR" "Commercial"             "Commercial frame"
-  , FT "4.26 " Encr "ENCR" "Encrypt meth reg"       "Encryption method registration"   
-  , FT "4.13 " Equa "EQUA" "Equalizn"               "Equalization"
-  , FT "4.6  " Etco "ETCO" "Events"                 "Event timing codes"
-  , FT "4.16 " Geob "GEOB" "Object"                 "General encapsulated object"
-  , FT "4.27 " Grid "GRID" "Group ID"               "Group identification registration"
-  , FT "4.4  " Ipls "IPLS" "People"                 "Involved people list"
-  , FT "4.21 " Link "LINK" "Link"                   "Linked information"
-  , FT "4.5  " Mcdi "MCDI" "CD ID"                  "Music CD identifier"
-  , FT "4.7  " Mllt "MLLT" "Loc. Grid"              "MPEG location lookup Grid"
-  , FT "4.24 " Owne "OWNE" "Owner"                  "Ownership frame"
-  , FT "4.28 " Priv "PRIV" "Private"                "Private frame"
-  , FT "4.17 " Pcnt "PCNT" "# Plays"                "Play counter"
-  , FT "4.18 " Popm "POPM" "Score"                  "Popularimeter"                    
-  , FT "4.22 " Poss "POSS" "Pos sync frame"         "Position synchronisation frame"   
-  , FT "4.19 " Rbuf "RBUF" "Recmd buf size"         "Recommended buffer size"          
-  , FT "4.12 " Rvad "RVAD" "Rel vol adj"            "Relative volume adjustment"       
-  , FT "4.14 " Rvrb "RVRB" "Reverb"                 ""
-  , FT "4.10 " Sylt "SYLT" "Sync lyric"             "Synchronized lyric/text"          
-  , FT "4.8  " Sytc "SYTC" "Sync tempo code"        "Synchronized tempo codes"        
-  , FT "4.2.1" Album "TALB" "Album"                 "Album/Movie/Show title"
-  , FT "4.2.1" Tbpm "TBPM" "BPM"                    "BPM [beats per minute]"
-  , FT "4.2.1" Tcom "TCOM" "Composer"               ""
-  , FT "4.2.1" Genre "TCON" "Genre"                 "Content type"
-  , FT "4.2.1" Tcop "TCOP" "Copyright"              "Copyright message"
-  , FT "4.2.1" Tdat "TDAT" "Date"                   ""
-  , FT "4.2.1" Tdly "TDLY" "Playlist delay"         ""
-  , FT "4.2.1" Tenc "TENC" "Encoded by"             ""
-  , FT "4.2.1" Text "TEXT" "Lyrics by"              "Lyricist/Text writer"
-  , FT "4.2.1" Tflt "TFLT" "File type"              ""
-  , FT "4.2.1" Time "TIME" "Time"                   ""
-  , FT "4.2.1" Tit1 "TIT1" "Content group"          "Content group description"
-  , FT "4.2.1" Song "TIT2" "Song"                   "Title/songname/content description"
-  , FT "4.2.1" Tit3 "TIT3" "Subtitle"               "Subtitle/Description refinement"  
-  , FT "4.2.1" Tkey "TKEY" "Initial key"            ""
-  , FT "4.2.1" Tlan "TLAN" "Language"               ""
-  , FT "4.2.1" Tlen "TLEN" "Length [ms]"            "Length"
-  , FT "4.2.1" Tmed "TMED" "Media type"             ""
-  , FT "4.2.1" Toal "TOAL" "Original album"         "Original album/movie/show title"
-  , FT "4.2.1" Tofn "TOFN" "Original filename"      ""
-  , FT "4.2.1" Toly "TOLY" "Original lyricist"      "Original lyricist[s]/text writer[s]"
-  , FT "4.2.1" Tope "TOPE" "Original artist"        "Original artist[s]/performer[s]"
-  , FT "4.2.1" Tory "TORY" "Original release year"  ""
-  , FT "4.2.1" Town "TOWN" "File owner/licensee"    ""
-  , FT "4.2.1" Artist "TPE1" "Artist"               "Lead performer[s]/Soloist[s]"
-  , FT "4.2.1" AlbumArtist "TPE2" "Album Artist"    "Band/orchestra/accompaniment"
-  , FT "4.2.1" Tpe3 "TPE3" "Conductor"              "Conductor/performer refinement"  
-  , FT "4.2.1" Tpe4 "TPE4" "Remixed by"             "Interpreted, remixed, or otherwise modified by" 
-  , FT "4.2.1" Tpos "TPOS" "Disc"                   "Part of a set"
-  , FT "4.2.1" Tpub "TPUB" "Publisher"              ""
-  , FT "4.2.1" Track "TRCK" "#"                     "Track number/Position in set"
-  , FT "4.2.1" Trda "TRDA" "Recording dates"        ""
-  , FT "4.2.1" Trsn "TRSN" "Internet radio name"    "Internet radio station name" 
-  , FT "4.2.1" Trso "TRSO" "Internet radio owner"   "Internet radio station owner"
-  , FT "4.2.1" Tsiz "TSIZ" "Size"                   ""
-  , FT "4.2.1" Tsrc "TSRC" "ISRC"                   "ISRC [international standard recording code]"
-  , FT "4.2.1" Tsse "TSSE" "Settings"               "Software/Hardware and settings used for encoding"
-  , FT "4.2.1" Year "TYER" "Year"                   ""
-  , FT "4.2.2" Txxx "TXXX" "User text"              "User defined text information frame"
-  , FT "4.1  " Ufid "UFID" "Unique file ID"         "Unique file identifier"          
-  , FT "4.23 " User "USER" "Terms of use"           ""
-  , FT "4.9  " Uslt "USLT" "U Lyrics"               "Unsychronized lyric/text transcription"
-  , FT "4.3.1" Wcom "WCOM" "Commercial URL"         "Commercial information"         
-  , FT "4.3.1" Wcop "WCOP" "Copyright URL"          "Copyright/Legal information"     
-  , FT "4.3.1" Woaf "WOAF" "File URL"               "Official audio file webpage"      
-  , FT "4.3.1" Woar "WOAR" "Artist URL"             "Official artist/performer webpage" 
-  , FT "4.3.1" Woas "WOAS" "Audio URL"              "Official audio source webpage"    
-  , FT "4.3.1" Wors "WORS" "Internet radio URL"     "Official internet radio station homepage"
-  , FT "4.3.1" Wpay "WPAY" "Payment URL"            ""
-  , FT "4.3.1" Wpub "WPUB" "Publisher URL"          "Publishers official webpage"      
-  , FT "4.3.2" Wxxx "WXXX" "User URL"               "User defined URL link frame"      
-  , -- seen in the wild but not part of the standard
-    FT "" Atxt "ATXT" "ATXT"                        ""
-  , FT "" Chap "CHAP" "ID3 Chapter"                 ""
-  , FT "" Ctoc "CTOC" "ID3 Table Of Contents"       ""
-  , FT "" Rgad "RGAD" "RGAD"                        ""
-  , FT "" Tcmp "TCMP" "Comp"                        "Set to 1 if the song is part of a compilation"
-  , FT "" Tso2 "TSO2" "TSO2"                        ""
-  , FT "" Tsoc "TSOC" "TSOC"                        ""
-  , FT "" Xrva "XRVA" "XRVA"                        ""
-  , FT "" Ntrk "NTRK" "Total number of tracks"      ""
-  , -- id3v2.4
-    FT "4.19 " Aspi "ASPI" "Audio seek point index" ""
-  , FT "4.12 " Equ2 "EQU2" "Equalisation"           ""
-  , FT "4.11 " Rva2 "RVA2" "Rel vol adj"            "Relative volume adjustment"      
-  , FT "4.29 " Seek "SEEK" "Seek"                   ""
-  , FT "4.28 " Sign "SIGN" "Signature"              ""
-  , FT "4.2.5" Tden "TDEN" "Encoding time"          ""
-  , FT "4.2.5" Tdor "TDOR" "Original release time"  ""
-  , FT "4.2.5" Tdrc "TDRC" "Recording time"         ""
-  , FT "4.2.5" Tdrl "TDRL" "Release time"           ""
-  , FT "4.2.5" Tdtg "TDTG" "Tagging time"           ""
-  , FT "4.2.2" Tipl "TIPL" "Involved people"        "Involved people list"
-  , FT "4.2.2" Tmcl "TMCL" "Musician credits list"  ""
-  , FT "4.2.3" Tmoo "TMOO" "Mood"                   ""
-  , FT "4.2.4" Tpro "TPRO" "Production notice"      ""
-  , FT "4.2.5" Tsoa "TSOA" "Album sort"             "Album sort order"
-  , FT "4.2.5" Tsop "TSOP" "Perf sort"              "Performer sort order"
-  , FT "4.2.5" Tsot "TSOT" "Title sort"             "Title sort order"
-  , FT "4.2.1" Tsst "TSST" "Set subtitle"           ""
-  , -- id3v2.2
-    FT "4.19 " Buf "BUF" "Recommended buffer size"  ""
-  , FT "4.17 " Cnt "CNT" "# Plays"                  ""
-  , FT "4.11 " Comm "COM" "Comments"                ""
-  , FT "4.21 " Aenc "CRA" "Audio encryption"        ""
-  , FT "4.20 " Crm "CRM" "Encrypted meta frame"     ""
-  , FT "4.6  " Etco "ETC" "Events"                  ""
-  , FT "4.13 " Equa "EQU" "Equalization"            ""
-  , FT "4.16 " Geob "GEO" "Object"                  ""
-  , FT "4.4  " Ipls "IPL" "Involved people"         ""
-  , FT "4.22 " Link "LNK" "Link"                    "Linked information"
-  , FT "4.5  " Mcdi "MCI" "CD ID"                   "Music CD Identifier"
-  , FT "4.7  " Mllt "MLL" "Loc. Grid"               "MPEG location lookup Grid"
-  , FT "4.15 " Apic "PIC" "Picture"                 ""
-  , FT "4.18 " Popm "POP" "Popularimeter"           ""
-  , FT "4.14 " Rvrb "REV" "Reverb"                  ""
-  , FT "4.12 " Rvad "RVA" "Rel vol adj"             "Relative volume adjustment"        
-  , FT "4.10 " Sylt "SLT" "Sync lyrics"             "Synchronized lyric/text"           
-  , FT "4.8  " Album "TAL" "Album"                  "Album/Movie/Show title"
-  , FT "4.2.1" Tbpm "TBP" "BPM"                     "BPM [Beats Per Minute]"
-  , FT "4.2.1" Tcom "TCM" "Composer"                ""
-  , FT "4.2.1" Genre "TCO" "Genre"                  "Content type"
-  , FT "4.2.1" Tcop "TCR" "Copyright"               "Copyright message"
-  , FT "4.2.1" Tdat "TDA" "Date"                    ""
-  , FT "4.2.1" Tdly "TDY" "Playlist delay"          ""
-  , FT "4.2.1" Tenc "TEN" "Encoded by"              ""
-  , FT "4.2.1" Tflt "TFT" "File type"               ""
-  , FT "4.2.1" Time "TIM" "Time"                    ""
-  , FT "4.2.1" Tkey "TKE" "Initial key"             ""
-  , FT "4.2.1" Tlan "TLA" "Language"                ""
-  , FT "4.2.1" Tlen "TLE" "Length [ms]"             "Length [ms]"
-  , FT "4.2.1" Tmed "TMT" "Media type"              ""
-  , FT "4.2.1" Tope "TOA" "Original artist"         "Original artist[s]/performer[s]"   
-  , FT "4.2.1" Tofn "TOF" "Original filename"       ""
-  , FT "4.2.1" Toly "TOL" "Lyricist"                "Original Lyricist[s]/text writer[s]"
-  , FT "4.2.1" Tory "TOR" "Original year"           "Original release year"            
-  , FT "4.2.1" Toal "TOT" "Original album"          "Original album/Movie/Show title"
-  , FT "4.2.1" Artist "TP1" "Artist"                "Lead artist[s]/Lead performer[s]/Soloist[s]/Performing group"
-  , FT "4.2.1" AlbumArtist "TP2" "Album Artist"     "Band/Orchestra/Accompaniment"
-  , FT "4.2.1" Tpe3 "TP3" "Conductor"               "Conductor/Performer refinement"    
-  , FT "4.2.1" Tpe4 "TP4" "Remixed by"              "Interpreted, remixed, or otherwise modified by"
-  , FT "4.2.1" Tpos "TPA" "Disc"                    "Part of a set"
-  , FT "4.2.1" Tpub "TPB" "Publisher"               ""
-  , FT "4.2.1" Tsrc "TRC" "ISRC"                    "ISRC [International Standard Recording Code]"
-  , FT "4.2.1" Trda "TRD" "Recording dates"         ""
-  , FT "4.2.1" Track "TRK" "#"                      "Track number/Position in set"
-  , FT "4.2.1" Tsiz "TSI" "Size"                    ""
-  , FT "4.2.1" Tsse "TSS" "Settings"                "Software/hardware and settings used for encoding"
-  , FT "4.2.1" Tit1 "TT1" "Content group"           "Content group description"
-  , FT "4.2.1" Song "TT2" "Song"                    "Title/Songname/Content description"
-  , FT "4.2.1" Tit3 "TT3" "Subtitle"                "Subtitle/Description refinement"   
-  , FT "4.2.1" Text "TXT" "Lyrics by"               "Lyricist/text writer"
-  , FT "4.2.2" Txxx "TXX" "User text"               "User defined text information frame"
-  , FT "4.2.1" Year "TYE" "Year"                    ""
-  , FT "4.1  " Ufid "UFI" "Unique file ID"          ""
-  , FT "4.9  " Uslt "ULT" "Unsync Lyrics"           "Unsychronized lyric/text transcription"
-  , FT "4.3.1" Woaf "WAF" "File webpage"            "Official audio file webpage"      
-  , FT "4.3.1" Woar "WAR" "Artist webpage"          "Official artist/performer webpage"
-  , FT "4.3.1" Woas "WAS" "Audio webpage"           "Official audio source webpage"     
-  , FT "4.3.1" Wcom "WCM" "Commercial information"  ""
-  , FT "4.3.1" Wcop "WCP" "Copyright"               "Copyright/Legal information"       
-  , FT "4.3.1" Wpub "WPB" "Publisher webpage"       "Publishers official webpage"       
-  , FT "4.3.2" Wxxx "WXX" "User URL"                "User defined URL link frame"       
-  ]
+   [ FT "4.20 " Aenc "AENC" "Audio encryption"       ""
+   , FT "4.15 " Apic "APIC" "Picture"                "Attached picture"
+   , FT "4.11 " Comm "COMM" "Comments"               "Comments"
+   , FT "4.25 " Comr "COMR" "Commercial"             "Commercial frame"
+   , FT "4.26 " Encr "ENCR" "Encrypt meth reg"       "Encryption method registration"   
+   , FT "4.13 " Equa "EQUA" "Equalizn"               "Equalization"
+   , FT "4.6  " Etco "ETCO" "Events"                 "Event timing codes"
+   , FT "4.16 " Geob "GEOB" "Object"                 "General encapsulated object"
+   , FT "4.27 " Grid "GRID" "Group ID"               "Group identification registration"
+   , FT "4.4  " Ipls "IPLS" "People"                 "Involved people list"
+   , FT "4.21 " Link "LINK" "Link"                   "Linked information"
+   , FT "4.5  " Mcdi "MCDI" "CD ID"                  "Music CD identifier"
+   , FT "4.7  " Mllt "MLLT" "Loc. Grid"              "MPEG location lookup Grid"
+   , FT "4.24 " Owne "OWNE" "Owner"                  "Ownership frame"
+   , FT "4.28 " Priv "PRIV" "Private"                "Private frame"
+   , FT "4.17 " Pcnt "PCNT" "# Plays"                "Play counter"
+   , FT "4.18 " Popm "POPM" "Score"                  "Popularimeter"                    
+   , FT "4.22 " Poss "POSS" "Pos sync frame"         "Position synchronisation frame"   
+   , FT "4.19 " Rbuf "RBUF" "Recmd buf size"         "Recommended buffer size"          
+   , FT "4.12 " Rvad "RVAD" "Rel vol adj"            "Relative volume adjustment"       
+   , FT "4.14 " Rvrb "RVRB" "Reverb"                 ""
+   , FT "4.10 " Sylt "SYLT" "Sync lyric"             "Synchronized lyric/text"          
+   , FT "4.8  " Sytc "SYTC" "Sync tempo code"        "Synchronized tempo codes"        
+   , FT "4.2.1" Album "TALB" "Album"                 "Album/Movie/Show title"
+   , FT "4.2.1" Tbpm "TBPM" "BPM"                    "BPM [beats per minute]"
+   , FT "4.2.1" Tcom "TCOM" "Composer"               ""
+   , FT "4.2.1" Genre "TCON" "Genre"                 "Content type"
+   , FT "4.2.1" Tcop "TCOP" "Copyright"              "Copyright message"
+   , FT "4.2.1" Tdat "TDAT" "Date"                   ""
+   , FT "4.2.1" Tdly "TDLY" "Playlist delay"         ""
+   , FT "4.2.1" Tenc "TENC" "Encoded by"             ""
+   , FT "4.2.1" Text "TEXT" "Lyrics by"              "Lyricist/Text writer"
+   , FT "4.2.1" Tflt "TFLT" "File type"              ""
+   , FT "4.2.1" Time "TIME" "Time"                   ""
+   , FT "4.2.1" Tit1 "TIT1" "Content group"          "Content group description"
+   , FT "4.2.1" Song "TIT2" "Song"                   "Title/songname/content description"
+   , FT "4.2.1" Tit3 "TIT3" "Subtitle"               "Subtitle/Description refinement"  
+   , FT "4.2.1" Tkey "TKEY" "Initial key"            ""
+   , FT "4.2.1" Tlan "TLAN" "Language"               ""
+   , FT "4.2.1" Tlen "TLEN" "Length [ms]"            "Length"
+   , FT "4.2.1" Tmed "TMED" "Media type"             ""
+   , FT "4.2.1" Toal "TOAL" "Original album"         "Original album/movie/show title"
+   , FT "4.2.1" Tofn "TOFN" "Original filename"      ""
+   , FT "4.2.1" Toly "TOLY" "Original lyricist"      "Original lyricist[s]/text writer[s]"
+   , FT "4.2.1" Tope "TOPE" "Original artist"        "Original artist[s]/performer[s]"
+   , FT "4.2.1" Tory "TORY" "Original release year"  ""
+   , FT "4.2.1" Town "TOWN" "File owner/licensee"    ""
+   , FT "4.2.1" Artist "TPE1" "Artist"               "Lead performer[s]/Soloist[s]"
+   , FT "4.2.1" AlbumArtist "TPE2" "Album Artist"    "Band/orchestra/accompaniment"
+   , FT "4.2.1" Tpe3 "TPE3" "Conductor"              "Conductor/performer refinement"  
+   , FT "4.2.1" Tpe4 "TPE4" "Remixed by"             "Interpreted, remixed, or otherwise modified by" 
+   , FT "4.2.1" Tpos "TPOS" "Disc"                   "Part of a set"
+   , FT "4.2.1" Tpub "TPUB" "Publisher"              ""
+   , FT "4.2.1" Track "TRCK" "#"                     "Track number/Position in set"
+   , FT "4.2.1" Trda "TRDA" "Recording dates"        ""
+   , FT "4.2.1" Trsn "TRSN" "Internet radio name"    "Internet radio station name" 
+   , FT "4.2.1" Trso "TRSO" "Internet radio owner"   "Internet radio station owner"
+   , FT "4.2.1" Tsiz "TSIZ" "Size"                   ""
+   , FT "4.2.1" Tsrc "TSRC" "ISRC"                   "ISRC [international standard recording code]"
+   , FT "4.2.1" Tsse "TSSE" "Settings"               "Software/Hardware and settings used for encoding"
+   , FT "4.2.1" Year "TYER" "Year"                   ""
+   , FT "4.2.2" Txxx "TXXX" "User text"              "User defined text information frame"
+   , FT "4.1  " Ufid "UFID" "Unique file ID"         "Unique file identifier"          
+   , FT "4.23 " User "USER" "Terms of use"           ""
+   , FT "4.9  " Uslt "USLT" "U Lyrics"               "Unsychronized lyric/text transcription"
+   , FT "4.3.1" Wcom "WCOM" "Commercial URL"         "Commercial information"         
+   , FT "4.3.1" Wcop "WCOP" "Copyright URL"          "Copyright/Legal information"     
+   , FT "4.3.1" Woaf "WOAF" "File URL"               "Official audio file webpage"      
+   , FT "4.3.1" Woar "WOAR" "Artist URL"             "Official artist/performer webpage" 
+   , FT "4.3.1" Woas "WOAS" "Audio URL"              "Official audio source webpage"    
+   , FT "4.3.1" Wors "WORS" "Internet radio URL"     "Official internet radio station homepage"
+   , FT "4.3.1" Wpay "WPAY" "Payment URL"            ""
+   , FT "4.3.1" Wpub "WPUB" "Publisher URL"          "Publishers official webpage"      
+   , FT "4.3.2" Wxxx "WXXX" "User URL"               "User defined URL link frame"      
+   , -- seen in the wild but not part of the standard
+      FT "" Atxt "ATXT" "ATXT"                        ""
+   , FT "" Chap "CHAP" "ID3 Chapter"                 ""
+   , FT "" Ctoc "CTOC" "ID3 Table Of Contents"       ""
+   , FT "" Rgad "RGAD" "RGAD"                        ""
+   , FT "" Tcmp "TCMP" "Comp"                        "Set to 1 if the song is part of a compilation"
+   , FT "" Tso2 "TSO2" "TSO2"                        ""
+   , FT "" Tsoc "TSOC" "TSOC"                        ""
+   , FT "" Xrva "XRVA" "XRVA"                        ""
+   , FT "" Ntrk "NTRK" "Total number of tracks"      ""
+   , -- id3v2.4
+      FT "4.19 " Aspi "ASPI" "Audio seek point index" ""
+   , FT "4.12 " Equ2 "EQU2" "Equalisation"           ""
+   , FT "4.11 " Rva2 "RVA2" "Rel vol adj"            "Relative volume adjustment"      
+   , FT "4.29 " Seek "SEEK" "Seek"                   ""
+   , FT "4.28 " Sign "SIGN" "Signature"              ""
+   , FT "4.2.5" Tden "TDEN" "Encoding time"          ""
+   , FT "4.2.5" Tdor "TDOR" "Original release time"  ""
+   , FT "4.2.5" Tdrc "TDRC" "Recording time"         ""
+   , FT "4.2.5" Tdrl "TDRL" "Release time"           ""
+   , FT "4.2.5" Tdtg "TDTG" "Tagging time"           ""
+   , FT "4.2.2" Tipl "TIPL" "Involved people"        "Involved people list"
+   , FT "4.2.2" Tmcl "TMCL" "Musician credits list"  ""
+   , FT "4.2.3" Tmoo "TMOO" "Mood"                   ""
+   , FT "4.2.4" Tpro "TPRO" "Production notice"      ""
+   , FT "4.2.5" Tsoa "TSOA" "Album sort"             "Album sort order"
+   , FT "4.2.5" Tsop "TSOP" "Perf sort"              "Performer sort order"
+   , FT "4.2.5" Tsot "TSOT" "Title sort"             "Title sort order"
+   , FT "4.2.1" Tsst "TSST" "Set subtitle"           ""
+   , -- id3v2.2
+      FT "4.19 " Buf "BUF" "Recommended buffer size"  ""
+   , FT "4.17 " Cnt "CNT" "# Plays"                  ""
+   , FT "4.11 " Comm "COM" "Comments"                ""
+   , FT "4.21 " Aenc "CRA" "Audio encryption"        ""
+   , FT "4.20 " Crm "CRM" "Encrypted meta frame"     ""
+   , FT "4.6  " Etco "ETC" "Events"                  ""
+   , FT "4.13 " Equa "EQU" "Equalization"            ""
+   , FT "4.16 " Geob "GEO" "Object"                  ""
+   , FT "4.4  " Ipls "IPL" "Involved people"         ""
+   , FT "4.22 " Link "LNK" "Link"                    "Linked information"
+   , FT "4.5  " Mcdi "MCI" "CD ID"                   "Music CD Identifier"
+   , FT "4.7  " Mllt "MLL" "Loc. Grid"               "MPEG location lookup Grid"
+   , FT "4.15 " Apic "PIC" "Picture"                 ""
+   , FT "4.18 " Popm "POP" "Popularimeter"           ""
+   , FT "4.14 " Rvrb "REV" "Reverb"                  ""
+   , FT "4.12 " Rvad "RVA" "Rel vol adj"             "Relative volume adjustment"        
+   , FT "4.10 " Sylt "SLT" "Sync lyrics"             "Synchronized lyric/text"           
+   , FT "4.8  " Album "TAL" "Album"                  "Album/Movie/Show title"
+   , FT "4.2.1" Tbpm "TBP" "BPM"                     "BPM [Beats Per Minute]"
+   , FT "4.2.1" Tcom "TCM" "Composer"                ""
+   , FT "4.2.1" Genre "TCO" "Genre"                  "Content type"
+   , FT "4.2.1" Tcop "TCR" "Copyright"               "Copyright message"
+   , FT "4.2.1" Tdat "TDA" "Date"                    ""
+   , FT "4.2.1" Tdly "TDY" "Playlist delay"          ""
+   , FT "4.2.1" Tenc "TEN" "Encoded by"              ""
+   , FT "4.2.1" Tflt "TFT" "File type"               ""
+   , FT "4.2.1" Time "TIM" "Time"                    ""
+   , FT "4.2.1" Tkey "TKE" "Initial key"             ""
+   , FT "4.2.1" Tlan "TLA" "Language"                ""
+   , FT "4.2.1" Tlen "TLE" "Length [ms]"             "Length [ms]"
+   , FT "4.2.1" Tmed "TMT" "Media type"              ""
+   , FT "4.2.1" Tope "TOA" "Original artist"         "Original artist[s]/performer[s]"   
+   , FT "4.2.1" Tofn "TOF" "Original filename"       ""
+   , FT "4.2.1" Toly "TOL" "Lyricist"                "Original Lyricist[s]/text writer[s]"
+   , FT "4.2.1" Tory "TOR" "Original year"           "Original release year"            
+   , FT "4.2.1" Toal "TOT" "Original album"          "Original album/Movie/Show title"
+   , FT "4.2.1" Artist "TP1" "Artist"                "Lead artist[s]/Lead performer[s]/Soloist[s]/Performing group"
+   , FT "4.2.1" AlbumArtist "TP2" "Album Artist"     "Band/Orchestra/Accompaniment"
+   , FT "4.2.1" Tpe3 "TP3" "Conductor"               "Conductor/Performer refinement"    
+   , FT "4.2.1" Tpe4 "TP4" "Remixed by"              "Interpreted, remixed, or otherwise modified by"
+   , FT "4.2.1" Tpos "TPA" "Disc"                    "Part of a set"
+   , FT "4.2.1" Tpub "TPB" "Publisher"               ""
+   , FT "4.2.1" Tsrc "TRC" "ISRC"                    "ISRC [International Standard Recording Code]"
+   , FT "4.2.1" Trda "TRD" "Recording dates"         ""
+   , FT "4.2.1" Track "TRK" "#"                      "Track number/Position in set"
+   , FT "4.2.1" Tsiz "TSI" "Size"                    ""
+   , FT "4.2.1" Tsse "TSS" "Settings"                "Software/hardware and settings used for encoding"
+   , FT "4.2.1" Tit1 "TT1" "Content group"           "Content group description"
+   , FT "4.2.1" Song "TT2" "Song"                    "Title/Songname/Content description"
+   , FT "4.2.1" Tit3 "TT3" "Subtitle"                "Subtitle/Description refinement"   
+   , FT "4.2.1" Text "TXT" "Lyrics by"               "Lyricist/text writer"
+   , FT "4.2.2" Txxx "TXX" "User text"               "User defined text information frame"
+   , FT "4.2.1" Year "TYE" "Year"                    ""
+   , FT "4.1  " Ufid "UFI" "Unique file ID"          ""
+   , FT "4.9  " Uslt "ULT" "Unsync Lyrics"           "Unsychronized lyric/text transcription"
+   , FT "4.3.1" Woaf "WAF" "File webpage"            "Official audio file webpage"      
+   , FT "4.3.1" Woar "WAR" "Artist webpage"          "Official artist/performer webpage"
+   , FT "4.3.1" Woas "WAS" "Audio webpage"           "Official audio source webpage"     
+   , FT "4.3.1" Wcom "WCM" "Commercial information"  ""
+   , FT "4.3.1" Wcop "WCP" "Copyright"               "Copyright/Legal information"       
+   , FT "4.3.1" Wpub "WPB" "Publisher webpage"       "Publishers official webpage"       
+   , FT "4.3.2" Wxxx "WXX" "User URL"                "User defined URL link frame"       
+   ]
 -}

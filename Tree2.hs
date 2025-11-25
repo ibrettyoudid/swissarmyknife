@@ -36,7 +36,7 @@ showTree2 k1 (Node k l r) = let
 showTree2 k1 Empty = ["Empty"]
 
 lookup k1 (Node k l r) | k1 <  k   = Tree.lookup k1 l
-                       | otherwise = Tree.lookup (k1-k) r
+                        | otherwise = Tree.lookup (k1-k) r
 lookup k1 (Leaf k v) | k1 == k   = Just v
                      | otherwise = Nothing 
 lookup k1 Empty = Nothing
@@ -224,24 +224,24 @@ t = fromList $ zip [0..] "hello there"
 
 >>> t
                      Leaf 0 'h'
-              Node 1
+               Node 1
                      Leaf 0 'e'
-       Node 2
+      Node 2
                      Leaf 0 'l'
-              Node 1
-                            Leaf 0 'l'
+               Node 1
+                           Leaf 0 'l'
                      Node 1
-                            Leaf 0 'o'
+                           Leaf 0 'o'
 Node 5
                      Leaf 0 ' '
-              Node 1
-                            Leaf 0 't'
+               Node 1
+                           Leaf 0 't'
                      Node 1
-                            Leaf 0 'h'
-       Node 3
+                           Leaf 0 'h'
+      Node 3
                      Leaf 0 'e'
-              Node 1
-                            Leaf 0 'r'
+               Node 1
+                           Leaf 0 'r'
                      Node 1
-                            Leaf 0 'e'
+                           Leaf 0 'e'
 -}

@@ -106,21 +106,21 @@ newtype Pos = Pos { fromPos :: Int }
 -- value in a 'Done' result.
 data IResult tok frame res
    = Fail String frame [tok]
-    -- ^ The parse1 failed.  The @i@ parameter is the input that had
-    -- not yet been consumed when the failure occurred.  The
-    -- @[@'String'@]@ is a list of contexts in which the error
-    -- occurred.  The 'String' is the message describing the error, if
-    -- any.
+   -- ^ The parse1 failed.  The @i@ parameter is the input that had
+   -- not yet been consumed when the failure occurred.  The
+   -- @[@'String'@]@ is a list of contexts in which the error
+   -- occurred.  The 'String' is the message describing the error, if
+   -- any.
 --   | More (i -> IResult r f i)
-    -- ^ Supply this continuation with more input so that the parse1r
-    -- can resume.  To indicate that no more input is available, pass
-    -- an empty string to the continuation.
-    --
-    -- __Note__: if you get a 'Partial' result, do not call its
-    -- continuation more than once.
+   -- ^ Supply this continuation with more input so that the parse1r
+   -- can resume.  To indicate that no more input is available, pass
+   -- an empty string to the continuation.
+   --
+   -- __Note__: if you get a 'Partial' result, do not call its
+   -- continuation more than once.
    | Done [tok] frame res
-    -- ^ The parse1 succeeded.  The @i@ parameter is the input that had
-    -- not yet been consumed (if any) when the parse1 succeeded.
+   -- ^ The parse1 succeeded.  The @i@ parameter is the input that had
+   -- not yet been consumed (if any) when the parse1 succeeded.
       deriving Show
 
 data FResult tok frame
@@ -130,18 +130,18 @@ data FResult tok frame
 {-
 newtype parse1r i f a = parse1r {
       runparse1r :: forall r.
-                   State i -> Pos -> More
-                -> Failure i (State i) f r
-                -> Success i (State i) f a r
-                -> IResult i f r
-    }
+                  State i -> Pos -> More
+               -> Failure i (State i) f r
+               -> Success i (State i) f a r
+               -> IResult i f r
+   }
 
 type family State i
 type instance State ByteString = B.Buffer
 type instance State Text = T.Buffer
 
 type Failure i t f r = f -> t -> Pos -> More -> [String] -> String
-                         -> IResult i f r
+                        -> IResult i f r
 type Success i t f a r = f -> t -> Pos -> More -> a -> IResult i f r
 -}
 

@@ -54,11 +54,11 @@ tyVarBndrToType (KindedTV n _ k) = SigT (VarT n) k
 
 isoType :: Type -> [TyVarBndr ()] -> [Type] -> Q Type
 isoType typ tyVarBndrs fields = do
-    isoCon <- [t| Iso |]
-    return $ ForallT (map specified tyVarBndrs) [] $ isoCon `AppT` (isoArgs fields) `AppT` (applyAll typ $ map tyVarBndrToType tyVarBndrs)
-    where
-      specified (PlainTV name _) = PlainTV name SpecifiedSpec
-      specified (KindedTV name _ kind) = KindedTV name SpecifiedSpec kind
+      isoCon <- [t| Iso |]
+      return $ ForallT (map specified tyVarBndrs) [] $ isoCon `AppT` (isoArgs fields) `AppT` (applyAll typ $ map tyVarBndrToType tyVarBndrs)
+      where
+         specified (PlainTV name _) = PlainTV name SpecifiedSpec
+         specified (KindedTV name _ kind) = KindedTV name SpecifiedSpec kind
 
 isoArgs :: [Type] -> Type
 isoArgs []     = TupleT 0
@@ -76,17 +76,17 @@ applyAll = foldl AppT
 
 constructorIso :: Name -> ExpQ
 constructorIso name = do
-  DataConI n _ d    <-  reify name
-  TyConI dec        <-  reify d
-  DecInfo _ _ cs    <-  decInfo dec
-  let Just con      =   find (\c -> n == conName c) cs
-  isoFromCon (wildcard cs) con
+   DataConI n _ d    <-  reify name
+   TyConI dec        <-  reify d
+   DecInfo _ _ cs    <-  decInfo dec
+   let Just con      =   find (\c -> n == conName c) cs
+   isoFromCon (wildcard cs) con
 
 wildcard :: [Con] -> [MatchQ]
 wildcard cs
-  =  if length cs > 1
-     then  [match (wildP) (normalB [| Nothing |]) []]
-     else  []
+   =  if length cs > 1
+      then  [match (wildP) (normalB [| Nothing |]) []]
+      else  []
 
 -- | Converts a constructor name (starting with an upper-case
 
@@ -96,13 +96,13 @@ wildcard cs
 
 rename :: Name -> Name
 rename n
-  = mkName (toLower c : cs) where c : cs = nameBase n
+   = mkName (toLower c : cs) where c : cs = nameBase n
 
 defineIsomorphisms :: Name -> Q [Dec]
 defineIsomorphisms d = do
-  TyConI dec  <-  reify d
-  DecInfo typ tyVarBndrs cs          <-  decInfo dec
-  join `fmap` mapM (\a -> defFromCon (wildcard cs) typ tyVarBndrs a) cs
+   TyConI dec  <-  reify d
+   DecInfo typ tyVarBndrs cs          <-  decInfo dec
+   join `fmap` mapM (\a -> defFromCon (wildcard cs) typ tyVarBndrs a) cs
 
 -- | Constructs a partial isomorphism definition for a
 
@@ -116,10 +116,10 @@ defineIsomorphisms d = do
 
 defFromCon :: [MatchQ] -> Type -> [TyVarBndr ()] -> Con -> DecsQ
 defFromCon matches t tyVarBndrs con = do
-    let funName = rename $ conName con
-    sig <- SigD funName `fmap` isoType t tyVarBndrs (conFields con)
-    fun <- funD funName [ clause [] (normalB (isoFromCon matches con)) [] ]
-    return [sig, fun]
+      let funName = rename $ conName con
+      sig <- SigD funName `fmap` isoType t tyVarBndrs (conFields con)
+      fun <- funD funName [ clause [] (normalB (isoFromCon matches con)) [] ]
+      return [sig, fun]
 
 -- | Constructs a partial isomorphism expression for a
 
@@ -127,24 +127,24 @@ defFromCon matches t tyVarBndrs con = do
 
 isoFromCon :: [MatchQ] -> Con -> ExpQ
 isoFromCon matches con = do
-  let c     =   conName con
-  let fs    =   conFields con
-  let n     =   length fs
-  (ps, vs)  <-  genPE n
-  v         <-  newName "x"
-  let f     =   lamE [nested tupP ps]
-                  [| Just $(foldl appE (conE c) vs) |]
-  let g     =   lamE [varP v]
-                  (caseE (varE v) $
-                    [ match (conP c ps)
-                        (normalB [| Just $(nested tupE vs) |]) []
-                    ] ++ matches)
-  [| Iso $f $g |]
+   let c     =   conName con
+   let fs    =   conFields con
+   let n     =   length fs
+   (ps, vs)  <-  genPE n
+   v         <-  newName "x"
+   let f     =   lamE [nested tupP ps]
+                           [| Just $(foldl appE (conE c) vs) |]
+   let g     =   lamE [varP v]
+                           (caseE (varE v) $
+                              [ match (conP c ps)
+                                    (normalB [| Just $(nested tupE vs) |]) []
+                              ] ++ matches)
+   [| Iso $f $g |]
 
 genPE :: Int -> Q ([PatQ], [ExpQ])
 genPE n = do
-  ids <- replicateM n (newName "x")
-  return (map varP ids, map varE ids)
+   ids <- replicateM n (newName "x")
+   return (map varP ids, map varE ids)
 
 nested :: ([t] -> t) -> [t] -> t
 nested tup []      =  tup []
@@ -153,21 +153,21 @@ nested tup (x:xs)  =  tup [x, nested tup xs]
 
 
 defineFrame n = do
-   Just classname <- lookupTypeName "Frame"
-   frame <- reify classname
-   TyConI dec <- reify n
-   let DataD cxt n1 tv mk con deriv = dec
-   let RecC cname fields = head con
-   Just mygetm <- lookupValueName "mygetm"
-   Just mysetm <- lookupValueName "mysetm"
-   mapM (\(fieldn, bang, fieldt) -> do
-      let fieldnat = rename2 fieldn
-      framen <- newName "frame"
-      valuen <- newName "value"
-      return $ InstanceD Nothing cxt typ [
-         FunD mygetm [Clause [ConP fieldnat [] []] (NormalB (VarE fieldn)) []],
-         FunD mysetm [Clause [ConP fieldnat [] [], VarP valuen, VarP framen] (NormalB (RecUpdE (VarE framen) [(fieldn, VarE valuen)])) []]]) fields
+      Just classname <- lookupTypeName "Frame"
+      frame <- reify classname
+      TyConI dec <- reify n
+      let DataD cxt n1 tv mk con deriv = dec
+      let RecC cname fields = head con
+      Just mygetm <- lookupValueName "mygetm"
+      Just mysetm <- lookupValueName "mysetm"
+      mapM (\(fieldn, bang, fieldt) -> do
+         let fieldnat = rename2 fieldn
+         framen <- newName "frame"
+         valuen <- newName "value"
+         return $ InstanceD Nothing cxt typ [
+            FunD mygetm [Clause [ConP fieldnat [] []] (NormalB (VarE fieldn)) []],
+            FunD mysetm [Clause [ConP fieldnat [] [], VarP valuen, VarP framen] (NormalB (RecUpdE (VarE framen) [(fieldn, VarE valuen)])) []]]) fields
 
 rename2 n
-  = mkName (toUpper c : cs) where c : cs = nameBase n
+   = mkName (toUpper c : cs) where c : cs = nameBase n
 -}

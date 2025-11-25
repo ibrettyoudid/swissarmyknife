@@ -141,9 +141,9 @@ main = do
          wires1 = filter wselected $ wires box
          terms2 = filter tselected $ concatMap wterms wires1
          wires2
-           | not $ null terms2 = map (\t -> Wire [t, t { tselected = False }] True) terms2 ++ wires1
-           | not $ null terms1 = map (\t -> Wire [t, t { tselected = False }] True) terms1 ++ wires1
-           | otherwise = wires1
+            | not $ null terms2 = map (\t -> Wire [t, t { tselected = False }] True) terms2 ++ wires1
+            | not $ null terms1 = map (\t -> Wire [t, t { tselected = False }] True) terms1 ++ wires1
+            | otherwise = wires1
          boxes1 = map (hitBox  hitAt) $ boxes box
          selected1 = False --not (any tselected terms1 || any wselected wires3 || any selected boxes1) && hitAt `inRect` at box
          in box

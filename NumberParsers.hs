@@ -3,9 +3,9 @@
 
 module NumberParsers
 (
-   module NumberParsers,
-   (<|>),
-   try
+         module NumberParsers,
+         (<|>),
+         try
 )
 where
 
@@ -21,90 +21,95 @@ import Data.Char (digitToInt)
 
 --type Blah c = Stream s m c => ParsecT s u m c
 parse1 p filename txt = case parse p filename txt of
-   Left l -> error $ show l
-   Right r -> r
-   
+         Left l -> error $ show l
+         Right r -> r
+         
 --only succeed if it can't be an integer
 forceFloating :: Stream s m Char => ParsecT s u m Double
-forceFloating =         do f <- sign
-                           n <- decimal digit
-                           fract <- option Nothing (Just <$> fraction)
-                           expo  <- option Nothing (Just <$> exponent')
-                           guard (isJust fract || isJust expo)
-                           return ((fromInteger n + fromMaybe 0.0 fract) * fromMaybe 1.0 expo)
+forceFloating = do 
+   f <- sign
+   n <- decimal digit
+   fract <- option Nothing (Just <$> fraction)
+   expo  <- option Nothing (Just <$> exponent')
+   guard (isJust fract || isJust expo)
+   return ((fromInteger n + fromMaybe 0.0 fract) * fromMaybe 1.0 expo)
 
 floating :: Stream s m Char => ParsecT s u m Double
-floating =              do s <- sign
-                           n <- decimal digit
-                           fract <- option 0.0 fraction
-                           expo  <- option 1.0 exponent'
-                           return (s (fromInteger n + fract) * expo)
+floating = do 
+   s <- sign
+   n <- decimal digit
+   fract <- option 0.0 fraction
+   expo  <- option 1.0 exponent'
+   return (s (fromInteger n + fract) * expo)
 
 -- decimal point, fractional part
 fraction :: Stream s m Char => ParsecT s u m Double
-fraction =
-                        do char '.'
-                           digits <- many1 digit <?> "fraction"
-                           return (foldr op 0.0 digits)
+fraction = do 
+   char '.'
+   digits <- many1 digit <?> "fraction"
+   return (foldr op 0.0 digits)
 
-                  <?> "fraction"
-                           where
-                              op d f = (f + fromIntegral (digitToInt d))/10.0
+   <?> "fraction"
+      where
+            op d f = (f + fromIntegral (digitToInt d))/10.0
 
 exponent' :: Stream s m Char => ParsecT s u m Double
-exponent' = do oneOf "eE"
-               s <- sign
-               e <- decimal digit <?> "exponent"
-               return $ power $ s e
+exponent' = do 
+   oneOf "eE"
+   s <- sign
+   e <- decimal digit <?> "exponent"
+   return $ power $ s e
 
-         <?> "exponent"
-                  where
-                     power e  | e < 0      = 1.0/power (-e)
-                              | otherwise  = fromInteger (10^e)
+   <?> "exponent"
+      where
+         power e  | e < 0      = 1.0/power (-e)
+                  | otherwise  = fromInteger (10^e)
 
 
 -- integers and naturals
 integer :: Stream s m Char => ParsecT s u m Integer
-integer =
-                  do f <- sign
-                     f <$> nat digit
+integer = do 
+   f <- sign
+   f <$> nat digit
 
 integerC :: Stream s m Char => ParsecT s u m Integer
-integerC =        do f <- sign
-                     f <$> nat digitOrComma
+integerC = do 
+   f <- sign
+   f <$> nat digitOrComma
 
 sign :: (Stream s m Char, Num n) => ParsecT s u m (n -> n)
 sign =
-                           (char '-' >> return negate)
-                  <|>      (char '+' >> return id)
-                  <|>      return id
+   (char '-' >> return negate)
+   <|>      (char '+' >> return id)
+   <|>      return id
 
 nat :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
-nat digitType =      zeroNumber digitType <|> decimal digitType
+nat digitType = zeroNumber digitType <|> decimal digitType
 
 zeroNumber :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
-zeroNumber digitType =     do char '0'
-                              hexadecimal <|> octal <|> decimal digit <|> return 0
-                       <?> ""
+zeroNumber digitType = do 
+   char '0'
+   hexadecimal <|> octal <|> decimal digit <|> return 0
+      <?> ""
 
 decimal :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
 decimal digitType = baseInteger 10 digitType
 
 hexadecimal :: Stream s m Char => ParsecT s u m Integer
-hexadecimal     = do oneOf "xX"
-                     baseInteger 16 hexDigit
-
-
+hexadecimal = do 
+   oneOf "xX"
+   baseInteger 16 hexDigit
 
 octal :: Stream s m Char => ParsecT s u m Integer
-octal           = do oneOf "oO"
-                     baseInteger 8  octDigit
+octal = do 
+   oneOf "oO"
+   baseInteger 8  octDigit
 
 baseInteger :: Stream s m Char => Integer -> ParsecT s u m Char -> ParsecT s u m Integer
-baseInteger base baseDigit
-   = do digits <- many1 baseDigit
-        let n = foldl (\x d -> x*base + toInteger (digitToInt d)) 0 digits
-        seq n (return n)
+baseInteger base baseDigit = do
+   digits <- many1 baseDigit
+   let n = foldl (\x d -> x*base + toInteger (digitToInt d)) 0 digits
+   seq n (return n)
 
 digitOrComma :: Stream s m Char => ParsecT s u m Char
 digitOrComma = do many (oneOf ","); digit

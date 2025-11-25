@@ -110,20 +110,20 @@ test = p expr "a+a+a"
 p e s = tree e $ parseE e s
 
 pD e s = do
-    states <- parseED e s
-    table s states
-    return $ tree e states
+   states <- parseED e s
+   table s states
+   return $ tree e states
 
 parseE e s =
    let
       items = predict (S.singleton $ EItem e 0 0 0)
-    in
+   in
       parseE0 [items] s items [1 .. length s]
 
 parseED e s =
    let
       items = predict (S.singleton $ EItem e 0 0 0)
-    in
+   in
       parseE0D [items] s items [1 .. length s]
 
 parseE0 states _ items [] = states
@@ -169,7 +169,7 @@ closure1 f done current =
       new = f done current
       newdone = S.union done new
       newnew = new S.\\ done
-    in
+   in
       if S.null new then done else closure1 f newdone newnew
 
 process f old current = foldr S.union S.empty $ S.map (S.fromList . f) current
@@ -299,13 +299,13 @@ slength (Seq as) = length as
 slength _ = 1
 
 children states (EItem r f t n) = do
-    s1@(EItem r1 f1 t1 n1) <- S.toList $ states !! t
-    if caux r (n - 1) r1 && n1 == slength r1
+   s1@(EItem r1 f1 t1 n1) <- S.toList $ states !! t
+   if caux r (n - 1) r1 && n1 == slength r1
          then do
-             s2@(EItem r2 f2 t2 n2) <- S.toList $ states !! f1
-             if r2 == r && f2 == f && n2 == n - 1
+            s2@(EItem r2 f2 t2 n2) <- S.toList $ states !! f1
+            if r2 == r && f2 == f && n2 == n - 1
                   then if n2 > 0 then map (s1:) $ children states s2 else [[s1]]
-             else []
+            else []
          else []
 
 data Tree = Tree EItem [Tree] | Trees [Tree] deriving (Eq, Ord)
@@ -314,7 +314,7 @@ tree start states =
    let
       end = EItem start 0 (length states - 1) (slength start)
       success = S.member end $ last states
-    in
+   in
          tree1 states end
 
 tree1 states end = Tree end $ tree2 $ reverse $ map reverse $ map2 (tree1 states) $ children states end
@@ -326,7 +326,7 @@ tree2 xs = map Trees xs
 only [x] = x
 
 instance Show Tree where
-    show tree = format1 1 $ conv tree
+   show tree = format1 1 $ conv tree
 
 
 conv (Tree a b) = Data (show a) $ map conv b
@@ -340,7 +340,7 @@ table str states =
    let
       (maxes, axes, fmts) = unzip3 $ zipWith (taux str $ 0 : maxes) states [0 ..]
       axis = foldr mergeStrs "" axes
-    in
+   in
       do
          putStrLn $ unlines $ axis : concat fmts ++ [axis]
          return maxes
@@ -351,7 +351,7 @@ taux str maxes s k =
       (end1, num) = taux2 maxes max1 k k (show k) ' '
       (end2, tok) = if k > 0 then taux2 maxes max1 (k - 1) k (singleton $ str !! (k - 1)) ' ' else (end1, num)
       max1 = maximum (end1 : end2 : ends) + 4
-    in
+   in
       (max1, mergeStrs num tok, fmts)
 
 taux1 ends max1 k state@(EItem e j _ d) = taux2 ends max1 j k (let s = show state in if j < k then s else "(" ++ s ++ ")") '-'
@@ -364,14 +364,14 @@ taux2 ends m j k sh fill =
                l1 = m - st - length sh
                l2 = div l1 2
                l3 = l1 - l2
-             in
+            in
                (st + length sh, replicate st ' ' ++ replicate l2 fill ++ sh ++ replicate l3 fill)
       | j == k ->
             let
                st = ends !! j
                l = length sh
                l2 = div l 2
-             in
+            in
                (st + l2, replicate (m - l2) ' ' ++ sh)
 
 mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a > length b then drop (length b) a else drop (length a) b

@@ -14,9 +14,9 @@ diff = callProcess "diff" ["--help"]
 a / b = if last a == '/' then a ++ b else a ++ '/' : b
 
 initRepo dir = do
-   createDirectory $ dir / ".diff"
+         createDirectory $ dir / ".diff"
 
 addFile file = do
-   copyFile file $ ".diff" / file
+         copyFile file $ ".diff" / file
 
    
