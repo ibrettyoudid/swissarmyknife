@@ -1,6 +1,6 @@
 module HTTP where
 
-import Parser6
+import Parser6 hiding (crlf)
 
 import HTTPTypes
 import Favs
@@ -17,50 +17,50 @@ emptyUrl = Url "" "" (Just 0) [] Nothing ""
 emptyMessage = Message "" emptyUrl "" 0 "" [] 0 ""
 
 requestConnect = Build emptyMessage (
-   MethodK <-- Alt [String "CONNECT"] :+
+   MethodK <-- Alt [String "CONNECT"] :/
    Many (Token ' ') :/
-   UrlK <-- hostPort :+
+   UrlK <-- hostPort :/
    Token ' ' :/
-   HTTPVersionK <-- AnyTill crlf ://
+   HTTPVersionK <-- AnyTill crlf :/
    crlf)
 
 request = Build emptyMessage (
-   MethodK <-- Alt [String "GET", String "get"] :+
+   MethodK <-- Alt [String "GET", String "get"] :/
    Many (Token ' ') :/
-   UrlK <-- urlP :+
-   HeadersK <-- ManyTill header crlf :+
+   UrlK <-- urlP :/
+   HeadersK <-- ManyTill header crlf :/
    crlf)
    --SetM [Headers1, ContentLength] $ Apply (ilookup "Content-Length") $ Get Headers]
    --Body <-- Count (Get ContentLength) AnyToken]
 
 response = Build emptyMessage (
-   HTTPVersionK <-- AnyTill (Token ' ') :+
+   HTTPVersionK <-- AnyTill (Token ' ') :/
    Token ' ' :/
-   StatusCodeK <-- int :+
+   StatusCodeK <-- int :/
    Token ' ' :/
-   ReasonPhraseK <-- AnyTill crlf :+
+   ReasonPhraseK <-- AnyTill crlf :/
    crlf :/
-   HeadersK <-- ManyTill header crlf ://
+   HeadersK <-- ManyTill header crlf :/
    crlf)
 
-headers :: Rule [String :- String] Message Char
+headers :: Rule String Char Message [[Char] :- [Char]]
 headers = 
    HeadersK <-- ManyTill header crlf ://
    crlf 
-   --SetM (Headers1K, (ContentLengthK, ())) (Apply (ilookup "Content-Length") $ Get HeadersK) :+
+   --SetM (Headers1K, (ContentLengthK, ())) (Apply (ilookup "Content-Length") $ Get HeadersK) :/
    --BodyK <-- Count (Get ContentLengthK) AnyToken
 
 urlP = Build emptyUrl (
-   ProtocolK <-- Alt [String "http:", String "https:", String "ftp:", String "file:"] :+
-   String "//" :/ HostK <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']) :+ PortK <-- Option (Token ':' :/ int) :+
-   AbsPathK  <-- Apply (total (split "/") (intercalate "/")) (AnyTill (Alt [Token ' ', Token '?'])) :+ 
-   QueryK    <-- Option (Token '?' :/ AnyTill (Token ' ')) :+
+   ProtocolK <-- Alt [String "http:", String "https:", String "ftp:", String "file:"] :/
+   String "//" :/ HostK <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']) :/ PortK <-- Option (Token ':' :/ int) :/
+   AbsPathK  <-- Apply (total (split "/") (intercalate "/")) (AnyTill (Alt [Token ' ', Token '?'])) :/ 
+   QueryK    <-- Option (Token '?' :/ AnyTill (Token ' ')) :/
    Token ' ' :/
-   HTTPVersionK <-- AnyTill crlf ://
+   HTTPVersionK <-- AnyTill crlf :/
    crlf)
 
 hostPort = Build emptyUrl (
-   HostK <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']) :+
+   HostK <-- AnyTill (Alt [Token ':', Token '/', Token '?', Token ' ']) :/
    PortK <-- Option (Token ':' :/ int))
 
 header = 
@@ -69,7 +69,7 @@ header =
    AnyTill crlf ://
    crlf
 
-lws = crlf :+ many1 (Alt [Token '\9', Token ' '])
+lws = crlf :/ many1 (Alt [Token '\9', Token ' '])
 
 crlf = Alt [String "\r\n", String "\n\r", String "\n", String "\r"]
 

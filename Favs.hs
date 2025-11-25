@@ -1078,3 +1078,7 @@ maybeSwap ((lx, ly), (rx, ry)) = if lx < ly then ((lx, ly), (rx, ry)) else ((rx,
 
 sofbs = map (chr . fromIntegral) . B.unpack
 bsofs = B.pack . map (fromIntegral . ord)
+
+filename list = drop (length list - 1 - fromMaybe (length list - 1) (elemIndex '/' (reverse list))) list
+
+ext list = drop (length list - 1 - fromMaybe (negate 1) (elemIndex '.' (reverse list))) list

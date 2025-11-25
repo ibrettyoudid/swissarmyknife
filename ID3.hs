@@ -40,8 +40,8 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char
-import Data.List hiding (concat, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
-import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
+import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
 
 -- import Data.Algorithm.Diff
 import Data.Array.IArray hiding (range)

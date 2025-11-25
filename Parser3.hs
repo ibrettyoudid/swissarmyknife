@@ -142,15 +142,15 @@ many :: Typeable a => RuleR t a -> RuleR t [a]
 many = ManyR
 
 many1 :: Typeable a => RuleR t a -> RuleR t [a]
-many1 p = cons >$< p >*< many p
+many1 p = icons >$< p >*< many p
 
 sepBy x sep = Parser3.pure []
-          <|> cons >$< x >*< many (sep *< x)
+          <|> icons >$< x >*< many (sep *< x)
 
 groupOf i = sepBy i (text ";") -- <|> aligned i
 
 
-chainl1 arg op f = Iso.foldl f >$< (arg >*< (many (op >*< arg)))
+chainl1 arg op f = Iso.ifoldl f >$< (arg >*< (many (op >*< arg)))
 
 chainr1 arg op f = f >$< arg >*< (op >*< chainr1 arg op f) <|> arg
 

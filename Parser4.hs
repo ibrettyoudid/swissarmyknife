@@ -448,10 +448,11 @@ t = parse filename "abc.mp3"
 fd :: (Typeable a, Typeable b) => (a -> Maybe b) -> Dynamic -> Maybe Dynamic
 fd f x = fmap toDyn $ f $ fromDyn1 x
 
-isod :: (Typeable a1, Typeable a2) => (a1 -> Maybe a2) -> (a2 -> Maybe a1) -> Iso Dynamic Dynamic
-isod f g = Iso (fd f) (fd g)
+isod :: (Typeable a1, Typeable a2) => Iso a1 a2 -> Iso Dynamic Dynamic
+isod (Iso f g) = Iso (fd f) (fd g)
 
 totald :: (Typeable a, Typeable b) => (a -> b) -> (b -> a) -> Iso Dynamic Dynamic
 totald f g = Iso (fd (Just . f)) (fd (Just . g))
 
+infixr 0 <--
 a <-- b = Set a b

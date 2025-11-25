@@ -11,16 +11,17 @@ import Data.ByteString.Lazy qualified as LB
 import Data.List qualified as L
 import Data.Text qualified as T
 import Favs qualified as F
-import Prelude hiding (String, drop, find, head, length, null, (++))
+import Prelude hiding (String, drop, find, head, length, null, map, (++))
 import Prelude qualified as P
 
 import Data.Char
 import Data.Word
 
-class BString s where
+class Show s => BString s where
   empty :: s
   tail :: s -> s
   (++) :: s -> s -> s
+  take :: Int -> s -> s
   drop :: Int -> s -> s
   inits :: s -> [s]
   tails :: s -> [s]
@@ -28,7 +29,7 @@ class BString s where
   length :: s -> Int
   intercalate :: s -> [s] -> s
 
-class BStringC c s | s -> c where
+class BString s => BStringC c s | s -> c where
   cons :: c -> s -> s
   head :: s -> c
   last :: s -> c
@@ -37,16 +38,19 @@ class BStringC c s | s -> c where
   elem :: c -> s -> Bool
   notElem :: c -> s -> Bool
 
+  smap  :: (c -> c) -> s -> s
+
   -- these are here because of the Eq class on the characters
   stripPrefix :: s -> s -> Maybe s
   isPrefixOf :: s -> s -> Bool
   isSuffixOf :: s -> s -> Bool
   isInfixOf :: s -> s -> Bool
 
-instance BString [a] where
+instance Show a => BString [a] where
   empty = []
   tail = P.tail
   (++) = (P.++)
+  take = P.take
   drop = P.drop
   inits = L.inits
   tails = L.tails
@@ -56,7 +60,7 @@ instance BString [a] where
 
 --   split = F.split
 
-instance (Eq a) => BStringC a [a] where
+instance (Eq a, Show a) => BStringC a [a] where
   cons = (:)
   head = P.head
   last = P.last
@@ -64,6 +68,9 @@ instance (Eq a) => BStringC a [a] where
   find = L.find
   elem = L.elem
   notElem = L.notElem
+
+  smap = L.map
+
   stripPrefix = L.stripPrefix
   isPrefixOf = L.isPrefixOf
   isSuffixOf = L.isSuffixOf
@@ -73,6 +80,7 @@ instance BString B.ByteString where
   empty = B.empty
   tail = B.tail
   (++) = B.append
+  take = B.take
   drop = B.drop
   inits = B.inits
   tails = B.tails
@@ -89,6 +97,8 @@ instance BStringC Word8 B.ByteString where
   elem = B.elem
   notElem = B.notElem
 
+  smap = B.map
+
   stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
   isPrefixOf = B.isPrefixOf
   isSuffixOf = B.isSuffixOf
@@ -98,6 +108,7 @@ instance BString T.Text where
   empty = T.empty
   tail = T.tail
   (++) = T.append
+  take = T.take
   drop = T.drop
   inits = T.inits
   tails = T.tails
@@ -113,6 +124,8 @@ instance BStringC Char T.Text where
   find = T.find
   elem = T.elem
   notElem c s = not $ T.elem c s
+
+  smap = T.map
 
   stripPrefix = T.stripPrefix
   isPrefixOf = T.isPrefixOf
@@ -133,10 +146,10 @@ class ConvertString a b where
   convertString :: a -> b
 
 instance ConvertString P.String B.ByteString where
-  convertString = B.pack . map (fromIntegral . ord)
+  convertString = B.pack . L.map (fromIntegral . ord)
 
 instance ConvertString B.ByteString P.String where
-  convertString = map (chr . fromIntegral) . B.unpack
+  convertString = L.map (chr . fromIntegral) . B.unpack
 
 instance ConvertString B.ByteString LB.ByteString where
   convertString = B.fromStrict
@@ -145,10 +158,10 @@ instance ConvertString LB.ByteString B.ByteString where
   convertString = B.toStrict
 
 instance ConvertString P.String LB.ByteString where
-  convertString = LB.pack . map (fromIntegral . ord)
+  convertString = LB.pack . L.map (fromIntegral . ord)
 
 instance ConvertString LB.ByteString P.String where
-  convertString = map (chr . fromIntegral) . LB.unpack
+  convertString = L.map (chr . fromIntegral) . LB.unpack
 
 instance ConvertString P.String T.Text where
   convertString = T.pack

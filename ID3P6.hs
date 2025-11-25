@@ -18,10 +18,10 @@ import ApplyTuple
 import NewTuple
 import BString
 import Favs hiding (range, split, split1With, splitWith)
-import Iso qualified as I
-import MHashDynamic2 hiding (Apply, Frame, name, tl, (!), (==))
-import MyPretty2
-import Parser6 hiding (Frame, Range, int)
+import Iso hiding ((!!))
+import MHashDynamic2 hiding (Apply, Frame, name, tl, value, Value, (!), (==))
+import qualified MyPretty2
+import Parser6 hiding (Frame, Range, int, low)
 import Parser6 qualified as P
 import Parser6Types qualified as P
 import Shell hiding (contents, fields, main, year, (@))
@@ -45,23 +45,18 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char
-import Data.List hiding (concat, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
+import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
 import Data.List qualified
-import Prelude hiding (concat, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
 
 -- import Data.Algorithm.Diff
-import Data.Array.IArray hiding (range)
 
--- was Data.Word8 on Windows
-
-import Data.Array.IArray qualified as A
-import Data.Attoparsec.ByteString qualified as AP
 import Data.ByteString qualified as B
 import Data.Fixed
-import Data.Map.Strict qualified as M
-import Data.Set qualified as S
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -88,7 +83,7 @@ misc = baseDir @ "Misc"
 f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
 m = do
-  AP.string baseDir
+  String baseDir
   ar <- upto "/"
   yr <- upto " - "
   al <- upto "/"
@@ -105,8 +100,7 @@ m1 = do
   toe Ext
 -}
 
-upto x = AP.manyTill AP.anyWord8 $ AP.string x
-to x y = AP.manyTill AP.anyWord8 $ AP.string y
+upto x = AnyTill $ String x
 ft = fileTree
 fta = fileTree artistd
 fds = fieldsFromString f d
@@ -116,11 +110,12 @@ p = play
 play files = runInteractiveProcess "vlc" ("--one-instance" : files) Nothing Nothing
 pft f dir = play $ filtree f dir
 
-inlow x = isInfixOf (low x) . low
-prelow x = isPrefixOf (low x) . low
-inis x = map head $ split " " $ low x
+low        = smap toLower
+inlow x    = isInfixOf (low x) . low
+prelow x   = isPrefixOf (low x) . low
+inis x     = map head $ split " " $ low x
 ininis x y = low x `isInfixOf` inis y
-inli x y = inlow x y || ininis x y
+inli x y   = inlow x y || ininis x y
 
 -- fm filt = filtree (filt . metaFromString f d)
 {-
@@ -167,10 +162,6 @@ tagTreeM1 d =
 
 -- test = afl . ta . tagTree2
 
-afl = arrayFromList (ByteStr "")
-
-ta = concat . zipWith (\n -> map (\fr -> ((frid fr, n), val fr))) [1 ..]
-
 para = artistd @ "Paradise Lost"
 satyr = artistd @ "Satyricon"
 super = artistd @ "Superior"
@@ -178,15 +169,42 @@ volc = satyr @ "2002 - Volcano"
 obsid = para @ "2020 - Obsidian"
 tf = obsid @ "02 Fall from Grace.mp3"
 
-test3 = parseTag $ unsafePerformIO $ readFile tf
--}
 type MyString = B.ByteString
+type IOString = B.ByteString
 
-data Frame
-  = Header {id3 :: MyString, verMajor :: Int, verMinor :: Int, unsync :: Bool, extHdr :: Bool, experi :: Bool, footer :: Bool, tagSize :: Int}
-  | Frame {frameID :: MyString, frameSize :: Int, flags :: Frame, contents :: B.ByteString}
-  | FrameText {frid :: FrameID, val :: T.Text}
-  | FrameFlags {tagAltPrsv :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool}
+data ID3Tag
+  = ID3Tag { 
+    id3 :: MyString, 
+    verMajor :: Int, 
+    verMinor :: Int, 
+    unsync :: Bool, 
+    extHdr :: Bool, 
+    experi :: Bool, 
+    footer :: Bool, 
+    tagSize :: Int, 
+    tagBytes :: B.ByteString, 
+    frames :: [Frame] }
+
+data FrameHeader = 
+  FrameHeader { 
+    frameID1    :: IOString, 
+    frameSize   :: Int, 
+    tagAltPrsv  :: Bool, 
+    fileAltPrsv :: Bool, 
+    readOnly    :: Bool, 
+    compression :: Bool, 
+    encryption  :: Bool, 
+    grouping    :: Bool, 
+    unsyncFr    :: Bool, 
+    dataLenI    :: Bool, 
+    frameBytes  :: B.ByteString } deriving (Eq, Ord, Show, Read, Generic)
+
+data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }
+            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text }
+            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text, language :: T.Text }
+            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, mimeType :: T.Text, pictureType :: Int, description :: T.Text, picture :: IOString }
+            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }
+
   | FrameTruncated
   | Invalid B.ByteString
   | Bytes Int
@@ -220,7 +238,7 @@ n = track
 
 data Encoding = ISO8859 | UCS2
   deriving (Eq, Ord, Show)
-{-
+
 -- test1 = putGrid $ transpose1 $
 test1 = differences $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
 test1a = commonSubsequencesList $ fileTree $ unsharedd @ "Portion Control" @ "2007 - Onion Jack IV"
@@ -264,7 +282,7 @@ albums db =
       groupBy1 album $
         tl db
 
-putt a = putGrid $ transpose $ map showT a
+putt a = MyPretty2.putGrid $ transpose $ map showT a
 
 -- t = over mapped show (0.2, 15, "ae")
 -- putr = putGrid . transpose . map t
@@ -302,18 +320,18 @@ instance P.Frame FrameID Dynamic Meta where
   myset1 = setField
 
 setField id val meta = case id of
-  Bisdir      -> meta{isDir       = fromDyn1 val}
-  Bpath       -> meta{path        = fromDyn1 val}
-  Baudio      -> meta{audio       = fromDyn1 val}
-  Track       -> meta{track       = fromDyn1 val}
-  Album       -> meta{album       = fromDyn1 val}
-  Artist      -> meta{artist      = fromDyn1 val}
-  AlbumArtist -> meta{albumartist = fromDyn1 val}
-  Song        -> meta{song        = fromDyn1 val}
-  Year        -> meta{year        = fromDyn1 val}
-  Genre       -> meta{genre       = fromDyn1 val}
-  Btimes      -> meta{times       = fromDyn1 val}
-  Borig       -> meta{orig        = fromDyn1 val}
+  Bisdir      -> meta { isDir       = fromDyn1 val }
+  Bpath       -> meta { path        = fromDyn1 val }
+  Baudio      -> meta { audio       = fromDyn1 val }
+  Track       -> meta { track       = fromDyn1 val }
+  Album       -> meta { album       = fromDyn1 val }
+  Artist      -> meta { artist      = fromDyn1 val }
+  AlbumArtist -> meta { albumartist = fromDyn1 val }
+  Song        -> meta { song        = fromDyn1 val }
+  Year        -> meta { year        = fromDyn1 val }
+  Genre       -> meta { genre       = fromDyn1 val }
+  Btimes      -> meta { times       = fromDyn1 val }
+  Borig       -> meta { orig        = fromDyn1 val }
   _           -> setField1 id val meta
 
 fields1 meta =
@@ -332,13 +350,19 @@ fields1 meta =
   ]
     ++ M.toList (byId meta)
 
-field1 id meta = case id of
+field1 id meta = fromDynamic $ case id of
+  Bisdir      -> toDyn $ isDir  meta
+  Bpath       -> toDyn $ path   meta
+  Baudio      -> toDyn $ audio  meta
   Track       -> toDyn $ track  meta
   Album       -> toDyn $ album  meta
   AlbumArtist -> toDyn $ artist meta
   Song        -> toDyn $ song   meta
   Year        -> toDyn $ year   meta
-  Bpath       -> toDyn $ path   meta
+  Genre       -> toDyn $ genre  meta
+  Btimes      -> toDyn $ times  meta
+  Borig       -> toDyn $ orig   meta
+  _           -> fromJust $ M.lookup id $ byId meta
 
 isfixed id = case id of
   Bisdir      -> True
@@ -353,8 +377,6 @@ isfixed id = case id of
   Btimes      -> True
   Borig       -> True
   _           -> False
-
-mapfield name = mapMaybe (\case FrameText name1 val -> ifJust (name == name1) val; x -> Nothing)
 
 isFile = not . isDir
 
@@ -378,9 +400,6 @@ instance Zero Integer where
 
 instance Zero [a] where
   zero = []
-
-instance Zero Term where
-  zero = String1 ""
 
 instance (Zero a, Zero b) => Zero (a, b) where
   zero = (zero, zero)
@@ -422,78 +441,6 @@ applyU7 (f, g, h, i, j, k, l) x = (f x, g x, h x, i x, j x, k x, l x)
 
 applyV7 f (t, u, v, w, x, y, z) = (f t, f u, f v, f w, f x, f y, f z)
 applyL fs x = map ($ x) fs
-
-data XYMapArray x y v = XYMapArray
-  { dat :: Array (Int, Int) v
-  , xAxis :: M.Map x Int
-  , yAxis :: M.Map y Int
-  , mapzero :: v
-  }
-
-lookup x y a = do
-  xi <- M.lookup x (xAxis a)
-  yi <- M.lookup y (yAxis a)
-  return $ dat a ! (xi, yi)
-
--- foldr (+) a [1,2,3] = (1+(2+(3+a)))
-{-
-arrayFromList :: (Ord x, Ord y) => v -> [((x,y),v)] -> XYMapArray x y v
-arrayFromList zero xylist = let
-   xmap   = M.fromList $ zip (S.toList $ S.fromList $ map (\((x,y),v) -> x) xylist) [0..]
-   ymap   = M.fromList $ zip (S.toList $ S.fromList $ map (\((x,y),v) -> y) xylist) [0..]
-   xsize  = M.size xmap
-   ysize  = M.size ymap
-   s      = xsize*ysize
-   ixl    = (-1, zero):map (\((x,y),v) -> (unjust (M.lookup x xmap)*ysize+unjust (M.lookup y ymap), v)) xylist
-   ix2    = foldr (\(a,b) ((c,d):rest) -> (a,b) : zip [a+1..c-1] (repeat zero) ++ (c,d) : rest) [(s, zero)] ixl
-   vals   = map snd $ tail ix2
-
-   in XYMapArray (take xsize $ groupN ysize vals) xmap ymap zero
--}
-arrayFromList zero xylist =
-  let
-    xmap = M.fromList $ zip (S.toList $ S.fromList $ map (\((x, y), v) -> x) xylist) [0 ..]
-    ymap = M.fromList $ zip (S.toList $ S.fromList $ map (\((x, y), v) -> y) xylist) [0 ..]
-    xmax = M.size xmap - 1
-    ymax = M.size ymap - 1
-    ixl = map (\((x, y), v) -> ((unjust (M.lookup x xmap), unjust (M.lookup y ymap)), v)) xylist
-    c1 e a = a
-   in
-    XYMapArray (accumArray c1 zero ((0, 0), (xmax, ymax)) ixl) xmap ymap zero
-
-cols a =
-  let
-    ((xl, yl), (xu, yu)) = bounds a
-   in
-    crossWith (curry (a !)) (A.range (xl, xu)) (A.range (yl, yu))
-
-showa1 :: Int -> (x -> String) -> (b -> String) -> (v -> String) -> XYMapArray x b v -> String
-showa1 w fx fy f a =
-  let xh = map (fx . fst) $ M.toList $ xAxis a
-      yh = map (fy . fst) $ M.toList $ yAxis a
-      tbl = zipWith (:) ("" : xh) (yh : transpose (map2 f (cols $ dat a))) :: [[String]]
-   in showGridW w tbl
-
-{-
-showa3 w fx fy f a = let xh = map (fx . fst) $ M.toList $ xAxis a
-                         yh = map (fy . fst) $ M.toList $ yAxis a
-                         tbl = zipWith (:) ("" : xh) (yh : transpose (map2 f (cols $ dat a))) :: [[String]]
-
-                     in tryGridF colWidths1 w tbl
--}
-showa2 w fx fy f a =
-  let xh = map (fx . fst) $ M.toList $ xAxis a
-      yh = map (fy . fst) $ M.toList $ yAxis a
-      xs = length xh
-      ys = length yh
-      xhs = length $ head xh
-      yhs = length $ head yh
-      spc = replicate xhs $ replicate yhs ""
-      tbl = zipWith (++) (spc ++ xh) (transpose yh ++ map2 f (cols $ dat a))
-   in showGridW w tbl
-
-instance (Show1 x, Show1 y, Show1 v) => Show (XYMapArray x y v) where
-  show = showa1 width show1 show1 show1
 
 -- partPart :: P.ParsecT String u e String
 -- pathPart = P.manyTill (P.char '/') $ P.string "/"
@@ -739,7 +686,7 @@ readFSD db f
 
 --writeFS f = writeTag (path f) $ framesOfMeta f
 
-zeroTime = DateTime (posixSecondsToUTCTime 0)
+zeroTime = MyPretty2.DateTime (posixSecondsToUTCTime 0)
 
 -- intOfFT (FILETIME ft) = fromIntegral ft
 -- https://www.ubereats.com/gb/orders/d79a668a-365e-46fa-8d75-af17bd713bb0
@@ -784,8 +731,7 @@ readFileTimes fs = do
 
 -- xylistFromFS = concatMap (\f -> map (\fr -> ((path f, frid fr), val fr)) f)
 
-decapitate = filter (\case Header{} -> False; _ -> True)
-justText = filter (\case FrameText{} -> True; _ -> False)
+justText = filter (\case FText {} -> True; _ -> False)
 
 --            return $ FrameMPEG version layer bitRate sampRate mpegFrameSize mpegFrameTime
 {-
@@ -812,29 +758,30 @@ readTagM readAudio f1 = do
   print f1
   let f = convertString f1 :: String
   h <- openBinaryFile f ReadMode
-  hdat <- hGetContents h
-  case parse tag hdat of
-    Done res _ rest -> return res
+  hdat <- B.hGet h 65536
+  return $ parseTag hdat 
+    {-
     _ -> do
       hClose h
       return []
+      -}
 {-
 writeTag f1 t = do
   let f = convertString f1 :: String
   h <- openBinaryFile f ReadWriteMode
   d <- hGet h 10
   let Done rest _ hd = parse header d
-  let ts = myget1C TagSize hd
+  let ts = myget1B TagSize hd
   let FDone fd _ = unparseFrames t
   let padLen = ts - length fd
-  if myget1C Id3 hd == "ID3"
+  if myget1B Id3 hd == "ID3"
     then
       if padLen >= 0
         then do
           hSeek h AbsoluteSeek 0
           hPut h $ unparseTag t
           hClose h
-        else shiftAudio h fd $ fromIntegral $ myget1C TagSize hd + 10
+        else shiftAudio h fd $ fromIntegral $ myget1B TagSize hd + 10
     else shiftAudio h fd 0
  where
   shiftAudio h fd pos = do
@@ -858,14 +805,14 @@ readTagM readAudio f1 = do
       let hd = fromDyn1 dyn :: M.Map Var Dynamic
       in if myget1 Id3 hd == "ID3"
             then do
-              rest <- replicateM (myget1C TagSize hd) $ hGetChar h
-              let rest1 = if myget1C VerMajor hd == 3 && myget1C Unsync hd then resync1 rest else rest
-              m <- readAudio h $ myget1C TagSize hd
+              rest <- replicateM (myget1B TagSize hd) $ hGetChar h
+              let rest1 = if myget1B VerMajor hd == 3 && myget1B Unsync hd then resync1 rest else rest
+              m <- readAudio h $ myget1B TagSize hd
               fileSize <- hFileSize h
               hClose h
               --            mapM_ print m
-              let t = parseFrames (myget1C VerMajor hd) rest1
-              let audioSize = fromInteger fileSize - myget1C TagSize hd - 10
+              let t = parseFrames (myget1B VerMajor hd) rest1
+              let audioSize = fromInteger fileSize - myget1B TagSize hd - 10
               return $ hd : t -- ++ combineMPEGFrames audioSize (getMPEGFrames m)
             else do
               hClose h
@@ -878,17 +825,17 @@ writeTag f1 t = do
   h <- openBinaryFile f ReadWriteMode
   d <- hGet h 10
   let Done rest _ hd = parse header d
-  let ts = myget1C TagSize hd
+  let ts = myget1B TagSize hd
   let FDone fd _ = unparseFrames t
   let padLen = ts - length fd
-  if myget1C Id3 hd == "ID3"
+  if myget1B Id3 hd == "ID3"
     then
       if padLen >= 0
         then do
           hSeek h AbsoluteSeek 0
           hPut h $ unparseTag1 ts fd
           hClose h
-        else shiftAudio h fd $ fromIntegral $ myget1C TagSize hd + 10
+        else shiftAudio h fd $ fromIntegral $ myget1B TagSize hd + 10
     else shiftAudio h fd 0
  where
   shiftAudio h fd pos = do
@@ -934,7 +881,7 @@ readSomeAudio1 h pos = do
   case parse (rep mpegFrameP 8) audio of
     -- Left l        -> error ++ show l
     -- Right r       -> return r
-    Done m _ _ -> return $ (fromDyn1 m :: M.Map Var Dynamic)
+    Done m _ _ -> return m
 
 middle l = l !! (length l `div` 2)
 
@@ -956,14 +903,14 @@ convertMPEGFrame f = [
 combineMPEGFrames totalBytes [] = []
 combineMPEGFrames totalBytes frs =
   let
-    readBytes = sum $ map mpegFrameBytes frs
-    readTime = sum $ map mpegFrameTime frs
-    bitRate = round $ realToFrac readBytes * 8 / realToFrac readTime
-    totalTime = realToFrac $ fromIntegral totalBytes / fromIntegral bitRate * 8 / 1000
-    readSamps = sum $ map framesamps frs
-    sampRate = round $ realToFrac readBytes / realToFrac readSamps
-    mVersion = mode $ map version frs
-    mLayer = mode $ map layer frs
+    readBytes = sum        $ map mpegFrameBytes frs
+    readTime  = sum        $ map mpegFrameTime  frs
+    readSamps = sum        $ map framesamps     frs
+    mVersion  = mode       $ map version        frs
+    mLayer    = mode       $ map layer          frs
+    sampRate  = round      $ realToFrac   readBytes      / realToFrac   readSamps
+    bitRate   = round      $ realToFrac   readBytes  * 8 / realToFrac   readTime
+    totalTime = realToFrac $ fromIntegral totalBytes * 8 / fromIntegral bitRate / 1000
    in
     [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
 
@@ -1005,50 +952,38 @@ combineMPEGFrames3 fs = combineMPEGFrames2 fs . filter (\case { FrameMPEG {} -> 
 framesamps fr = fromIntegral (sampRate fr) * mpegFrameTime fr
 
 myget1A :: FrameID -> M.Map FrameID Dynamic -> T.Text
-myget1A id framemap = c (fromDyn1 $ fromJust $ myget1 id framemap :: String)
+myget1A id framemap = c (myget1B id framemap :: String)
 
-myget1B :: FrameID -> [M.Map Var Dynamic] -> Maybe (M.Map Var Dynamic)
-myget1B id frames = Data.List.find (\f -> isJust $ do
+myget1B id framemap = fromDyn1 $ fromJust $ M.lookup id framemap 
+
+myget1C :: FrameID -> [M.Map Var Dynamic] -> Maybe (M.Map Var Dynamic)
+myget1C id frames = Data.List.find (\f -> isJust $ do
   d <- M.lookup FrameID f
   s <- fromDynamic d
-  j <- M.lookup s textIdMap
+  j <- M.lookup s textIDMap
   guard $ id == id1 j) frames
 
 metaOfFrames isDir1 path1 times1 orig1 = metaOfFrames2 isDir1 path1 times1 orig1 . metaOfFrames1
 
-metaOfFrames1 frs = M.fromList $ mapMaybe (\f -> do
-                        d <- M.lookup FrameID f
-                        s <- fromDynamic d
-                        j <- M.lookup s textIdMap
-                        z <- M.lookup Dat f
-                        return (id1 j, z)) frs
+metaOfFrames1 tag = M.fromList $ map (\frame -> (frameID frame, dynValue frame)) $ frames tag
 
-
-myget1C id frame = fromDyn1 $ fromJust $ myget1 id frame
 
 metaOfFrames2 isDir1 path1 times1 orig1 byId1 =
     Meta
       { isDir       = isDir1
       , path        = path1
       , audio       = ""
-      , albumartist = myget1A AlbumArtist byId1
-      , artist      = myget1A Artist      byId1
-      , album       = myget1A Album       byId1
-      , track       = myget1A Track       byId1
-      , song        = myget1A Song        byId1
-      , year        = readInt $ c $ myget1A Year byId1
-      , genre       = myget1A Genre       byId1
+      , albumartist =               myget1A AlbumArtist byId1
+      , artist      =               myget1A Artist      byId1
+      , album       =               myget1A Album       byId1
+      , track       =               myget1A Track       byId1
+      , song        =               myget1A Song        byId1
+      , year        = readInt $ c $ myget1A Year        byId1
+      , genre       =               myget1A Genre       byId1
       , times       = times1
       , orig        = orig1
       , byId        = byId1
       }
-
-textIdMap = M.fromList $ mapfxx textId frameIDList
-idMap = M.fromList $ mapfxx id1 frameIDList
-
-descOfTextId textId = fromMaybe (error "textId " ++ textId ++ " not found") $ M.lookup textId descOfTextIdMap
-
-descOfTextIdMap = M.fromList $ map (applyT (textId, desc)) frameIDList
 
 {-
 decodeText = decodeText1 . map fromIntegral . B.unpack
@@ -1069,9 +1004,17 @@ decodeLE (a : b : rest) = chr (a + b * 0x100) : decodeLE rest
 decodeBE [] = []
 decodeBE (a : b : rest) = chr (a * 0x100 + b) : decodeBE rest
 -}
-decodeText text = case head text of
-  0 -> T.decodeLatin1 $ B.tail text
-  1 -> decodeUCS2 $ B.tail text
+itext enc = total (decodeText enc) (encodeText enc)
+
+decodeText enc text = case enc of
+  0 -> T.decodeLatin1 text
+  1 -> decodeUCS2     text
+
+encodeText enc text = case enc of
+  0 -> T.encodeUtf8 text
+  1 -> T.encodeUtf16LE text
+
+
 
 decodeUCS2 str = case B.take 2 str of
   "\255\254" -> T.decodeUtf16LE $ B.drop 2 str
@@ -1086,34 +1029,33 @@ alternateChars [] = []
 alternateChars [a] = [a]
 alternateChars (a : b : rest) = a : alternateChars rest
 
-encodeText = B.pack . map fromIntegral . encodeText1
+encodeTextA = B.pack . map fromIntegral . encodeText1
 
 encodeText1 x = 0 : map ord x
 
 readFileU2 = unsafePerformIO . readFile
 
-z = parseTag $ readFileU2 tf
-
-readTag2 f = parseTag <$> readFile f
 readTag = unsafePerformIO . readTag2
+readTag2 f = parseTag <$> B.readFile f
 
 unright (Right r) = r
 
 parseTag str =
   let 
-    Done hd1 _ rest1 = parse header str
-    hd = fromDyn1 hd1 :: M.Map Var Dynamic
-    rest = if myget1C VerMajor hd == (3::Int) && myget1C Unsync hd then resync1 rest1 else rest1
-   in case myget1C Id3 hd :: String of
-        "ID3" -> hd : parseFrames rest
-        _ -> []
+    Done rest1 _ hd = parse header str
+    rest2 = take (tagSize hd) rest1
+    rest = if verMajor hd == (3::Int) && unsync hd then resync rest2 else rest2
+   in case id3 hd of
+        "ID3" -> hd { frames = result $ parse body rest }
+        _ -> hd
 
 -- add the header onto the frame data
-unparseTag :: M.Map Var Dynamic -> String
+unparseTag :: ID3Tag -> IOString
 unparseTag tg = 
-  case P.format tag (toDyn tg) of
+  case P.format tag tg of
     FDone t _ -> t
-    FFail em _ _ -> error em
+    FFail t _ em -> error em
+
 {-
 unparseTag1 totalSize framedat =
   let
@@ -1132,60 +1074,60 @@ unparseTag1 totalSize framedat =
           ]
 -}
 
-parseFrames str
-  | length str > 10 = case parse frame str of
-      Done dyn _ rest -> 
-        let fr = fromDyn1 dyn :: M.Map Var Dynamic
-        in if isValidID $ sofbs $ fromDyn1 $ fromJust $ myget1 FrameID fr
-              then fr : parseFrames rest
-              else []
-      Fail e cs i -> error e
-      --AP.Partial c -> [FrameTruncated]
-  | otherwise = []
-
-unparseFrames :: [M.Map Var Dynamic] -> FResult Char [M.Map Var Dynamic]
-unparseFrames r = P.format frame (toDyn r)
-
 isValidID :: String -> Bool
 isValidID = all (\c -> isDigit c || isAsciiUpper c)
 
---resync = B.pack . resync1 . B.unpack
+resync = B.pack . resync1 . B.unpack
+desync = B.pack . unsync1 . B.unpack
 
 resync1 [] = []
 resync1 [a] = [a]
-resync1 ('\255' : '\000' : rest) = '\255' : resync1 rest
+resync1 (255 : 0 : rest) = 255 : resync1 rest
 resync1 (a : rest) = a : resync1 rest
 
 unsync1 [] = []
-unsync1 ('\255' : rest) = '\255' : '\0' : unsync1 rest
+unsync1 (255 : rest) = 255 : 0 : unsync1 rest
 unsync1 (a : rest) = a : unsync1 rest
 
-isync1 = totald
-  (\d -> let 
-    [rest1, u1] = fromDyn1 d
-    rest = fromDyn1 rest1
-    u    = fromDyn1 u1
-    in toDyn $ if u then resync1 rest else rest)
-  (\d -> let 
-    [rest1, u1] = fromDyn1 d
-    rest = fromDyn1 rest1
-    u    = fromDyn1 u1
-    in toDyn $ if u then unsync1 rest else rest)
+resync2 [] = []
+resync2 [a] = [a]
+resync2 ('\255' : '\000' : rest) = '\255' : resync1 rest
+resync2 (a : rest) = a : resync1 rest
+
+unsync2 [] = []
+unsync2 ('\255' : rest) = '\255' : '\0' : unsync1 rest
+unsync2 (a : rest) = a : unsync1 rest
+
+isync1 True  = total resync desync
+isync1 False = total id id
 
 --unparseFrames frs = B.concat $ map unframe frs
--}
-tag = Build $ Seq [
-  header,
-  DatK    <-- Apply isync1 (Seq [Count (Get TagSizeK) char, Get UnsyncK]),
-  FramesK <-- Redo DatK frame,
-  Rest]
 
-header = Seq [
-  Id3K      <-- rep char 3,
-  VerMajorK <-- int,
-  VerMinorK <-- int,
-  SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK) (bits 8),
-  TagSizeK  <-- int4 0x80]
+emptyTag :: ID3Tag
+emptyTag = undefined
+{-
+tag :: Rule IOString Word8 () ID3Tag
+tag = Build emptyTag (
+  Id3K      <-- rep char 3 :/
+  VerMajorK <-- int :/
+  VerMinorK <-- int :/
+  SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
+  TagSizeK  <-- int4 0x80 :/
+  Anything 
+    (\f i -> case parse1 (Get TagSizeK >>== tokens) f i of
+      Done i1 f1 r1 -> parse1 (FramesK <-- Many frame) f1 r1) 
+    (\f r -> case Parser6.format1 (FramesK <-- Many frame) f r of
+      FDone t1 f1 -> Parser6.format1 (Get TagSizeK) f1 (length t1)))
+-}
+header :: Rule IOString Word8 () ID3Tag
+header = Build emptyTag (
+  Id3K      <-- rep char 3 :/
+  VerMajorK <-- int :/
+  VerMinorK <-- int :/
+  SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
+  TagSizeK  <-- int4 0x80 )
+
+body = Many frame
 
 {-
 let unsync = flags .&. 0x80 /= 0
@@ -1194,40 +1136,85 @@ let experi = flags .&. 0x20 /= 0 -- v2.3 & 2.4
 let footer = flags .&. 0x10 /= 0 -- v2.4 only
 -}
 
+emptyFrame :: Frame
 emptyFrame = undefined
 
-frame = Build emptyFrame $ Alt [
-  
-    Apply (I.satisfy (==2)) (Get VerMajorK) :+
-    FrameIDK   <-- rep char 3 :+
-    FrameSizeK <-- int4 0x100 :+
-    DatK       <-- Count (Get FrameSizeK) char,
+frameheader :: Rule IOString Word8 x Frame
+frameheader = Alt [
+  Build emptyFrame (
+    Apply (satisfy (==2)) (Get VerMajorK) :/
+    FrameIDK    <-- rep char 3 :/
+    FrameSizeK  <-- int4 0x100 :/
+    FrameBytesK <-- (Get FrameSizeK >>== tokens)),
 
-  
-    Apply (I.satisfy (==3)) (Get VerMajorK) :+
-    FrameIDK   <-- rep char 4 :+
-    FrameSizeK <-- int4 0x100 :+
-    SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :+
-    SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :+
-    DatK       <-- Count (Get FrameSizeK) char,
+  Build emptyFrame (
+    Apply (satisfy (==3)) (Get VerMajorK) :/
+    FrameIDK    <-- rep char 4 :/
+    FrameSizeK  <-- int4 0x100 :/
+    SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
+    SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
+    FrameBytesK <-- (Get FrameSizeK >>== tokens)),
 
-  
-    Apply (I.satisfy (==4)) (Get VerMajorK) :+
-    FrameIDK   <-- rep char 4 :+
-    FrameSizeK <-- int4 0x80 :+
-    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 (bits 8)) :+
-    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK) (Apply tuple8 (bits 8)) :+
-    DatK       <-- Apply isync1 (Seq [Count (Get FrameSizeK) char, Get UnsyncFrK])]
+  Build emptyFrame (
+    Apply (satisfy (==4)) (Get VerMajorK) :/
+    FrameIDK    <-- rep char 4 :/
+    FrameSizeK  <-- int4 0x80 :/
+    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
+    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
+    FrameBytesK <-- (Get FrameSizeK >>== tokens))
+    ]
+
+textEnc     = TextEncodingK --> (\enc -> Apply (itext enc) Rest)
+
+zeroTextEnc = TextEncodingK --> (\enc -> Apply (itext enc) $ case enc of
+                                    0 -> zeroText
+                                    1 -> AnyTill $ String "\0\0")
+
+zeroText = AnyTill $ Token '\0'
+
+
+
+frameSpec textID 
+  | toLower (head textID) == 't' = Build (FText { frameID = id1 $ fromJust $ M.lookup textID textIDMap }) (
+    TextEncodingK <-- int :/
+    ValueK        <-- textEnc)
+
+  | low textID == "txxx" = Build (FUserText { }) (
+    TextEncodingK <-- int :/
+    DescriptionK  <-- zeroTextEnc :/
+    ValueK        <-- textEnc)
+
+  | low textID == "uslt" = Build (FUnsyncLyrics { }) (
+    TextEncodingK <-- int :/
+    LanguageK     <-- rep char 3 :/
+    DescriptionK  <-- zeroTextEnc :/
+    LyricsK       <-- textEnc)
+
+  | low textID == "apic" = Build (FPicture { }) (
+    TextEncodingK <-- int :/
+    MIMETypeK     <-- zeroText :/
+    PictureTypeK  <-- int :/
+    DescriptionK  <-- zeroTextEnc :/
+    PictureK      <-- Rest)
+
+  | low textID == "sylt" = Build (FSyncLyrics { }) (
+    TextEncodingK <-- int :/
+    LanguageK     <-- rep int 3 :/
+    TimeFormatK   <-- int :/
+    ContentTypeK  <-- int :/
+    SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
+
+
     --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
   --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
   --let dat1 = if unsyncFr then resync dat else dat
 
 parseMPEGFrame audio = do
   case parse mpegFrameP audio of
-    Done r _ i -> r : parseMPEGFrame i
+    Done i _ r -> r : parseMPEGFrame i
     --AP.Partial c -> []
 
-mpegFrameP = Alt [mpegFrameOK, Seq [invalid, mpegFrameP], Seq []]
+mpegFrameP = AnyTill mpegFrameOK
 
 snarf [] = []
 snarf (Invalid a : Invalid b : xs) = snarf $ Invalid (B.append a b) : xs
@@ -1271,15 +1258,15 @@ sampPerFrames =  [[0,    0,    0,    0],
                   [0, 1152,  576,  576]]
           
 
-mpegFrameOK = Build emptyMPEGFrame $ Seq [
+mpegFrameOK = Build emptyMPEGFrame (
   --AP.word8 0xFF
-  SetM [AllOnes2, AllOnes1, AllOnes0, VersionEnc1, VersionEnc0, LayerEnc1, LayerEnc0, Z, BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0, SampRateEnc1, SampRateEnc0, Padding, ChannelMode1, ChannelMode0] (int3 0x100),
-  AllOnes     <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
-  VersionEnc  <-- Apply (I.inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
-  LayerEnc    <-- Apply (I.inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
-  BitRateEnc  <-- Apply (I.inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
-  SampRateEnc <-- Apply (I.inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
-  ChannelMode <-- Apply (I.inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0])]
+  SetM (AllOnes2K :- AllOnes1K :- AllOnes0K :- VersionEnc1K :- VersionEnc0K :- LayerEnc1K :- LayerEnc0K :- ZK :- BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K :- SampRateEnc1K :- SampRateEnc0K :- ZK :- ChannelMode1K :- ChannelMode0K) (int3 0x100) :/
+  AllOnesK     <-- Apply (inverse $ ibits 3) (GetM (AllOnes2K :- AllOnes1K :- AllOnes0K)) :/
+  VersionEncK  <-- Apply (inverse $ ibits 2) (GetM (VersionEnc1K :- VersionEnc0K)) :/
+  LayerEncK    <-- Apply (inverse $ ibits 2) (GetM (LayerEnc1K :- LayerEnc0K)) :/
+  BitRateEncK  <-- Apply (inverse $ ibits 4) (GetM (BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K)) :/
+  SampRateEncK <-- Apply (inverse $ ibits 2) (GetM (SampRateEnc1K :- SampRateEnc0K)) :/
+  ChannelModeK <-- Apply (inverse $ ibits 2) (GetM (ChannelMode1K :- ChannelMode0K)))
 {-
 mpegFrameF = do
   let version = [mpegv2_5, 0, mpegv2, mpegv1] !! versionEnc
@@ -1332,13 +1319,13 @@ mpegFrameF = do
 -}
 maxFrameSize = 5764 -- 1152 / 8 * 320 * 1000 / 8000 + 4
 
-ibsofs = I.total bsofs sofbs
+ibsofs = total bsofs sofbs
 
-tuple8 = I.Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h)) (\(a :- b :- c :- d :- e :- f :- g :- h) -> Just [a, b, c, d, e, f, g, h])
+tuple8 = Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h :- ())) (\(a :- b :- c :- d :- e :- f :- g :- h :- ()) -> Just [a, b, c, d, e, f, g, h])
 
 bits n = Apply (ibits n) int
 
-ibits n = I.total (dobits n) undobits
+ibits n = total (dobits n) undobits
 
 dobits :: Int -> Int -> [Bool]
 dobits n = take n . map odd . iterate (`shift` (-1))
@@ -1348,12 +1335,12 @@ dobits n = take n . map odd . iterate (`shift` (-1))
 undobits :: [Bool] -> Int
 undobits = foldl (\a x -> shift a 1 .|. (if x then 1 else 0)) 0
 
-intn n m = Apply (I.total (dointn m) (undoint n m)) $ Count (Pure n) int
+intn n m = Apply (total (dointn m) (undoint n m)) $ Count n int
 
 dointn :: Int -> [Int] -> Int
 dointn m = foldl (\a b -> a * m + b) 0
 
-int = Apply (I.total ord chr) char
+int = Apply (total fromIntegral fromIntegral) AnyToken
 --int = fromIntegral <$> AP.anyWord8
 
 --int2 m = Seq [int, int]
@@ -1384,7 +1371,64 @@ data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, 
          deriving (Generic)
 -}
 
-data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
+
+data Var = 
+  Id3          |
+  VerMajor     |
+  VerMinor     |
+  Unsync       |
+  ExtHdr       |
+  Experi       |
+  Footer       |
+  TagSize      |
+  Frames       |
+  FrameID      |
+  FrameSize    | 
+  TagAltPrsv   |  
+  FileAltPrsv  |   
+  ReadOnly     |
+  Grouping     |
+  Compression  |   
+  Encryption   |  
+  UnsyncFr     |
+  DataLenI     |
+  Z            |   
+  Dat          |      
+  TagBytes     |
+  FrameBytes   |
+  Value        |
+  TextEncoding |
+  Language     |
+  Description  |
+  Lyrics       |
+  MIMEType     |
+  PictureType  |
+  Picture      |
+  TimeFormat   |
+  ContentType  |
+  SyncedLyrics |
+  AllOnes2     |
+  AllOnes1     |
+  AllOnes0     |
+  VersionEnc1  |   
+  VersionEnc0  |   
+  LayerEnc1    | 
+  LayerEnc0    | 
+  BitRateEnc3  |   
+  BitRateEnc2  |   
+  BitRateEnc1  |   
+  BitRateEnc0  |   
+  SampRateEnc1 |    
+  SampRateEnc0 |    
+  Padding      |
+  ChannelMode1 |    
+  ChannelMode0 |    
+  AllOnes      |
+  VersionEnc   |  
+  LayerEnc     |
+  BitRateEnc   |  
+  SampRateEnc  |        
+  ChannelMode  deriving (Eq, Ord, Show)        
 
 data Id3K          = Id3K          deriving (Eq, Ord, Show)       
 data VerMajorK     = VerMajorK     deriving (Eq, Ord, Show)     
@@ -1406,7 +1450,20 @@ data EncryptionK   = EncryptionK   deriving (Eq, Ord, Show)
 data UnsyncFrK     = UnsyncFrK     deriving (Eq, Ord, Show)     
 data DataLenIK     = DataLenIK     deriving (Eq, Ord, Show)     
 data ZK            = ZK            deriving (Eq, Ord, Show)        
-data DatK          = DatK          deriving (Eq, Ord, Show)           
+data DatK          = DatK          deriving (Eq, Ord, Show)
+data TagBytesK     = TagBytesK     deriving (Eq, Ord, Show)           
+data FrameBytesK   = FrameBytesK   deriving (Eq, Ord, Show)
+data ValueK        = ValueK        deriving (Eq, Ord, Show)
+data TextEncodingK = TextEncodingK deriving (Eq, Ord, Show)
+data LanguageK     = LanguageK     deriving (Eq, Ord, Show)
+data DescriptionK  = DescriptionK  deriving (Eq, Ord, Show)
+data LyricsK       = LyricsK       deriving (Eq, Ord, Show)
+data MIMETypeK     = MIMETypeK     deriving (Eq, Ord, Show)
+data PictureTypeK  = PictureTypeK  deriving (Eq, Ord, Show)
+data PictureK      = PictureK      deriving (Eq, Ord, Show)
+data TimeFormatK   = TimeFormatK   deriving (Eq, Ord, Show)
+data ContentTypeK  = ContentTypeK  deriving (Eq, Ord, Show)
+data SyncedLyricsK = SyncedLyricsK deriving (Eq, Ord, Show)
 data AllOnes2K     = AllOnes2K     deriving (Eq, Ord, Show)     
 data AllOnes1K     = AllOnes1K     deriving (Eq, Ord, Show)     
 data AllOnes0K     = AllOnes0K     deriving (Eq, Ord, Show)     
@@ -1429,7 +1486,129 @@ data LayerEncK     = LayerEncK     deriving (Eq, Ord, Show)
 data BitRateEncK   = BitRateEncK   deriving (Eq, Ord, Show)       
 data SampRateEncK  = SampRateEncK  deriving (Eq, Ord, Show)        
 data ChannelModeK  = ChannelModeK  deriving (Eq, Ord, Show)        
-  
+
+instance P.Frame Id3K MyString ID3Tag where
+   myget1 Id3K = id3
+   myset1 Id3K value frame = frame { id3 = value }
+
+instance P.Frame VerMajorK Int ID3Tag where
+   myget1 VerMajorK = verMajor
+   myset1 VerMajorK value frame = frame { verMajor = value }
+
+instance P.Frame VerMinorK Int ID3Tag where
+   myget1 VerMinorK = verMinor
+   myset1 VerMinorK value frame = frame { verMinor = value }
+
+instance P.Frame UnsyncK Bool ID3Tag where
+   myget1 UnsyncK = unsync
+   myset1 UnsyncK value frame = frame { unsync = value }
+
+instance P.Frame ExtHdrK Bool ID3Tag where
+   myget1 ExtHdrK = extHdr
+   myset1 ExtHdrK value frame = frame { extHdr = value }
+
+instance P.Frame ExperiK Bool ID3Tag where
+   myget1 ExperiK = experi
+   myset1 ExperiK value frame = frame { experi = value }
+
+instance P.Frame FooterK Bool ID3Tag where
+   myget1 FooterK = footer
+   myset1 FooterK value frame = frame { footer = value }
+
+instance P.Frame TagSizeK Int ID3Tag where
+   myget1 TagSizeK = tagSize
+   myset1 TagSizeK value frame = frame { tagSize = value }
+
+instance P.Frame TagBytesK B.ByteString ID3Tag where
+   myget1 TagBytesK = tagBytes
+   myset1 TagBytesK value frame = frame { tagBytes = value }
+
+instance P.FrameD Var ID3Tag where
+   mygetD name frame = case name of
+      Id3       ->  toDyn $ id3       frame
+      VerMajor  ->  toDyn $ verMajor  frame
+      VerMinor  ->  toDyn $ verMinor  frame
+      Unsync    ->  toDyn $ unsync    frame
+      ExtHdr    ->  toDyn $ extHdr    frame
+      Experi    ->  toDyn $ experi    frame
+      Footer    ->  toDyn $ footer    frame
+      TagSize   ->  toDyn $ tagSize   frame
+      TagBytes  ->  toDyn $ tagBytes  frame
+      Frames    ->  toDyn $ frames    frame
+   mysetD name value frame = case name of
+      Id3       ->  frame { id3      = fromDyn1 value }
+      VerMajor  ->  frame { verMajor = fromDyn1 value }
+      VerMinor  ->  frame { verMinor = fromDyn1 value }
+      Unsync    ->  frame { unsync   = fromDyn1 value }
+      ExtHdr    ->  frame { extHdr   = fromDyn1 value }
+      Experi    ->  frame { experi   = fromDyn1 value }
+      Footer    ->  frame { footer   = fromDyn1 value }
+      TagSize   ->  frame { tagSize  = fromDyn1 value }
+      TagBytes  ->  frame { tagBytes = fromDyn1 value }
+
+instance P.FrameD Var FrameHeader where
+  mygetD name frame = case name of
+    FrameID     -> toDyn $ frameID1    frame 
+    FrameSize   -> toDyn $ frameSize   frame
+    TagAltPrsv  -> toDyn $ tagAltPrsv  frame 
+    FileAltPrsv -> toDyn $ fileAltPrsv frame 
+    ReadOnly    -> toDyn $ readOnly    frame 
+    Compression -> toDyn $ compression frame 
+    Encryption  -> toDyn $ encryption  frame 
+    Grouping    -> toDyn $ grouping    frame 
+    UnsyncFr    -> toDyn $ unsyncFr    frame 
+    DataLenI    -> toDyn $ dataLenI    frame 
+    FrameBytes  -> toDyn $ frameBytes  frame
+  mysetD name value frame = case name of
+    FrameID     -> frame { frameID1    = fromDyn1 value } 
+    FrameSize   -> frame { frameSize   = fromDyn1 value }
+    TagAltPrsv  -> frame { tagAltPrsv  = fromDyn1 value } 
+    FileAltPrsv -> frame { fileAltPrsv = fromDyn1 value } 
+    ReadOnly    -> frame { readOnly    = fromDyn1 value } 
+    Compression -> frame { compression = fromDyn1 value } 
+    Encryption  -> frame { encryption  = fromDyn1 value } 
+    Grouping    -> frame { grouping    = fromDyn1 value } 
+    UnsyncFr    -> frame { unsyncFr    = fromDyn1 value } 
+    DataLenI    -> frame { dataLenI    = fromDyn1 value } 
+    FrameBytes  -> frame { frameBytes  = fromDyn1 value }
+
+
+instance P.FrameD Var Frame where
+  mygetD name frame = case name of
+    Value        -> toDyn $ value        frame
+    TextEncoding -> toDyn $ textEncoding frame
+    Language     -> toDyn $ language     frame
+    Description  -> toDyn $ description  frame
+    MIMEType     -> toDyn $ mimeType     frame
+    PictureType  -> toDyn $ pictureType  frame
+    Picture      -> toDyn $ picture      frame
+    TimeFormat   -> toDyn $ timeFormat   frame
+    ContentType  -> toDyn $ contentType  frame
+    SyncedLyrics -> toDyn $ syncedLyrics frame
+
+  mysetD name value1 frame = case name of
+    Value        -> frame { value        = fromDyn1 value1 }
+    TextEncoding -> frame { textEncoding = fromDyn1 value1 }
+    Language     -> frame { language     = fromDyn1 value1 }
+    Description  -> frame { description  = fromDyn1 value1 }
+    MIMEType     -> frame { mimeType     = fromDyn1 value1 }
+    PictureType  -> frame { pictureType  = fromDyn1 value1 }
+    Picture      -> frame { picture      = fromDyn1 value1 }
+    TimeFormat   -> frame { timeFormat   = fromDyn1 value1 }
+    ContentType  -> frame { contentType  = fromDyn1 value1 }
+    SyncedLyrics -> frame { syncedLyrics = fromDyn1 value1 }
+
+textIDMap = M.fromList $ mapfxx textId frameIDList
+
+idMap     = M.fromList $ mapfxx id1    frameIDList
+
+descOfTextID textId = fromMaybe (error "textId " ++ textId ++ " not found") $ M.lookup textId descOfTextIDMap
+
+descOfTextIDMap = M.fromList $ map (applyT (textId, desc)) frameIDList
+
+--frameIDMap = M.fromList $ map (applyT (textId
+
+data FrameIDEntry = FT { sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text }
 
 data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
@@ -1601,3 +1780,4 @@ frameIDList =
   , FT "4.3.1" Wpub "WPB" "Publishers official webpage" ""
   , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
   ]
+-}

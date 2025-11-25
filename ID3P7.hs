@@ -12,17 +12,17 @@
 {-# HLINT ignore "Use fmap" #-}
 {-# HLINT ignore "Eta reduce" #-}
 
-module ID3P4 where
+module ID3P7 where
 
 import ApplyTuple
 import BString
 import Favs hiding (range, split, split1With, splitWith)
-import Iso hiding (cons, iterate, foldl, foldr, (!!))
-import qualified Iso as I
+import Iso qualified as I
 import MHashDynamic2 hiding (Apply, Frame, Value, name, tl, (!), (==))
 import MyPretty2
-import Parser4 hiding (Frame, Range)
-import Parser4 qualified as P
+import Parser7 hiding (Frame, Range, int)
+import Parser7 qualified as P
+import Parser6Types qualified as P
 import Shell hiding (contents, fields, main, year, (/))
 import Show1
 import ShowTuple
@@ -65,7 +65,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Word qualified as W
 import GHC.Generics hiding (Meta)
-
+{-
 -- things to try
 t1 db = putt $ artists db
 t2 = p fta
@@ -87,13 +87,14 @@ misc      = baseDir / "Misc"
 
 f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
+{-
 m = Build $ Seq [
   Artist <-- AnyTill (String "/"  ),
   Year   <-- AnyTill (String " - "),
   Album  <-- AnyTill (String "/"  ),
   Track  <-- AnyTill (String " - "),
   Song   <-- AnyTill (String "."  )]
-  
+-} 
 {-
 m1 = do
   tod Artist
@@ -115,7 +116,6 @@ p          = play
 play files = runInteractiveProcess "vlc" ("--one-instance" : files) Nothing Nothing
 pft f dir  = play $ filtree f dir
 
-low      = map toLower
 inlow  x = isInfixOf (low x) . low
 prelow x = isPrefixOf (low x) . low
 inis   x = map head $ split " " $ low x
@@ -994,7 +994,7 @@ decodeLE (a : b : rest) = chr (a + b * 0x100) : decodeLE rest
 decodeBE [] = []
 decodeBE (a : b : rest) = chr (a * 0x100 + b) : decodeBE rest
 -}
-itext = Iso decodeText encodeText
+itext = I.Iso decodeText encodeText
 
 --text = Apply itext 
 
@@ -1143,13 +1143,13 @@ let footer = flags .&. 0x10 /= 0 -- v2.4 only
 frame :: Rule Char Dynamic Var
 frame = Build $ Alt [
   Seq [
-    Apply (satisfy (==2)) $ Get VerMajor,
+    Apply (I.satisfy (==2)) $ Get VerMajor,
     FrameID   <-- rep char 3,
     FrameSize <-- int4 0x100,
     Dat       <-- Count (Get FrameSize) char],
 
   Seq [
-    Apply (satisfy (==3)) $ Get VerMajor,
+    Apply (I.satisfy (==3)) $ Get VerMajor,
     FrameID   <-- rep char 4,
     FrameSize <-- int4 0x100,
     SetM [TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z, Z] $ bits 8,
@@ -1157,7 +1157,7 @@ frame = Build $ Alt [
     Dat       <-- Count (Get FrameSize) char],
 
   Seq [
-    Apply (satisfy (==4)) $ Get VerMajor,
+    Apply (I.satisfy (==4)) $ Get VerMajor,
     FrameID   <-- rep char 4,
     FrameSize <-- int4 0x80,
     SetM [Z, TagAltPrsv, FileAltPrsv, ReadOnly, Z, Z, Z, Z] $ bits 8,
@@ -1167,47 +1167,20 @@ frame = Build $ Alt [
   --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
   --let dat1 = if unsyncFr then resync dat else dat
 
-textEnc = Apply itext (Seq [Get TextEncoding, Rest])
-
-zeroTextEnc = Apply itext (Seq [Get TextEncoding, zeroTerm1])
-
-zeroText = AnyTill $ Token '\0'
-
-zeroTerm1 = Alt [
-  Seq [Apply (satisfy (==0)) (Get TextEncoding), AnyTill $ Token '\0'],
-  Seq [Apply (satisfy (==1)) (Get TextEncoding), AnyTill $ String "\0\0"]]
+zeroTerm enc = case enc of
+   0 -> AnyTill $ Token '\0'
+   1 -> AnyTill $ String "\0\0"
 
 textFrame = Build $ Seq [
-  TextEncoding  <-- int,
-  Value         <-- textEnc]
+  TextEncoding<-- int,
+  Dat1        <-- Rest,
+  Value       <-- Apply itext (GetM [TextEncoding, Dat])]
 
-userText = Build $ Seq [
-  TextEncoding  <-- int,
-  Description   <-- zeroTextEnc,
-  Value         <-- textEnc]
-
-frameSpec Uslt = Build $ Seq [
-  TextEncoding  <-- int,
-  Language      <-- rep char 3,
-  Description   <-- zeroTextEnc,
-  Lyrics        <-- textEnc]
-
-frameSpec Apic = Build $ Seq [
-  TextEncoding  <-- int,
-  MIMEType      <-- zeroText,
-  PictureType   <-- int,
-  Description   <-- zeroTextEnc,
-  Picture       <-- Rest]
-
-frameSpec Sylt = Build $ Seq [
-  TextEncoding  <-- int,
-  Language      <-- rep int 3,
-  TimeFormat    <-- int,
-  ContentType   <-- int,
-  SyncedLyrics  <-- Many $ Seq [
-    SyncedLyrics  <-- zeroTextEnc,
-    TimeStamp     <-- int4 0x100]]
-
+userText = Build $
+  int >>== (\encoding ->
+      Description <-- zeroTerm encoding :+
+      Dat1        <-- Rest :+
+      Value       <-- Apply itext (GetM [TextEncoding, Dat1]))
 
 
 parseMPEGFrame audio = do
@@ -1264,31 +1237,31 @@ mpegFrameOK = Build $ Seq [
   --AP.word8 0xFF
   SetM [AllOnes2, AllOnes1, AllOnes0, VersionEnc1, VersionEnc0, LayerEnc1, LayerEnc0, Z, BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0, SampRateEnc1, SampRateEnc0, Padding, ChannelMode1, ChannelMode0] (int3 0x100),
 
-  AllOnes       <-- Apply (inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
-  VersionEnc    <-- Apply (inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
-  LayerEnc      <-- Apply (inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
-  BitRateEnc    <-- Apply (inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
-  SampRateEnc   <-- Apply (inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
-  ChannelMode   <-- Apply (inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0]),
+  AllOnes       <-- Apply (I.inverse $ ibits 3) (GetM [AllOnes2, AllOnes1, AllOnes0]),
+  VersionEnc    <-- Apply (I.inverse $ ibits 2) (GetM [VersionEnc1, VersionEnc0]),
+  LayerEnc      <-- Apply (I.inverse $ ibits 2) (GetM [LayerEnc1, LayerEnc0]),
+  BitRateEnc    <-- Apply (I.inverse $ ibits 4) (GetM [BitRateEnc3, BitRateEnc2, BitRateEnc1, BitRateEnc0]),
+  SampRateEnc   <-- Apply (I.inverse $ ibits 2) (GetM [SampRateEnc1, SampRateEnc0]),
+  ChannelMode   <-- Apply (I.inverse $ ibits 2) (GetM [ChannelMode1, ChannelMode0]),
 
-  Version       <-- Apply (isod ([mpegv2_5, 0, mpegv2, mpegv1] I.!!)) (Get VersionEnc),
+  Version       <-- Apply (P.isod ([mpegv2_5, 0, mpegv2, mpegv1] I.!!)) (Get VersionEnc),
 
-  Layer         <-- Apply (isod ([0, 3, 2, 1::Int] I.!!)) (Get LayerEnc),
+  Layer         <-- Apply (P.isod ([0, 3, 2, 1::Int] I.!!)) (Get LayerEnc),
 
-  BitRate       <-- Apply (isod ([[allZeros, allZeros    , allZeros     , allZeros     ],
-                                  [allZeros, mpeg12Layer1, mpeg12Layer2 , mpeg12Layer3 ],
-                                  [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23],
-                                  [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]] !!!!)) (GetM [Version, Layer, BitRateEnc]),
+  BitRate       <-- Apply (P.isod ([[allZeros, allZeros    , allZeros     , allZeros     ],
+                                    [allZeros, mpeg12Layer1, mpeg12Layer2 , mpeg12Layer3 ],
+                                    [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23],
+                                    [allZeros, mpeg25Layer1, mpeg25Layer23, mpeg25Layer23]] I.!!!!)) (GetM [Version, Layer, BitRateEnc]),
 
-  SampRate      <-- Apply (isod ([[    0,     0,     0,     0],
-                                  [44100, 48000, 32000,     0],
-                                  [22050, 24000, 16000,     0],
-                                  [11025, 12000,  8000,     0] :: [Int]] !!!)) (GetM [Version, SampRateEnc]),
+  SampRate      <-- Apply (P.isod ([[    0,     0,     0,     0],
+                                    [44100, 48000, 32000,     0],
+                                    [22050, 24000, 16000,     0],
+                                    [11025, 12000,  8000,     0] :: [Int]] I.!!!)) (GetM [Version, SampRateEnc]),
                           
-  SampPerFrame  <-- Apply (isod ([[0,    0,    0,    0],
-                                  [0,  384,  384,  384],
-                                  [0, 1152, 1152, 1152],
-                                  [0, 1152,  576,  576] :: [Int]] !!!)) (GetM [Layer, Version])]
+  SampPerFrame  <-- Apply (P.isod ([[0,    0,    0,    0],
+                                    [0,  384,  384,  384],
+                                    [0, 1152, 1152, 1152],
+                                    [0, 1152,  576,  576] :: [Int]] I.!!!)) (GetM [Layer, Version])]
 {-}
   bitsPerSamp = fromIntegral sampPerFrame / 8
 
@@ -1312,6 +1285,102 @@ mpegFrameOK = Build $ Seq [
 -}
 maxFrameSize = 5764 -- 1152 / 8 * 320 * 1000 / 8000 + 4
 
+tuple8 = I.Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h)) (\(a :- b :- c :- d :- e :- f :- g :- h) -> Just [a, b, c, d, e, f, g, h])
+
+bits n = Apply (ibits n) int
+
+ibits n = I.total (dobits n) undobits
+
+dobits :: Int -> Int -> [Bool]
+dobits n = take n . map odd . iterate (`shift` (-1))
+
+-- curry $ unfoldr (\(bn, bx) -> ifJust (bn > 0) (bx .&. 1 /= 0, (bn-1, shift bx (-1))))
+
+undobits :: [Bool] -> Int
+undobits = foldl (\a x -> shift a 1 .|. (if x then 1 else 0)) 0
+
+intn n m = Apply (I.total (dointn m) (undoint n m)) $ Count (Pure n) int
+
+dointn :: Int -> [Int] -> Int
+dointn m = foldl (\a b -> a * m + b) 0
+
+int = Apply (I.total ord chr) char
+--int = fromIntegral <$> AP.anyWord8
+
+--int2 m = Seq [int, int]
+
+--int2 = intn 2
+int3 = intn 3
+int4 = intn 4
+
+undoint 0 _ _ = []
+undoint n m x =
+  let (q, r) = divMod x (m ^ (n - 1))
+   in q : undoint (n - 1) m r
+
+rep p n = Seq $ replicate n p
+
+--char = chr <$> int
+
+char = AnyToken
+
+-- char = AP.anyWord8
+
+-- intn 0 _ = int
+-- intn n m = do a <- int; b <- intn (n-1) m; return $ a*m^(n-1) + b
+-- intn n m = do a <- intn (n-1) m; b <- int; return $ a*m + b
+{-
+data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, doTimes :: FileTime }
+         | File { fpath :: String, frames :: [Frame], fTimes :: FileTime, foTimes :: FileTime }
+         deriving (Generic)
+-}
+
+data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
+
+data Id3K          = Id3K          deriving (Eq, Ord, Show)       
+data VerMajorK     = VerMajorK     deriving (Eq, Ord, Show)     
+data VerMinorK     = VerMinorK     deriving (Eq, Ord, Show)     
+data UnsyncK       = UnsyncK       deriving (Eq, Ord, Show)   
+data ExtHdrK       = ExtHdrK       deriving (Eq, Ord, Show)   
+data ExperiK       = ExperiK       deriving (Eq, Ord, Show)   
+data FooterK       = FooterK       deriving (Eq, Ord, Show)   
+data TagSizeK      = TagSizeK      deriving (Eq, Ord, Show)    
+data FramesK       = FramesK       deriving (Eq, Ord, Show)   
+data FrameIDK      = FrameIDK      deriving (Eq, Ord, Show)    
+data FrameSizeK    = FrameSizeK    deriving (Eq, Ord, Show)      
+data TagAltPrsvK   = TagAltPrsvK   deriving (Eq, Ord, Show)       
+data FileAltPrsvK  = FileAltPrsvK  deriving (Eq, Ord, Show)        
+data ReadOnlyK     = ReadOnlyK     deriving (Eq, Ord, Show)     
+data GroupingK     = GroupingK     deriving (Eq, Ord, Show)     
+data CompressionK  = CompressionK  deriving (Eq, Ord, Show)        
+data EncryptionK   = EncryptionK   deriving (Eq, Ord, Show)       
+data UnsyncFrK     = UnsyncFrK     deriving (Eq, Ord, Show)     
+data DataLenIK     = DataLenIK     deriving (Eq, Ord, Show)     
+data ZK            = ZK            deriving (Eq, Ord, Show)        
+data DatK          = DatK          deriving (Eq, Ord, Show)           
+data AllOnes2K     = AllOnes2K     deriving (Eq, Ord, Show)     
+data AllOnes1K     = AllOnes1K     deriving (Eq, Ord, Show)     
+data AllOnes0K     = AllOnes0K     deriving (Eq, Ord, Show)     
+data VersionEnc1K  = VersionEnc1K  deriving (Eq, Ord, Show)        
+data VersionEnc0K  = VersionEnc0K  deriving (Eq, Ord, Show)        
+data LayerEnc1K    = LayerEnc1K    deriving (Eq, Ord, Show)      
+data LayerEnc0K    = LayerEnc0K    deriving (Eq, Ord, Show)      
+data BitRateEnc3K  = BitRateEnc3K  deriving (Eq, Ord, Show)        
+data BitRateEnc2K  = BitRateEnc2K  deriving (Eq, Ord, Show)        
+data BitRateEnc1K  = BitRateEnc1K  deriving (Eq, Ord, Show)        
+data BitRateEnc0K  = BitRateEnc0K  deriving (Eq, Ord, Show)        
+data SampRateEnc1K = SampRateEnc1K deriving (Eq, Ord, Show)         
+data SampRateEnc0K = SampRateEnc0K deriving (Eq, Ord, Show)         
+data PaddingK      = PaddingK      deriving (Eq, Ord, Show)    
+data ChannelMode1K = ChannelMode1K deriving (Eq, Ord, Show)         
+data ChannelMode0K = ChannelMode0K deriving (Eq, Ord, Show)         
+data AllOnesK      = AllOnesK      deriving (Eq, Ord, Show)    
+data VersionEncK   = VersionEncK   deriving (Eq, Ord, Show)       
+data LayerEncK     = LayerEncK     deriving (Eq, Ord, Show)     
+data BitRateEncK   = BitRateEncK   deriving (Eq, Ord, Show)       
+data SampRateEncK  = SampRateEncK  deriving (Eq, Ord, Show)        
+data ChannelModeK  = ChannelModeK  deriving (Eq, Ord, Show)        
+{-  
 ibsofs = totald bsofs sofbs
 
 bits n = Apply (ibits n) $ rep int n
@@ -1363,7 +1432,6 @@ data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, 
 -}
 
 data FrameIDEntry = FT {sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text}
-
 data Var =
   Id3 |
   VerMajor |
@@ -1388,19 +1456,10 @@ data Var =
   ChannelMode  |
 
   TextEncoding |
-  Value        |
-  Description  |
-  Language     |
-  Lyrics       |
-  MIMEType     |
-  PictureType  |
-  Picture      |
-
-  TimeFormat   | 
-  ContentType  |
-  SyncedLyrics |
-  TimeStamp    
-    deriving (Eq, Ord, Show)
+  Value |
+  Description 
+  deriving (Eq, Ord, Show)
+-}
 
 data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
@@ -1572,3 +1631,4 @@ frameIDList =
   , FT "4.3.1" Wpub "WPB" "Publisher webpage"       "Publishers official webpage"       
   , FT "4.3.2" Wxxx "WXX" "User URL"                "User defined URL link frame"       
   ]
+-}

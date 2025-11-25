@@ -13,7 +13,7 @@ import SyntaxCIPU
 
 import NewTuple
 
-import Prelude hiding (foldl, foldr, iterate, id, (.))
+import Prelude hiding (id, (.))
 
 import qualified Prelude as P
 
@@ -59,14 +59,14 @@ $(defineIsomorphisms ''Either)
 $(defineIsomorphisms ''Maybe)
 
 -- module Control.Isomorphism.Partial.Derived 
-foldl :: Iso (alpha :- beta) alpha -> Iso (alpha :- [beta]) alpha
-foldl i = inverse unit 
+ifoldl :: Iso (alpha :- beta) alpha -> Iso (alpha :- [beta]) alpha
+ifoldl i = inverse unit 
         . (id *** inverse nil) 
-        . iterate (step i) where
+        . iiterate (step i) where
 
   step i = (i *** id) 
          . associate 
-         . (id *** inverse cons)
+         . (id *** inverse icons)
 
 -- module Control.Isomorphism.Partial.Constructors 
 -- why is nil a function?
@@ -79,8 +79,8 @@ nil = Iso f g where
   g []  =  Just ()
   g _   =  Nothing
 
-cons :: Iso (alpha :- [alpha]) [alpha]
-cons = Iso f g where
+icons :: Iso (alpha :- [alpha]) [alpha]
+icons = Iso f g where
   f (x :- xs) =  Just (x :  xs)
   g (x : xs)  =  Just (x :- xs)
   g _         =  Nothing
@@ -175,8 +175,8 @@ subset :: (alpha -> Bool) -> Iso alpha alpha
 subset p = Iso f f where
   f x | p x = Just x | otherwise = Nothing
 
-iterate :: Iso alpha alpha -> Iso alpha alpha
-iterate step = Iso f g where
+iiterate :: Iso alpha alpha -> Iso alpha alpha
+iiterate step = Iso f g where
   f = Just . driver (apply step)
   g = Just . driver (unapply step)
   
