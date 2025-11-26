@@ -12,7 +12,7 @@ module Parser6 where
 
 import Parser6Types
 import Iso
-import MHashDynamic2 hiding (Apply, Frame, Let, cname)
+import MHashDynamic2 hiding (Apply, Frame, Member, Let, cname)
 import NewTuple
 import BString
 
@@ -36,50 +36,46 @@ data Lens a b
    = Lens (a -> b) (b -> a -> a)
 
 data Rule s t f r where
-   Many     ::  Rule s t f  a   -> Rule s t f [a]
-   Alt      :: [Rule s t f  a ] -> Rule s t f  a
-   And      :: [Rule s t f  a ] -> Rule s t f  a
-   Not      ::  Rule s t f  a   -> Rule s t f  a
-   Ignore   ::  Rule s t f  a   -> Rule s t f  a
-   Eith     ::  Rule s t f  a   -> Rule s t f  b  -> Rule s t f (Either a b)
-   (:+)     ::  Rule s t f  a   -> Rule s t f  b  -> Rule s t f (a :- b)
-   (:/)     ::  Rule s t f  a   -> Rule s t f  b  -> Rule s t f  b
-   (://)    ::  Rule s t f  a   -> Rule s t f  b  -> Rule s t f  a
-   ManyTill ::  Rule s t f  a   -> Rule s t f  b  -> Rule s t f [a]
-   Try      ::  Rule s t f  a   -> Rule s t f  a
-   AnyTill  ::  Rule s t f  a                     -> Rule s t f s
-   Option   ::  Rule s t f  a                     -> Rule s t f (Maybe a)
-   AnyToken ::  Rule s t f  t
-   Rest     ::  Rule s t f  s
-   Return   ::              a   -> Rule s t f  a
-   Default  ::              a   -> Rule s t f  a  -> Rule s t f  a
-   String   ::       s          -> Rule s t f  s
-   Count    ::             Int  -> Rule s t f  b  -> Rule s t f [b]
-   Build    ::           f1     -> Rule s t f1 a  -> Rule s t f  f1
-   Lambda   ::           f      -> Rule s t f  a  -> Rule s t f  a
-   Call     ::           f      -> Rule s t f  a  -> Rule s t f  a
-   Name     :: String           -> Rule s t f  a  -> Rule s t f  a
-   Apply    ::   Iso  a  b      -> Rule s t f  a  -> Rule s t f  b
-   Seq      :: SeqTuple a b f s t =>           a  -> Rule s t f  b
-   Redo     :: Frame      n  s  f =>           n  -> Rule s t f  a  -> Rule s t f  a
-   Set      :: Frame      n  v  f =>           n  -> Rule s t f  v  -> Rule s t f  v
-   SetM     :: FrameTuple n  v  f =>           n  -> Rule s t f  v  -> Rule s t f  v
-   Get      :: Frame      n  a  f =>           n                    -> Rule s t f  a
-   GetM     :: FrameTuple n  v  f =>           n                    -> Rule s t f  v
-   Range    ::         t        ->        t       -> Rule s t f  t
-   Tokens   ::             Int  ->                   Rule s t f  s
-   Token    ::         t        -> Rule s t f  t
-   OneWay   :: Frame      n  v  f =>           n  -> (v -> Rule s t f  a)  -> Rule s t f  a
-   Bind     ::  Rule s t f a    -> (a -> Rule s t f b, b -> a) -> Rule s t f b
+   Many     ::  Rule s t f  a     -> Rule s t f [a]
+   Alt      :: [Rule s t f  a ]   -> Rule s t f  a
+   And      :: [Rule s t f  a ]   -> Rule s t f  a
+   Not      ::  Rule s t f  a     -> Rule s t f  a
+   Ignore   ::  Rule s t f  a     -> Rule s t f  a
+   Eith     ::  Rule s t f  a     -> Rule s t f  b  -> Rule s t f (Either a b)
+   (:+)     ::  Rule s t f  a     -> Rule s t f  b  -> Rule s t f (a :- b)
+   (:/)     ::  Rule s t f  a     -> Rule s t f  b  -> Rule s t f  b
+   (://)    ::  Rule s t f  a     -> Rule s t f  b  -> Rule s t f  a
+   ManyTill ::  Rule s t f  a     -> Rule s t f  b  -> Rule s t f [a]
+   Try      ::  Rule s t f  a     -> Rule s t f  a
+   AnyTill  ::  Rule s t f  a                       -> Rule s t f s
+   Option   ::  Rule s t f  a                       -> Rule s t f (Maybe a)
+   AnyToken ::  Rule s t f  t  
+   Rest     ::  Rule s t f  s  
+   Return   ::              a     -> Rule s t f  a
+   Default  ::              a     -> Rule s t f  a  -> Rule s t f  a
+   String   ::       s            -> Rule s t f  s
+   Count    ::             Int    -> Rule s t f  b  -> Rule s t f [b]
+   Build    ::           f1       -> Rule s t f1 a  -> Rule s t f  f1
+   Lambda   ::           f        -> Rule s t f  a  -> Rule s t f  a
+   Call     ::           f        -> Rule s t f  a  -> Rule s t f  a
+   Name     :: String             -> Rule s t f  a  -> Rule s t f  a
+   Apply    ::   Iso  a  b        -> Rule s t f  a  -> Rule s t f  b
+   Seq      :: SeqTuple a b f s t =>           a    -> Rule s t f  b
+   Redo     :: Frame      n  s  f =>           n    -> Rule s t f  v  -> Rule s t f  v
+   Set      :: Frame      n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
+   SetM     :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
+   Get      :: Frame      n  v  f =>           n                      -> Rule s t f  v
+   GetM     :: FrameTuple n  v  f =>           n                      -> Rule s t f  v
+   Range    ::         t          ->        t       -> Rule s t f  t
+   Tokens   ::             Int    ->                   Rule s t f  s
+   Token    ::         t          -> Rule s t f  t
+   OneWay   :: Frame      n  v  f =>           n    -> (v -> Rule s t f  a)  -> Rule s t f  a
+   Bind     ::  Rule s t f a      -> (a -> Rule s t f b, b -> a) -> Rule s t f b
    Anything :: (BStringC tok str, Eq tok, Show tok, Ord tok) => (frame -> str -> IResult str tok frame res) -> (frame -> res -> FResult str tok frame) -> Rule str tok frame res
+   Inner    ::  Rule s t f a      -> Rule s t b  f
+   Member   :: Frame n v f        =>           n    -> Rule s t v  a  -> Rule s t f  v
+   GetSub   :: Frame n v f        =>           n    -> Rule s t f  v  -> Rule s t f  v
 
-
-
-(>>==) :: Rule s t f a -> (a -> Rule s t f b, b -> a) -> Rule s t f b
-(>>==) = Bind
-
-(-->)   :: Frame      n  v  f =>           n  -> (v -> Rule s t f  a)  -> Rule s t f  a
-(-->) = OneWay
 {-}
 data Rule name value tok
    = Many     (Rule name value tok)
@@ -365,12 +361,27 @@ parse1 (Set name rule) f t =
             -}
       Fail m f1 t1 -> Fail m f1 t1
 
+parse1 (Member name rule) f t =
+   case parse1 rule (myget1 name f) t of
+      Done t1 f1 r -> Done t1 (myset1 name f1 f) f1
+         {-
+         case myset1 name r f1 of
+            Just j  -> Done t1 j r
+            Nothing -> Fail "Set failed" f1 t1
+            -}
+      Fail m f1 t1 -> Fail m f t1
+
 parse1 (Get name) f t = Done t f (myget1 name f)
 {-
    case myget1 name f of
       Just j  -> Done t f j
       Nothing -> Fail "Get failed" f t
 -}
+parse1 (GetSub name rule) f t = 
+   case parse1 rule f t of
+      Done t1 f1 r -> let x = myget1 name r in Done t1 (myget1 name r)
+
+
 parse1 (SetM names rule) f t =
    case parse1 rule f t of
       Done t1 f1 r -> Done t1 (mysetm names r f1) r
@@ -556,6 +567,14 @@ format1 (Get name) fs r = FDone empty (myset1 name r fs)
 
 format1 (Set name rule) fs r = format1 rule fs $ myget1 name fs
 
+format1 (Member name rule) f r =
+   case format1 rule (myget1 name f) undefined of
+      FDone t1 f1    -> FDone t1 f 
+      FFail t1 f1 em -> FFail t1 f em
+
+
+-- Name <-- Member <-- rule
+
 format1 (GetM names) fs r = FDone empty $ mysetm names r fs
 
 format1 (SetM names rule) f r = format1 rule f $ mygetm names f
@@ -701,6 +720,7 @@ infixr 6 >*
 infixr 6 *<
 
 infixr 3 <--
+infixl 9 <@>
 
 a <-- b = Set a b
 
@@ -708,6 +728,15 @@ infixr 2 :+
 infixr 2 :/
 infixr 2 ://
 infixr 2 //
+
+(>>==) :: Rule s t f a -> (a -> Rule s t f b, b -> a) -> Rule s t f b
+(>>==) = Bind
+
+(-->) :: Frame n v f => n -> (v -> Rule s t f  a)  -> Rule s t f  a
+(-->) = OneWay
+
+(<@>) :: Frame n v f => n -> Rule s t v a -> Rule s t f v
+(<@>) = Member
 
 (>*<) :: Rule s t f a -> Rule s t f b -> Rule s t f (a :- b)
 (>*<) = (:+)
@@ -873,11 +902,6 @@ isWS c = c == ' ' || c == '\n'
 ws = Token ' ' <|> Token '\n'
 
 spaced str = foldr ((:/) . (\(a :- b) -> String a :/ Default b (Many ws))) (Return ()) (result $ parse (Many (AnyTill ws :+ Many ws)) str)
-
-uppName :: Rule [Char] Char DataField [Char]
-uppName = Apply uppiso (FNameK <-- ident)
-uppType :: Rule [Char] Char DataField [Char]
-uppType = Apply uppiso (FTypeK <-- ident)
 
 uppiso = total uppk unuppk
 
