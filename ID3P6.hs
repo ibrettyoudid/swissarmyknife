@@ -62,7 +62,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Word qualified as W
 import GHC.Generics hiding (Meta)
-{-
+
 -- things to try
 t1 db = putt $ artists db
 t2 = p fta
@@ -200,16 +200,16 @@ data FrameHeader =
       frameBytes  :: B.ByteString } deriving (Eq, Ord, Show, Read, Generic)
 
 data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }
-                  | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text }
-                  | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text, language :: T.Text }
-                  | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, mimeType :: T.Text, pictureType :: Int, description :: T.Text, picture :: IOString }
-                  | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }
+            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }
+            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     description :: T.Text }
+            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     description :: T.Text, language :: T.Text }
+            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, picture :: IOString, description :: T.Text, mimeType :: T.Text, pictureType :: Int }
 
-   | FrameTruncated
-   | Invalid B.ByteString
-   | Bytes Int
-   | Nowt
-   deriving (Eq, Ord, Show, Read, Generic)
+            | FrameTruncated
+            | Invalid B.ByteString
+            | Bytes Int
+            | Nowt
+            deriving (Eq, Ord, Show, Read, Generic)
 
 data MPEGFrame = MPEGFrame {version :: Int, layer :: Int, bitRate :: Int, sampRate :: Int, mpegFrameBytes :: Int, mpegFrameTime :: Pico, mpegFrameAudio :: B.ByteString} deriving (Eq, Ord, Show)
 
@@ -885,7 +885,6 @@ readSomeAudio1 h pos = do
 
 middle l = l !! (length l `div` 2)
 
-getMPEGFrame :: [Frame] -> Frame
 getMPEGFrame fs = head $ getMPEGFrames fs
 
 emptyMPEGFrame = MPEGFrame 0 0 0 0 0 0 BString.empty
@@ -965,7 +964,7 @@ myget1C id frames = Data.List.find (\f -> isJust $ do
 
 metaOfFrames isDir1 path1 times1 orig1 = metaOfFrames2 isDir1 path1 times1 orig1 . metaOfFrames1
 
-metaOfFrames1 tag = M.fromList $ map (\frame -> (frameID frame, dynValue frame)) $ frames tag
+metaOfFrames1 tag = M.fromList $ map (\frame -> (frameID frame, P.mygetD Value frame)) $ frames tag
 
 
 metaOfFrames2 isDir1 path1 times1 orig1 byId1 =
@@ -1139,30 +1138,31 @@ let footer = flags .&. 0x10 /= 0 -- v2.4 only
 emptyFrame :: Frame
 emptyFrame = undefined
 
-frameheader :: Rule IOString Word8 x Frame
-frameheader = Alt [
+frame = frameheader
+
+frameheader :: Int -> Rule IOString Word8 x Frame
+frameheader 2 =
    Build emptyFrame (
-      Apply (satisfy (==2)) (Get VerMajorK) :/
       FrameIDK    <-- rep char 3 :/
       FrameSizeK  <-- int4 0x100 :/
-      FrameBytesK <-- (Get FrameSizeK >>== tokens)),
+      FrameBytesK <-- (Get FrameSizeK >>== tokens))
 
+frameheader 3 =
    Build emptyFrame (
-      Apply (satisfy (==3)) (Get VerMajorK) :/
       FrameIDK    <-- rep char 4 :/
       FrameSizeK  <-- int4 0x100 :/
       SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
       SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
-      FrameBytesK <-- (Get FrameSizeK >>== tokens)),
+      FrameBytesK <-- (Get FrameSizeK >>== tokens))
 
+frameheader 4 =
    Build emptyFrame (
-      Apply (satisfy (==4)) (Get VerMajorK) :/
       FrameIDK    <-- rep char 4 :/
       FrameSizeK  <-- int4 0x80 :/
       SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
       SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
       FrameBytesK <-- (Get FrameSizeK >>== tokens))
-      ]
+      
 
 textEnc     = TextEncodingK --> (\enc -> Apply (itext enc) Rest)
 
@@ -1174,37 +1174,43 @@ zeroText = AnyTill $ Token '\0'
 
 
 
-frameSpec textID 
-   | toLower (head textID) == 't' = Build (FText { frameID = id1 $ fromJust $ M.lookup textID textIDMap }) (
+framebody = \case
+   T frameID2 -> Build (FText { }) (
       TextEncodingK <-- int :/
       ValueK        <-- textEnc)
 
-   | low textID == "txxx" = Build (FUserText { }) (
+   Txxx -> Build (FUserText { }) (
       TextEncodingK <-- int :/
       DescriptionK  <-- zeroTextEnc :/
       ValueK        <-- textEnc)
 
-   | low textID == "uslt" = Build (FUnsyncLyrics { }) (
+   Uslt -> Build (FUnsyncLyrics { }) (
       TextEncodingK <-- int :/
       LanguageK     <-- rep char 3 :/
       DescriptionK  <-- zeroTextEnc :/
       LyricsK       <-- textEnc)
 
-   | low textID == "apic" = Build (FPicture { }) (
+   Apic -> Build (FPicture { }) (
       TextEncodingK <-- int :/
       MIMETypeK     <-- zeroText :/
       PictureTypeK  <-- int :/
       DescriptionK  <-- zeroTextEnc :/
       PictureK      <-- Rest)
 
-   | low textID == "sylt" = Build (FSyncLyrics { }) (
+   Sylt -> Build (FSyncLyrics { }) (
       TextEncodingK <-- int :/
       LanguageK     <-- rep int 3 :/
       TimeFormatK   <-- int :/
       ContentTypeK  <-- int :/
       SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
 
-
+{-
+   | toLower (head textID) == 't' = Build (FText { frameID = id1 $ fromJust $ M.lookup textID textIDMap }) (
+   | low textID == "txxx" = Build (FUserText { }) (
+   | low textID == "uslt" = Build (FUnsyncLyrics { }) (
+   | low textID == "apic" = Build (FPicture { }) (
+   | low textID == "sylt" = Build (FSyncLyrics { }) (
+-}
       --rest = if myget1C UnsyncFr then resync1 rest1 else rest1
    --"flags" <-- GetM ["tagAltPrsv" "fileAltPrsv" "readOnly" "compression" "encryption" "grouping" "unsyncFr" "dataLenI"]]
    --let dat1 = if unsyncFr then resync dat else dat
@@ -1352,7 +1358,8 @@ int4 = intn 4
 undoint 0 _ _ = []
 undoint n m x =
    let (q, r) = divMod x (m ^ (n - 1))
-      in q : undoint (n - 1) m r
+      
+   in q : undoint (n - 1) m r
 
 rep p n = Seq $ replicate n p
 
@@ -1610,7 +1617,7 @@ descOfTextIDMap = M.fromList $ map (applyT (textId, desc)) frameIDList
 
 data FrameIDEntry = FT { sec :: T.Text, id1 :: FrameID, textId :: T.Text, desc :: T.Text, longdesc :: T.Text }
 
-data FrameID = Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
+data FrameID = T FrameID | Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
 frameIDList =
    [ FT "4.20 " Aenc "AENC" "Audio encryption" ""
@@ -1780,4 +1787,4 @@ frameIDList =
    , FT "4.3.1" Wpub "WPB" "Publishers official webpage" ""
    , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
    ]
--}
+
