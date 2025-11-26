@@ -62,7 +62,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Word qualified as W
 import GHC.Generics hiding (Meta)
-
+{-
 -- things to try
 t1 db = putt $ artists db
 t2 = p fta
@@ -960,7 +960,7 @@ myget1C id frames = Data.List.find (\f -> isJust $ do
    d <- M.lookup FrameID f
    s <- fromDynamic d
    j <- M.lookup s stringIDMap
-   guard $ id == id1 j) frames
+   guard $ id == frameID1 j) frames
 
 metaOfFrames isDir1 path1 times1 orig1 = metaOfFrames2 isDir1 path1 times1 orig1 . metaOfFrames1
 
@@ -1142,10 +1142,13 @@ iFrameString = Iso idFrameOfString idStringOfFrame
 
 hjkl = total stringID undefined
 
+lm :: Rule s t f FrameID
+lm = iFrameString >$< Return "TPE2"
+
 frame :: Int -> Rule IOString Word8 ID3Tag Frame
 frame v = 
    FrameHeaderK <-- frameheader v :/
-   FrameIDK     <-- iFrameString >$< Get StringID (Get FrameHeaderK)
+   FrameIDK     <-- lm -- FrameHeaderK <@> Get StringID
 
 
 frameheader :: Int -> Rule IOString Word8 x FrameHeader
@@ -1252,24 +1255,24 @@ mpeg25Layer23 = [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 
 allZeros =      [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]
 
 bitRates =       [[0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,   0], -- Layer 1
-                           [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0], -- Layer 2
-                           [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0], -- Layer 3
-                           [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0], -- MPEG2.5 Layer 1
-                           [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0], -- MPEG2.5 Layer 2/3
-                           [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]]
+                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384,   0], -- Layer 2
+                  [0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320,   0], -- Layer 3
+                  [0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256,   0], -- MPEG2.5 Layer 1
+                  [0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160,   0], -- MPEG2.5 Layer 2/3
+                  [0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0]]
 
 sampRates =      [[0, 44100, 22050, 11025],
-                           [0, 48000, 24000, 12000],
-                           [0, 32000, 16000,  8000],
-                           [0,     0,     0,     0]]
+                  [0, 48000, 24000, 12000],
+                  [0, 32000, 16000,  8000],
+                  [0,     0,     0,     0]]
     
 --          !! sampRateEnc
 --          !! version
 
 sampPerFrames =  [[0,    0,    0,    0],
-                           [0,  384,  384,  384],
-                           [0, 1152, 1152, 1152],
-                           [0, 1152,  576,  576]]
+                  [0,  384,  384,  384],
+                  [0, 1152, 1152, 1152],
+                  [0, 1152,  576,  576]]
           
 
 mpegFrameOK = Build emptyMPEGFrame (
@@ -1505,7 +1508,7 @@ data BitRateEncK   = BitRateEncK   deriving (Eq, Ord, Show)
 data SampRateEncK  = SampRateEncK  deriving (Eq, Ord, Show)        
 data ChannelModeK  = ChannelModeK  deriving (Eq, Ord, Show)        
 
-instance P.Frame Id3K MyString ID3Tag where
+instance P.Frame Id3K T.Text ID3Tag where
       myget1 Id3K = id3
       myset1 Id3K value frame = frame { id3 = value }
 
@@ -1805,3 +1808,4 @@ frameIDList =
    , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
    ]
 
+-}

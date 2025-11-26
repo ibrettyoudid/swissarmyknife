@@ -75,6 +75,7 @@ data Rule s t f r where
    Inner    ::  Rule s t f a      -> Rule s t b  f
    Member   :: Frame n v f        =>           n    -> Rule s t v  a  -> Rule s t f  v
    GetSub   :: Frame n v f        =>           n    -> Rule s t f  v  -> Rule s t f  v
+   Taken    :: Eq s               => Rule s t f  a  -> Rule s t f  s
 
 {-}
 data Rule name value tok
@@ -115,7 +116,7 @@ newtype Pos = Pos { fromPos :: Int }
 -- This type is an instance of 'Functor', where 'fmap' transforms the
 -- value in a 'Done' result.
 data IResult str tok frame res
-   = Fail String frame str
+   = Fail str frame String
    -- ^ The parse1 failed.  The @i@ parameter is the input that had
    -- not yet been consumed when the failure occurred.  The
    -- @[@'String'@]@ is a list of contexts in which the error
@@ -225,60 +226,60 @@ format rule syntax = format1 rule () syntax
 parse1 :: (BStringC tok str, Eq tok, Show tok, Ord tok) => Rule str tok frame res -> frame -> str -> IResult str tok frame res
 parse1 AnyToken fs i =
    if null i
-      then Fail "Expecting any token but got EOF" fs i
+      then Fail i fs "Expecting any token but got EOF"
       else Done (tail i) fs $ head i
 
 parse1 (Token tok) fs i
-   | null i        = Fail ("Expecting token "++show tok++" at EOF") fs i
+   | null i        = Fail i fs ("Expecting token "++show tok++" at EOF")
    | head i == tok = Done (tail i) fs $ head i
-   | otherwise     = Fail ("Expecting token "++show tok) fs i
+   | otherwise     = Fail i fs ("Expecting token "++show tok) 
 
 parse1 r@(Range from to) fs i
-   | null i = Fail ("EOF when expecting range "++show from++".."++show to) fs i
+   | null i = Fail i fs $ "EOF when expecting range "++show from++".."++show to
    | from <= head i && head i <= to = Done (tail i) fs $ head i
-   | otherwise = Fail ("Expecting "++show from++".."++show to) fs i
+   | otherwise = Fail i fs $ "Expecting "++show from++".."++show to
 
 parse1 (String str) fs i =
    case stripPrefix str i of
       Just  j -> Done j fs str
-      Nothing -> Fail ("Expecting string "++show str) fs i
+      Nothing -> Fail i fs $ "Expecting string "++show str
 
 parse1 (a :+ b) fs i =
    case parse1 a fs i of
       Done i1 fs1 ar ->
          case parse1 b fs1 i1 of
             Done i2 fs2 br -> Done i2 fs2 (ar :- br)
-            Fail em fs2 i2 -> Fail em fs2 i2
-      Fail em fs1 i1 -> Fail em fs1 i1
+            Fail i2 fs2 em -> Fail i2 fs2 em
+      Fail i1 fs1 em -> Fail i1 fs1 em
 
 parse1 (a :/ b) fs i =
    case parse1 a fs i of
       Done i1 fs1 ar ->
          case parse1 b fs1 i1 of
             Done i2 fs2 br -> Done i2 fs2 br
-            Fail em fs2 i2 -> Fail em fs2 i2
-      Fail em fs1 i1 -> Fail em fs1 i1
+            Fail i2 fs2 em -> Fail i2 fs2 em
+      Fail i1 fs1 em -> Fail i1 fs1 em
 
 parse1 (a :// b) fs i =
    case parse1 a fs i of
       Done i1 fs1 ar ->
          case parse1 b fs1 i1 of
             Done i2 fs2 br -> Done i2 fs2 ar
-            Fail em fs2 i2 -> Fail em fs2 i2
-      Fail em fs1 i1 -> Fail em fs1 i1
+            Fail i2 fs2 em -> Fail i2 fs2 em
+      Fail i1 fs1 em -> Fail i1 fs1 em
 
 parse1 (Eith a b) f t =
    case parse1 a f t of
       Done at af ar -> Done at af (Left ar)
-      Fail ae af at ->
+      Fail at af ae ->
          case parse1 b f t of
             Done bt bf br -> Done bt bf (Right br)
-            Fail be bf bt -> Fail be bf bt
+            Fail bt bf be -> Fail bt bf be
 
 parse1 (Option a) f t =
    case parse1 a f t of
       Done at af ar -> Done at af (Just ar)
-      Fail ae af at -> Done t f Nothing
+      Fail at af ae -> Done t f Nothing
 
 parse1 (Seq a) fs i = parseseq a fs i
 {-
@@ -291,7 +292,7 @@ parse1 (Seq a) fs i = parseseq a fs i
                      case a of
                         Ignore ig -> Done (toDyn asr1) fs2 i2
                         _         -> Done (toDyn (ar1:fromDyn1 asr1)) fs2 i2
-                  fail@Fail {}     -> fail
+                  fail@Fail   {}   -> fail
             fail@Fail {} -> fail
       [] -> Done (toDyn ([] :: [Dynamic])) fs i
 -}
@@ -301,49 +302,49 @@ parse1 (Alt as) fs i =
          case parse1 a fs i of
             Done i1 fs1 ar1 -> Done i1 fs1 ar1
             fail@Fail {} -> parse1 (Alt as1) fs i
-      [] -> Fail "no alternatives match" fs i
+      [] -> Fail i fs "no alternatives match"
 
 parse1 m@(Many a) fs i =
    case parse1 a fs i of
       Done i1 fs1 ar ->
          case parse1 m fs1 i1 of
             Done i2 fs2 mr -> Done i2 fs2 (ar:mr)
-            Fail em fs2 i2 -> Done i1 fs1 [ar]
-      Fail em fs1 i1 -> trace "reached last repeat" $ Done i fs []
+            Fail i2 fs2 em -> Done i1 fs1 [ar]
+      Fail i1 fs1 em -> trace "reached last repeat" $ Done i fs []
 
 parse1 m@(ManyTill a b) fs i =
    case parse1 b fs i of
       Done i1 fs1 br  -> Done i fs []
-      Fail em fs1 i1 ->
+      Fail i1 fs1 em ->
          case parse1 a fs i of
             Done i2 fs2 ar ->
                case parse1 m fs2 i2 of
                   Done i3 fs3 mr -> Done i3 fs3 (ar:mr)
-                  fail@Fail {}   -> fail
-            Fail em fs2 i2 -> Done i fs []
+                  fail@Fail   {} -> fail
+            Fail i2 fs2 em -> Done i fs []
 
 parse1 m@(AnyTill b) fs i =
    case parse1 b fs i of
       Done i1 fs1 br -> Done i fs empty
-      Fail em fs1 i1 | null i -> Done i fs empty
+      Fail i1 fs1 em | null i -> Done i fs empty
                      | otherwise ->
                            case parse1 m fs1 (tail i) of
                               Done i3 fs3 mr -> Done i3 fs3 (cons (head i) mr)
-                              Fail em fs3 i3 -> Fail em fs3 i3
+                              Fail i3 fs3 em -> Fail i3 fs3 em
 
 parse1 (Apply iso a) f t =
    case parse1 a f t of
       Done t1 f1 ar ->
          case apply iso ar of
             Just  j -> Done t1 f1 j
-            Nothing -> Fail "apply failed" f1 t1
-      Fail em f1 t1 -> Fail em f1 t1
+            Nothing -> Fail t1 f1 "apply failed"
+      Fail t1 f1 em -> Fail t1 f1 em
 
 parse1 (Count n x) f t = parse1count x f t n
 
 parse1 (Tokens n) f t
    | length t >= n = Done (drop n t) f (take n t)
-   | otherwise     = Fail ("EOF when trying to read "++show n++" tokens") f t
+   | otherwise     = Fail t f $ "EOF when trying to read "++show n++" tokens"
 
 {-
 parse1 (Let names rule) f t =
@@ -359,7 +360,7 @@ parse1 (Set name rule) f t =
             Just j  -> Done t1 j r
             Nothing -> Fail "Set failed" f1 t1
             -}
-      Fail m f1 t1 -> Fail m f1 t1
+      Fail t1 f1 m -> Fail t1 f1 m
 
 parse1 (Member name rule) f t =
    case parse1 rule (myget1 name f) t of
@@ -367,20 +368,21 @@ parse1 (Member name rule) f t =
          {-
          case myset1 name r f1 of
             Just j  -> Done t1 j r
-            Nothing -> Fail "Set failed" f1 t1
+            Nothing -> Fail f1 failed" "Set t1
             -}
-      Fail m f1 t1 -> Fail m f t1
+      Fail t1 f1 m -> Fail t1 f m
 
 parse1 (Get name) f t = Done t f (myget1 name f)
 {-
    case myget1 name f of
       Just j  -> Done t f j
-      Nothing -> Fail "Get failed" f t
+      Nothing -> Fail f failed" "Get t
 -}
+{-}
 parse1 (GetSub name rule) f t = 
    case parse1 rule f t of
       Done t1 f1 r -> let x = myget1 name r in Done t1 (myget1 name r)
-
+-}
 
 parse1 (SetM names rule) f t =
    case parse1 rule f t of
@@ -389,18 +391,18 @@ parse1 (SetM names rule) f t =
          case mysetm names r f1 of
             Just j  -> Done r j t1
       -}
-      Fail em f1 t1 -> Fail em f1 t1
+      Fail t1 f1 em -> Fail t1 f1 em
 
 parse1 (GetM names) f t = Done t f (mygetm names f)
 {-
    case mygetm names f of
       Just j  -> Done t f j
-      Nothing -> Fail "GetM failed" f t
+      Nothing -> Fail f failed" "GetM t
 -}
 parse1 (Build init rule) f t =
    case parse1 rule init t of
       Done t1 f1 r  -> Done t1 f f1
-      Fail em f1 t1 -> Fail em f t1
+      Fail t1 f1 em -> Fail t1 f em
 
 parse1 (Redo name rule) f t = parse1 rule f (myget1 name f)
 
@@ -413,11 +415,21 @@ parse1 (Return p) f t = Done t f p
 parse1 (Bind a (b, c)) f t =
    case parse1 a f t of
       Done t1 f1 ar -> parse1 (b ar) f1 t1
-      fail@Fail{}   -> Fail "first part of bind failed" f t
+      fail@Fail{}   -> Fail t f "first part of bind failed"
 
 parse1 (Anything a b) f t = a f t
 
 parse1 (OneWay n func) f t = parse1 (func $ myget1 n f) f t
+
+parse1 (Taken rule) f t =
+   case parse1 rule f t of
+      Done t1 f1 r1 -> Done t1 f1 $ search t1 t
+      Fail t1 f1 em -> Fail t1 f1 em
+
+search :: (Eq s, BStringC c s) => s -> s -> s
+search needle haystack
+   | needle == haystack = empty
+   | otherwise          = cons (head haystack) $ search needle (tail haystack) 
 --parse1 (Ignore a) f t = parse1 a f t
 
 --parse1 (Call fnew rule) fold ts =
@@ -507,12 +519,12 @@ format1 (Seq a) fs r =
                      case format1 a1 fs1 r1 of
                         FDone t2 fs2 -> FDone (t2++t1) fs2
                         fail@FFail {}-> fail
-                  fail@FFail {} -> fail
-            [] -> FFail [] fs "ran out of results to format1 in Seq"
+                  fail@FFail fail -> {}
+            [] -> FFail "ran fs [] out of results to format1 in Seq"
       TNil ->
          case r of
             [] -> FDone [] fs
-            (r1:rs) -> FFail [] fs "too many results to format1 in Seq"
+            (r1:rs) -> FFail "too fs [] many results to format1 in Seq"
 -}
 format1 (Alt as) fs r =
    case as of
@@ -602,6 +614,8 @@ format1 (Bind a (b, c)) f r = let
 format1 (OneWay n func) f r = format1 (func $ myget1 n f) f r
 
 format1 (Anything a b) f r = b f r
+
+format1 (Taken rule) f r = FDone r f
 {-
 format1 (Redo name rule) fs r =
    case format1 rule fs r of
@@ -870,7 +884,7 @@ dataFields1 = (Token '{' :/ s :/ sepBy dataField (Token   ',' :/ s) :// Token '}
 
 dataField  = (Build
                   (DataField "" "" "" "")
-                  (FNameK <-- ident :+ s :/ String "::" :/ s :/ FTypeK <-- ident :/ s))
+                  (FNameK <-- ident :+ s :/ String "::" :/ s :/ FTypeK <-- type1 :/ s))
 
 --dataField2 = (Build (DataField "" "" "" "") (FTypeK <-- type1))
 
@@ -929,7 +943,10 @@ crlf = Default "\n" $ Many (Token ' ' <|> Token '\n')
 
 ident = Apply icons (alpha :+ Many alnum)
 
-type1 = sepBy ident (Token ' ' <|> Token '.') <|> (Token '[' :/ s :/ type1 :// s :/ Token ']')
+zz j = Taken (Return 8)
+
+type1 :: Rule [Char] Char f [Char]
+type1 = Taken ((Token '[' :/ s :/ type1 :// s :/ Token ']')) <|> Taken (sepBy ident (Token ' ' <|> Token '.'))
 
 alpha = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_')) AnyToken
 
@@ -984,14 +1001,14 @@ instance IgnoreAll b c => IgnoreAll (a, b) (Ignore a, c) where
 
 da = "data Tag = Tag { id3 :: String, verMajor :: Int, verMinor :: Int, unsync :: Bool, extHdr :: Bool, experi :: Bool, footer :: Bool, tagSize :: Int, dat :: ByteString }"
 d1 = concat [
-      "data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }\n",
-      "            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text }\n",
-      "            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text, language :: T.Text }",
-      "            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, mimeType :: T.Text, pictureType :: Int, description :: T.Text, picture :: IOString }",
-      "            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }"]
+      "data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }\n"]
+      -- "            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text }\n",
+      -- "            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text, language :: T.Text }",
+      -- "            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, mimeType :: T.Text, pictureType :: Int, description :: T.Text, picture :: IOString }",
+      -- "            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }"]
 
 
-hjk = convdata da
+hjk = convdata d1
 
 
 test = String "hello" :// String " there"
