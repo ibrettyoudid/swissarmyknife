@@ -84,7 +84,7 @@ cont m = by (? "country") $ setFields ["country", "geo", "inter", "continent"] $
 europe m = byl [(? "country")]
    $ fromGridH1 ["country", "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
 
-gdp m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (nominal)"
+gdp  m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (nominal)"
 
 gdp1 m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (PPP)"
 

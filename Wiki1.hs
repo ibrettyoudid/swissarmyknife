@@ -314,11 +314,11 @@ canMerge1 a@(afs, ars) b@(bfs, brs) =
 
 merge a b = case canMerge1 a b of
    Nothing -> joinTMapsFuzzy "" b a
-   Just c -> Wiki.merge1 c a
+   Just c -> Wiki1.merge1 c a
 
 merge1 (afm, ifcs) a@(afs, ars) = foldr (set afm) a ifcs
 
-set afm ((i, f), c) (fs, rs) = (fs, M.update (Just . Wiki.replaceElem (afm M.! f) c) i rs)
+set afm ((i, f), c) (fs, rs) = (fs, M.update (Just . Wiki1.replaceElem (afm M.! f) c) i rs)
 
 replaceElem i e x =
    let

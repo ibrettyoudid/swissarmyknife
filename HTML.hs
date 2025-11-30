@@ -51,8 +51,8 @@ uku m = mapM (writeHTTP m . relTo "https://wpu3a.org.uk") $ tail $ ukulele m
 nm :: IO Manager
 nm = newTlsManager
 
-cTextGrid = map2 extractText . cGrid
-cTextGridH = map2 extractText . cGridH
+cTextGrid  = map2 firstText . cGrid
+cTextGridH = map2 firstText . cGridH
 
 html h b = Tag "html" [] [Tag "head" [] h, Tag "body" [] b]
 
@@ -66,6 +66,8 @@ putTextFile = putTextGrid . readNested
 -- convertGridH tag = map (getTags ["td", "th"] . subTags) $ filter (("tr" ==) . tagType) $ subTags tag
 extractText = trim . squash . concatMap tagText . findTrees isText
 extractTexts htmls = trim $ squash $ concatMap tagText htmls
+
+firstText = head . mapMaybe (ifPred (not . null) . trim . tagText) . findTrees isText
 
 extractLink = head . extractLinks
 extractLinks t = map (tagAttrib "href") $ findTypes "a" t

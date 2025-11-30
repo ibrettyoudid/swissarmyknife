@@ -369,7 +369,7 @@ join2 = do
             renderWith surface $ do
                setSourcePixbuf pixbuf 0 0
                Cairo.paint
-               setLineWidth 1
+               setLineWidth 10
                setSourceRGB 1 0 1
                sphereGrid t 10 2
                setSourceRGB 0 1 1

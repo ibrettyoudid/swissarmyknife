@@ -30,6 +30,8 @@ import Text.Parsec.Combinator
 import Text.Parsec.Prim
 import Text.Parsec.String
 
+import Control.Monad
+
 import Control.DeepSeq
 
 import System.IO.Unsafe
@@ -160,47 +162,48 @@ csv = many csvline
 
 csvline = sepBy csvcell $ char ','
 
-dynCell xs = case parse fodscell "" xs of
-      Left  l -> error (show l)
-      Right r -> dynOfCell r
 
+dynCell  = parse1 (try (toDyn <$> dateExcel) <|> try numberDyn <|> toDyn <$> many anyChar) "dynCell"
 
-dynCell1 = dynOfCell <$> fodscell
+fodscell = try (Date <$> dateExcel) <|> try numberC <|> (String1 <$> many anyChar)
 
-dynOfCell (String1 s) = toDyn s
-dynOfCell (Int1 i) = toDyn i
-dynOfCell (Integer1 i) = toDyn i
-dynOfCell (Double1 d) = toDyn d
-dynOfCell (Date d) = toDyn d
+csvcell  = try (Date <$> dateExcel) <|> try number <|> txt
 
-fodscell = try dateExcel <|> try numberC <|> String1 <$> many anyChar
+wikicell = try (Date <$> dateExcel) <|> try numberC <|> txt
 
-csvcell = try dateExcel <|> try number <|> txt
-
-wikicell = try dateExcel <|> try numberC <|> txt
+atleast n x r = do
+   try (string $ take n x)
+   foldl (\a b -> do a; optional (char b)) (return ()) $ drop n x
+   return r
 
 dateExcel = do
-   dow <-
-      string "Mon"
-         <|> try (string "Tue")
-         <|> string "Wed"
-         <|> string "Thu"
-         <|> string "Fri"
-         <|> try (string "Sat")
-         <|> string "Sun"
-   char ' '
-   dom <- int
+   optional (do
+      try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
+      char ' ')
+   dom1 <- dom
    char '/'
-   moy <- int
+   moy1 <- moy
    char '/'
    year <- integer
-   return $ Date $ ymd (year + 2000) moy dom
+   return $ ymd (year + 2000) moy1 dom1
+
+dom = do
+   dom1 <- int
+   guard (dom1 <= 12)
+   dmark <- string "st" <|> string "nd" <|> string "th" <|> string ""
+   return dom1
+
+
+moy = (try $ choice $ zipWith (atleast 3) ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"] [1..12]) <|> int
+
 
 number = Int1 <$> int <|> (Double1 <$> floating)
 
 int = fromInteger <$> integer
 
 numberC = Int1 <$> intC <|> (Double1 <$> floating)
+
+numberDyn = toDyn <$> intC <|> toDyn <$> floating
 
 intC = fromInteger <$> integerC
 

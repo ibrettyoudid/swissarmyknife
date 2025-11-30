@@ -164,8 +164,21 @@ rotate at (Node k l r)
 -}
                   Node m lr rr -> Node at (Node k l lr) (shift (at-k-m) rr)
 
-union1 (Node kn ln rn) (Node k l r)
-   | kn < k = Node k (Node kn (union ln (slice 0 (kn-1) l)) (union (slice 0 (k-1) rn) (shift -kn $ slice kn 1000000000 l))) (union (shift (k-kn) $ slice k 1000000000 rn) r)
+union n t = fromAscList $ merge (toList n) (toList t)
+
+merge a               [             ] = a
+merge [             ] b               = b
+merge a@((ka, va):la) b@((kb, vb):lb) 
+   | ka <  kb = (ka, va):merge la  b
+   | ka == kb = (ka, va):merge la lb
+   | ka >  kb = (kb, vb):merge  a lb
+
+union1 n t = L.foldr (uncurry insert) t $ toList n
+
+unionWithShift s n t = L.foldr (uncurry insert) t $ toList $ shift s n
+
+union3 (Node kn ln rn) (Node k l r)
+   | kn < k = Node k (Node kn (union3 ln (slice 0 (kn-1) l)) (union3 (slice 0 (k-1) rn) (shift -kn $ slice kn 1000000000 l))) (union (shift (k-kn) $ slice k 1000000000 rn) r)
 
 imin = -9223372036854775808
 imax = 9223372036854775807
@@ -175,13 +188,8 @@ union2 a b = let
    (bmin, bmax) = Tree.span b
    in 0
 
-
-
 --union3 fn bn (Node kn ln rn) f b (Node k l r)
 
-union n t = L.foldr (uncurry insert) t $ toList n
-
-unionWithShift s n t = L.foldr (uncurry insert) t $ toList $ shift s n
 {-
 alter f k (Node k1 l r)
    | k < k1    = case alter f k l of
@@ -240,22 +248,23 @@ fromList6 = fromList7
 
 fromList7 l = L.foldl (flip $ uncurry insert) Empty l
 
-fromAscList is = fromList1 0 (length is) Empty is
+fromAscList is = fromList1 (length is) is
 
-fromList is = fromList1 0 (length is) Empty (L.sortOn fst is)
+fromList is = fromList1 (length is) (L.sortOn fst is)
 
-fromList1 n m l 
-   | n == 0 = \case 
-         [] -> Empty
-         ((k, v):is) -> fromList1 1 m (Leaf k v) is
-   | n < m  = \case
-         [] -> l
-         i  -> let
-               (ir, is) = splitAt n i
-               r        = fromList1 0 n Empty ir
-               k        = power2 $ key r
-               in fromList1 (n*2) m (Node k l (shift -k r)) is
-   | otherwise = const l
+fromList1 :: Int -> [(Int, v)] -> Tree v
+fromList1 m
+   | m == 0    = const Empty
+   | m == 1    = \[(k, v)] -> Leaf k v
+   | otherwise = \i  -> let
+               n        = m `div` 2
+               (il, ir) = splitAt n i
+               l        = fromList1      n  il
+               r        = fromList1 (m - n) ir
+               lm       = fst $ fromJust $ lookupMax l
+               rm       = fst $ fromJust $ lookupMin r
+               k        = nextKey2 lm rm
+               in Node k l (shift -k r)
 
 
 
@@ -313,12 +322,10 @@ t = fromList $ zip [1..] "hello there"
 
 {-
 >>> slice 3 8 t
-/home/brett/swissarmyknife/Tree.hs:247:15-57: Non-exhaustive patterns in lambda
+/home/brett/swissarmyknife/Tree.hs:(122,1)-(134,33): Non-exhaustive patterns in function slice
 
 >>> fromList [(15,15), (4,4)]
-        Leaf 4 4
-Node 15
-        Leaf 15 15
+Empty
 
 
 
