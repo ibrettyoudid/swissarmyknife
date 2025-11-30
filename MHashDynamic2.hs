@@ -16,41 +16,40 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module MHashDynamic2 (
-module MHashDynamic2,
-Typeable,
-Data.Typeable.typeOf,
-typeRepArgs,
-typeRepTyCon,
-TypeRep,
+   module MHashDynamic2,
+   Typeable,
+   Data.Typeable.typeOf,
+   typeRepArgs,
+   typeRepTyCon,
+   TypeRep,
 )
 where
 import MyPretty2
-
-import Data.Array qualified as A
-import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
-
 import Favs
-
 import Numeric
-
 import HTTPTypes qualified
-
 import NewTuple
 
-import Data.Dynamic qualified as D
-import Data.IORef
-import Data.List
-import Data.Time.Calendar
-import Data.Typeable
-import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
+import Parser3 hiding (Apply)
+import Iso hiding (foldl, foldr, right, (!!))
 
+import Data.List
 import Data.Map.Lazy qualified as M
 import Data.Set qualified as S
 
+import Data.IORef
+import Data.Time.Calendar
+import Data.Array qualified as A
+
+import Data.Dynamic qualified as D
+import Data.Typeable
+
+import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
+
+--import Control.Exception
+
 --import Syntax3 hiding (foldl, foldr, print, right)
 --import Syntax3 qualified as S3
-import Parser3 hiding (Apply)
-import Iso hiding (foldl, foldr, right, (!!))
 
 newtype Dynamic = Dynamic D.Dynamic
 
@@ -231,7 +230,7 @@ tiInteger = htype "Integer" [tiRational]
 tiDouble = htype "Double" [tiRational]
 tiInt = htype "Int" [tiInteger, tiDouble]
 tiFloat = htype "Float" [tiDouble]
-tiString = htype "String" [tiRational]
+tiString = htype "String" [tiDouble]
 tiList = htype "List" []
 tiChar = htype "Char" [tiString]
 tiOrdering = htype "Ordering" []
@@ -490,9 +489,11 @@ convertm =
       , toDyn (round :: Double -> Int)
       , toDyn (realToFrac :: Double -> Rational)
       , toDyn (realToFrac :: Rational -> Double)
-      , toDyn (read :: String -> Rational)
+      , toDyn (readNum :: String -> Double)
       , toDyn (realToFrac :: Int -> Rational)
       ] ++ showl)
+
+--readRational s = try $ evaluate $ read s
 
 showAny :: (Typeable a) => a -> String
 showAny = showDyn . toDyn

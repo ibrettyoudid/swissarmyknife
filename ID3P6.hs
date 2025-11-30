@@ -44,7 +44,7 @@ import System.Process
 
 import Data.Binary
 import Data.Bits
-import Data.Char
+import Data.Char hiding (toLower)
 import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
 import Data.List qualified
 import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
@@ -1043,17 +1043,28 @@ parseTag str =
    let 
       Done rest1 _ hd = parse header str
       rest2 = take (tagSize hd) rest1
-      rest = if verMajor hd == (3::Int) && unsync hd then resync rest2 else rest2
+      rest = if verMajor hd == 3 && unsync hd then resync rest2 else rest2
       in case id3 hd of
             "ID3" -> hd { frames = result $ parse body rest }
             _ -> hd
 
 -- add the header onto the frame data
 unparseTag :: ID3Tag -> IOString
-unparseTag tg = 
-   case P.format tag tg of
-      FDone t _ -> t
-      FFail t _ em -> error em
+unparseTag tag1 = 
+   case P.format body (frames tag1) of
+      FFail tbody _ em -> error em
+      FDone tbody _ -> let
+         tag2 = tag1 { tagSize = length tbody }
+         in case P.format header tag2 of
+            FFail thead _ em -> error em
+            FDone thead _ -> thead ++ tbody
+
+formatFrame v frame =
+   case P.format (framebody $ frameID frame) frame of
+      FDone tbody _ -> let
+         frame2 = frame1 { frameSize = length tbody }
+         in case P.format frameheader $ frameHeader frame of
+               FDone thead _ -> thead ++ tbody
 
 {-
 unparseTag1 totalSize framedat =
@@ -1118,6 +1129,8 @@ tag = Build emptyTag (
       (\f r -> case Parser6.format1 (FramesK <-- Many frame) f r of
          FDone t1 f1 -> Parser6.format1 (Get TagSizeK) f1 (length t1)))
 -}
+tag = header :/ body
+
 header :: Rule IOString Word8 () ID3Tag
 header = Build emptyTag (
    Id3K      <-- rep char 3 :/
@@ -1145,10 +1158,12 @@ hjkl = total stringID undefined
 lm :: Rule s t f FrameID
 lm = iFrameString >$< Return "TPE2"
 
-frame :: Int -> Rule IOString Word8 ID3Tag Frame
 frame v = 
-   FrameHeaderK <-- frameheader v :/
-   FrameIDK     <-- lm -- FrameHeaderK <@> Get StringID
+   FrameHeader <-- frameheader v :/
+   FrameIDK    <-- iFrameString >$< Get StringIDK
+
+framecommon = 
+   FrameIDK    <-- iFrameString >$< Get StringIDK
 
 
 frameheader :: Int -> Rule IOString Word8 x FrameHeader
@@ -1181,11 +1196,42 @@ zeroTextEnc = TextEncodingK --> (\enc -> Apply (itext enc) $ case enc of
                                                       0 -> zeroText
                                                       1 -> AnyTill $ String "\0\0")
 
-zeroText = AnyTill $ Token '\0'
+zeroText = AnyTill $ Token 0
 
 ic = total c c
 
+framebody :: IOString -> Rule B.ByteString t2 f3 Frame
 framebody id
+   | take 1 (low id) == "t" = Build (FText { }) (
+      TextEncodingK <-- int :/
+      ValueK        <-- textEnc)
+
+   | low id == "txxx" = Build (FUserText { }) (
+      TextEncodingK <-- int :/
+      DescriptionK  <-- zeroTextEnc :/
+      ValueK        <-- textEnc)
+
+   | low id == "uslt" = Build (FUnsyncLyrics { }) (
+      TextEncodingK <-- int :/
+      LanguageK     <-- rep char 3 :/
+      DescriptionK  <-- zeroTextEnc :/
+      LyricsK       <-- textEnc)
+
+   | low id == "apic" = Build (FPicture { }) (
+      TextEncodingK <-- int :/
+      MIMETypeK     <-- ic >$< zeroText :/
+      PictureTypeK  <-- int :/
+      DescriptionK  <-- zeroTextEnc :/
+      PictureK      <-- Rest)
+
+   | low id == "sylt" = Build (FSyncLyrics { }) (
+      TextEncodingK <-- int :/
+      LanguageK     <-- rep int 3 :/
+      TimeFormatK   <-- int :/
+      ContentTypeK  <-- int)
+      --SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
+
+{-
    | id `elem` textFrames = Build (FText { }) (
       TextEncodingK <-- int :/
       ValueK        <-- textEnc)
@@ -1215,7 +1261,6 @@ framebody id
       ContentTypeK  <-- int :/
       SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
 
-{-
    | toLower (head stringID) == 't' = Build (FText { frameID = id1 $ fromJust $ M.lookup stringID stringIDMap }) (
    | low stringID == "txxx" = Build (FUserText { }) (
    | low stringID == "uslt" = Build (FUnsyncLyrics { }) (
@@ -1567,6 +1612,50 @@ instance P.FrameD Var ID3Tag where
          TagSize   ->  frame { tagSize  = fromDyn1 value }
          TagBytes  ->  frame { tagBytes = fromDyn1 value }
 
+instance P.Frame StringIDK T.Text FrameHeader where
+   myget1 StringIDK = stringID
+   myset1 StringIDK value frame = frame { stringID = value }
+
+instance P.Frame FrameSizeK Int FrameHeader where
+   myget1 FrameSizeK = frameSize
+   myset1 FrameSizeK value frame = frame { frameSize = value }
+
+instance P.Frame TagAltPrsvK Bool FrameHeader where
+   myget1 TagAltPrsvK = tagAltPrsv
+   myset1 TagAltPrsvK value frame = frame { tagAltPrsv = value }
+
+instance P.Frame FileAltPrsvK Bool FrameHeader where
+   myget1 FileAltPrsvK = fileAltPrsv
+   myset1 FileAltPrsvK value frame = frame { fileAltPrsv = value }
+
+instance P.Frame ReadOnlyK Bool FrameHeader where
+   myget1 ReadOnlyK = readOnly
+   myset1 ReadOnlyK value frame = frame { readOnly = value }
+
+instance P.Frame CompressionK Bool FrameHeader where
+   myget1 CompressionK = compression
+   myset1 CompressionK value frame = frame { compression = value }
+
+instance P.Frame EncryptionK Bool FrameHeader where
+   myget1 EncryptionK = encryption
+   myset1 EncryptionK value frame = frame { encryption = value }
+
+instance P.Frame GroupingK Bool FrameHeader where
+   myget1 GroupingK = grouping
+   myset1 GroupingK value frame = frame { grouping = value }
+
+instance P.Frame UnsyncFrK Bool FrameHeader where
+   myget1 UnsyncFrK = unsyncFr
+   myset1 UnsyncFrK value frame = frame { unsyncFr = value }
+
+instance P.Frame DataLenIK Bool FrameHeader where
+   myget1 DataLenIK = dataLenI
+   myset1 DataLenIK value frame = frame { dataLenI = value }
+
+instance P.Frame FrameBytesK IOString FrameHeader where
+   myget1 FrameBytesK = frameBytes
+   myset1 FrameBytesK value frame = frame { frameBytes = value }
+
 instance P.FrameD Var FrameHeader where
    mygetD name frame = case name of
       StringID    -> toDyn $ stringID    frame 
@@ -1592,6 +1681,46 @@ instance P.FrameD Var FrameHeader where
       UnsyncFr    -> frame { unsyncFr    = fromDyn1 value } 
       DataLenI    -> frame { dataLenI    = fromDyn1 value } 
       FrameBytes  -> frame { frameBytes  = fromDyn1 value }
+
+instance P.Frame ValueK T.Text Frame where
+   myget1 ValueK = value
+   myset1 ValueK value1 frame = frame { value = value1 }
+
+instance P.Frame TextEncodingK Int Frame where
+   myget1 TextEncodingK = textEncoding
+   myset1 TextEncodingK value frame = frame { textEncoding = value }
+
+instance P.Frame LanguageK T.Text Frame where
+   myget1 LanguageK = language
+   myset1 LanguageK value frame = frame { language = value }
+
+instance P.Frame DescriptionK T.Text Frame where
+   myget1 DescriptionK = description
+   myset1 DescriptionK value frame = frame { description = value }
+
+instance P.Frame MIMETypeK T.Text Frame where
+   myget1 MIMETypeK = mimeType
+   myset1 MIMETypeK value frame = frame { mimeType = value }
+
+instance P.Frame PictureTypeK Int Frame where
+   myget1 PictureTypeK = pictureType
+   myset1 PictureTypeK value frame = frame { pictureType = value }
+
+instance P.Frame PictureK IOString Frame where
+   myget1 PictureK = picture
+   myset1 PictureK value frame = frame { picture = value }
+
+instance P.Frame TimeFormatK Int Frame where
+   myget1 TimeFormatK = timeFormat
+   myset1 TimeFormatK value frame = frame { timeFormat = value }
+
+instance P.Frame ContentTypeK Int Frame where
+   myget1 ContentTypeK = contentType
+   myset1 ContentTypeK value frame = frame { contentType = value }
+
+instance P.Frame SyncedLyricsK (M.Map Int T.Text) Frame where
+   myget1 SyncedLyricsK = syncedLyrics
+   myset1 SyncedLyricsK value frame = frame { syncedLyrics = value }
 
 
 instance P.FrameD Var Frame where
@@ -1807,5 +1936,4 @@ frameIDList =
    , FT "4.3.1" Wpub "WPB" "Publishers official webpage" ""
    , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
    ]
-
 -}

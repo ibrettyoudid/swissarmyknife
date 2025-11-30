@@ -122,7 +122,7 @@ simpleHTTP m req = httpLbs req m
 
 getRequest = addUserAgent . parseRequest_
 
-parseHTML = parse1 htmlP
+parseHTML sn xs = parse1 htmlP sn $ (\weird -> if null weird then xs else error weird) $ mapMaybe (ifPred isWeird) xs
 
 -- getHTTPB with refering page as first parameter
 lbsofs = LB.pack . map (fromIntegral . ord)
@@ -575,6 +575,8 @@ squash (a : b : cs) =
             then squash (' ' : cs)
             else ' ' : squash (b : cs)
       else a : squash (b : cs)
+
+isWeird c = ord c < 0 || ord c > 255
 
 isSpace1 '\9516' = True
 isSpace1 '\225' = True

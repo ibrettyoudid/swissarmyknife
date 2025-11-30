@@ -8,9 +8,9 @@
 
 module WikiG where
 
-import Favs
+import Favs hiding (readNum)
 import HTML
-import MHashDynamic2 hiding ((?))
+import MHashDynamic2 hiding ((?), toList2)
 import MyPretty2
 import NumberParsers
 import Table1G
@@ -22,6 +22,7 @@ import Data.List
 import Data.Map qualified as M
 
 import Control.Monad hiding (join)
+import Control.Exception hiding (try)
 
 -- wikiTable m i u = fromGrid i $ textGrid $ wikiTable m u
 
@@ -91,6 +92,8 @@ cpop m = by (? "Location") $ wikiTableD m "List of countries and dependencies by
 
 area m = by (? "country") $ setFields ["rank", "country", "area", "land area", "water area", "%water", "blah"] $ wikiTableD m "List of countries and dependencies by area"
 
+readNum = parse1 (try floating <|> return 0) "readNum"
+
 mileq m =
    by (? "country")
       $ fromGridH1 ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
@@ -107,7 +110,7 @@ milper m = by (? "Country") $ wikiTableD m "List of countries by number of milit
 
 join2 xs = foldl1 (joinCollectMisses jLeft (toDyn "")) xs
 
-stats m = foldl1 (join jLeft (toDyn "")) [cont m, fst $ gdph m, fst $ gdph1 m, cpop m, area m, mileq m, milper m]
+stats m = foldl1 (join jLeft (toDyn "")) [cont m, fst $ gdph m, {-fst $ gdph1 m, -} cpop m, area m, mileq m, milper m]
 
 gdph m = foldl1 (joinCollectMisses jLeft (toDyn "")) $ map (miss . by (? "country") . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
 
@@ -177,6 +180,7 @@ allies5 m =
          fromGrid1 ["group", "country"] $
             concatMap (\row -> map (\country -> [toDyn $ text1 $ row !! 1, toDyn $ extractText country]) $ findTypes "a" $ row !! 2) g
 
+tt = fromGridHD $ map2 show $ crossWith (*) [1..10] [1..10]
 {-allies6 m = let
       me = mileq m
       a  = allies5 m
@@ -410,23 +414,27 @@ hugeA m = do
    let links0 = concat links
    let links1 = map (relTo url) links0
    putStrLn $ show (length links1) ++ " pages to get"
-   (res, miss) <- foldM (cjpageA m) (stats m, []) links0
+   let master = stats m
+   (res, miss) <- foldM (cjpageA m master) (master, []) links0
    --writeCsv "countries.csv" $ loftm1 ("", "") res
    writeFile "countriesbig.csv" $ toCsv res
    writeFile "misses.csv" $ concatMap toCsv miss
 
-cjpageA m tm url = do
+cjpageA m master tm url = do
    h <- readNestedUrl1 m url
    let gs1 = filterWikiTables h
    putStrLn $ show (length gs1) ++ " grids"
-   let gs2 = map miss $ mapMaybe (cjgridA1 url) gs1
+   let gs2 = map miss $ mapMaybe (cjgridA1 master url) gs1
    foldM cjgridA2 tm gs2
 
-cjgridA1 u g =
+cjgridA1 master u g =
    let
       tg = cTextGridH g
-      in
-      ifJust (not $ classCon "mw-collapsed" g) $ fromGridHD tg
+      tb = fromGridHD tg
+      ix = findIndexField master tb
+      tb1 = by (? ix) tb
+   in
+      ifJust (not $ classCon "mw-collapsed" g) tb
 
 cjgridA2 (g1, miss1) (g2, miss2) = do
    let (res, miss) = joinCollectMisses jInner (toDyn "") (g1, miss1) (g2, miss2)
@@ -473,6 +481,13 @@ quote1 x = if x < ' ' then "\\0" ++ show (toOctal $ ord x) else [x]
 
 toOctal = unfoldr (\x -> ifJust (x > 0) (let (q, r) = divMod x 8 in (chr (x + ord '0'), r)))
 
+findIndexField master tab = let
+   INode xs = tgroup master
+   list = toList2 $ tgroup tab
+   fs = map (\(fieldname, fieldnum) -> (,fieldname) $ M.size $ M.intersection xs $ M.fromList $ map ((, fieldnum) . fromJust . T.lookup fieldnum) list) $ M.toList $ fields tab
+   in snd $ maximum fs 
+
+   --in concatMap T.toList $ toList2 $ tgroup tab
 {-
 main = do
       m <- nm

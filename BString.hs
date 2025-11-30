@@ -14,7 +14,7 @@ import Favs qualified as F
 import Prelude hiding (String, drop, find, head, length, null, map, (++))
 import Prelude qualified as P
 
-import Data.Char
+import qualified Data.Char as C
 import Data.Word
 
 class Show s => BString s where
@@ -146,10 +146,10 @@ class ConvertString a b where
    convertString :: a -> b
 
 instance ConvertString P.String B.ByteString where
-   convertString = B.pack . L.map (fromIntegral . ord)
+   convertString = B.pack . L.map (fromIntegral . C.ord)
 
 instance ConvertString B.ByteString P.String where
-   convertString = L.map (chr . fromIntegral) . B.unpack
+   convertString = L.map (C.chr . fromIntegral) . B.unpack
 
 instance ConvertString B.ByteString LB.ByteString where
    convertString = B.fromStrict
@@ -158,10 +158,10 @@ instance ConvertString LB.ByteString B.ByteString where
    convertString = B.toStrict
 
 instance ConvertString P.String LB.ByteString where
-   convertString = LB.pack . L.map (fromIntegral . ord)
+   convertString = LB.pack . L.map (fromIntegral . C.ord)
 
 instance ConvertString LB.ByteString P.String where
-   convertString = L.map (chr . fromIntegral) . LB.unpack
+   convertString = L.map (C.chr . fromIntegral) . LB.unpack
 
 instance ConvertString P.String T.Text where
    convertString = T.pack
@@ -182,13 +182,16 @@ class ConvertChar a b where
    convertChar :: a -> b
 
 instance ConvertChar Char Word8 where
-   convertChar = fromIntegral . ord
+   convertChar = fromIntegral . C.ord
 
 instance ConvertChar Word8 Char where
-   convertChar = chr . fromIntegral
+   convertChar = C.chr . fromIntegral
 
 instance ConvertChar a a where
    convertChar = id
+
+toLower :: (ConvertChar a Char, ConvertChar Char a) => a -> a
+toLower = convertChar . C.toLower . convertChar
 
 bytestring :: B.ByteString
 bytestring = "abra"

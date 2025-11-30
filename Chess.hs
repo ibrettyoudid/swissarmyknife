@@ -3,15 +3,22 @@
 {-# HLINT ignore "Redundant if" #-}
 {-# HLINT ignore "Use :" #-}
 {-# HLINT ignore "Use list comprehension" #-}
+{- HLINT ignore "Use infix" -}
+{- HLINT ignore "Eta reduce" -}
+{- HLINT ignore "Use second" -}
 module Chess where
 
 import Favs
-import Matrix2
+import Matrix2 hiding (one)
 
-import Data.List
+import Prelude hiding (lines)
+import Data.List hiding (lines)
 import Data.Char
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
+
+import Data.IORef
+import Control.Monad.State
 {-
 class Square s where
    x :: s -> Int
@@ -40,7 +47,7 @@ grid con off = gr
 data PC = PC { colour :: Colour, piece :: Piece } deriving (Eq)
 
 instance Show PC where
-   show (PC col piece) = show col ++ show piece
+   show (PC col piece) = show col ++ show piece ++ show Black
 
 data Piece = Pawn | Knight | Bishop | Castle | Queen | King | Empty deriving (Eq)
 
@@ -79,6 +86,10 @@ instance Show Colour where
 coln = flip elemIndex [Black, Red, Green, Yellow, Blue, Magenta, Cyan, White]
 showfg c = let Just n = coln c in "\27["++show (30+n)++"m"
 showbg c = let Just n = coln c in "\27["++show (40+n)++"m"
+showfb fc bc = let
+   Just f = coln fc
+   Just b = coln bc
+   in "\27["++show (30+f)++";"++show (40+b)++"m"
 --07547396336
 
 startboardl = [map (PC White) [Castle, Knight, Bishop, Queen, King, Bishop, Knight, Castle],
@@ -102,7 +113,7 @@ knightV = [[ 2, 1],[-2, 1],[ 2,-1],[-2,-1],[ 1, 2],[-1, 2],[ 1,-2],[-1,-2]]
 data Sq = Sq { pos :: Vec, n :: Int, step1 :: M.Map Vec Sq, steps :: M.Map Vec [Sq], knight :: [[Sq]], pawn :: M.Map Colour [(Bool, Bool, [Sq])] } | Off
 
 instance Eq Sq where
-   a@Sq{} == b@Sq{} = pos a == pos b
+   a@Sq{} == b@Sq{} = n a == n b
    Sq{}   == Off    = False
    Off    == Sq{}   = False
    Off    == Off    = True
@@ -126,7 +137,7 @@ masterboardl = map snd masterboard1
 
 onboard [x, y] = x >= 0 && x <= 7 && y >= 0 && y <= 7
 
-at1 board [x, y] = if onboard [x, y] then board IM.! num x y else Off
+at1 boardMap [x, y] = if onboard [x, y] then boardMap IM.! num x y else Off
 
 createSquare y x = let
    pos1 = vec x y
@@ -137,14 +148,14 @@ createSquare y x = let
       steps = M.fromList $ mapxfx (\v -> takeWhile (/= Off) $ map (at1 masterboard) $ iterate (v <+>) pos1) queenV,
       knight = map singleton $ filter (/= Off) $ map (at1 masterboard . (pos1 <+>)) knightV,
       pawn = M.fromList $ map (\(f, mkv) -> (f, 
-                              map (\(m, k, v) -> (m, k, 
-                                 map (at1 masterboard) $ filter onboard $ map (pos1 <+>) v)) mkv))
+                                 map (\(m, k, v) -> (m, k, 
+                                    map (at1 masterboard) $ filter onboard $ map (pos1 <+>) v)) mkv))
                         [(White, [(False, True , [[-1,  1]]),
-                                 (False, True , [[ 1,  1]]), 
-                                 (True , False, [[ 0,  1]] ++ if y == 1 then [[ 0,  2]] else [])]),
-                        (Black, [(False, True , [[-1, -1]]),
-                                 (False, True , [[ 1, -1]]),
-                                 (True , False, [[ 0, -1]] ++ if y == 6 then [[ 0, -2]] else [])])]
+                                  (False, True , [[ 1,  1]]), 
+                                  (True , False, [[ 0,  1]] ++ if y == 1 then [[ 0,  2]] else [])]),
+                         (Black, [(False, True , [[-1, -1]]),
+                                  (False, True , [[ 1, -1]]),
+                                  (True , False, [[ 0, -1]] ++ if y == 6 then [[ 0, -2]] else [])])]
 
       }
 
@@ -153,21 +164,30 @@ pcpiece = piece . pc
 
 pccolour = colour . pc
 
-at board square = board IM.! n square
+at boardMap square = boardMap IM.! n square
 
-check board sqpc = at board (sq sqpc) == sqpc
+check boardMap sqpc = at boardMap (sq sqpc) == sqpc
 
 data SqPC = SqPC { sq :: Sq, pc :: PC } deriving (Eq)
 
 instance Show SqPC where
    show (SqPC sq pc) = show pc ++ show sq
 
+type BoardMap = IM.IntMap PC
+
 data Action = Start | MoveA | Block | Kill
 
-data Move = Move { canmove :: Bool, cankill :: Bool, squares :: [Sq], actions :: [Action], lastblock :: [(Sq, Sq)] }
+type LineP = (Bool, Bool, [Sq])
 
-movessq2 board fromsquare = let
-   from1  = at board fromsquare
+data Line = Line { canmove :: Bool, cankill :: Bool, squares :: [Sq], actions :: [Action], moves :: M.Map Int [Move] }
+
+data Move = Move { from :: Sq, to :: Sq, kills :: Int, blocks :: Int }
+
+data Board = Board { boardMap :: BoardMap, lines :: [Line] }
+
+movessq2 :: IM.IntMap SqPC -> Sq -> [[Sq]]
+movessq2 boardMap fromsquare = let
+   from1  = at boardMap fromsquare
    steps1 = steps fromsquare
    stepsl = map snd $ M.toList steps1
    in case pcpiece from1 of
@@ -179,28 +199,35 @@ movessq2 board fromsquare = let
       Bishop -> map (steps1 M.!) bishopV
       Knight -> knight fromsquare
 
-moves2 board = concatMap (\x -> map (x :) $ movessq2 board x) masterboardl
+moves2 boardMap = concatMap (\x -> map (x :) $ movessq2 boardMap x) masterboardl
 
-moves3 board = map (\sqs@(from:_) -> let 
-                     fromcol = pccolour $ at board from
-                     in spanAllow (pccolour . at board) True True fromcol sqs) $ moves2 board
+moves3 boardMap = map (\sqs@(from:_) -> let 
+                     fromcol = pccolour $ at boardMap from
+                     in spanAllow (pccolour . at boardMap) True True fromcol sqs) $ moves2 boardMap
 
-movessq1 board fromsquare = let
-   from1 = at board fromsquare
+linePSquare :: BoardMap -> Sq -> [LineP]
+linePSquare boardMap fromsquare = let
+   from1 = at boardMap fromsquare
    fromcol = colour from1
    steps1 = steps fromsquare
    stepsl = map snd $ M.toList steps1
    in case piece from1 of
       Empty -> []      
       Pawn  -> map (\(m, k, s) -> (m, k, fromsquare:s)) $ pawn fromsquare M.! colour from1
-      _ -> map (\x -> (True, True, fromsquare:x)) $
+      _     -> map (\x -> (True, True, fromsquare:x)) $
          case piece from1 of
             Queen  -> stepsl
-            King   -> map (singleton . head) stepsl
+            King   -> map (take 1) stepsl
             Castle -> map (steps1 M.!) castleV
             Bishop -> map (steps1 M.!) bishopV
             Knight -> knight fromsquare
-
+{-
+movessq1a boardMap tosquare = let
+   steps1 = steps tosquare
+   stepsl = map snd $ N.toList steps1
+   M.map (elemIndex tosquare) stepsl
+-}
+spanAllow :: (Sq -> Colour) -> Bool -> Bool -> Colour -> [Sq] -> ([Sq], [Sq])
 spanAllow f canmove cankill fromcol (x:xs) = let (b, a) = loop xs in (x:b, a)
    where 
       loop [    ] = ([], [])
@@ -213,6 +240,7 @@ spanAllow f canmove cankill fromcol (x:xs) = let (b, a) = loop xs in (x:b, a)
                   fail    = ([], x:xs)
                   kill    = ([x], xs)
 
+{-
 lengthAllow move1 = loop actions1 0
    where 
       canmove1 = canmove move1
@@ -228,8 +256,9 @@ lengthAllow move1 = loop actions1 0
             move  = loop xs (n+1)
             block = n : move
             kill  = n + 1 : move
+-}
 
-lengthAllow1 move1 = loop actions1 squares1
+lengthAllow move1 = loop actions1 [0..7]
    where 
       canmove1 = canmove move1
       cankill1 = cankill move1
@@ -247,43 +276,112 @@ lengthAllow1 move1 = loop actions1 squares1
             block = (s, t) : move
             kill  = (t, t) : move
 
-createMove board m@(canmove1, cankill1, x:xs) = let 
-   fromcol = colour $ at board x
-   move1 = Move {
+            -- s = where you can get to
+            -- t = the square that stops you
+
+one True  = 1
+one False = 0
+
+countBlocks boardMap line1 = let
+   squares1 = squares line1
+   from1    = head squares1
+   mycol    = head colours
+   oppcol   = opponent mycol
+   colours  = map (colour . at boardMap) squares1
+   kills    = map (one . (== oppcol)) colours
+   blocks   = map (one . (== mycol )) colours
+   sum1     = zipWith (+) kills (tail blocks)
+   in multimap $ zip sum1 $ zipWith3 (Move from1) squares1 kills blocks
+
+createLine :: BoardMap -> LineP -> Line
+createLine boardMap m@(canmove1, cankill1, x:xs) = let 
+   fromcol = colour $ at boardMap x
+   line1 = Line {
       canmove = canmove1,
       cankill = cankill1,
       squares = x:xs,
-      actions = Start:map ((\x -> if 
-            | x == EmptyC  -> MoveA
-            | x == fromcol -> Block
-            | otherwise    -> Kill) . colour . at board) xs,
-      lastblock = [] }
-   l = lengthAllow1 move1
-   in move1 { lastblock = l }
+      actions = [],
+      moves = M.empty }
+   in line1 { moves = countBlocks boardMap line1 }
 
-moves4 board = concatMap (movessq1 board) masterboardl
+linePSquares boardMap = concatMap (linePSquaresAux boardMap)
 
-movesThru4 board = multimap $ concatMap (\m@(m1, k, s) -> map (,m) s) $ concatMap (movessq1 board) masterboardl
+linePSquaresAux boardMap (n, pc) = linePSquare boardMap $ masterboard IM.! n
 
-moves5 board = map (\(canmove, cankill, sqs@(from:_)) -> let 
-                     fromcol = colour $ at board from
-                     in spanAllow (colour . at board) canmove cankill fromcol sqs) $ moves4 board
 
-movesThru5 board = multimap $ concatMap (\m@(s1, s2) -> map (,m) $ s1 ++ s2) $ moves5 board
+lineSquares boardMap = map (createLine boardMap) . linePSquares boardMap
 
-moves6 board = map (createMove board) $ moves4 board
 
---movesOK6 board = multimap $ concatMap (\m -> map (,m) $ tail $ ok m) board
+lineBoard boardMap = lineSquares boardMap $ IM.toList boardMap
 
---movesBlocked6 board = multimap $ map (\m -> (head $ blocked m, m)) board
 
-takeWhile1 pred []     = []
-takeWhile1 pred (x:xs) = if pred x then x : takeWhile1 pred xs else [x]
+lineSquare boardMap = map (createLine boardMap) . linePSquare boardMap
+{-
+getMovesOK boardMap movesb = do
+   concat <$> mapM (\ref -> do
+      moveb <- readIORef ref
+      let squares1 = squares moveb
+      let from1    = head squares1
+      let ton      = head $ blocks moveb
+      return $ map (Move from1) $ take ton squares1) movesb
 
-span1 pred [] = ([], [])
-span1 pred (x:xs) | pred x    = let (b, a) = span1 pred xs in (x:b, a)
-                  | otherwise = ([x], xs)
-{-}
+getMoves boardMap line = let
+      squares1 = squares line
+      from1    = head squares1
+      ton      = head $ blocks line
+      f        = map (Move from1)
+      (b, a)   = splitAt ton squares1
+      in (f b, f a)
+-}
+
+checkLineBlocked1 boardMap line blocksquare = let
+   squares1   = squares line
+   fromsquare = head squares1
+   in case elemIndex blocksquare squares1 of
+         Just i  -> let
+            fromcol  = colour $ at boardMap fromsquare
+            blockcol = colour $ at boardMap blocksquare
+            ton | blockcol == fromcol = i - 1
+                | blockcol == EmptyC  = length squares1
+                | otherwise           = i
+            in 0
+         Nothing -> 0
+
+checkLineBlocked boardMap line blocksquare = let
+   squares1   = squares line
+   fromsquare = head squares1
+   in if elem blocksquare squares1
+         then Just $ lineSquare boardMap fromsquare
+         else Nothing
+
+
+doMove board line move = let
+   squares1   = squares line
+   from1      = from move
+   to1        = to move
+   piece      = at (boardMap board) $ from move
+   newboard   = IM.insert (n to1) piece $ IM.delete (n from1) $ boardMap board
+   --unblocked  = filter (\m -> squares1 !! head (blocks m) == from1) $ lines board
+   --newblocked = map (\l -> if elem to1 $ squares l then ) $ lines board
+   in Board newboard (lines board) 
+
+-- chess is about the interference of possible moves
+-- and about the interference of those interferences
+-- and so on
+
+change boardMap from to chline 
+   | aux chline = head $ filter aux $ lineSquare boardMap $ head $ squares chline
+   | otherwise  = chline
+      where
+         aux chline = elem from squares1 || elem to squares1
+            where squares1 = squares chline
+
+linesThru lines = M.fromList $ concatMap (\l -> map (,l) $ squares l) lines
+
+
+--interfere linea lineb = let
+
+{-
 allowMove move col = 
    if | col == EmptyC               -> canmove move
       | col == pccolour (from move) -> False
@@ -316,9 +414,9 @@ pppppppp
 b      b
 p      p
    CC   
-pppppp 
-n KQ n 
--------
+ pppppp 
+ n KQ n 
+--------
 CnbKQbnC
 pppppppp
 
@@ -328,3 +426,19 @@ pppppppp
 pppppppp
 CnbKQbnC
 -}
+{-
+moves4 boardMap = concatMap (movespSquare boardMap) masterboardl
+
+movesThru4 boardMap = multimap $ concatMap (\m@(m1, k, s) -> map (,m) s) $ concatMap (movespSquare boardMap) masterboardl
+
+moves5 boardMap = map (\(canmove, cankill, sqs@(from:_)) -> let 
+                     fromcol = colour $ at boardMap from
+                     in spanAllow (colour . at boardMap) canmove cankill fromcol sqs) $ moves4 boardMap
+
+movesThru5 boardMap = multimap $ concatMap (\m@(s1, s2) -> map (,m) $ s1 ++ s2) $ moves5 boardMap
+
+moves6 boardMap = map (createLine boardMap) $ moves4 boardMap
+-}
+--movesOK6 boardMap = multimap $ concatMap (\m -> map (,m) $ tail $ ok m) boardMap
+
+--movesBlocked6 boardMap = multimap $ map (\m -> (head $ blocked m, m)) boardMap

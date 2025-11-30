@@ -1,10 +1,11 @@
+-- Copyright 2025 Brett Curtis
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# HLINT ignore "Use second" #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
--- Copyright 2025 Brett Curtis
 {-# LANGUAGE OverlappingInstances #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use second" #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
 
 module Table1G where
@@ -14,10 +15,10 @@ import HTML
 import MHashDynamic2 hiding (toList2)
 import MyPretty2
 import NumberParsers
+import Tree qualified as T
 
 import Data.Char
 import Data.List
-import Tree qualified as T
 
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -29,7 +30,13 @@ import Text.Parsec.Combinator
 import Text.Parsec.Prim
 import Text.Parsec.String
 
+import Control.DeepSeq
+
 import System.IO.Unsafe
+
+import GHC.Generics
+
+import Debug.Trace
 
 data Type = M | To
 
@@ -153,9 +160,12 @@ csv = many csvline
 
 csvline = sepBy csvcell $ char ','
 
-dynGrid f = map2 (parse1 dynCell f)
+dynCell xs = case parse fodscell "" xs of
+      Left  l -> error (show l)
+      Right r -> dynOfCell r
 
-dynCell = dynOfCell <$> fodscell
+
+dynCell1 = dynOfCell <$> fodscell
 
 dynOfCell (String1 s) = toDyn s
 dynOfCell (Int1 i) = toDyn i
@@ -196,13 +206,13 @@ intC = fromInteger <$> integerC
 
 txt = String1 <$> do char '"'; t <- manyTill anyChar $ char '"'; char '"'; return t
 
-data Table f i r = Table {fields :: M.Map f Int, tgroup :: Group i r}
+data Table f i r = Table {fields :: M.Map f Int, tgroup :: Group i r} deriving (Generic, NFData)
 
-data Group i r = INode (M.Map i (Group i r)) | Recs (T.Tree (Group i r)) | Rec (T.Tree r) deriving (Show)
+data Group i r = INode (M.Map i (Group i r)) | Recs (T.Tree (Group i r)) | Rec (T.Tree r) deriving (Show, Generic, NFData)
 
-data Field = FieldStr String Int
+data Field = FieldStr { fname::String, fnum :: Int }
 
-data Record f r = Record {fieldsr :: M.Map f Int, values :: T.Tree r} deriving (Show)
+data Record f r = Record {fieldsr :: M.Map f Int, values :: T.Tree r} deriving (Show, Generic, NFData)
 
 -- Tables contain INodes or Recses
 -- INodes contain Recses or Recs
@@ -251,20 +261,20 @@ fieldsUT = fieldsU . fields
 fieldsUR = fieldsU . fieldsr
 
 inversePerm indices = map snd $ sort $ zip indices [0 ..]
-
+{-
 pTerm text =
    let
       t = takeWhile isDigit $ filter (`notElem` ", ") text
       in
       if null t then String1 text else Int1 $ readInt t
-
+-}
 -- fromGridG (fields:recordl) = fromGridG1 fields recordl
 fromGrid g = fromGridH $ transpose g
 fromGridD = fromGridHD . transpose
 fromGrid1 f = fromGridH1 f . transpose
 
 fromGridH (fs : rs) = fromGridH1 fs rs
-fromGridHD (fs : rs) = fromGridH1 fs $ map2 (parse1 dynCell "dynCell" . clean) $ tail rs
+fromGridHD (fs : rs) = fromGridH1 fs $ map2 (dynCell . clean) rs
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0 ..]) $ Recs $ T.fromElems $ map (Rec . T.fromElems) recordl
 
@@ -284,7 +294,7 @@ toList2 = map unrec . toList
 
 clean = filter (\c -> isDigit c || isAlpha c || c == ' ')
 
-cleanDyn x = read $ clean $ show x
+--cleanDyn x = read $ clean $ show x
 
 byz func = mapFromList (:) [] . mapfxx func
 
@@ -342,8 +352,14 @@ joinFuzzy include fuzziness empty l r =
    in
       Table flr $ INode $ joinInclude include j1
 
-joinAux empty (Table fieldsl (INode rl)) (Table fieldsr (INode rr)) =
-   let
+joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
+   where
+      Table fieldsl il = a
+      Table fieldsr ir = b
+
+      INode rl = il
+      INode rr = ir
+
       maxl = maximum $ map snd $ M.toList fieldsl
       maxr = maximum $ map snd $ M.toList fieldsr
       shift = 2^T.log2 (max maxl maxr + 1)
@@ -355,8 +371,9 @@ joinAux empty (Table fieldsl (INode rl)) (Table fieldsr (INode rr)) =
       l1 = rl M.\\ rr
       r1 = rr M.\\ rl
       i = M.intersectionWith fi rl rr
-   in
-      (fieldslr, l1, i, r1, fl, fi, fr)
+      
+      res = (fieldslr, l1, i, r1, fl, fi, fr)
+
 
 --index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Rec $ T.fromElems [toDyn ""]) xs
 index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs $ tz [Rec $ T.fromElems [toDyn ""]]) xs
@@ -403,9 +420,9 @@ joinFuzzyAux maxDist (Lev dist lk rk a) (lks, res, rks) =
       else (lks, res, rks)
 
 joinInclude (il, ii, ir) (rl, ri, rr) =
-      (if il then M.union rl else id)
-      $ (if ii then M.union ri else id)
-      $ (if ir then rr else M.empty)
+      (if il then M.union rl else id) $
+      (if ii then M.union ri else id)
+      (if ir then rr else M.empty)
 
 addCalcField name func table = let
    i = (maximum $ map snd $ M.toList $ fields table) + 1
@@ -419,7 +436,7 @@ blankRec z f = T.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
 -- foldTable f z n t =
 foldSubTable fs (Table flds g) = applyL fs $ Record flds $ foldSubTableG g
 
-foldSubTableG g = T.map toDyn $ T.untree $ toList2 g
+foldSubTableG g = T.untree $ toList2 g
 
 -- foldSubTable1 fs (Table flds g) = applyL fs $ Record flds $ foldSubTable1G (T.fromElems fs) g
 addTotals t = Table (fields t) $ INode $ M.insert (toDyn "ZZZZ") (Rec $ foldSubTable2 sum t) g where INode g = tgroup t

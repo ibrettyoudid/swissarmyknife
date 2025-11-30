@@ -1,19 +1,27 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LexicalNegation #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Tree where
 
-import Favs
+import Favs hiding (split)
 
 import qualified Data.List as L
 import qualified Data.Bits as B
 import qualified Data.IntMap as I
 
+import Control.DeepSeq
+
+import GHC.Generics
+
 -- By making all the keys relative to where they are in the tree, we can shift parts of the tree around very fast
 
 --data Tree k v = Node k Int (Tree k v) (Tree k v) | Leaf k v
-data Tree v = Node { key::Int, left::Tree v, right::Tree v } | Leaf { key::Int, val::v } | Empty
+data Tree v = Node { key::Int, left::Tree v, right::Tree v } | Leaf { key::Int, val::v } | Empty deriving (Generic)
+
+instance NFData v => NFData (Tree v)
 
 instance Show v => Show (Tree v) where
    show = unlines . showTree1
@@ -23,17 +31,6 @@ instance Eq (Tree v) where
 
 instance Ord (Tree v) where
    compare (Leaf a _) (Leaf b _) = compare a b
-
-showTree t = show $ toList t
-
-showTree1 t = showTree2 0 t
-
-showTree2 k1 (Leaf k v) = ["Leaf "++show (k+k1)++" "++show v]
-showTree2 k1 (Node k l r) = let
-   s1 = "Node "++show (k+k1)
-   pad = L.map (replicate (length s1 + 1) ' '++)
-   in pad (showTree2 k1 l) ++ [s1] ++ pad (showTree2 (k+k1) r)
-showTree2 k1 Empty = ["Empty"]
 
 lookup k1 (Node k l r) | k1 <  k   = Tree.lookup k1 l
                         | otherwise = Tree.lookup (k1-k) r
@@ -51,6 +48,17 @@ lookupMax Empty = Nothing
 
 (!) = flip Tree.lookup
 
+insert k1 v1 n@(Node k l r)
+   | k1 < k    = if k1 < ka && k > ka
+                     then Node ka (Leaf k1 v1) (shift (-ka) n)
+                     else Node k (insert k1 v1 l) r
+   | k1 >= k2  = Node k1a n (Leaf (k1-k1a) v1)
+   | otherwise = Node k l (insert (k1-k) v1 r)
+      where
+         k2  = k * 2
+         ka  = power2 k
+         k1a = power2 k1
+{-
 insert k v n@(Node k1 l r)
    | k < k1    = if k1 > k4 && k < k4
                      then Node k4 (Leaf k v) (shift (-k4) n)
@@ -61,20 +69,20 @@ insert k v n@(Node k1 l r)
          k2 = k1 * 2
          k3 = power2 k
          k4 = power2 k1
-
-insert k v l@(Leaf k1 v1) = let
+-}
+insert k1 v1 l@(Leaf k v) = let
    k2 = nextKey2 k k1
 
    in if k >= k2 && k1 >= k2 
          then
-            Node k2 Empty (insert (k-k2) v (Leaf (k1-k2) v1))
+            Node k2 Empty (insert (k1-k2) v1 (Leaf (k-k2) v))
          else
-            case compare k k1 of
-               LT -> Node k2 (Leaf k v) (Leaf (k1-k2) v1)
-               GT -> Node k2 l          (Leaf ( k-k2) v )
-               EQ -> Leaf k v
+            case compare k1 k of
+               LT -> Node k2 (Leaf k1 v1) (Leaf ( k-k2) v )
+               GT -> Node k2 l            (Leaf (k1-k2) v1)
+               EQ -> Leaf k1 v1
 
-insert k v Empty = Leaf k v
+insert k1 v1 Empty = Leaf k1 v1
 
 
 log2 k = ceiling $ logBase 2 $ fromIntegral k
@@ -125,7 +133,38 @@ slice from to leaf@(Leaf k v)
    | from <= k && to >= k = Leaf k v
    | otherwise            = Empty
 
-union (Node kn ln rn) (Node k l r)
+converge a@(Node ka la ra) b@(Node kb lb rb)
+   | ka <  kb = converge a lb ++ converge ra b
+   | ka == kb = [(a, b)]
+   | ka >  kb = converge a rb ++ converge la b
+
+converge a@(Leaf ka va) b@(Leaf kb vb)
+   | ka == kb  = [(a, b)]
+   | otherwise = []
+
+rotate at (Node k l r) 
+   | at < k = let 
+{-
+         k              at
+        / \            / \
+       m   r   =>     ll  k
+      / \                / \
+     ll rl              rl  r
+-}
+      in case rotate at l of
+            Node m ll rl -> Node at ll (Node (k-at) (shift (at-m) rl) r)
+   | at == k = Node k l r
+   | k < at = case rotate (at-k) r of
+{-
+         k              at
+        / \            / \
+       l   m    =>    k   rr
+          / \        / \
+        lr   rr     l   lr
+-}
+                  Node m lr rr -> Node at (Node k l lr) (shift (at-k-m) rr)
+
+union1 (Node kn ln rn) (Node k l r)
    | kn < k = Node k (Node kn (union ln (slice 0 (kn-1) l)) (union (slice 0 (k-1) rn) (shift -kn $ slice kn 1000000000 l))) (union (shift (k-kn) $ slice k 1000000000 rn) r)
 
 imin = -9223372036854775808
@@ -136,9 +175,11 @@ union2 a b = let
    (bmin, bmax) = Tree.span b
    in 0
 
+
+
 --union3 fn bn (Node kn ln rn) f b (Node k l r)
 
-union1 n t = L.foldr (uncurry insert) t $ toList n
+union n t = L.foldr (uncurry insert) t $ toList n
 
 unionWithShift s n t = L.foldr (uncurry insert) t $ toList $ shift s n
 {-
@@ -194,18 +235,49 @@ leafToPair (Leaf k v) = (k, v)
 pairToLeaf (k, v) = Leaf k v
 
 --fromList t = balance3 0 $ L.sort $ L.map pairToLeaf t
-fromList = fromList1
+fromList6 :: [(Int, b)] -> Tree b
+fromList6 = fromList7
 
-fromList1 t = L.foldl (flip $ uncurry insert) Empty t
+fromList7 l = L.foldl (flip $ uncurry insert) Empty l
+
+fromAscList is = fromList1 0 (length is) Empty is
+
+fromList is = fromList1 0 (length is) Empty (L.sortOn fst is)
+
+fromList1 n m l 
+   | n == 0 = \case 
+         [] -> Empty
+         ((k, v):is) -> fromList1 1 m (Leaf k v) is
+   | n < m  = \case
+         [] -> l
+         i  -> let
+               (ir, is) = splitAt n i
+               r        = fromList1 0 n Empty ir
+               k        = power2 $ key r
+               in fromList1 (n*2) m (Node k l (shift -k r)) is
+   | otherwise = const l
+
+
 
 fromElems :: (Show v) => [v] -> Tree v
-fromElems = fromList . zip [0..]
-
-fromElems1 = fromList1 . zip [0..]
+fromElems = fromAscList . zip [0..]
 
 singleton :: (Show v) => v -> Tree v
 singleton = fromElems . L.singleton
 
+empty = Empty
+
+showTree t = show $ toList t
+
+showTree1 t = showTree2 0 t
+
+showTree2 k1 (Leaf k v) = ["Leaf "++show (k+k1)++" "++show v]
+showTree2 k1 (Node k l r) = let
+   s1 = "Node "++show (k+k1)
+   pad = L.map (replicate (length s1 + 1) ' '++)
+   in pad (showTree2 k1 l) ++ [s1] ++ pad (showTree2 (k+k1) r)
+showTree2 k1 Empty = ["Empty"]
+{-
 balance tree = balance3 0 $ toList1 0 tree
 
 balance1 sub [Leaf k v] = Leaf (k-sub) v
@@ -236,24 +308,17 @@ balance3 sub leaves = let
    rr = balance3 m r
 
    in Node (m - sub) lr rr
+-}
 t = fromList $ zip [1..] "hello there"
 
 {-
 >>> slice 3 8 t
-               Leaf 3 'l'
-      Node 4
-                           Leaf 4 'l'
-                     Node 5
-                           Leaf 5 'o'
-               Node 6
-                           Leaf 6 ' '
-                     Node 7
-                           Leaf 7 't'
-Node 8
-      Leaf 8 'h'
+/home/brett/swissarmyknife/Tree.hs:247:15-57: Non-exhaustive patterns in lambda
 
->>> union t $ shift 5 t
-/home/brett/swissarmyknife/Tree.hs:(128,1)-(129,172): Non-exhaustive patterns in function union
+>>> fromList [(15,15), (4,4)]
+        Leaf 4 4
+Node 15
+        Leaf 15 15
 
 
 

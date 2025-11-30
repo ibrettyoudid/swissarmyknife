@@ -16,13 +16,13 @@ import MHashDynamic2 hiding (Apply, Frame, Member, Let, cname)
 import NewTuple
 import BString
 
-import Prelude hiding ((++), length, null, tail, head, drop, take, concat)
+import Prelude hiding ((++), length, null, tail, head, drop, take, concat, toLower)
 import qualified Prelude
 
 import Data.ByteString.Lazy qualified as LB
 
 import Data.Word
-import Data.Char
+import Data.Char hiding (toLower)
 import Data.Map qualified as M
 import Data.Maybe
 import Control.Monad
@@ -895,15 +895,15 @@ dataField  = (Build
 --   String "myget1" :+ s :+ FNameK <-- ident :+ s :+ String "=" :+ s :+ FNameK <-- ident :+ crlf :+
 --   String "myset1" :+ s :+ FNameK <-- ident :+ s :+ String "value" :+ s :+ String "frame" :+ s :+ String "=" :+ s :+ String "frame" :+ s :+ String "{" :+ s :+ FNameK <-- ident :+ s :+ String "=" :+ s :+ String "value" :+ s :+ String "}" :+ crlf
 
-dataInfoI = Build (DataInfo "" "" []) $ ConzK <-- (TypeK --> \ty -> Many (Build (DataCon "" []) $ FieldsK <-- Many (dataInstance ty)))
+dataInfoI = Build (DataInfo "" "" []) (TypeK --> \ty -> Many (Build (DataCon "" []) $ FieldsK <-- Many (dataInstance ty)))
 
 dataInstance frame = Build (DataField "" "" "" "") $ String "instance Frame" :/ s :/ FKeyK <-- ident :/ s :/ FTypeK <-- ident :/ s :/ String frame :/ s :/ String "where" :/ crlf :/
-   String "   myget1" :/ s :/ FKeyK <-- ident :/ s :/ String "=" :/ s :/ FNameK <-- ident :/ crlf :/
-   String "   myset1" :/ s :/ FKeyK <-- ident :/ s :/ String "value frame = frame {" :/ s :/ FNameK <-- ident :/ s :/ String "= value }" :/ crlf
+   s3 :/ String "myget1" :/ s :/ FKeyK <-- ident :/ s :/ String "=" :/ s :/ FNameK <-- ident :/ crlf :/
+   s3 :/ String "myset1" :/ s :/ FKeyK <-- ident :/ s :/ String "value frame = frame {" :/ s :/ FNameK <-- ident :/ s :/ String "= value }" :/ crlf
 
 dataDyn = Build (DataInfo "" "" []) $ String "instance FrameD" :/ s :/ DynTypeK <-- ident :/ s :/ TypeK <-- ident :/ s :/ String "where" :/ crlf :/
-   spaced "   mygetD name frame       = case name of\n" :/ ConzK <-- Many dataConGet :/ crlf :/
-   spaced "   mysetD name value frame = case name of\n" :/ ConzK <-- Many dataConSet :/ crlf
+   s3 :/ String "mygetD name frame       = case name of\n" :/ s6 :/ ConzK <-- Many dataConGet :/ crlf :/
+   s3 :/ String "mysetD name value frame = case name of\n" :/ s6 :/ ConzK <-- Many dataConSet :/ crlf
 
 dataConGet = Build (DataCon "" []) $ FieldsK <-- Many dataDynGet
 dataConSet = Build (DataCon "" []) $ FieldsK <-- Many dataDynSet
@@ -952,7 +952,7 @@ alpha = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_')) Any
 
 alnum = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_' || isDigit c)) AnyToken
 
-low = map toLower
+low x = map toLower x
 
 ilookup k = Iso
    (\xs -> do
@@ -1001,11 +1001,11 @@ instance IgnoreAll b c => IgnoreAll (a, b) (Ignore a, c) where
 
 da = "data Tag = Tag { id3 :: String, verMajor :: Int, verMinor :: Int, unsync :: Bool, extHdr :: Bool, experi :: Bool, footer :: Bool, tagSize :: Int, dat :: ByteString }"
 d1 = concat [
-      "data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }\n"]
-      -- "            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text }\n",
-      -- "            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text, language :: T.Text }",
-      -- "            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, mimeType :: T.Text, pictureType :: Int, description :: T.Text, picture :: IOString }",
-      -- "            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }"]
+      "data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }\n",
+      "            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text }\n",
+      "            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, description :: T.Text, value :: T.Text, language :: T.Text }",
+      "            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, mimeType :: T.Text, pictureType :: Int, description :: T.Text, picture :: IOString }",
+      "            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text, language :: T.Text, timeFormat :: Int, contentType :: Int, syncedLyrics :: M.Map Int T.Text }"]
 
 
 hjk = convdata d1
