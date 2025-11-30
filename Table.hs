@@ -8,7 +8,7 @@
 {-# HLINT ignore "Use second" #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
 
-module Table1G where
+module Table where
 
 import Favs
 import HTML
