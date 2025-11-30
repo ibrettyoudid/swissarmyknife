@@ -170,13 +170,13 @@ library
         Syntax5,
         SyntaxCIPU, 
         SyntaxTH, 
+        Table,
         Table1,
-        Table1G,
         Test,
         TestBoomerang, 
         Tree, 
-        Wiki, 
-        WikiG
+        Wiki,
+        Wiki1
 
     -- Modules included in this library but not exported.
     -- other-modules:
