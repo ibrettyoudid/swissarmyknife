@@ -7,6 +7,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use second" #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
+{-# HLINT ignore "Eta reduce" #-}
 
 module Table where
 
@@ -235,8 +236,10 @@ instance {-# OVERLAPPING #-} (Show i, Show r) => Show (Table String i r) where
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (map show . uncurry (:)) $ M.toList $ records t
 
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (\(i, r) -> show i : map (\(j, t) -> show t) r) $ M.toList $ (\(Recs r) -> r) $ tgroup t
-showTable t = showGrid $ zipWith (:) (fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
+showTable  t = showTableC 0 15 t
+showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
 showTable1 t = showGrid $ zipWith (:) (fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
+showTable2 t = zipWith (:) (fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 
 toCsv t = unlines $ map (intercalate ",") $ (map show (fieldsUT t):) $ map2 show $ ungroup $ tgroup t
 
@@ -276,15 +279,15 @@ fromGrid g = fromGridH $ transpose g
 fromGridD = fromGridHD . transpose
 fromGrid1 f = fromGridH1 f . transpose
 
-fromGridH (fs : rs) = fromGridH1 fs rs
+fromGridH  (fs : rs) = fromGridH1 fs rs
 fromGridHD (fs : rs) = fromGridH1 fs $ map2 (dynCell . clean) rs
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
-fromGridH1 fields recordl = Table (uniquify $ zip fields [0 ..]) $ Recs $ T.fromElems $ map (Rec . T.fromElems) recordl
+fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ T.fromElems $ map (Rec . T.fromElems) recordl
 
 tz :: (Show a) => [a] -> T.Tree a
-tz = T.fromList . zip ([0, 1 ..] :: [Int])
+tz = T.fromList . zip [0..]
 
-mz = M.fromList . zip ([0, 1 ..] :: [Int])
+mz = M.fromList . zip [0..]
 
 -- fromGrid1 indexFunc g = Table (head g) $ M.fromList $ map (\row -> (indexFunc row, row)) $ map2 (right . parse csvcell "") g
 
@@ -295,7 +298,7 @@ toList r@(Rec _) = [r]
 
 toList2 = map unrec . toList
 
-clean = filter (\c -> isDigit c || isAlpha c || c == ' ')
+clean = filter (\a -> let c = ord a in (c >= 32 && c <= 126) || (c >= 160 && c <= 255))
 
 --cleanDyn x = read $ clean $ show x
 
@@ -484,22 +487,18 @@ appendRec2 l r = Record (appendFields2 (fieldsr l) (fieldsr r)) $ T.append 0 (va
 
 insertWith3 (k, v) m = M.insert (forFJ ("" : map show [2 ..]) (\n -> let k1 = reverse (dropWhile isDigit $ reverse k) ++ n in case M.lookup k1 m of Nothing -> Just k1; Just _ -> Nothing)) v m
 
-insertWith4 (k, v) m = case M.lookup k m of
-   Just j -> let
-      k1 = takeWhile (/= '_') k -- reverse (dropWhile isDigit $ reverse k)
-      n1 = readInt $ '0' : drop (length k1 + 1) k
-      {-
-      n2 = readInt $ '0' : takeWhile isDigit k
-      k2 = dropWhile isDigit k
-      -}
-      in let
-         k3 = head $ mapMaybe (\n2 -> let
-            k2 = k1 ++ '_' : show n2
-            in case M.lookup k2 m of
+insertWith4 (k, v) m = 
+   case M.lookup k m of
+      Just j -> let
+         k1 = takeWhile (/= '_') k -- reverse (dropWhile isDigit $ reverse k)
+         n1 = readInt $ drop (length k1 + 1) k
+         k2 = head $ mapMaybe (\n2 -> let
+            k3 = k1 ++ '_' : show n2
+            in case M.lookup k3 m of
                   Just j2 -> Nothing
-                  Nothing -> Just k2) [n1+1..]
-         in M.insert k3 v m
-   Nothing -> M.insert k v m
+                  Nothing -> Just k3) [n1+1..]
+         in M.insert k2 v m
+      Nothing -> M.insert k v m
 
 class UniqueList a where
    uniquify :: (Enum b, Num b) => [(a, b)] -> M.Map a b
@@ -547,12 +546,16 @@ lookupg2 k (Table f (Rec r)) = Record f r
 
 -- unrec (Rec r) = r
 lookupr :: (Ord f, Show f, Show t) => f -> Record f t -> t
-lookupr k r = let n = fieldsr r M.! k in case values r T.! n of
-   Just j  -> j
-   Nothing -> error $ let
-      s = unlines $ T.showTree1 $ values r
-      i = unsafePerformIO $ putStr s
-      in if i == () then "failed to find field "++show k++" number "++show n++" in record "++show r else "UH OH"
+lookupr k r = 
+   case M.lookup k $ fieldsr r of
+      Nothing -> error $ "failed to find field name "++show k++" in record "++show r
+      Just n ->
+         case T.lookup n $ values r of
+            Just j  -> j
+            Nothing -> error $ let
+               s = unlines $ T.showTree1 $ values r
+               i = unsafePerformIO $ putStr s
+               in if i == () then "failed to find field "++show k++" number "++show n++" in record "++show r else "UH OH"
 
 -- lookupr k r = toDyn k
 

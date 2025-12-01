@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Redundant $" #-}
@@ -67,7 +68,7 @@ putTextFile = putTextGrid . readNested
 extractText = trim . squash . concatMap tagText . findTrees isText
 extractTexts htmls = trim $ squash $ concatMap tagText htmls
 
-firstText = head . mapMaybe (ifPred (not . null) . trim . tagText) . findTrees isText
+firstText = (\case { [] -> ""; (a:_) -> a }) . mapMaybe (ifPred (not . null) . trim . tagText) . findTrees isText
 
 extractLink = head . extractLinks
 extractLinks t = map (tagAttrib "href") $ findTypes "a" t
@@ -578,13 +579,6 @@ squash (a : b : cs) =
             else ' ' : squash (b : cs)
       else a : squash (b : cs)
 
-isWeird c = ord c < 0 || ord c > 255
-
-isSpace1 '\9516' = True
-isSpace1 '\225' = True
-isSpace1 '\194' = True
-isSpace1 x = isSpace x
-
 tag1 = do
    char '<'
    whiteSpace
@@ -610,17 +604,18 @@ tag =
          empty <- option False (do char '/'; return True)
          char '>'
 
-         if name == "script" && not end
-            then do
+         if | name == "script" && not end -> do
                script <- manyTill anyChar (try $ string "</script>")
-               return $ Tag name attribs [Text script]
-            else
-               if end
-                  then return $ EndTag name
-                  else
-                     if empty
-                        then return $ EmptyTag name attribs
-                        else return $ Tag name attribs []
+               return $ Tag name attribs [] --Text script]
+            | name == "style" && not end -> do
+               style <- manyTill anyChar (try $ string "</style>")
+               return $ Tag name attribs [] --Text style]
+            | end ->
+               return $ EndTag name
+            | empty ->
+               return $ EmptyTag name attribs
+            | otherwise ->
+               return $ Tag name attribs []
    )
       <?> "Tag"
 

@@ -50,7 +50,7 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Text.ParserCombinators.Parsec.Token qualified as T
 
-width = 1023
+width = 208
 
 findWidth n = mapM_ putStrLn $ transpose $ padcol0 $ map show [1 .. n]
 

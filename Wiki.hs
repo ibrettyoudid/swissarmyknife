@@ -110,7 +110,7 @@ milper m = by (? "Country") $ wikiTableD m "List of countries by number of milit
 
 join2 xs = foldl1 (joinCollectMisses jLeft (toDyn "")) xs
 
-stats m = foldl1 (join jLeft (toDyn "")) [cont m, fst $ gdph m, {-fst $ gdph1 m, -} cpop m, area m, mileq m, milper m]
+stats m = foldl1 (join jLeft (toDyn "")) [cpop m, {-fst $ gdph m, fst $ gdph1 m,-} area m, milper m]
 
 gdph m = foldl1 (joinCollectMisses jLeft (toDyn "")) $ map (miss . by (? "country") . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
 

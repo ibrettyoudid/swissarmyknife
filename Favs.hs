@@ -134,11 +134,17 @@ unjust (Just j) = j
 fixN _ x 0 = x
 fixN f x n = fixN f (f x) (n - 1)
 
-trim = trimtrailing . dropWhile (== ' ')
+isWeird c = ord c < 0 || ord c > 255
+
+isSpace1 '\9516' = True
+isSpace1 '\225' = True
+isSpace1 '\194' = True
+isSpace1 x = isSpace x
+
+trim = trimtrailing . dropWhile isSpace1
 
 trimtrailing [] = []
-trimtrailing " " = []
-trimtrailing (x : xs) = let xst = trimtrailing xs in if x == ' ' && null xst then [] else x : xst
+trimtrailing (x : xs) = let xst = trimtrailing xs in if isSpace1 x && null xst then [] else x : xst
 
 split sep = splitWith (stripPrefix sep)
 

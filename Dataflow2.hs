@@ -119,7 +119,7 @@ main = do
    containerAdd mainWindow vbox
 
 
-   null1 <- newIORef $ Null False
+   null1    <- newIORef $ Null False
    term     <- newIORef $ Term null1 [300, 500] False Internal []
    box      <- newIORef $ Box  null1 [[ 800,  500], [ 900,  600]] False "" []
    boxMain  <- newIORef $ Box  null1 [[   0,    0], [1000, 1000]] False "" []
