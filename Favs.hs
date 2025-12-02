@@ -383,19 +383,28 @@ pad n str = padq (isNum str) n str
 
 padLWith1 z n list = replicate (n - length list) z ++ list
 
+padCWith1 z n list = let
+      a = n - length list
+      b = div a 2
+      c = a - b
+      in replicate b z ++ list ++ replicate c z
+
 padRWith1 z n list = list ++ replicate (n - length list) z
 
-padLWith z lists =
-      let
-            m = maximum $ map length lists
-         in
-            map (padLWith1 z m) lists
+padLWith z lists = let
+      m = maximum $ map length lists
+      
+      in map (padLWith1 z m) lists
 
-padRWith z lists =
-      let
-            m = maximum $ map length lists
-         in
-            map (padRWith1 z m) lists
+padCWith z lists = let
+      m = maximum $ map length lists
+      
+      in map (padCWith1 z m) lists
+
+padRWith z lists = let
+      m = maximum $ map length lists
+
+      in map (padRWith1 z m) lists
 
 transpose1 = transposez []
 
