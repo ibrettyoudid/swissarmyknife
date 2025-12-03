@@ -4,18 +4,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module BString where
+module BString
+(
+   module BString,
+   B.ByteString
+)
+where
 
-import Data.ByteString qualified as B
-import Data.ByteString.Lazy qualified as LB
-import Data.List qualified as L
-import Data.Text qualified as T
-import Favs qualified as F
-import Prelude hiding (String, drop, find, head, length, null, map, (++))
-import Prelude qualified as P
+import qualified Favs as F
 
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.List as L
+import qualified Data.Text as T
 import qualified Data.Char as C
+import Data.Maybe
+import System.IO
+import qualified Prelude as P
+import Prelude hiding (String, drop, find, head, tail, length, null, map, (++), splitAt)
+
 import Data.Word
+
+type LByteString = LB.ByteString
 
 class Show s => BString s where
    empty :: s
@@ -23,11 +33,15 @@ class Show s => BString s where
    (++) :: s -> s -> s
    take :: Int -> s -> s
    drop :: Int -> s -> s
+   init :: s -> s
    inits :: s -> [s]
    tails :: s -> [s]
    null :: s -> Bool
    length :: s -> Int
    intercalate :: s -> [s] -> s
+   splitAt :: Int -> s -> (s, s)
+   putStr :: s -> IO ()
+   putStrLn :: s -> IO ()
 
 class BString s => BStringC c s | s -> c where
    cons :: c -> s -> s
@@ -39,6 +53,8 @@ class BString s => BStringC c s | s -> c where
    notElem :: c -> s -> Bool
 
    smap  :: (c -> c) -> s -> s
+   takeWhile :: (c -> Bool) -> s -> s
+   dropWhile :: (c -> Bool) -> s -> s
 
    -- these are here because of the Eq class on the characters
    stripPrefix :: s -> s -> Maybe s
@@ -52,13 +68,32 @@ instance Show a => BString [a] where
    (++) = (P.++)
    take = P.take
    drop = P.drop
+   init = P.init
    inits = L.inits
    tails = L.tails
    null = P.null
    length = P.length
    intercalate = L.intercalate
 
+   splitAt = L.splitAt
 --   split = F.split
+
+instance {-# OVERLAPPING #-} BString [Char] where
+   empty = []
+   tail = P.tail
+   (++) = (P.++)
+   take = P.take
+   drop = P.drop
+   init = P.init
+   inits = L.inits
+   tails = L.tails
+   null = P.null
+   length = P.length
+   intercalate = L.intercalate
+
+   splitAt = L.splitAt
+   putStr = P.putStr
+   putStrLn = P.putStrLn
 
 instance (Eq a, Show a) => BStringC a [a] where
    cons = (:)
@@ -70,6 +105,8 @@ instance (Eq a, Show a) => BStringC a [a] where
    notElem = L.notElem
 
    smap = L.map
+   takeWhile = L.takeWhile
+   dropWhile = L.dropWhile
 
    stripPrefix = L.stripPrefix
    isPrefixOf = L.isPrefixOf
@@ -82,11 +119,15 @@ instance BString B.ByteString where
    (++) = B.append
    take = B.take
    drop = B.drop
+   init = B.init
    inits = B.inits
    tails = B.tails
    null = B.null
    length = B.length
    intercalate = B.intercalate
+   splitAt = B.splitAt
+   putStr = B.putStr
+   putStrLn = B.putStr . (++"\n")
 
 instance BStringC Word8 B.ByteString where
    cons = B.cons
@@ -98,11 +139,47 @@ instance BStringC Word8 B.ByteString where
    notElem = B.notElem
 
    smap = B.map
+   takeWhile = B.takeWhile
+   dropWhile = B.dropWhile
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
    isPrefixOf = B.isPrefixOf
    isSuffixOf = B.isSuffixOf
    isInfixOf = B.isInfixOf
+
+instance BString LB.ByteString where
+   empty = LB.empty
+   tail = LB.tail
+   (++) = LB.append
+   take n = LB.take (fromIntegral n)
+   drop n = LB.drop (fromIntegral n)
+   init = LB.init
+   inits = LB.inits
+   tails = LB.tails
+   null = LB.null
+   length = fromIntegral . LB.length
+   intercalate = LB.intercalate
+   splitAt n = LB.splitAt (fromIntegral n)
+   putStr = LB.putStr
+   putStrLn = LB.putStr . (++"\n")
+
+instance BStringC Word8 LB.ByteString where
+   cons = LB.cons
+   head = LB.head
+   last = LB.last
+   s !! n = LB.index s (fromIntegral n)
+   find = LB.find
+   elem = LB.elem
+   notElem = LB.notElem
+
+   smap = LB.map
+   takeWhile = LB.takeWhile
+   dropWhile = LB.dropWhile
+
+   stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
+   isPrefixOf = LB.isPrefixOf
+   isSuffixOf = LB.isSuffixOf
+   --isInfixOf = LB.isInfixOf
 
 instance BString T.Text where
    empty = T.empty
@@ -110,11 +187,15 @@ instance BString T.Text where
    (++) = T.append
    take = T.take
    drop = T.drop
+   init = T.init
    inits = T.inits
    tails = T.tails
    null = T.null
    length = T.length
    intercalate = T.intercalate
+   splitAt = T.splitAt
+   --putStr = T.putStr
+   --putStrLn = T.putStrLn
 
 instance BStringC Char T.Text where
    cons = T.cons
@@ -126,6 +207,8 @@ instance BStringC Char T.Text where
    notElem c s = not $ T.elem c s
 
    smap = T.map
+   takeWhile = T.takeWhile
+   dropWhile = T.dropWhile
 
    stripPrefix = T.stripPrefix
    isPrefixOf = T.isPrefixOf
@@ -141,6 +224,20 @@ split sep = splitWith (stripPrefix sep)
 split1With pred str = F.firstJustElse (str, empty) (zipWith (\a b -> (a,) <$> pred b) (inits str) (tails str))
 
 splitWith pred = L.unfoldr (\s -> F.ifJust (not $ null s) $ split1With pred s)
+
+replace :: (Eq c, Eq s, BStringC c s) => s -> s -> s -> s
+replace from to lst =
+      let 
+            l = length from
+            fif x
+               | null x = empty
+               | otherwise = let
+                  (tak, drp) = splitAt l x
+      
+                  in if tak == from
+                        then to ++ fif drp
+                        else cons (head x) (fif $ tail x)
+      in fif lst
 
 class ConvertString a b where
    convertString :: a -> b
@@ -193,9 +290,15 @@ instance ConvertChar a a where
 toLower :: (ConvertChar a Char, ConvertChar Char a) => a -> a
 toLower = convertChar . C.toLower . convertChar
 
-bytestring :: B.ByteString
-bytestring = "abra"
+filename list = drop (length list - 1 - fromMaybe (length list - 1) (B.elemIndex (convertChar '/') (B.reverse list))) list
 
-string = "hello"
+ext list = drop (length list - 1 - fromMaybe (negate 1) (B.elemIndex (convertChar '.') (B.reverse list))) list
 
-test = bytestring ++ string
+b :: B.ByteString -> B.ByteString
+b = id
+s :: P.String -> P.String
+s = id
+l :: LByteString -> LByteString
+l = id
+t :: T.Text -> T.Text
+t = id
