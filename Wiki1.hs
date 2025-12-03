@@ -11,6 +11,7 @@ import HTML
 import MHashDynamic2
 import MyPretty2
 import Table1
+import ShowTuple
 
 import Control.Monad
 import Data.Char

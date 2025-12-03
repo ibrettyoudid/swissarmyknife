@@ -6,10 +6,8 @@
 
 module Server where
 
-import Favs
-import HTML hiding (sofbs)
-
-import Prelude hiding ((/))
+import Favs hiding (split, filename, ext)
+import HTMLB hiding (sofbs)
 
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -19,23 +17,26 @@ import Network.HTTP.Client
 
 import Control.Exception
 
-import Data.ByteString qualified as B
-import Data.List
+import BString 
+import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, (/))
+import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 import Data.Char
 
-import System.IO
+import System.IO hiding (putStr, putStrLn)
 import System.Directory
 
 mypath = "/home/brett/Music"
 
-d / f = d ++ if isSuffixOf "/" d then f else "/" ++ f
+sep = "/" :: ByteString
+
+d / f = d ++ if isSuffixOf (c sep) d then f else sep ++ f
 
 app m cj req respond = bracket_
-   (B.putStr $ B.concat [rawPathInfo req, "\n"])
-   (putStrLn "Cleaning up")
+   (putStr $ concat [rawPathInfo req, "\n"])
+   (putStrLn ("Cleaning up"::ByteString))
    (do
       let 
-         fs = formatSpaces $ sofbs $ rawPathInfo req
+         fs = formatSpaces $ rawPathInfo req
          user = 
             case remoteHost req of
                SockAddrInet port ip -> 
@@ -57,19 +58,19 @@ app m cj req respond = bracket_
             let req1 = req { cookieJar = Just cj }
             resp <- httpLbs req1 m
             let body = responseBody resp
-            let html = nestParse $ soflbs body
-            respond $ responseLBS status200 [] $ formatLBS html
+            let html = nestParse $ c body
+            respond $ responseLBS status200 [] $ c $ formatLBS html
          Nothing -> do
-            isDir  <- doesDirectoryExist fs1
-            isFile <- doesFileExist      fs1
+            isDir  <- doesDirectoryExist $ c fs1
+            isFile <- doesFileExist      $ c fs1
             let type1 = mimetype fs1
             if | isDir -> do
-                  objects <- getDirectoryContents fs1
-                  let html1 = map (\n -> thumbhtml (fs1 / n) (fs / n) fs n) objects
+                  objects <- getDirectoryContents $ c fs1
+                  let html1 = map (\n -> thumbhtml (fs1 / n) (fs / n) n) $ map c objects
                   let html2 = map snd (sort (filter fst html1) ++ sort (filter (not . fst) html1))
-                  respond $ responseLBS status200 [] $ formatLBS $ html [] [grid [html2]]
+                  respond $ responseLBS status200 [] $ c $ formatLBS $ html [] [grid [html2]]
                | isFile -> do
-                  file <- readBinaryFile fs1
+                  file <- readBinaryFile $ c fs1
                   respond $ responseLBS status200 [(hContentType, type1)] file
                | True -> do
                   respond $ responseLBS status404 [] "file not found")
@@ -87,7 +88,8 @@ mimetype fs1 = let
          ""     -> "text/html"
          _      -> "text/plain"
 
-thumbhtml fs1 fs d n = let
+thumbhtml :: ByteString -> ByteString -> ByteString -> (Bool, [HTML])
+thumbhtml fs1 fs n = let
    --fs1 is the actual path
    --fs  is what we're referring to it as
    type1 = mimetype fs1
@@ -108,7 +110,7 @@ imagelink url = [link (parseSpaces url) [EmptyTag "image" [("src", parseSpaces u
 
 readBinaryFile f = do
    h <- openBinaryFile f ReadMode
-   lbsofs <$> hGetContents h
+   c <$> hGetContents h
 
 main = do
    m <- nm

@@ -15,7 +15,7 @@
 module ID3 where
 
 import ApplyTuple
-import BString
+import BString hiding (putStrLn)
 import Favs hiding (range, split, split1With, splitWith)
 import MHashDynamic2 hiding (Frame, name, tl, (!), (==))
 import MyPretty2
@@ -40,8 +40,8 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
-import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
-import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
+import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++), splitAt)
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), splitAt)
 
 -- import Data.Algorithm.Diff
 import Data.Array.IArray hiding (range)

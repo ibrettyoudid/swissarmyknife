@@ -1,78 +1,166 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE LexicalNegation #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE LambdaCase #-}
+{- HLINT ignore "Eta reduce" -}
 
-module Tree2 where
+module Tree where
 
-import Favs
+import Favs hiding (split, left, right)
+
+import Prelude hiding (span, lookup, null, lookup)
 
 import qualified Data.List as L
 import qualified Data.Bits as B
 import qualified Data.IntMap as I
 
+import Control.DeepSeq
+
+import GHC.Generics
+
+import Debug.Trace
+
 -- By making all the keys relative to where they are in the tree, we can shift parts of the tree around very fast
 
 --data Tree k v = Node k Int (Tree k v) (Tree k v) | Leaf k v
-data Tree v = Node { key::Int, left::Tree v, right::Tree v } | Leaf { key::Int, val::v } | Empty
+data Tree v = Node { key::Int, mi::Int, mx::Int, left::Tree v, right::Tree v } | Leaf { key::Int, val::v } | Empty deriving (Generic)
+
+instance NFData v => NFData (Tree v)
 
 instance Show v => Show (Tree v) where
-   show = showTree
+   show = unlines . showTree1
 
-instance Eq (Tree v) where
-   Leaf a _ == Leaf b _ = a == b
+instance Eq v => Eq (Tree v) where
+   a == b = toList a == toList b
 
-instance Ord (Tree v) where
-   compare (Leaf a _) (Leaf b _) = compare a b
+instance Ord v => Ord (Tree v) where
+   compare a b = compare (toList a) (toList b)
 
-showTree t = show $ toList t
-
-showTree1 t = showTree2 0 t
-
-showTree2 k1 (Leaf k v) = ["Leaf "++show (k+k1)++" "++show v]
-showTree2 k1 (Node k l r) = let
-   s1 = "Node "++show (k+k1)
-   pad = L.map (replicate (length s1 + 1) ' '++)
-   in pad (showTree2 k1 l) ++ [s1] ++ pad (showTree2 (k+k1) r)
-showTree2 k1 Empty = ["Empty"]
-
-lookup k1 (Node k l r) | k1 <  k   = Tree.lookup k1 l
-                        | otherwise = Tree.lookup (k1-k) r
+lookup k1 (Node k l r)  | k1 <  k   = lookup k1 l
+                        | otherwise = lookup (k1-k) r
 lookup k1 (Leaf k v) | k1 == k   = Just v
                      | otherwise = Nothing 
 lookup k1 Empty = Nothing
 
-lookupMin (Node _ l _) = lookupMin l
+lookupMin (Node k l r) = 
+   case lookupMin l of
+      Just  j -> Just j
+      Nothing -> 
+         case lookupMin r of
+            Just (k1, v) -> Just (k+k1, v)
+            Nothing      -> Nothing
 lookupMin (Leaf k v) = Just (k, v)
 lookupMin Empty = Nothing
 
-lookupMax (Node k _ r) = do (k1, v) <- lookupMax r; return (k+k1, v)
+lookupMax (Node k l r) =
+   case lookupMax r of
+      Just (k1, v) -> Just (k+k1, v)
+      Nothing      -> 
+         case lookupMax l of
+            Just (k1, v) -> Just (k1, v)
+            Nothing      -> Nothing
 lookupMax (Leaf k v) = Just (k, v)
 lookupMax Empty = Nothing
 
-(!) = flip Tree.lookup
+(!) = flip lookup
 
+insert k1 v1 n@(Node k l r)
+   | k1 < k    = if k1 < ka && k > ka
+                     then Node ka (Leaf k1 v1) (shift (-ka) n)
+                     else Node k (insert k1 v1 l) r
+   | k1 >= k2  = Node k1a n (Leaf (k1-k1a) v1)
+   | otherwise = Node k l (insert (k1-k) v1 r)
+      where
+         k2  = k * 2
+         ka  = power2 k
+         k1a = power2 k1
+
+{-
 insert k v n@(Node k1 l r)
-   | k < k1    = Node k1 (insert k v l) r
+   | k < k1    = if k1 > k4 && k < k4
+                     then Node k4 (Leaf k v) (shift (-k4) n)
+                     else Node k1 (insert k v l) r
    | k >= k2   = Node k3 n (Leaf (k-k3) v)
    | otherwise = Node k1 l (insert (k-k1) v r)
       where
          k2 = k1 * 2
-         k3 = nextKey k
-
-insert k v l@(Leaf k1 v1) = let
+         k3 = power2 k
+         k4 = power2 k1
+-}
+insert k1 v1 l@(Leaf k v) = let
    k2 = nextKey2 k k1
 
-   in case compare k k1 of
-         LT -> Node k2 (Leaf k v) (Leaf (k1-k2) v1)
-         GT -> Node k2 l          (Leaf ( k-k2) v )
-         EQ -> Leaf k v
+   in if k >= k2 && k1 >= k2 
+         then
+            Node k2 Empty (insert (k1-k2) v1 (Leaf (k-k2) v))
+         else
+            case compare k1 k of
+               LT -> Node k2 (Leaf k1 v1) (Leaf ( k-k2) v )
+               GT -> Node k2 l            (Leaf (k1-k2) v1)
+               EQ -> Leaf k1 v1
 
-insert k v Empty = Leaf k v
+insert k1 v1 Empty = Leaf k1 v1
 
+insertTree Empty n     = n
+insertTree i     Empty = i
+insertTree i     n     = 
+   case lookupMin i of
+      Nothing        -> n
+      Just (imin, _) -> 
+         case lookupMax i of
+            Nothing        -> n
+            Just (imax, _) -> 
+               case lookupMin n of
+                  Nothing        -> i
+                  Just (nmin, _) ->
+                     case lookupMax n of
+                        Nothing        -> i
+                        Just (nmax, _) -> 
+                           insertTree1 (i, imin, imax) (n, nmin, nmax)
+      
+insertTree1 i@(it, imin, imax) n@(nt@(Node k l r), nmin, nmax) =
+   trace (mcat [["insertTree1"], showTree1 it, ["+"], showTree1 nt]) $
+      case (imin < k, imax < k) of
+         (True, False) -> let
+            ik = rotate k it
+            il = left  ik
+            ir = right ik
+            lmax = fst $ fromJust $ lookupMax il
+            rmin = fst $ fromJust $ lookupMin ir
+            in if | null l && null r -> it
+                  | null l -> insertTree1 (ir, rmin, imax) r 
+                  | null r -> insertTree1 (il, imin, lmax) l
+                  | otherwise  -> Node k (insertTree1 (il, imin, lmax) l) (insertTree1 (ir, rmin, imax) r)
+
+         (True , True ) -> Node k (insertTree it l) r
+         (False, False) -> if imax > k2
+            then insertTree it (Node k2 n Empty)
+            else Node k l (insertTree (shift -k it) r)
+         (False, True ) -> error "imin greater than imax"
+      where
+         k2  = k * 2
+         {-
+      | imin < k && 
+   | ki < k    = if ki < ka && k > ka
+                     then Node ka i (shift (-ka) n)
+                     else Node k (insertTree i l) r
+   | ki >= k2  = Node kia n (shift -kia i)
+   | otherwise = Node k l (insertTree (shift -k i) r)
+         ka  = power2 k
+         ki  = key i
+         kia = power2 ki
+-}
+insertTree1 i@(it, _, _) n@(Leaf k v) =
+   case lookup k it of
+      Just  j -> it -- its in i as well, don't overwrite it with the old one
+      Nothing -> insert k v it
+
+insertTree1 i@(it, _, _) Empty = it
 
 log2 k = ceiling $ logBase 2 $ fromIntegral k
 
-nextKey k = B.shift 1 $ msbit k
+power2 k = B.shift 1 $ msbit k
 
 nextKey2 k k1 = let
    k2 = k `B.xor` k1
@@ -99,28 +187,150 @@ untree t = fromList $ combine (:) [] $ concatMap toList t
 
 unzip t = (Tree.map fst t, Tree.map snd t)
 
-snoc e t = insert (snd $ Tree.span t) e t
+snoc e t = insert (fst $ fromJust $ lookupMax t) e t
 
 --treezip (Node k l r) = Node k (treezip f l) (treezip f r)
 --treezip (Leaf 
 
 slice from to (Node k l r) = let
-   l1 = if from <= k then slice from to l         else Empty
+   l1 = if from <  k then slice  from     to    l else Empty
    r1 = if to   >= k then slice (from-k) (to-k) r else Empty
 
    in case (l1, r1) of
       (Empty, Empty) -> Empty
       (l1   , Empty) -> l1
-      (Empty, r1   ) -> r1
-      (l1   , r1   ) -> Node (k-from) l1 r1
+      (Empty, r1   ) -> shift k r1
+      (l1   , r1   ) -> Node k l1 r1
 
 slice from to leaf@(Leaf k v)
-   | from <= k && to >= k = Leaf (k-from) v
+   | from <= k && to >= k = Leaf k v
    | otherwise            = Empty
 
-union n t = L.foldr (uncurry insert) t $ toList n
+converge a@(Node ka la ra) b@(Node kb lb rb)
+   | ka <  kb = converge a lb ++ converge ra b
+   | ka == kb = [(a, b)]
+   | ka >  kb = converge a rb ++ converge la b
+
+converge a@(Leaf ka va) b@(Leaf kb vb)
+   | ka == kb  = [(a, b)]
+   | otherwise = []
+
+rotate at (Node k l r) 
+   | at < k = case rotate at l of
+{-
+each node gets shifted by 
+the right sides it was on - the right sides its now on
+watch out for ancestors being shifted
+at == m < k
+
+         k              at
+        / \            / \
+       m   r   =>     ll  k
+      / \                / \
+     ll rl              rl  r
+
+     must have k2 >= at && k2 >= m && k2 <= k
+
+-}
+                  Node m ll rl -> Node at ll (Node (k-at) rl r)
+{-
+at == m < k
+
+         k              at
+        / \            / \
+       m   r   =>  Empty  k
+                         / \
+                        m   r
+
+                        k2 >= at && k2 >= m && k2 <= k
+-}
+                  Leaf m v     -> Node at Empty (Node (k-at) (Leaf (m-at) v) r)
+
+   | at == k = Node k l r
+   | k < at = case rotate (at-k) r of
+{-
+at == m > k
+
+         k              at
+        / \            / \
+       l   m    =>    k   rr
+          / \        / \
+        lr   rr     l   lr
+
+        k2 >= k && k2 < at
+-}
+                  Node m lr rr -> Node at (Node k l lr) rr
+{-
+at == m > k
+
+         k              at
+        / \            / \
+       l   m    =>    k   Empty
+                     / \
+                    l   m 
+
+           k2 >= m && k2 < at
+-}
+                  Leaf m v     -> Node at (Node k l (Leaf m v)) Empty
+
+rotate at lf@(Leaf k v)
+   | at <= k = Node at Empty (Leaf (k-at) v)
+   -- | at == k = lf
+   | at >  k = Node at lf Empty
+{-
+>>> rotate 16 $ fromList [(15,15), (4,4)]
+               Leaf 4 4
+        Node 8
+               Leaf 15 15
+Node 16
+        Empty
+
+-}
+union n t = fromAscList $ merge (toList n) (toList t)
+
+merge a               [             ] = a
+merge [             ] b               = b
+merge a@((ka, va):la) b@((kb, vb):lb) 
+   | ka <  kb = (ka, va):merge la  b
+   | ka == kb = (ka, va):merge la lb
+   | ka >  kb = (kb, vb):merge  a lb
+
+union1 n t = L.foldr (uncurry insert) t $ toList n
+
+union2 a b = let
+   (amin, amax) = span a
+   (bmin, bmax) = span b
+   in 0
+
+union2a (amin, amax, a) (bmin, bmax, b) = let
+   omin = min amin bmin
+   imin = max amin bmin
+   imax = min amax bmax
+   omax = max amax bmax
+   ak = key a
+   bk = key b
+   l = if amin < bmin
+         then rotate bmin a
+         else rotate amin b
+   r = if amax > bmax
+         then rotate bmax a
+         else rotate amax b
+   rl = right l
+   lr = left  r
+   i  = union rl lr
+   in insertTree i $ insertTree (left l) (right r)
 
 unionWithShift s n t = L.foldr (uncurry insert) t $ toList $ shift s n
+
+union3 (Node kn ln rn) (Node k l r)
+   | kn < k = Node k (Node kn (union3 ln (slice 0 (kn-1) l)) (union3 (slice 0 (k-1) rn) (shift -kn $ slice kn 1000000000 l))) (union (shift (k-kn) $ slice k 1000000000 rn) r)
+
+imin = -9223372036854775808
+imax = 9223372036854775807
+
+
+--union3 fn bn (Node kn ln rn) f b (Node k l r)
+
 {-
 alter f k (Node k1 l r)
    | k < k1    = case alter f k l of
@@ -145,7 +355,8 @@ alter f k leaf@(Leaf k1 v1) = let
             Nothing -> Empty
 -}
 shift n (Node k l r) = Node (k+n) (shift n l) r
-shift n (Leaf k v) = Leaf (k+n) v
+shift n (Leaf k v  ) = Leaf (k+n) v
+shift n  Empty       = Empty
 
 append k Empty Empty = Empty
 append k l     Empty = l    
@@ -159,8 +370,7 @@ count (Node _ l r) = count l + count r
 count (Leaf _ _) = 1
 count Empty = 0
 
-span (Node k l r) = (fst $ Tree.span l, (k+) $ snd $ Tree.span r)
-span (Leaf k _) = (k, k)
+span n = (fst $ fromJust $ lookupMin n, fst $ fromJust $ lookupMax n)
 
 toList = L.map leafToPair . toList1 0
 
@@ -174,18 +384,63 @@ leafToPair (Leaf k v) = (k, v)
 pairToLeaf (k, v) = Leaf k v
 
 --fromList t = balance3 0 $ L.sort $ L.map pairToLeaf t
-fromList = fromList1
+fromList6 :: [(Int, b)] -> Tree b
+fromList6 = fromList7
 
-fromList1 t = L.foldl (flip $ uncurry insert) Empty t
+fromList7 l = L.foldl (flip $ uncurry insert) Empty l
+
+fromAscList is = fromList1 (length is) is
+
+fromList is = fromList1 (length is) (L.sortOn fst is)
+
+fromList1 :: Int -> [(Int, v)] -> Tree v
+fromList1 m
+   | m == 0    = const Empty
+   | m == 1    = \[(k, v)] -> Leaf k v
+   | otherwise = \i  -> let
+               n        = m `div` 2
+               (il, ir) = splitAt n i
+               l        = fromList1      n  il
+               r        = fromList1 (m - n) ir
+               lm       = fst $ fromJust $ lookupMax l
+               rm       = fst $ fromJust $ lookupMin r
+               k        = nextKey2 lm rm
+               in Node k l (shift -k r)
+
+
 
 fromElems :: (Show v) => [v] -> Tree v
-fromElems = fromList . zip [0..]
-
-fromElems1 = fromList1 . zip [0..]
+fromElems = fromAscList . zip [0..]
 
 singleton :: (Show v) => v -> Tree v
 singleton = fromElems . L.singleton
 
+empty = Empty
+
+null Empty = True
+null (Node _ l r) = null l && null r
+null (Leaf _ _) = False
+
+showTree t = show $ toList t
+
+showTree1 t = showTree2 0 t
+
+showTree2 k1 (Leaf k v) = ["Leaf "++show (k+k1)++" "++show v]
+showTree2 k1 (Node k l r) = let
+   s1 = "Node "++show (k+k1)
+   pad = L.map (replicate (length s1 + 1) ' '++)
+   in pad (showTree2 k1 l) ++ [s1] ++ pad (showTree2 (k+k1) r)
+showTree2 k1 Empty = ["Empty"]
+
+mapp a b = let
+   n = max (length a) (length b)
+   in zipWith3 (\a b c -> a ++ b ++ c) 
+         (padRWith ' ' (padCWith1 "" n a))
+                       (padRWith1 "  " n [])
+         (padRWith ' ' (padCWith1 "" n b))
+
+mcat xs = unlines $ replicate 80 '-' : L.foldr mapp [] xs
+{-
 balance tree = balance3 0 $ toList1 0 tree
 
 balance1 sub [Leaf k v] = Leaf (k-sub) v
@@ -216,32 +471,35 @@ balance3 sub leaves = let
    rr = balance3 m r
 
    in Node (m - sub) lr rr
-t = fromList $ zip [0..] "hello there"
+-}
+t x = fromList $ zip x x
 
 {-
->>> toList $ slice 4 8 t
-[(0,'o'),(1,' '),(2,'t'),(3,'h'),(4,'e')]
+>>> insertTree (t [0..9]) (t [20..29])
+Maybe.fromJust: Nothing
 
->>> t
-                     Leaf 0 'h'
-               Node 1
-                     Leaf 0 'e'
-      Node 2
-                     Leaf 0 'l'
-               Node 1
-                           Leaf 0 'l'
-                     Node 1
-                           Leaf 0 'o'
+
+
+
+                     Leaf 1 'h'
+               Node 2
+                           Leaf 2 'e'
+                     Node 3
+                           Leaf 3 'l'
+      Node 4
+                           Leaf 4 'l'
 Node 5
-                     Leaf 0 ' '
-               Node 1
-                           Leaf 0 't'
-                     Node 1
-                           Leaf 0 'h'
-      Node 3
-                     Leaf 0 'e'
-               Node 1
-                           Leaf 0 'r'
-                     Node 1
-                           Leaf 0 'e'
+               Leaf 5 'o'
+      Node 6
+                     Leaf 6 ' '
+               Node 7
+                     Leaf 7 't'
+   Node 8
+                     Leaf 8 'h'
+               Node 9
+                     Leaf 9 'e'
+      Node 10
+                        Leaf 10 'r'
+               Node 11
+                        Leaf 11 'e'
 -}

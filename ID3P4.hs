@@ -15,7 +15,7 @@
 module ID3P4 where
 
 import ApplyTuple
-import BString
+import BString hiding (putStr, putStrLn)
 import Favs hiding (range, split, split1With, splitWith)
 import Iso hiding (cons, iterate, foldl, foldr, (!!))
 import qualified Iso as I
@@ -44,9 +44,9 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
-import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
+import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++), splitAt)
 import Data.List qualified
-import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), (/))
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), (/), splitAt)
 import qualified Prelude
 
 -- import Data.Algorithm.Diff
@@ -485,7 +485,7 @@ differences1 strs delims =
       in
       case diffcheck tran 0 of
          Nothing -> filter (not . all (== "")) tran
-         Just n -> let (a, b : bs) = splitAt (n + 1) delims in differences1 strs (a ++ bs)
+         Just n -> let { (a, b1) = splitAt (n + 1) delims; bs = tail b1 } in differences1 strs (a ++ bs)
 
 diffcheck (c1 : c2 : cs) n =
    case M.toList $ counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of

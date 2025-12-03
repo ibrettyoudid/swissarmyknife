@@ -9,6 +9,11 @@
 
 module HTML where
 
+import Favs
+import MyPretty2
+import NumberParsers
+import ShowTuple
+
 import Control.Monad
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as LB
@@ -25,14 +30,11 @@ import Data.Set qualified as S
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Types
+import Network.URI
 import System.Directory
 
 -- import Data.Attoparsec.ByteString
 
-import Favs
-import MyPretty2
-import Network.URI
-import NumberParsers
 import Text.Parsec
 import Text.Parsec.Combinator
 
@@ -540,7 +542,20 @@ formatAttribs a = concatMap formatAttrib a
 
 ph = putStrLn . formatH 1
 
-formatLBS = lbsofs . formatH 1
+--formatLBS = lbsofs . formatH 1
+formatLBS width (EndTag typ) = "[/" ++ typ ++ "]"
+formatLBS width (EmptyTag typ attribs) = "<" ++ typ ++ formatAttribs attribs ++ "/>\n"
+formatLBS width (Text text) = trim $ squash text
+formatLBS width (Tag typ attribs terms) =
+   let
+      open = "<" ++ typ ++ formatAttribs attribs ++ ">"
+      close = "</" ++ typ ++ ">"
+      fterms = map (formatH (width - indentStep)) terms
+      res = open ++ concat fterms ++ close
+      in
+      if length res <= width
+         then res
+         else open ++ "\n" ++ (indent indentStep $ intercalate "\n" $ fterms) ++ "\n" ++ close
 
 formatH width (EndTag typ) = "[/" ++ typ ++ "]"
 formatH width (EmptyTag typ attribs) = "<" ++ typ ++ formatAttribs attribs ++ "/>\n"
@@ -857,29 +872,6 @@ imdb1 m = cGrid $ subTag $ subTag $ findId "main" $ getNested m "http://www.imdL
 lucas
 bendix
 -}
-
-class ShowTuple a where
-   showT :: a -> [String]
-
-instance (Show a, Show b) => ShowTuple (a, b) where showT (a, b) = [show a, show b]
-instance (Show a, Show b, Show c) => ShowTuple (a, b, c) where showT (a, b, c) = [show a, show b, show c]
-instance (Show a, Show b, Show c, Show d) => ShowTuple (a, b, c, d) where showT (a, b, c, d) = [show a, show b, show c, show d]
-instance (Show a, Show b, Show c, Show d, Show e) => ShowTuple (a, b, c, d, e) where showT (a, b, c, d, e) = [show a, show b, show c, show d, show e]
-instance (Show a, Show b, Show c, Show d, Show e, Show f) => ShowTuple (a, b, c, d, e, f) where showT (a, b, c, d, e, f) = [show a, show b, show c, show d, show e, show f]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g) => ShowTuple (a, b, c, d, e, f, g) where showT (a, b, c, d, e, f, g) = [show a, show b, show c, show d, show e, show f, show g]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h) => ShowTuple (a, b, c, d, e, f, g, h) where showT (a, b, c, d, e, f, g, h) = [show a, show b, show c, show d, show e, show f, show g, show h]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i) => ShowTuple (a, b, c, d, e, f, g, h, i) where showT (a, b, c, d, e, f, g, h, i) = [show a, show b, show c, show d, show e, show f, show g, show h, show i]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => ShowTuple (a, b, c, d, e, f, g, h, i, j) where showT (a, b, c, d, e, f, g, h, i, j) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk) where showT (a, b, c, d, e, f, g, h, i, j, kk) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l) where showT (a, b, c, d, e, f, g, h, i, j, kk, l) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n, Show o) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n, show o]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n, Show o, Show p) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n, show o, show p]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n, Show o, Show p, Show q) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n, show o, show p, show q]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n, Show o, Show p, Show q, Show r) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n, show o, show p, show q, show r]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n, Show o, Show p, Show q, Show r, Show s) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r, s) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r, s) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n, show o, show p, show q, show r, show s]
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show kk, Show l, Show m, Show n, Show o, Show p, Show q, Show r, Show s, Show t) => ShowTuple (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r, s, t) where showT (a, b, c, d, e, f, g, h, i, j, kk, l, m, n, o, p, q, r, s, t) = [show a, show b, show c, show d, show e, show f, show g, show h, show i, show j, show kk, show l, show m, show n, show o, show p, show q, show r, show s, show t]
 
 type Blah = [(Integer, String)]
 

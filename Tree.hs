@@ -3,6 +3,7 @@
 {-# LANGUAGE LexicalNegation #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE LambdaCase #-}
+{- HLINT ignore "Redundant multi-way if" -}
 {- HLINT ignore "Eta reduce" -}
 
 module Tree where
@@ -102,53 +103,57 @@ insert k1 v1 l@(Leaf k v) = let
 
 insert k1 v1 Empty = Leaf k1 v1
 
-insertTree Empty n = n
-insertTree i     n = 
+insertTree Empty n     = n
+insertTree i     Empty = i
+insertTree i     n     = 
    case lookupMin i of
       Nothing        -> n
       Just (imin, _) -> 
          case lookupMax i of
             Nothing        -> n
-            Just (imax, _) -> insertTree1 (i, imin, imax) n
-      
-insertTree1 i@(it, imin, imax) n@(Node k l r) =
-   trace (mcat [["insertTree1"], showTree1 it, ["+"], showTree1 n]) $
-      case (imin < k, imax < k) of
-         (True, False) -> let
-            ik = rotate k it
-            il = left  ik
-            ir = right ik
-            lmax = fst $ fromJust $ lookupMax il
-            rmin = fst $ fromJust $ lookupMin ir
-            in if | null l && null r -> it
-                  | null l -> insertTree1 (ir, rmin, imax) r 
-                  | null r -> insertTree1 (il, imin, lmax) l
-                  | otherwise  -> Node k (insertTree1 (il, imin, lmax) l) (insertTree1 (ir, rmin, imax) r)
+            Just (imax, _) -> 
+               case lookupMin n of
+                  Nothing        -> i
+                  Just (nmin, _) ->
+                     case lookupMax n of
+                        Nothing        -> i
+                        Just (nmax, _) -> 
+                           insertTree1 (i, imin, imax) (n, nmin, nmax)
 
-         (True , True ) -> Node k (insertTree1 i l) r
-         (False, False) -> if imax > k2
-            then insertTree1 i (Node k2 n Empty)
-            else Node k l (insertTree1 (shift -k it, imin-k, imax-k) r)
-         (False, True ) -> error "imin greater than imax"
-      where
-         k2  = k * 2
-         {-
-      | imin < k && 
-   | ki < k    = if ki < ka && k > ka
-                     then Node ka i (shift (-ka) n)
-                     else Node k (insertTree i l) r
-   | ki >= k2  = Node kia n (shift -kia i)
-   | otherwise = Node k l (insertTree (shift -k i) r)
-         ka  = power2 k
-         ki  = key i
-         kia = power2 ki
--}
-insertTree1 i@(it, _, _) n@(Leaf k v) =
+      
+insertTree1 i@(it, imin, imax) n@(nt@(Node k l r), nmin, nmax) = let
+   k2  = k * 2
+   res = 
+      if -- | imax * 2 < nmin -> insertTree it (Node k3 Empty (shift -k3 nt))
+         | imax < nmin -> if
+            | k - nmin > imax - imin -> Node k (insertTree it l) r
+            | otherwise -> let k3 = nextKey2 imax nmin
+                           in Node k3 it (shift -k3 nt)
+         | nmax < imin -> if
+            | imax < k2 -> Node k l (insertTree (shift -k it) r)
+            | otherwise -> let k3 = nextKey2 nmax imin
+                           in Node k3 nt (shift -k3 it)
+         | imin >= k -> if
+            | imax < k  -> error "imin greater than imax"
+            | otherwise -> if
+               | imax > k2 -> insertTree it (Node k2 nt Empty)
+               | otherwise -> Node k l (insertTree (shift -k it) r)
+         | otherwise -> if
+            | imax < k -> Node k (insertTree it l) r
+            | otherwise -> let
+               ik = rotate k it
+               il = left  ik
+               ir = right ik
+               in Node k (insertTree il l) (insertTree ir r)
+   in res
+   --in trace (mcat [["insertTree1"], showTree1 it, ["+"], showTree1 nt, ["="], showTree1 res]) res
+
+insertTree1 i@(it, _, _) n@(nt@(Leaf k v), nmin, nmax) =
    case lookup k it of
       Just  j -> it -- its in i as well, don't overwrite it with the old one
       Nothing -> insert k v it
 
-insertTree1 i@(it, _, _) Empty = it
+insertTree1 i@(it, _, _) n@(Empty, nmin, nmax) = it
 
 log2 k = ceiling $ logBase 2 $ fromIntegral k
 
@@ -350,11 +355,13 @@ shift n (Node k l r) = Node (k+n) (shift n l) r
 shift n (Leaf k v  ) = Leaf (k+n) v
 shift n  Empty       = Empty
 
+append k l r = insertTree (shift k r) l
+{-
 append k Empty Empty = Empty
 append k l     Empty = l    
 append k Empty r     = shift k r    
 append k l     r     = Node k l r
-
+-}
 size (Node k _ r) = k + size r
 size (Leaf k _) = k + 1
 
@@ -432,38 +439,45 @@ mapp a b = let
          (padRWith ' ' (padCWith1 "" n b))
 
 mcat xs = unlines $ replicate 80 '-' : L.foldr mapp [] xs
+
+rebalance t = fromJust $ do
+   tmin <- fst <$> lookupMin t
+   tmax <- fst <$> lookupMax t
+   let 
+      tdiff    = tmax - tmin
+      levels   = msbit (tmax - tmin)
+      find     = div (tmin + tmax) 2
+      newroot  = findNearest find $ top (div levels 2) t
+      res      = rotate newroot t
+   return $ trace ("tmin="++show tmin++" tmax="++show tmax++" tmax-tmin="++show tdiff++" levels="++show levels++" find="++show find++" nearest="++show newroot) res
+
 {-
-balance tree = balance3 0 $ toList1 0 tree
-
-balance1 sub [Leaf k v] = Leaf (k-sub) v
-balance1 sub leaves = let
-   k1 = L.map key leaves
-   m  = round (fromIntegral (sum k1) / fromIntegral (length leaves)+0.4 :: Double) :: Int
-   (l, r) = L.partition (\lf -> key lf < m) leaves
-
-   lr = balance1 sub l
-   rr = balance1 m r
-   in if null l || null r then error ("empty list leaves="++show leaves) else Node (m-sub) lr rr
-
-balance2 leaves = let
-   k = L.map fst leaves
-   m = sum k `div` length leaves
-   (l, r) = L.partition (\lf -> fst lf <= m) leaves
-
-   lr = balance2 l
-   rr = balance2 r
-   in Node (size lr) lr rr
-
-balance3 sub [Leaf k v] = Leaf (k - sub) v
-balance3 sub leaves = let
-   len = length leaves
-   (l, r) = splitAt (div len 2) leaves
-   m = key $ head r
-   lr = balance3 sub l
-   rr = balance3 m r
-
-   in Node (m - sub) lr rr
+findNearest x (Node k l r) 
+   | k <  x = findNearest (x-k) r
+   | k == x = let
+      l1 = findNearest (x-k) r
+      r1 = findNearest x l
+      in if abs (l1 - x) < abs (r1 - x) then l1 else r1
+   | k >  x = findNearest x l
 -}
+
+nearestTo x a b = if abs (x - a) < abs (x - b) then a else b
+
+findNearest x (Node k l r) = let
+      l1 = findNearest x l
+      r1 = findNearest (x-k) r + k
+      res = nearestTo x k $ nearestTo x l1 r1 
+      in trace ("findNearest x="++show x++" k="++show k++" l1="++show l1++" r1="++show r1++" result="++show res) res
+
+findNearest x (Leaf k v) = k
+
+findNearest x Empty = imin
+
+top 0      n            = Empty
+top levels (Node k l r) = Node k (top (levels-1) l) (top (levels-1) r)
+top levels (Leaf k v)   = Leaf k v
+
+
 t x = fromList $ zip x x
 
 {-

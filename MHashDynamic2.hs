@@ -27,21 +27,22 @@ where
 import MyPretty2
 import Favs
 import Numeric
-import HTTPTypes qualified
 import NewTuple
+import qualified HTTPTypes
+import qualified NumberParsers as NP
 
 import Parser3 hiding (Apply)
 import Iso hiding (foldl, foldr, right, (!!))
 
 import Data.List
-import Data.Map.Lazy qualified as M
-import Data.Set qualified as S
+import qualified Data.Map.Lazy as M
+import qualified Data.Set as S
 
 import Data.IORef
 import Data.Time.Calendar
-import Data.Array qualified as A
+import qualified Data.Array as A
 
-import Data.Dynamic qualified as D
+import qualified Data.Dynamic as D
 import Data.Typeable
 
 import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
@@ -473,27 +474,31 @@ crd = realToFrac :: Double -> Rational
 convertm =
    createMultimethod2
       "convert"
-      ([ toDyn cie
-      , toDyn cei
-      , toDyn cde
-      , toDyn ced
-      , toDyn cdf
-      , toDyn cfd
-      , toDyn cdr
-      , toDyn crd
-      , toDyn (cfd . cde)
-      , toDyn (ced . cdf)
-      , toDyn (fromIntegral :: Integer -> Rational)
-      , toDyn (round :: Rational -> Integer)
-      , toDyn (fromIntegral :: Int -> Double)
-      , toDyn (round :: Double -> Int)
-      , toDyn (realToFrac :: Double -> Rational)
-      , toDyn (realToFrac :: Rational -> Double)
-      , toDyn (readNum :: String -> Double)
-      , toDyn (realToFrac :: Int -> Rational)
-      ] ++ showl)
+        ([ toDyn cie
+         , toDyn cei
+         , toDyn cde
+         , toDyn ced
+         , toDyn cdf
+         , toDyn cfd
+         , toDyn cdr
+         , toDyn crd
+         , toDyn (cfd . cde)
+         , toDyn (ced . cdf)
+         , toDyn (fromIntegral :: Integer -> Rational)
+         , toDyn (round :: Rational -> Integer)
+         , toDyn (fromIntegral :: Int -> Double)
+         , toDyn (round :: Double -> Int)
+         , toDyn (realToFrac :: Double -> Rational)
+         , toDyn (realToFrac :: Rational -> Double)
+         , toDyn (readNum2 :: String -> Double)
+         , toDyn (realToFrac :: Int -> Rational)
+         ] ++ showl)
 
 --readRational s = try $ evaluate $ read s
+readNum2 str = case NP.parse NP.floating "convert String -> Double" str of
+   Left  l -> 0
+   Right r -> r
+
 
 showAny :: (Typeable a) => a -> String
 showAny = showDyn . toDyn
@@ -704,11 +709,13 @@ showl =
    , toDyn (show :: Person -> String)
    , toDyn (show :: Field -> String)
    , toDyn (show :: TC -> String)
-   , toDyn (show :: Day -> String)
+   , toDyn (showDate)
    , toDyn (show :: Expr -> String)
    , toDyn (show :: Closure -> String)
    , toDyn (fromJust . fp expr)
    ]
+
+showDate (YearMonthDay y m d) = pad0 2 (show d) ++ "/" ++ pad0 2 (show m) ++ "/" ++ show y
 
 lexer = num <|> oplex <|> var <|> charlit <|> strlit
 

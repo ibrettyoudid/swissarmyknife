@@ -1,34 +1,30 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FlexibleContexts #-}
 
-module NumberParsers
+module NumberParsersB
 (
-         module NumberParsers,
-         (<|>),
-         try,
-         parse
+   module NumberParsersB,
+   
+   try,
+   parse
 )
 where
 
 import Favs
+import Atto
 
-import Text.Parsec.Prim
-import Text.Parsec.Char
-import Text.Parsec.String
-import Text.Parsec.Combinator
-import Control.Applicative ((<$>))
+import Data.Attoparsec.ByteString
+import Control.Applicative ((<$>), (<|>))
 import Control.Monad
-import Data.Char (digitToInt)
 
 --type Blah c = Stream s m c => ParsecT s u m c
-parse1 p filename txt = case parse p filename txt of
-         Left l -> error $ show l
-         Right r -> r
+parse1 p txt = case parseOnly p txt of
+   Left msg -> error msg
+   Right r  -> r
 
 
 --only succeed if it can't be an integer
-forceFloating :: Stream s m Char => ParsecT s u m Double
-forceFloating = do 
+forceFloatingC = do 
    s <- sign
    n <- decimal digitOrComma
    fract <- option Nothing (Just <$> fraction)
@@ -36,7 +32,6 @@ forceFloating = do
    guard (isJust fract || isJust expo)
    return (s (fromInteger n + fromMaybe 0.0 fract) * fromMaybe 1.0 expo)
 
-floating :: Stream s m Char => ParsecT s u m Double
 floating = do 
    s <- sign
    n <- decimal digit
@@ -44,7 +39,6 @@ floating = do
    expo  <- option 1.0 exponent'
    return (s (fromInteger n + fract) * expo)
 
-floatingC :: Stream s m Char => ParsecT s u m Double
 floatingC = do 
    s <- sign
    n <- decimal digitOrComma
@@ -53,7 +47,6 @@ floatingC = do
    return (s (fromInteger n + fract) * expo)
 
 -- decimal point, fractional part
-fraction :: Stream s m Char => ParsecT s u m Double
 fraction = do 
    char '.'
    digits <- many1 digit <?> "fraction"
@@ -63,7 +56,6 @@ fraction = do
       where
             op d f = (f + fromIntegral (digitToInt d))/10.0
 
-exponent' :: Stream s m Char => ParsecT s u m Double
 exponent' = do 
    oneOf "eE"
    s <- sign
@@ -77,52 +69,61 @@ exponent' = do
 
 
 -- integers and naturals
-integer :: Stream s m Char => ParsecT s u m Integer
 integer = do 
    f <- sign
    f <$> nat digit
 
-integerC :: Stream s m Char => ParsecT s u m Integer
 integerC = do 
    f <- sign
    f <$> nat digitOrComma
 
-sign :: (Stream s m Char, Num n) => ParsecT s u m (n -> n)
+int :: Parser Int
+int = fromIntegral <$> integer
+
+intC :: Parser Int
+intC = fromIntegral <$> integerC
+
+sign :: Num a => Parser (a -> a)
 sign =
    (char '-' >> return negate)
    <|>      (char '+' >> return id)
    <|>      return id
 
-nat :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
 nat digitType = zeroNumber digitType <|> decimal digitType
 
-zeroNumber :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
 zeroNumber digitType = do 
    char '0'
    hexadecimal <|> octal <|> decimal digit <|> return 0
       <?> ""
 
-decimal :: Stream s m Char => ParsecT s u m Char -> ParsecT s u m Integer
 decimal digitType = baseInteger 10 digitType
 
-hexadecimal :: Stream s m Char => ParsecT s u m Integer
 hexadecimal = do 
    oneOf "xX"
    baseInteger 16 hexDigit
 
-octal :: Stream s m Char => ParsecT s u m Integer
 octal = do 
    oneOf "oO"
    baseInteger 8  octDigit
 
-baseInteger :: Stream s m Char => Integer -> ParsecT s u m Char -> ParsecT s u m Integer
 baseInteger base baseDigit = do
    digits <- many1 baseDigit
    let n = foldl (\x d -> x*base + toInteger (digitToInt d)) 0 digits
    seq n (return n)
 
-digitOrComma :: Stream s m Char => ParsecT s u m Char
 digitOrComma = do many (oneOf ","); digit
+
+digit = satisfy (inClass "0123456789")
+
+hexDigit = satisfy (inClass "0123456789abcdefABCDEF")
+
+octDigit = satisfy (inClass "01234567")
+
+digitToInt x
+   | x >= 48 && x <=  57 = fromIntegral (x - 48)
+   | x >= 65 && x <=  70 = fromIntegral (x - 55)
+   | x >= 97 && x <= 112 = fromIntegral (x - 87)
+   | otherwise = 0
 {- 
 
 in Parsec.Token

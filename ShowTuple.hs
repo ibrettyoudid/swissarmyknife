@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleInstances #-}
 -- Copyright 2025 Brett Curtis
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module ShowTuple where

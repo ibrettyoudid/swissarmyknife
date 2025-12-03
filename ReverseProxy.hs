@@ -12,7 +12,6 @@ import qualified Control.Exception as E
 import Network.HTTP2.Client hiding (run)
 import qualified Network.HTTP2.Client as C
 --start server
-{-# LANGUAGE OverloadedStrings #-}
 
 import qualified Control.Exception as E
 import Data.ByteString.Builder (byteString)

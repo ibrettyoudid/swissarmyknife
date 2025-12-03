@@ -16,7 +16,7 @@ import MHashDynamic2 hiding (Apply, Frame, Member, Let, cname)
 import NewTuple
 import BString
 
-import Prelude hiding ((++), length, null, tail, head, drop, take, concat, toLower)
+import Prelude hiding ((++), length, null, tail, head, drop, take, concat, toLower, putStr, init)
 import qualified Prelude
 
 import Data.ByteString.Lazy qualified as LB
@@ -698,7 +698,7 @@ diff2 (Range a b) (Range c d) =
 diff3 [Range a b] = Range a b
 diff3 (a:b:cs) = Alt (a:b:cs)
 -}
-filename = AnyTill (Token '.') :+ Token '.' :+ Many AnyToken
+filename1 = AnyTill (Token '.') :+ Token '.' :+ Many AnyToken
 
 hostport = Build (HostPort "" 0) $ (Host <-- AnyTill (Token ':')) :+ Token ':' :+ (Port <-- int)
 
@@ -709,7 +709,7 @@ isoint = total read show
 
 int = Apply isoint $ Many (Range '0' '9')
 
-t = parse1 filename (M.empty::SSMap) "abc.mp3"
+t = parse1 filename1 (M.empty::SSMap) "abc.mp3"
 
 --t2 = format1 filename t
 
@@ -870,21 +870,21 @@ instance Frame FDynKeyK String DataField where
    myset1 FDynKeyK value frame = frame { fdynkey = value }
 
 
-dataInfo = Build (DataInfo "" "" []) $ String "data" :/ s :/
-   TypeK <-- ident :/ s :/ Token '=' :/ s :/
-   ConzK <-- sepBy dataCon (s :/ Token '|' :/ s) :/ crlf
+dataInfo = Build (DataInfo "" "" []) $ String "data" :/ s1 :/
+   TypeK <-- ident :/ s1 :/ Token '=' :/ s1 :/
+   ConzK <-- sepBy dataCon (s1 :/ Token '|' :/ s1) :/ crlf
 
 dataCon = Build (DataCon {}) $
-   CNameK  <-- ident :/ s :/
+   CNameK  <-- ident :/ s1 :/
    FieldsK <-- dataFields
 
 dataFields = dataFields1 -- <|> dataFields2
 
-dataFields1 = (Token '{' :/ s :/ sepBy dataField (Token   ',' :/ s) :// Token '}' :/ s)
+dataFields1 = (Token '{' :/ s1 :/ sepBy dataField (Token   ',' :/ s1) :// Token '}' :/ s1)
 
 dataField  = (Build
                   (DataField "" "" "" "")
-                  (FNameK <-- ident :+ s :/ String "::" :/ s :/ FTypeK <-- type1 :/ s))
+                  (FNameK <-- ident :+ s1 :/ String "::" :/ s1 :/ FTypeK <-- type1 :/ s1))
 
 --dataField2 = (Build (DataField "" "" "" "") (FTypeK <-- type1))
 
@@ -897,19 +897,19 @@ dataField  = (Build
 
 dataInfoI = Build (DataInfo "" "" []) (TypeK --> \ty -> Many (Build (DataCon "" []) $ FieldsK <-- Many (dataInstance ty)))
 
-dataInstance frame = Build (DataField "" "" "" "") $ String "instance Frame" :/ s :/ FKeyK <-- ident :/ s :/ FTypeK <-- ident :/ s :/ String frame :/ s :/ String "where" :/ crlf :/
-   s3 :/ String "myget1" :/ s :/ FKeyK <-- ident :/ s :/ String "=" :/ s :/ FNameK <-- ident :/ crlf :/
-   s3 :/ String "myset1" :/ s :/ FKeyK <-- ident :/ s :/ String "value frame = frame {" :/ s :/ FNameK <-- ident :/ s :/ String "= value }" :/ crlf
+dataInstance frame = Build (DataField "" "" "" "") $ String "instance Frame" :/ s1 :/ FKeyK <-- ident :/ s1 :/ FTypeK <-- ident :/ s1 :/ String frame :/ s1 :/ String "where" :/ crlf :/
+   s3 :/ String "myget1" :/ s1 :/ FKeyK <-- ident :/ s1 :/ String "=" :/ s1 :/ FNameK <-- ident :/ crlf :/
+   s3 :/ String "myset1" :/ s1 :/ FKeyK <-- ident :/ s1 :/ String "value frame = frame {" :/ s1 :/ FNameK <-- ident :/ s1 :/ String "= value }" :/ crlf
 
-dataDyn = Build (DataInfo "" "" []) $ String "instance FrameD" :/ s :/ DynTypeK <-- ident :/ s :/ TypeK <-- ident :/ s :/ String "where" :/ crlf :/
+dataDyn = Build (DataInfo "" "" []) $ String "instance FrameD" :/ s1 :/ DynTypeK <-- ident :/ s1 :/ TypeK <-- ident :/ s1 :/ String "where" :/ crlf :/
    s3 :/ String "mygetD name frame       = case name of\n" :/ s6 :/ ConzK <-- Many dataConGet :/ crlf :/
    s3 :/ String "mysetD name value frame = case name of\n" :/ s6 :/ ConzK <-- Many dataConSet :/ crlf
 
 dataConGet = Build (DataCon "" []) $ FieldsK <-- Many dataDynGet
 dataConSet = Build (DataCon "" []) $ FieldsK <-- Many dataDynSet
 
-dataDynGet = Build (DataField "" "" "" "") $ s6 :/ FDynKeyK <-- ident :/ s :/ String "-> toDyn $" :/ s :/ FNameK <-- ident :/ s :/ String "frame" :/ crlf
-dataDynSet = Build (DataField "" "" "" "") $ s6 :/ FDynKeyK <-- ident :/ s :/ String "-> frame {" :/ s :/ FNameK <-- ident :/ s :/ String "= fromDyn1 value }" :/ crlf
+dataDynGet = Build (DataField "" "" "" "") $ s6 :/ FDynKeyK <-- ident :/ s1 :/ String "-> toDyn $" :/ s1 :/ FNameK <-- ident :/ s1 :/ String "frame" :/ crlf
+dataDynSet = Build (DataField "" "" "" "") $ s6 :/ FDynKeyK <-- ident :/ s1 :/ String "-> frame {" :/ s1 :/ FNameK <-- ident :/ s1 :/ String "= fromDyn1 value }" :/ crlf
 
 isWS c = c == ' ' || c == '\n'
 
@@ -925,9 +925,9 @@ upp (c : cs) = toUpper c : cs
 
 uppk cs = upp cs ++ "K"
 
-unuppk (c:cs) = toLower c : init cs
+unuppk (c:cs) = cons (toLower c) $ init cs
 
-s = Default " " $ Many (Token ' ')
+s1 = Default " " $ Many (Token ' ')
 s2 = sp 2
 s3 = sp 3
 s4 = sp 4
@@ -935,9 +935,9 @@ s6 = sp 6
 
 sp n = Default (replicate n ' ') $ Many (Token ' ')
 
-a /+ b = a :+ s :/ b :// s
+a /+ b = a :+ s1 :/ b :// s1
 
-a // b = a :// s :/ b :/ s
+a // b = a :// s1 :/ b :/ s1
 
 crlf = Default "\n" $ Many (Token ' ' <|> Token '\n')
 
@@ -946,7 +946,7 @@ ident = Apply icons (alpha :+ Many alnum)
 zz j = Taken (Return 8)
 
 type1 :: Rule [Char] Char f [Char]
-type1 = Taken ((Token '[' :/ s :/ type1 :// s :/ Token ']')) <|> Taken (sepBy ident (Token ' ' <|> Token '.'))
+type1 = Taken ((Token '[' :/ s1 :/ type1 :// s1 :/ Token ']')) <|> Taken (sepBy ident (Token ' ' <|> Token '.'))
 
 alpha = Apply (satisfy (\c -> isAsciiUpper c || isAsciiLower c || c == '_')) AnyToken
 

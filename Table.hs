@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverlappingInstances #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use second" #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
@@ -16,7 +16,9 @@ import HTML
 import MHashDynamic2 hiding (toList2)
 import MyPretty2
 import NumberParsers
+import ShowTuple
 import Tree qualified as T
+import HTML
 
 import Data.Char
 import Data.List
@@ -172,41 +174,60 @@ csvcell  = try (Date <$> dateExcel) <|> try number <|> txt
 
 wikicell = try (Date <$> dateExcel) <|> try numberC <|> txt
 
-atleast n x r = do
-   try (string $ take n x)
-   foldl (\a b -> do a; optional (char b)) (return ()) $ drop n x
-   return r
-
-dateExcel = do
-   optional (do
-      try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
-      char ' ')
-   dom1 <- dom
-   char '/'
-   moy1 <- moy
-   char '/'
-   year <- integer
-   return $ ymd (year + 2000) moy1 dom1
-
-dom = do
-   dom1 <- int
-   guard (dom1 <= 12)
-   dmark <- string "st" <|> string "nd" <|> string "th" <|> string ""
-   return dom1
-
-
-moy = (try $ choice $ zipWith (atleast 3) ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"] [1..12]) <|> int
-
-
 number = Int1 <$> int <|> (Double1 <$> floating)
 
 int = fromInteger <$> integer
 
 numberC = Int1 <$> intC <|> (Double1 <$> floating)
 
-numberDyn = toDyn <$> intC <|> toDyn <$> floating
+numberDyn = try (toDyn <$> forceFloating) <|> try (toDyn <$> intC)
 
 intC = fromInteger <$> integerC
+
+atleast n x r = do
+   z <- foldr ((\a b -> do w <- a; v <- optionMaybe b; return $ case v of { Just j -> w:j; Nothing -> [w]}) . (\b -> char b <|> char (toUpper b))) (return []) x
+   guard (length z >= n)
+   return r
+
+dateExcel = try (do
+      optional (do
+         try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
+         char ' ')
+      dom1 <- dom
+      char '/' <|> char '-' <|> try (do string " of "; return 'o') <|> char ' '
+      moy1 <- moy
+      oneOf "/- "
+      year <- integer
+      return $ ymd (if | year <  40 -> year + 2000
+                       | year < 100 -> year + 1900
+                       | otherwise  -> year) moy1 dom1)
+   <|> try (do
+      optional (do
+         try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
+         char ' ')
+      moy1 <- moy
+      char '/' <|> char '-' <|> try (do string " the "; return 't') <|> char ' '
+      dom1 <- dom
+      oneOf "/- "
+      year <- integer
+      return $ ymd (if | year <  40 -> year + 2000
+                       | year < 100 -> year + 1900
+                       | otherwise  -> year) moy1 dom1)
+
+
+
+dom = do
+   dom1 <- int
+   guard (dom1 <= 31)
+   dmark <- try (string "st" <|> string "nd" <|> string "th" <|> string "rd") <|> string ""
+   return dom1
+
+
+moy = do
+   moy1 <- (try $ choice $ zipWith (atleast 3) ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"] [1..12]) <|> int
+   guard (moy1 <= 12)
+   return moy1
+
 
 txt = String1 <$> do char '"'; t <- manyTill anyChar $ char '"'; char '"'; return t
 
@@ -218,6 +239,18 @@ data Field = FieldStr { fname::String, fnum :: Int }
 
 data Record f r = Record {fieldsr :: M.Map f Int, values :: T.Tree r} deriving (Show, Generic, NFData)
 
+class UniqueList a where
+   uniquify :: (Enum b, Num b) => [(a, b)] -> M.Map a b
+   showField :: a -> [String]
+
+instance UniqueList String where
+   uniquify = foldl (flip insertWith4) M.empty
+   showField x = [x]
+
+instance (Ord a, Ord b, Ord c, Ord d, Show a, Show b, Show c, Show d) => UniqueList (a, b, c, d) where
+   uniquify = M.fromList
+   showField = showT
+
 -- Tables contain INodes or Recses
 -- INodes contain Recses or Recs
 -- Recses contain Recs or INodes
@@ -228,11 +261,14 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance (Show a) => Show (Table String a Dynamic) where
-   show = showTable
+instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
+   show = showGrid . showTable2
 
-instance {-# OVERLAPPING #-} (Show i, Show r) => Show (Table String i r) where
+instance (Show i, Show r) => Show (Table String i r) where
    show = showTable1
+
+instance (Show a, Show b, Show c, Show d) => Show (Table (a, b, c, d) Dynamic Dynamic) where
+   show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (map show . uncurry (:)) $ M.toList $ records t
 
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (\(i, r) -> show i : map (\(j, t) -> show t) r) $ M.toList $ (\(Recs r) -> r) $ tgroup t
@@ -241,9 +277,16 @@ showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
 showTable1 t = showGrid $ zipWith (:) (fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
 showTable2 t = zipWith (:) (fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 
-toCsv t = unlines $ map (intercalate ",") $ (map show (fieldsUT t):) $ map2 show $ ungroup $ tgroup t
+toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ tgroup t
+toHTML t = let
+   header  = map (Tag "tr" [] . map (Tag "th" [] . singleton . Text)) $ transposez "" (map showField $ fieldsUT t)
+   records = map (Tag "tr" [] . map (Tag "td" [] . singleton . Text)) $ transposez "" $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
+
+   in formatH 1 $ html [Text "Countries"] [Tag "table" [] (header ++ records)]
 
 showTableMeta (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records) ++ " " ++ show (fieldsU fields)
+showTableMeta1 (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records)
+showTableMeta2 t = GridH $ map showT $ fieldsUT t
 
 setFields newnames (Table fields group) = let
    (names, numbers) = unzip $ sortOn snd $ M.toList fields
@@ -280,7 +323,11 @@ fromGridD = fromGridHD . transpose
 fromGrid1 f = fromGridH1 f . transpose
 
 fromGridH  (fs : rs) = fromGridH1 fs rs
-fromGridHD (fs : rs) = fromGridH1 fs $ map2 (dynCell . clean) rs
+fromGridHD []        = empty
+fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map2 (dynCell . clean) rs
+
+fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
+
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ T.fromElems $ map (Rec . T.fromElems) recordl
 
@@ -298,7 +345,7 @@ toList r@(Rec _) = [r]
 
 toList2 = map unrec . toList
 
-clean = filter (\a -> let c = ord a in (c >= 32 && c <= 126) || (c >= 160 && c <= 255))
+clean = map (\a -> let c = ord a in if (c >= 32 && c <= 126) || (c > 160 && c <= 255) then chr c else ' ')
 
 --cleanDyn x = read $ clean $ show x
 
@@ -352,9 +399,9 @@ joinCollectMisses include empty (l, ml) (r, mr) =
    in
       (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
 
-joinFuzzy include fuzziness empty l r =
+joinFuzzy include maxDist empty l r =
    let
-      (flr, j1) = joinFuzzy1 fuzziness empty l r
+      (flr, j1) = joinFuzzy1 maxDist empty l r
    in
       Table flr $ INode $ joinInclude include j1
 
@@ -366,18 +413,22 @@ joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
       INode rl = il
       INode rr = ir
 
-      maxl = maximum $ map snd $ M.toList fieldsl
-      maxr = maximum $ map snd $ M.toList fieldsr
-      shift = 2^T.log2 (max maxl maxr + 1)
+      fieldnumsl = map snd $ M.toList fieldsl
+      fieldnumsr = map snd $ M.toList fieldsr
+      minl = minimum fieldnumsl
+      maxl = maximum fieldnumsl
+      minr = minimum fieldnumsr
+      maxr = maximum fieldnumsr
+      shift = maxl - minr + 10
       fieldsr1 = M.fromList $ map (\(k, v) -> (k, v + shift)) $ M.toList fieldsr
       fieldslr = appendFields fieldsl fieldsr1
-      fl = appendL shift empty fieldsr
+      fl = appendL   shift empty fieldsr1
       fi = appendRec shift
-      fr = appendR shift empty fieldsl
+      fr = appendR   shift empty fieldsl
       l1 = rl M.\\ rr
       r1 = rr M.\\ rl
       i = M.intersectionWith fi rl rr
-      
+
       res = (fieldslr, l1, i, r1, fl, fi, fr)
 
 
@@ -487,7 +538,7 @@ appendRec2 l r = Record (appendFields2 (fieldsr l) (fieldsr r)) $ T.append 0 (va
 
 insertWith3 (k, v) m = M.insert (forFJ ("" : map show [2 ..]) (\n -> let k1 = reverse (dropWhile isDigit $ reverse k) ++ n in case M.lookup k1 m of Nothing -> Just k1; Just _ -> Nothing)) v m
 
-insertWith4 (k, v) m = 
+insertWith4 (k, v) m =
    case M.lookup k m of
       Just j -> let
          k1 = takeWhile (/= '_') k -- reverse (dropWhile isDigit $ reverse k)
@@ -500,13 +551,9 @@ insertWith4 (k, v) m =
          in M.insert k2 v m
       Nothing -> M.insert k v m
 
-class UniqueList a where
-   uniquify :: (Enum b, Num b) => [(a, b)] -> M.Map a b
-
-instance UniqueList String where
-   uniquify = foldl (flip insertWith4) M.empty
-
 appendFields2 l r = uniquify $ fieldsU l ++ fieldsU r
+
+rebalance t = mapTable (\(Record f r) -> Record f $ T.rebalance r) 
 
 mapTable f (Table fields g) = Table (mapTableF f fields g) $ mapTableG f fields g
 
@@ -528,14 +575,16 @@ delField fieldName t = if head (fields t) == fieldName
          Just fieldN = elemIndex fieldName $ fields t
          in Table (deleteIndex fieldN $ fields t) $ M.fromList $ map (\(k, v) -> (k, deleteIndex (fieldN-1) v)) $ M.toList $ records t
 -}
-class LookupR a b c | a b -> c, c -> b where
-   (!) :: a -> b -> c
+class LookupR a b c | a b -> c, c -> a where
+   lookup :: a -> b -> c
 
-instance LookupR (Table f Dynamic r) Dynamic (Table f Dynamic r) where
-   (!) = flip lookupgk
+instance LookupR Dynamic (Table f Dynamic r) (Table f Dynamic r) where
+   lookup = lookupgk
 
-instance LookupR (Table f i r) Int (Record f r) where
-   (!) = flip lookupg2
+instance LookupR Int (Table f i r) (Record f r) where
+   lookup = lookupg2
+
+t ! k = fromMaybe (error "Table lookup failed") $ Table.lookup k t
 
 lookupgk k (Table f (INode m)) = Table f $ fromJust $ M.lookup k m
 
@@ -546,7 +595,7 @@ lookupg2 k (Table f (Rec r)) = Record f r
 
 -- unrec (Rec r) = r
 lookupr :: (Ord f, Show f, Show t) => f -> Record f t -> t
-lookupr k r = 
+lookupr k r =
    case M.lookup k $ fieldsr r of
       Nothing -> error $ "failed to find field name "++show k++" in record "++show r
       Just n ->
