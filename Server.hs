@@ -58,8 +58,8 @@ app m cj req respond = bracket_
             let req1 = req { cookieJar = Just cj }
             resp <- httpLbs req1 m
             let body = responseBody resp
-            let html = nestParse $ c body
-            respond $ responseLBS status200 [] $ c $ formatLBS html
+            let html = nestParse (reqPath req) $ c body
+            respond $ responseLBS status200 [] $ formatLBS html
          Nothing -> do
             isDir  <- doesDirectoryExist $ c fs1
             isFile <- doesFileExist      $ c fs1
@@ -68,7 +68,7 @@ app m cj req respond = bracket_
                   objects <- getDirectoryContents $ c fs1
                   let html1 = map (\n -> thumbhtml (fs1 / n) (fs / n) n) $ map c objects
                   let html2 = map snd (sort (filter fst html1) ++ sort (filter (not . fst) html1))
-                  respond $ responseLBS status200 [] $ c $ formatLBS $ html [] [grid [html2]]
+                  respond $ responseLBS status200 [] $ formatLBS $ html [] [grid [html2]]
                | isFile -> do
                   file <- readBinaryFile $ c fs1
                   respond $ responseLBS status200 [(hContentType, type1)] file

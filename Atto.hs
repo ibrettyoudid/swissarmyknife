@@ -2,10 +2,11 @@ module Atto where
 
 import BString
 
-import Prelude hiding (takeWhile, many, many')
+import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
 
-import Data.Attoparsec.ByteString.Lazy as AP
+import Data.Attoparsec.ByteString as AP
 
+import qualified Debug.Trace
 
 anyChar = anyWord8
 
@@ -21,3 +22,12 @@ noneOf xs = satisfy $ notInClass xs
 many xs = many' xs
 
 manyTill2 xs = AP.takeWhile (notInClass xs)
+
+parse1 p txt = case parseOnly p txt of
+   Left msg -> error $ "parse1: "++msg
+   Right r  -> r
+
+parseNoFail z p txt = case parseOnly (p <* takeByteString) txt of
+   Left msg -> Debug.Trace.trace ("parseNoFail: "++msg++" input="++convertString txt) z
+   Right r  -> r
+

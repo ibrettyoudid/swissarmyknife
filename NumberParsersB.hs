@@ -18,10 +18,6 @@ import Control.Applicative ((<$>), (<|>))
 import Control.Monad
 
 --type Blah c = Stream s m c => ParsecT s u m c
-parse1 p txt = case parseOnly p txt of
-   Left msg -> error msg
-   Right r  -> r
-
 
 --only succeed if it can't be an integer
 forceFloatingC = do 

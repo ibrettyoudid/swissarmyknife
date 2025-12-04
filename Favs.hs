@@ -651,8 +651,9 @@ counts1 = mapFromList (+) 0 . map (, 1)
 countUnique l = S.size $ S.fromList l
 
 counts = rsort . counts0
-counts0 = map tflip . M.toList . counts1
-counts1 = foldr (\key -> M.insertWith (+) key 1) M.empty
+counts0 = map tflip . counts1
+counts1 = M.toList . counts2
+counts2 = foldr (\key -> M.insertWith (+) key 1) M.empty
 sums = foldr (\(key, val) -> M.insertWith (+) key val) M.empty
 sumss = foldr (\(key, vals) -> M.insertWith (zipWith (+)) key vals) M.empty
 mode = snd . maximum . counts0

@@ -488,7 +488,7 @@ differences1 strs delims =
          Just n -> let { (a, b1) = splitAt (n + 1) delims; bs = tail b1 } in differences1 strs (a ++ bs)
 
 diffcheck (c1 : c2 : cs) n =
-   case M.toList $ counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of
+   case counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of
       [((False, True), a), ((True, False), b)] -> Just n
       _ -> diffcheck (c2 : cs) (n + 1)
 diffcheck _ _ = Nothing

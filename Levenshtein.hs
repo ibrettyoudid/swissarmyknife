@@ -233,8 +233,8 @@ levenshteinMulti2 xs = let
          in Just (path3, sum dists)
       Nothing    -> Nothing
 {-       
->>> commonSubsequencesMulti ["abc", "abc", "def", "def"]
-(-3,[[3,3,3,3],[2,2,2,2],[1,1,1,1]])
+>>> levenshteinMulti2 ["abc", "abc", "def", "df"]
+Prelude.!!: index too large
 -}
 {-
 commonSubsequencesMulti1 xs =

@@ -102,7 +102,7 @@ combine3 g fs ts rows =
       -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
 
       blah
-
+{-
 readfods = do
    Right r <- parseFromFile htmlP (importdir ++ "money.fods")
    return $
@@ -127,7 +127,7 @@ renameAttrib (a, v) =
          x -> x
    , v
    )
-
+-}
 trimGrid1 = take 8
 
 trimGrid1a :: [[String]] -> [[String]]
@@ -142,7 +142,7 @@ trimGrid2b :: [[String]] -> [[String]]
 trimGrid2b = reverse . dropWhile ((!! 2) $= "") . reverse . drop 2
 
 convertGrid1 f = map2 (parse1 csvcell f)
-
+{-
 convertGrid2 table =
    let
       t = cTextGrid table
@@ -150,7 +150,7 @@ convertGrid2 table =
       l = maximum $ map length t
       in
       replicate l n : t
-
+-}
 readcsvs = concat <$> mapM readCSVFile names
 
 readCSVFile fn = do
@@ -278,14 +278,11 @@ showTable1 t = showGrid $ zipWith (:) (fieldsUT t) $ transposez "" $ map2 show $
 showTable2 t = zipWith (:) (fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 
 toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ tgroup t
-toHTML t = let
-   header  = map (Tag "tr" [] . map (Tag "th" [] . singleton . Text)) $ transposez "" (map showField $ fieldsUT t)
-   records = map (Tag "tr" [] . map (Tag "td" [] . singleton . Text)) $ transposez "" $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
-
-   in formatH 1 $ html [Text "Countries"] [Tag "table" [] (header ++ records)]
 
 showTableMeta (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records) ++ " " ++ show (fieldsU fields)
+showTableMeta (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (T.size records) ++ " " ++ show (fieldsU fields)
 showTableMeta1 (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records)
+showTableMeta1 (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (T.size records)
 showTableMeta2 t = GridH $ map showT $ fieldsUT t
 
 setFields newnames (Table fields group) = let

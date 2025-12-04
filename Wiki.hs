@@ -6,6 +6,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use maybe" #-}
+{- HLINT ignore "Use map once" -}
 
 module Wiki where
 
@@ -17,6 +18,7 @@ import NumberParsersB
 import Table hiding (intC, insertWith4)
 import ShowTuple
 import BString
+import Atto
 import qualified BString as B
 import qualified Tree as T
 
@@ -28,6 +30,8 @@ import qualified Data.Map as M
 import Control.Monad hiding (join)
 import Control.Exception hiding (try)
 import Control.Applicative
+
+import System.Mem
 
 insertWith4 :: (ByteString, a) -> M.Map ByteString a -> M.Map ByteString a
 insertWith4 (k, v) m =
@@ -73,7 +77,7 @@ wikiGrids  m = map cGrid  . getWikiTables m
 wikiGridsH m = map cGridH . getWikiTables m
 
 getWikiTable m = head . getWikiTables m
-getWikiTables m title = filterWikiTables $ readNestedUrl m $ wiki title
+getWikiTables m title = filterWikiTables $ readWriteHTML m $ wiki title
 filterWikiTables = findTrees (\t -> tagType t == "table" && classCon "wikitable" t)
 
 wiki title = "https://en.wikipedia.org/wiki/" ++ spacesToUnders title
@@ -87,19 +91,19 @@ wikiHist m p =
                ( tagAttrib "href" d
                , extractText d
                , tagAttrib "href" $ findTree (tagClass $< "mw-userlink") t
-               , parse1 intC $ tagAttrib "data-mw-bytes" $ findTree (tagClass $< "history-size") t
+               , parseNoFail 0 intC $ tagAttrib "data-mw-bytes" $ findTree (tagClass $< "history-size") t
                , extractText $ findTree (tagClass $< "comment") t
                )
       )
       $ findTypes "li"
       $ findTree (\t -> tagType t == "section" && tagId t == "pagehistory")
-      $ getNested m ("https://en.wikipedia.org/w/index.php?title=" ++ spacesToUnders p ++ "&action=history")
+      $ getHTML m ("https://en.wikipedia.org/w/index.php?title=" ++ spacesToUnders p ++ "&action=history")
 
 wikiHist1 m p = putGrid $ transpose1 $ map showT $ wikiHist m p
 
 a -= b = join jInner bzero a b
 
-nobels1 m = findClasses "mw-parser-output" $ getNested m $ wiki "List of Nobel laureates by country"
+nobels1 m = findClasses "mw-parser-output" $ getHTML m $ wiki "List of Nobel laureates by country"
 
 nato m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 2, ())) $ drop 1 $ cGridH $ getWikiTable m "Member states of NATO"
 
@@ -116,7 +120,7 @@ cpop m = by (? "Location") $ wikiTableD m "List of countries and dependencies by
 
 area m = by (? "country") $ setFields ["rank", "country", "area", "land area", "water area", "%water", "blah"] $ wikiTableD m "List of countries and dependencies by area"
 
-readNum = parse1 (try floating <|> return 0) 
+readNum = parseNoFail 0 floating
 
 mileq m =
    by (? "country")
@@ -124,7 +128,7 @@ mileq m =
       $ map
          ( \row ->
                (toDyn $ extractText $ findType "a" $ row !! 0)
-                  : (toDyn $ parse1 (try floating <|> return 0) $ concat $ map extractText $ take 2 $ drop 1 row)
+                  : (toDyn $ readNum $ concat $ map extractText $ take 2 $ drop 1 row)
                   : (map (toDyn . readNum . extractText) $ init $ drop 3 row)
          )
       $ drop 1
@@ -300,7 +304,7 @@ vulg m = vulg1 m "https://en.wiktionary.org/w/index.php?title=Category:English_v
 
 vulg1 m url = do
    B.putStr url
-   let html = getNested m url
+   let html = getHTML m url
    let nexturl = replaceEntities $ tagAttrib "href" $ findTree (\t -> tagType t == "a" && extractText t == "next page") html
    let res1 = map extractText $ findTrees (tagType $= "li") $ findTree (\t -> "mw-category" `isInfixOf` tagClass t) html
    rest <- if null nexturl then return [] else vulg1 m $ relTo url nexturl
@@ -308,7 +312,7 @@ vulg1 m url = do
 
 --biden = Favs.counts $ words $ map ((\a -> if isAsciiLower a then a else ' ') . toLower) $ extractText $ nestParse $ readFileU "biden.html"
 
-cbr1 m = cTextGrid $ (!! 1) $ findTypes "table" $ getNested m "https://www.ethnicity-facts-figures.service.gov.uk/crime-justice-and-the-law/courts-sentencing-and-tribunals/prosecutions-and-convictions/latest/"
+cbr1 m = cTextGrid $ (!! 1) $ findTypes "table" $ getHTML m "https://www.ethnicity-facts-figures.service.gov.uk/crime-justice-and-the-law/courts-sentencing-and-tribunals/prosecutions-and-convictions/latest/"
 
 {-
 cbr m = zipDims [(map toDyn races !!), (map toDyn ["%", "count"] !!), (map toDyn crimes !!)]
@@ -329,14 +333,14 @@ cbr m =
       races = map head d
       t = Data.List.transpose $ zipWith (\p -> map (/ p)) [7, 3, 2, 87.1, 0.9] $ map (map readNum . drop 2) d
       s = map sum t
-   
+
    in cons crimes $ zipWith cons races $ map2 (c . show . round . (/ 0.66)) $ Data.List.transpose t
 
 -- \$ zipWith (\s c -> map (/ s) c) s t
 
 mapOfGrid = M.fromList . map (\[k, v] -> (extractText k, v))
 
-wikiInfo m url = mapOfGrid $ cGridH $ findTree (classCon "infobox") $ getNested m url
+wikiInfo m url = mapOfGrid $ cGridH $ findTree (classCon "infobox") $ getHTML m url
 
 wikiInfo1 cat m url = fromMaybe "Unknown" $ fmap extractText $ M.lookup cat $ wikiInfo m url
 
@@ -433,9 +437,8 @@ cjgrid2 tm1 g2 = do
    return res
 -}
 wc m = do
-   let url = wiki "states0a.html"
-   index <- readNestedUrl1 m url
-   putStr $ formatLBS index
+   let url = wiki "states0c.html"
+   index <- readWriteHTML1 m url
    let lists = concatMap (findTypes "li") $ findTypes "ul" index
    let names = map extractText lists
    let links = map extractLinks lists
@@ -447,10 +450,11 @@ wc m = do
    master <- cjpageA m $ wiki "List of countries and dependencies by population"
    putStrLn $ "MASTER=" ++ showTableMeta master
    --let master = Table (uniquify $ zip (zipWith (\fn n -> ("stats", 1, fn, n)) (fields statsm) [1..]) [0..])
-   (res, miss) <- foldM (cjpageB m jLeft) (master, []) links0
+   --(res, missing) <- foldMB (cjpageB m jLeft) (master, []) links0
+   res <- foldMB (cjpageB m jLeft) master links0
    --writeCsv "countries.csv" $ loftm1 ("", "") res
    putStrLn ("writing countriesbig.html" :: ByteString)
-   writeFile "countriesbig.html" $ toHTML res
+   writeHTML "countriesbig.html" $ toHTML res
    putStrLn ("writing countriesbig.csv" :: ByteString)
    writeFile "countriesbig.csv" $ toCsv res
    putStrLn $ showTableMeta res
@@ -458,8 +462,39 @@ wc m = do
    --mapM_ (putStrLn . showTableMeta) miss
    --writeFile "misses.csv" $ concatMap toCsv miss
 
+foldMB f z [] = return z
+foldMB f z (x:xs) = do
+   xr <- f z x
+   performMajorGC
+   foldMB f xr xs
+
+foldM2 f [] = return []
+foldM2 f [a] = return [a]
+foldM2 f [a, b, c] = do
+   abr <- f a b
+   abcr <- f abr c
+   return [abr]
+foldM2 f (a:b:xs) = do
+   abr <- f a b
+   xr  <- foldM2 f xs
+   return (abr : xr)
+
+foldM3 f xs = do
+   xr <- foldM2 f xs
+   case xr of
+      [] -> error "must be more than 0"
+      [a] -> return a
+      other -> foldM3 f xs
+
+foldM1 f [] = error "must be more than 0"
+foldM1 f [a] = return a
+foldM1 f (a:b:xs) = do
+   xr <- f a b
+   foldM1 f (xr:xs)
+
 cjpageA m url = do
-   h <- readNestedUrl1 m url
+   h <- readWriteHTML1 m url
+   --print h
    let gs1 = filterWikiTables h
    putStrLn $ show (length gs1) ++ " grids"
    return $ fromJust $ cjgridA1 url 0 $ head gs1
@@ -472,25 +507,64 @@ cjgridA1 u n g =
    in
       ifJust (not $ classCon "mw-collapsed" g) tb1
 
-cjpageB m joinType (master, missing) url = do
-   h <- readNestedUrl1 m url
+cjpageB m joinType master url = do
+   h <- readWriteHTML1 m url
    let gs1 = filterWikiTables h
    putStrLn $ show (length gs1) ++ " grids"
    gs2 <- zipWithM (cjgridB1 master url) [1..] gs1
-   foldM (cjgridB2 joinType) (master, missing) $ map miss $ catMaybes gs2
+   let gs3 = catMaybes gs2
+   --res <- foldM (cjgridB2 joinType) (master, missing) $ map miss $ catMaybes gs2
+   foldM1 (cjgridB2 joinType) gs3
+
+
+cjpageBMissing m joinType (master, missing) url = do
+   h <- readWriteHTML1 m url
+   let gs1 = filterWikiTables h
+   putStrLn $ show (length gs1) ++ " grids"
+   gs2 <- zipWithM (cjgridB1 master url) [1..] gs1
+   let gs3 = catMaybes gs2
+   res <- foldM (cjgridB2Missing joinType) (master, missing) $ map miss gs3
+   putStrLn ("writing countriesbig.html" :: ByteString)
+   writeHTML "countriesbig.html" $ toHTML $ fst res
+   return res
+
 
 cjgridB1 master u n g = do
    let
       tg = cTextGridH g
       tb = fromGridHD4 (replace "_" " " $ last $ split "/" u) n $ map2 c tg
       ix = findIndexField master tb 3
-      tb1 = by (? ix) tb
-   putStrLn $ "grid "++show n++"="++showTableMeta tb1
+   putStrLn $ "grid "++show n++"="++showTableMeta tb
+   case ix of
+      Just ixj -> do
+         let tb1 = by (? ixj) tb
+         
+         putStrLn $ "grid "++show n++"="++showTableMeta tb1
+         print tb1
    --print $ Table.lookup (toDyn "France") tb1
-   return $
-      ifJust (not $ classCon "mw-collapsed" g) tb1
+         return $
+            ifJust (not $ classCon "mw-collapsed" g) tb1
 
-cjgridB2 joinType (g1, miss1) (g2, miss2) = do
+      Nothing -> do
+         putStrLn $ b "IIIIII NN   NN DDDDDD  EEEEEEE XX    XX  "
+         putStrLn $ b "  II   NNN  NN DD  DDD EE       XX  XX   "
+         putStrLn $ b "  II   NNNN NN DD   DD EE        XXXX    "
+         putStrLn $ b "  II   NN NNNN DD   DD EEEEEEE    XX     "
+         putStrLn $ b "  II   NN  NNN DD   DD EE        XXXX    "
+         putStrLn $ b "  II   NN   NN DD  DDD EE       XX  XX   "
+         putStrLn $ b "IIIIII NN   NN DDDDDD  EEEEEEE XX    XX NOT FOUND "
+         putStrLn $ b ""
+         putStrLn $ "grid "++show n++"="++showTableMeta tb
+         return Nothing
+
+
+cjgridB2 joinType g1 g2 = do
+   let res = joinFuzzy joinType 3 bzero g1 g2
+   print $ showTableMeta2 res
+   --putStrLn $ "miss=" ++ showTableMeta (last miss)
+   return res
+
+cjgridB2Missing joinType (g1, miss1) (g2, miss2) = do
    let res = joinFuzzy joinType 3 bzero g1 g2
    print $ showTableMeta2 res
    --putStrLn $ "miss=" ++ showTableMeta (last miss)
@@ -540,10 +614,20 @@ findIndexField1 master tab = let
    INode xs = tgroup master
    list = toList2 $ tgroup tab
    fs = map (\(fieldname, fieldnum) -> (,fieldname) $ M.size $ M.intersection xs $ M.fromList $ map ((, fieldnum) . fromJust . T.lookup fieldnum) list) $ M.toList $ fields tab
-   
+
    in snd $ maximum fs
 
-findIndexField master tab maxDist = snd $ maximum $ map (\f -> (\r -> (size r, f)) $ joinFuzzy jInner maxDist bzero master $ by (? f) tab) $ map fst $ M.toList $ fields tab
+findIndexField master tab maxDist =
+   snd <$> (
+      find ((> fromIntegral (size tab) / 4) . fromIntegral . fst)
+         $ map (\f -> (\r -> (size r, f))
+            $ joinFuzzy jInner maxDist bzero master
+            $ by (? f) tab) 
+         $ map fst
+         $ M.toList
+         $ fields tab)
+
+
 
    --in concatMap T.toList $ toList2 $ tgroup tab
 {-
@@ -551,3 +635,9 @@ main = do
       m <- nm
       huge1 m
 -}
+toHTML t = let
+   header  = map (Tag "tr" [] . map (Tag "th" [] . singleton . Text)) $ transposez ""  (map (map c . showField) $ fieldsUT t)
+   records = map (Tag "tr" [] . map (Tag "td" [] . singleton . Text)) $ transposez "" $ map (map c . showColD) $ transposez (toDyn (""::String)) $ ungroup $ tgroup t
+
+   in html [Text "Countries"] [Tag "table" [] (header ++ records)]
+
