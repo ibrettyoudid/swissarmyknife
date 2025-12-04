@@ -451,9 +451,9 @@ attribs (EmptyTag _ a) = a
 attribs (EndTag _) = []
 attribs (Text _) = []
 
-setAttribs (Tag n a s) a1 = Tag n a1 s
+setAttribs (Tag      n a s) a1 = Tag n a1 s
 setAttribs (EmptyTag n a) a1 = EmptyTag n a1
-setAttribs (EndTag n) a1 = EndTag n
+setAttribs (EndTag   n) a1 = EndTag n
 setAttribs (Text t) a1 = Text t
 
 with a = mergeAttribs a
@@ -565,35 +565,33 @@ findAttribs a = findTrees . attribIs a
 -- HH   HH    T    MM   MM LL
 -- HH   HH    T    MM   MM LLLLLLL
 
-parseHTML sn xs = case parseOnly (htmlP <* endOfInput) xs of
+parseHTML sn xs = case parseOnly htmlP xs of
    Left  l -> error l
    Right r -> r
-   {-
-   Done i r        -> r
-   Partial cont    -> error $ c $ "partial input in "++sn
-   Fail i ctxt msg -> error $ "context = "++concat ctxt++" message="++msg++" input="++c i
+   {-}
+   case parse (htmlP <* endOfInput) xs of
+      Done i r        -> r
+      Partial cont    -> error $ c $ "partial input in "++sn
+      Fail i ctxt msg -> error $ "context = "++concat ctxt++" message="++msg++" input="++c i
    -}
 
-htmlP = many (try comment <|> tag <|> textP)
+htmlP = manyTill (choice [tag, textP, comment]) endOfInput
 
-comment = do
+comment = (do
    string "<!--"
-   commentMid ""
+   commentMid "") <?> "comment"
 
-commentMid x = do
+commentMid x = (do
    com <- AP.takeWhile1 (notInClass "-")
-   choice [commentMid (x++com), commentEnd (x++com)]
+   choice [commentMid (x++com), commentEnd (x++com)]) <?> "commentMid"
 
-commentEnd x = do
+commentEnd x = (do
    string "-->"
-   return $ Tag "comment" [("comment", x)] []
+   return $ Tag "comment" [("comment", x)] []) <?> "commentEnd"
 
-textP =
-   ( do
-         t <- AP.takeWhile1 (notInClass "<")
-         return $ Text $ replaceEntities t
-   )
-      <?> "Text"
+textP = (do
+   t <- AP.takeWhile1 (notInClass "<")
+   return $ Text $ replaceEntities t) <?> "Text"
 
 tagignore = do whiteSpace; char '<'; manyTill anyChar (char '>'); whiteSpace
 
@@ -653,7 +651,7 @@ tag1 =
                return $ Tag name attribs []
                -}
    )
-      <?> "Tag"
+      <?> "Tag1"
 
 attrib :: Parser (B.ByteString, B.ByteString)
 attrib = do

@@ -294,8 +294,8 @@ filename list = drop (length list - 1 - fromMaybe (length list - 1) (B.elemIndex
 
 ext list = drop (length list - 1 - fromMaybe (negate 1) (B.elemIndex (convertChar '.') (B.reverse list))) list
 
-b :: B.ByteString -> B.ByteString
-b = id
+b :: ConvertString a B.ByteString => a -> B.ByteString
+b = convertString
 s :: P.String -> P.String
 s = id
 l :: LByteString -> LByteString
