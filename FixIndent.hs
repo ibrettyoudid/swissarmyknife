@@ -14,7 +14,7 @@ fixi = mapM (\fn -> do
       mylines = lines text 
       mycounts = map (fromMaybe 0 . findIndex (/= ' ')) mylines
       mycounts1 = filter ((> (length mylines `div` 10)) . snd) 
-         $ M.toList $ counts1 $ filter (>0) $ mycounts
+         $ counts1 $ filter (>0) $ mycounts
       mycounts2 = map (\mod1 -> sums $ map (\(i, c) -> (i `mod` mod1, c)) mycounts1) [1..8]
       mycounts3 = map (\mod1 -> let 
          m = sums $ map (\(i, c) -> (i `mod` mod1 == 0, c)) mycounts1

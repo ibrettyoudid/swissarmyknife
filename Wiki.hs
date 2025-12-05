@@ -431,6 +431,7 @@ cjgrid1 u g =
       in
       ifJust (not $ classCon "mw-collapsed" g) $ tmofl1 (last $ split "/" u) tg
 
+
 cjgrid2 tm1 g2 = do
    let res = joinTMapsFuzzy "" g2 tm1
    putStrLn $ "grid=" ++ tmd g2 ++ " accum=" ++ tmd res ++ " fields=" ++ show (let f = fst g2 in map fst (take 1 f) ++ map snd f)
@@ -439,25 +440,30 @@ cjgrid2 tm1 g2 = do
 wc m = do
    let url = wiki "states0c.html"
    index <- readWriteHTML1 m url
-   let lists = concatMap (findTypes "li") $ findTypes "ul" index
-   let names = map extractText lists
-   let links = map extractLinks lists
-   putGrid $ map2 c $ names : transposez "" links
-   let links0 = concat links
-   let links1 = map (relTo url) links0
+   let lists = map (findTypes "li") $ findTypes "ul" index
+   let names = map2 extractText lists
+   let links = map2 extractLinks lists
+   mapM_ (putGrid . map2 c) $ zipWith (\n l -> n : transposez "" l) names links
+   let links0 = map2 concat links
+   let links1 = map2 (relTo url) links0
    putStrLn $ show (length links1) ++ " pages to get"
    let statsm = stats m
    master <- cjpageA m $ wiki "List of countries and dependencies by population"
    putStrLn $ "MASTER=" ++ showTableMeta master
    --let master = Table (uniquify $ zip (zipWith (\fn n -> ("stats", 1, fn, n)) (fields statsm) [1..]) [0..])
    --(res, missing) <- foldMB (cjpageB m jLeft) (master, []) links0
-   res <- foldMB (cjpageB m jLeft) master links0
+   mapM (\url -> do
+      a <- mapM (cjpageB m jLeft master) url
+      let b = fold3 (joinFuzzy jOuter 3 bzero) a
+      return b) links0
    --writeCsv "countries.csv" $ loftm1 ("", "") res
+   {-}
    putStrLn ("writing countriesbig.html" :: ByteString)
    writeHTML "countriesbig.html" $ toHTML res
    putStrLn ("writing countriesbig.csv" :: ByteString)
    writeFile "countriesbig.csv" $ toCsv res
    putStrLn $ showTableMeta res
+   -}
    --putStrLn "writing misses"
    --mapM_ (putStrLn . showTableMeta) miss
    --writeFile "misses.csv" $ concatMap toCsv miss
@@ -467,6 +473,29 @@ foldMB f z (x:xs) = do
    xr <- f z x
    performMajorGC
    foldMB f xr xs
+
+fold2 f [] = []
+fold2 f [a] = [a]
+fold2 f [a, b, c] = let
+   abr = f a b
+   abcr = f abr c
+   
+   in [abcr]
+
+fold2 f (a:b:xs) = let
+   abr = f a b
+   xr  = fold2 f xs
+   
+   in abr : xr
+
+fold3 :: (b -> b -> b) -> [b] -> b
+fold3 f xs = let
+   xr = fold2 f xs
+   
+   in case xr of
+      [] -> error "must be more than 0"
+      [a] -> a
+      other -> fold3 f other
 
 foldM2 f [] = return []
 foldM2 f [a] = return [a]
@@ -514,7 +543,9 @@ cjpageB m joinType master url = do
    gs2 <- zipWithM (cjgridB1 master url) [1..] gs1
    let gs3 = catMaybes gs2
    --res <- foldM (cjgridB2 joinType) (master, missing) $ map miss $ catMaybes gs2
-   foldM1 (cjgridB2 joinType) gs3
+   g4 <- foldM1 (cjgridB2 joinType) gs3
+   writeHTML (urlToFileName url) $ toHTML g4
+   return g4
 
 
 cjpageBMissing m joinType (master, missing) url = do

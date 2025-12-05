@@ -1,6 +1,8 @@
-{-# LANGUAGE TupleSections #-}
 -- Copyright 2025 Brett Curtis
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Replace case with maybe" #-}
 {- HLINT ignore "Avoid lambda" -}
 
 module MyPretty2 (
@@ -48,7 +50,7 @@ import Control.Monad.State
 import System.Random
 import System.Random.Stateful
 
---import System.Console.Terminal.Size
+import qualified System.Console.Terminal.Size as Term
 
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -649,7 +651,12 @@ showGrid1 colWidths tab =
 
 putGridW w = putStr . showGridW w
 
-putGrid = putStr . showGrid
+putGrid grid = do
+   mwindow <- Term.size
+   let width1 = case mwindow of
+         Just window -> Term.width window
+         Nothing     -> width
+   putStr $ showGridW width1 grid
 
 -- putGrid2 = putStr . showGridF colWidths5 420
 putGridF t = putStr $ showGrid1 (colWidthsF $ map2 length t) $ padRWith "" t

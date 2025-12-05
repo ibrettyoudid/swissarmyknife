@@ -28,6 +28,7 @@ import MyPretty2
 import Favs
 import Numeric
 import NewTuple
+import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP
 
@@ -687,6 +688,7 @@ showl =
    [ toDyn (show :: Int -> String)
    , toDyn (show :: Integer -> String)
    , toDyn (show :: String -> String)
+   , toDyn (B.convertString :: B.ByteString -> String)
    , toDyn (show :: Bool -> String)
    , toDyn (singleton :: Char -> String)
    , toDyn ((\d -> showFFloat (Just 8) d "") :: Double -> String)

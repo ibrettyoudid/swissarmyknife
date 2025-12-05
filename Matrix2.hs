@@ -281,7 +281,7 @@ gaussElimD m = untilD (null . gaussLeadTerms) gaussZeroLeadTerms m >>= untilD (n
 
 gaussElimDD m = untilDD (null . gaussLeadTerms) gaussZeroLeadTermsD m >>= untilDD (null . gaussTrailingTerms) gaussZeroTrailingTermsD
 
-gaussLeadTerms m = filter ((> 1) . snd) $ M.toList $ counts1 $ mapMaybe (findIndex (/= 0)) $ transpose m
+gaussLeadTerms m = filter ((> 1) . snd) $ counts1 $ mapMaybe (findIndex (/= 0)) $ transpose m
 
 gaussZeroLeadTerms m = let
    colis = gaussLeadTerms m

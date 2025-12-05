@@ -67,8 +67,8 @@ uku m = mapM (writeHTTP m . relTo "https://wpu3a.org.uk") $ tail $ ukulele m
 nm :: IO Manager
 nm = newTlsManager
 
-cTextGrid  = map2 firstText . cGrid
-cTextGridH = map2 firstText . cGridH
+cTextGrid  = map2 extractText . cGrid
+cTextGridH = map2 extractText . cGridH
 
 html h b = Tag "html" [] [Tag "head" [] h, Tag "body" [] b]
 
@@ -80,10 +80,10 @@ putTextGrid = putGrid . map2 c . cTextGrid
 putTextFile = putTextGrid . readHTML
 
 -- convertGridH tag = map (getTags ["td", "th"] . subTags) $ filter (("tr" ==) . tagType) $ subTags tag
-extractText = trim . squash . concat . map text . findTrees isText
+extractText = trim . squash . clean . concat . map text . findTrees isText
 extractTexts htmls = trim $ squash $ concat $ map tagText htmls
 
-firstText = (\case { [] -> empty; (a:_) -> a }) . mapMaybe (ifPred (not . null) . trim . tagText) . findTrees isText
+firstText = (\case { [] -> empty; (a:_) -> a }) . mapMaybe (ifPred (not . null) . trim . clean . tagText) . findTrees isText
 
 extractLink = head . extractLinks
 extractLinks t = map (tagAttrib "href") $ findTypes "a" t
@@ -118,7 +118,7 @@ img url = EmptyTag "img" [("src", url)]
 textLink url txt = link url $ [Text txt]
 imgLink url thumb = link url $ [img thumb]
 
-isSpace2 x = x < 32 || x > 126
+isSpace2 x = x <= 32 || x > 126
 
 trim :: B.ByteString -> B.ByteString
 trim = trimtrailing . dropWhile isSpace2
@@ -127,6 +127,8 @@ trimtrailing :: B.ByteString -> B.ByteString
 trimtrailing xs
    | null xs = empty
    | otherwise = let xst = trimtrailing (tail xs) in if isSpace2 (head xs) && null xst then empty else cons (head xs) xst
+
+clean = smap (\c -> if (c >= 32 && c <= 126) || (c > 160 && c <= 255) then c else 32)
 
 --------------------------------------------------------------------------------
 {-
