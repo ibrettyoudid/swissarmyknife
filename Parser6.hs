@@ -12,7 +12,7 @@ module Parser6 where
 
 import Parser6Types
 import Iso
-import MHashDynamic2 hiding (Apply, Frame, Member, Let, cname)
+import MHashDynamic2 hiding (Apply, Frame, Member, Let, Lambda, cname)
 import NewTuple
 import BString
 
@@ -56,12 +56,12 @@ data Rule s t f r where
    String   ::       s            -> Rule s t f  s
    Count    ::             Int    -> Rule s t f  b  -> Rule s t f [b]
    Build    ::           f1       -> Rule s t f1 a  -> Rule s t f  f1
-   Lambda   ::           f        -> Rule s t f  a  -> Rule s t f  a
    Call     ::           f        -> Rule s t f  a  -> Rule s t f  a
    Name     :: String             -> Rule s t f  a  -> Rule s t f  a
    Apply    ::   Iso  a  b        -> Rule s t f  a  -> Rule s t f  b
    Seq      :: SeqTuple a b f s t =>           a    -> Rule s t f  b
    Redo     :: Frame      n  s  f =>           n    -> Rule s t f  v  -> Rule s t f  v
+   Lambda   :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Set      :: Frame      n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    SetM     :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Get      :: Frame      n  v  f =>           n                      -> Rule s t f  v
@@ -200,6 +200,7 @@ instance (FrameTuple names values frame, Frame name value frame) => FrameTuple (
    mygetm (name :- names) frame = let
       value = myget1 name frame
       values = mygetm names frame
+
       in (value :- values)
    mysetm (name :- names) (value :- values) frame = mysetm names values $ myset1 name value frame
 
@@ -393,6 +394,18 @@ parse1 (SetM names rule) f t =
       -}
       Fail t1 f1 em -> Fail t1 f1 em
 
+parse1 (Lambda names rule) f t =
+   case parse1 rule f t of
+      Done t1 f1 r -> Done t1 (mysetm names r f1) r
+      {-
+         case mysetm names r f1 of
+            Just j  -> Done r j t1
+      -}
+      Fail t1 f1 em -> Fail t1 f1 em
+{-
+parse1 (Call lambda args) f t =
+   case parse1
+-}
 parse1 (GetM names) f t = Done t f (mygetm names f)
 {-
    case mygetm names f of
@@ -1011,4 +1024,5 @@ d1 = concat [
 hjk = convdata d1
 
 
-test = String "hello" :// String " there"
+--test :: (SeqTuple () () Int ByteString Word8, SeqTuple (Rule ByteString Word8 Int ByteString :- ()) (ByteString :- ()) Int ByteString Word8) => Rule ByteString Word8 Int (ByteString :- ())
+test = Seq ((String (convertString "hello") :: Rule ByteString Word8 Int ByteString) :- ()) :: Rule ByteString Word8 Int (ByteString :- ())

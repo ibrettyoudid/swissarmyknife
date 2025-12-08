@@ -64,6 +64,14 @@ lookupMax (Node k l r) =
 lookupMax (Leaf k v) = Just (k, v)
 lookupMax Empty = Nothing
 
+minKey (Node k l r) = minKey l
+minKey (Leaf k v) = k
+minKey Empty = intmin
+
+maxKey (Node k l r) = k + maxKey r
+maxKey (Leaf k v) = k
+maxKey Empty = intmax
+
 (!) = flip lookup
 
 insert k1 v1 n@(Node k l r)
@@ -176,6 +184,8 @@ map f Empty = Empty
 
 foldr f z t = L.foldr f z $ toList t
 foldl f z t = L.foldl f z $ toList t
+
+--filterKey = 
 
 instance Functor Tree where
    fmap = Tree.map
@@ -322,8 +332,8 @@ unionWithShift s n t = L.foldr (uncurry insert) t $ toList $ shift s n
 union3 (Node kn ln rn) (Node k l r)
    | kn < k = Node k (Node kn (union3 ln (slice 0 (kn-1) l)) (union3 (slice 0 (k-1) rn) (shift -kn $ slice kn 1000000000 l))) (union (shift (k-kn) $ slice k 1000000000 rn) r)
 
-imin = -9223372036854775808
-imax = 9223372036854775807
+intmin = -9223372036854775808
+intmax = 9223372036854775807 :: Int
 
 
 --union3 fn bn (Node kn ln rn) f b (Node k l r)
@@ -401,8 +411,26 @@ fromList1 m
                (il, ir) = splitAt n i
                l        = fromList1      n  il
                r        = fromList1 (m - n) ir
-               lm       = fst $ fromJust $ lookupMax l
-               rm       = fst $ fromJust $ lookupMin r
+               lm       = maxKey l
+               rm       = minKey r
+               k        = nextKey2 lm rm
+               in Node k l (shift -k r)
+
+--fromTreeList ts = fromTreeList1 (length ts) (sortts
+
+fromAscTreeList ts = fromTreeList1 (length ts) ts
+
+fromTreeList1 :: Int -> [Tree v] -> Tree v
+fromTreeList1 m
+   | m == 0    = const Empty
+   | m == 1    = \[t] -> t
+   | otherwise = \i  -> let
+               n        = m `div` 2
+               (il, ir) = splitAt n i
+               l        = fromTreeList1      n  il
+               r        = fromTreeList1 (m - n) ir
+               lm       = maxKey l
+               rm       = minKey r
                k        = nextKey2 lm rm
                in Node k l (shift -k r)
 
@@ -440,16 +468,27 @@ mapp a b = let
 
 mcat xs = unlines $ replicate 80 '-' : L.foldr mapp [] xs
 
-rebalance t = fromJust $ do
-   tmin <- fst <$> lookupMin t
-   tmax <- fst <$> lookupMax t
-   let 
-      tdiff    = tmax - tmin
-      levels   = msbit (tmax - tmin)
-      find     = div (tmin + tmax) 2
-      newroot  = findNearest find $ top (div levels 2) t
-      res      = rotate newroot t
-   return $ trace ("tmin="++show tmin++" tmax="++show tmax++" tmax-tmin="++show tdiff++" levels="++show levels++" find="++show find++" nearest="++show newroot) res
+rebalance t = let
+   tmin = minKey t
+   tmax = maxKey t
+   tdiff    = tmax - tmin
+   levels   = msbit (tmax - tmin)
+   size     = 2^(levels `div` 2)
+   treeList = toTreeList size t
+   res      = fromAscTreeList treeList
+   
+   in trace ("tmin="++show tmin++" tmax="++show tmax++" tmax-tmin="++show tdiff++" levels="++show levels++" res="++show res) res
+
+rebalance1 t = let
+   tmin = minKey t
+   tmax = maxKey t
+   tdiff    = tmax - tmin
+   levels   = msbit (tmax - tmin)
+   find     = div (tmin + tmax) 2
+   newroot  = findNearest find $ top (div levels 2) t
+   res      = rotate newroot t
+   
+   in trace ("tmin="++show tmin++" tmax="++show tmax++" tmax-tmin="++show tdiff++" levels="++show levels++" find="++show find++" nearest="++show newroot) res
 
 {-
 findNearest x (Node k l r) 
@@ -471,12 +510,27 @@ findNearest x (Node k l r) = let
 
 findNearest x (Leaf k v) = k
 
-findNearest x Empty = imin
+findNearest x Empty = intmin
 
 top 0      n            = Empty
 top levels (Node k l r) = Node k (top (levels-1) l) (top (levels-1) r)
 top levels (Leaf k v)   = Leaf k v
 
+toTreeList s n = let
+   nmin = minKey n
+   nmax = maxKey n
+   
+   in toTreeList1 nmin nmax s n
+
+toTreeList1 nmin nmax s n
+   | nmax - nmin < s = [n]
+   | otherwise   = let
+      l = left  n
+      r = right n
+      lmax = maxKey l
+      rmin = minKey r
+
+      in toTreeList1 nmin lmax s l ++ toTreeList1 rmin nmax s r
 
 t x = fromList $ zip x x
 

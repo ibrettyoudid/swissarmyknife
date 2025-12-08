@@ -44,6 +44,8 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import Text.ParserCombinators.Parsec.Token qualified as T
 
+import qualified Parser3
+
 type VarName = String
 
 infixr 0 <<=
@@ -79,6 +81,7 @@ repl1 env = do
    putStr "M#> "
    -- ex <- parseH <$> getLine
    hSetBinaryMode stdin True
+   print (Parser3.translate expr)
    li <- getLine
    li2 <- if li == "\\"
    then let 
@@ -89,8 +92,9 @@ repl1 env = do
    else return li
    putStrLn li2
    putStrLn "parsing"
-   --ex <- head <$> S3.parseIO expr li2
-   let ex = Value u 0
+   (Parser3.Pass exd:_) <- Parser3.parseT expr li2
+   let ex = fromDyn1 exd
+   --let ex = Value u 0
    putStrLn "doing vars"
    let ex1 = runDoVars ex (map fconstr env)
    putStrLn "print ex"
@@ -98,22 +102,19 @@ repl1 env = do
    putStrLn "print ex1"
    print ex1
    putStrLn "unparsing"
-   ex2 <- S3.printIO expr ex1
-   let ex2a = fromJust ex2
-   print ex2a
-   print $ S3.mergeDocs ex2a
-   putStrLn "formatting"
-   putStrLn $ S3.format ex2a
+   case Parser3.fp2 expr $ toDyn ex1 of
+      Just j -> putStrLn j
+      Nothing -> putStrLn "unparsing failed"
    putStrLn ""
    (res, env3) <- case ex1 of
-   Block _ constr exprs -> do
-      fr <- makeFrame constr
-      let env2 = fr : env
-      res <- eval2 env2 exprs
-      return (res, env2)
-   _ -> do
-      res <- eval env ex1
-      return (res, env)
+      Block _ constr exprs -> do
+         fr <- makeFrame constr
+         let env2 = fr : env
+         res <- eval2 env2 exprs
+         return (res, env2)
+      _ -> do
+         res <- eval env ex1
+         return (res, env)
    putDynLn res
    repl1 env3
 
@@ -129,7 +130,7 @@ eval1 :: Env -> Expr -> IO Dynamic
 eval1 env expr = case expr of
    Value _ v -> return v
    VarRef _ name nFr nV -> do
-   return $ items (env !! nFr) !! nV
+      return $ items (env !! nFr) !! nV
    VarRef1 t "quit" -> error "quit"
    VarRef1 t "env" -> return $ toDyn env
    VarRef1 t "frame" -> return $ toDyn $ head env
@@ -139,34 +140,34 @@ eval1 env expr = case expr of
    Case t of1 cases -> do ofres <- eval env of1; evalCase ofres cases
    Else -> return $ toDyn True
    Apply t exprs -> do
-   res <- mapM (eval env) exprs
-   if fromDyn1 (head res) == mymem
-      then apply (take 2 res ++ [toDyn (exprs !! 2)])
-      else apply res
-   apply res
+      res <- mapM (eval env) exprs
+      if fromDyn1 (head res) == mymem
+         then apply (take 2 res ++ [toDyn (exprs !! 2)])
+         else apply res
+      --apply res
    Let t co exps stat -> do
-   newfr <- makeFrame co
-   let newenv = newfr : env
-   zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
-   eval newenv stat
+      newfr <- makeFrame co
+      let newenv = newfr : env
+      zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
+      eval newenv stat
    Block t co exprs -> do
-   newfr <- makeFrame co
-   eval2 (newfr : env) exprs
-where
-   evalIf [] = return $ toDyn ()
-   evalIf ((cond :- then1) : rest) = do
-   condres <- eval env cond
-   case fromDynamic condres of
-      Nothing -> error "if condition must be boolean!"
-      Just True -> eval env then1
-      Just False -> evalIf rest
+      newfr <- makeFrame co
+      eval2 (newfr : env) exprs
+   where
+      evalIf [] = return $ toDyn ()
+      evalIf ((cond :- then1) : rest) = do
+         condres <- eval env cond
+         case fromDynamic condres of
+            Nothing -> error "if condition must be boolean!"
+            Just True -> eval env then1
+            Just False -> evalIf rest
 
-   evalCase caseval [] = return $ toDyn ()
-   evalCase caseval ((when1 :- then1) : others) = do
-   whenval <- eval env when1
-   if caseval == whenval
-      then eval env then1
-      else evalCase caseval others
+      evalCase caseval [] = return $ toDyn ()
+      evalCase caseval ((when1 :- then1) : others) = do
+         whenval <- eval env when1
+         if caseval == whenval
+            then eval env then1
+            else evalCase caseval others
 
 eval2 env exprs = do
    res <- mapM (eval env) exprs
@@ -191,10 +192,10 @@ apply1 (f : x : xs) =
    then do
       case dynApply f $ convertArg1 f x of
          Just j -> do
-         k <- case fromDynamic j :: Maybe (IO Dynamic) of
-            Just l -> l
-            Nothing -> return j
-         apply1 (k : xs)
+            k <- case fromDynamic j :: Maybe (IO Dynamic) of
+               Just l -> l
+               Nothing -> return j
+            apply1 (k : xs)
    else apply1a (f : x : xs)
 
 apply1a :: [Dynamic] -> IO Dynamic
@@ -209,38 +210,38 @@ apply1a (f : xs) =
       Just named -> return $ nvalue named
       Nothing -> case fromDynamic f :: Maybe Closure of
          Just (Closure con stat env) -> do
-         let lx = length xs
-         let ly = length $ members con
-         if lx >= ly
-            then do
-               xrefs <- mapM newIORef $ take ly xs
-               ev <- eval (Frame con (map toDyn xrefs) : env) stat
-               apply (ev : drop ly xs)
-            else
-               return $ toDyn $ PartApply xs con stat env
-         Nothing -> case fromDynamic f :: Maybe PartApply of
-         Just (PartApply oldxs con stat env) -> do
-            let allxs = oldxs ++ xs
-            let lx = length allxs
+            let lx = length xs
             let ly = length $ members con
             if lx >= ly
                then do
-               xrefs <- mapM newIORef $ take ly allxs
-               ev <- eval (Frame con (map toDyn xrefs) : env) stat
-               apply (ev : drop ly allxs)
+                  xrefs <- mapM newIORef $ take ly xs
+                  ev <- eval (Frame con (map toDyn xrefs) : env) stat
+                  apply (ev : drop ly xs)
                else
-               return $ toDyn $ PartApply allxs con stat env
-         Nothing -> do
-            case fromDynamic f :: Maybe Multimethod of
-               Just m -> do
-               putStrLn "multimethod"
-               a <- applyMultimethodIO m xs
-               case a of
-                  Left e -> return $ error e
-                  Right r -> return r
-               Nothing -> do
-               putStrLn $ "could not apply " ++ showDyn f
-               return $ toDyn (0 :: Int)
+                  return $ toDyn $ PartApply xs con stat env
+         Nothing -> case fromDynamic f :: Maybe PartApply of
+            Just (PartApply oldxs con stat env) -> do
+               let allxs = oldxs ++ xs
+               let lx = length allxs
+               let ly = length $ members con
+               if lx >= ly
+                  then do
+                  xrefs <- mapM newIORef $ take ly allxs
+                  ev <- eval (Frame con (map toDyn xrefs) : env) stat
+                  apply (ev : drop ly allxs)
+                  else
+                  return $ toDyn $ PartApply allxs con stat env
+            Nothing -> do
+               case fromDynamic f :: Maybe Multimethod of
+                  Just m -> do
+                     putStrLn "multimethod"
+                     a <- applyMultimethodIO m xs
+                     case a of
+                        Left e -> return $ error e
+                        Right r -> return r
+                  Nothing -> do
+                     putStrLn $ "could not apply " ++ showDyn f
+                     return $ toDyn (0 :: Int)
 
 showType typ = show (typeRepTyCon typ)
 
@@ -259,8 +260,8 @@ pop :: State [Constr] Constr
 pop = do
    r <- get
    case r of
-   (x : xs) -> do put xs; return x
-   [] -> error "nothing to pop"
+      (x : xs) -> do put xs; return x
+      [] -> error "nothing to pop"
 
 runDoVars :: Expr -> [Constr] -> Expr
 runDoVars stat env = evalState (do wrapBlock stat) env
@@ -287,31 +288,36 @@ findWithIndex p xs = find (p . snd) $ zip [0..] xs
 doVars :: Expr -> State [Constr] Expr
 doVars stat = case stat of
    Lambda t vs stat -> do
-   push vs
-   sres <- wrapBlock stat
-   pop
-   return $ Lambda t vs sres
+      push vs
+      sres <- wrapBlock stat
+      pop
+      return $ Lambda t vs sres
    VarRef1 t name -> do
-   if name `elem` ["env", "frame", "quit"]
-      then return $ VarRef1 t name
-      else do
-         e <- get
-         case blah2 name e of
-         Just v -> return v
-         Nothing -> VarRef t name 0 <$> pushVar t name
-   Apply t exprs -> do
-   done <- mapM doVars exprs
-   if varname (head exprs) == "@"
-      then do
-         if isUnknown $ etype $ done !! 1
-         then return $ Apply u done
+      if name `elem` ["env", "frame", "quit"]
+         then return $ VarRef1 t name
          else do
-            push $ constr $ etype $ done !! 1
-            done2 <- doVars $ done !! 2
-            pop
-            return $ Apply (etype done2) (take 2 done ++ [done2])
-      else return $ Apply t done
-   If t cases -> If t <$> mapM (tmapM doVars) cases
+            e <- get
+            case blah2 name e of
+               Just v -> return v
+               Nothing -> VarRef t name 0 <$> pushVar t name
+   Apply t exprs -> do
+      done <- mapM doVars exprs
+      if varname (head exprs) == "@"
+         then do
+            if isUnknown $ etype $ done !! 1
+            then return $ Apply u done
+            else do
+               push $ constr $ etype $ done !! 1
+               done2 <- doVars $ done !! 2
+               pop
+               return $ Apply (etype done2) (take 2 done ++ [done2])
+         else return $ Apply t done
+   If t cases -> do
+      x <- mapM (\(a :- b) -> do
+         ra <- doVars a
+         rb <- doVars b
+         return $ ra :- rb) cases
+      return $ If t x
    Value t v -> return $ Value t v
    other -> error (show other)
 
@@ -324,8 +330,8 @@ blah2 name e = case findWithIndex isJust $ map (findWithIndex (\x -> mname x == 
 -- look up name in a list of frames
 -- lookups :: String -> [[(String, a)]] -> a
 lookups name e = items (e !! frameIndex vr) !! memIndex vr
-where
-   vr = fromJust $ blah2 name $ map fconstr e
+   where
+      vr = fromJust $ blah2 name $ map fconstr e
 
 mymem = NamedValue "mymem" $ toDyn $ \frame vr -> case vr of
    VarRef1 _ name -> lookups name [frame]
@@ -863,8 +869,8 @@ formatStat w (Case _ c cases) =
       ]
 formatStat w x = t $ show x
 
-formatCase :: Int -> Int -> (Expr, Expr) -> Doc
-formatCase w n (cond, exec) =
+formatCase :: Int -> Int -> (Expr :- Expr) -> Doc
+formatCase w n (cond :- exec) =
    fit w $
    (if n > 0 && notElse cond then map (t " | " <->) else id) $
       [ formatStat (w - 4) cond <\> t " -> " <\> formatStat (w - 4) exec

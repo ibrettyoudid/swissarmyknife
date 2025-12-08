@@ -538,6 +538,10 @@ filterTree pred tag = ifPred pred tag
 mapTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ map (mapTree f) subs
 mapTree f tag = f tag
 
+mapMaybeTree1 :: (HTML -> Maybe a) -> HTML -> Maybe a
+mapMaybeTree1 f tag@(Tag typ atts subs) = f tag <|> listToMaybe (mapMaybe (mapMaybeTree1 f) subs)
+mapMaybeTree1 f tag = f tag
+
 mapMaybeTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree f) subs
 mapMaybeTree f tag = f tag
 
@@ -1028,5 +1032,7 @@ lego1 = sort $ map (\item -> let
    in (title, take 7 img, img)) lego
 
 writeHTML file html = Data.ByteString.Builder.writeFile file $ formatB 0 html
+
+writeHTMLT file htmls = Data.ByteString.Builder.writeFile file $ mconcat $ map (formatB 0) htmls
 
 lego2 = writeHTML "lego.html" $ Tag "table" [] $ map (\(title, n, img) -> Tag "tr" [] [Tag "td" [] [Text n], Tag "td" [] [Text title], Tag "td" [] [Tag "image" [("src", img)] []]]) lego1

@@ -141,6 +141,7 @@ library
         Levenshtein,
         Lex,
         Merge,
+        MHash,
         MHashDynamic2,
         Matrix, 
         Matrix2,

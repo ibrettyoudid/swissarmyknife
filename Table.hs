@@ -251,6 +251,10 @@ instance (Ord a, Ord b, Ord c, Ord d, Show a, Show b, Show c, Show d) => UniqueL
    uniquify = M.fromList
    showField = showT
 
+instance (Ord a, Ord b, Ord c, Ord d, Ord e, Show a, Show b, Show c, Show d, Show e) => UniqueList (a, b, c, d, e) where
+   uniquify = M.fromList
+   showField = showT
+
 -- Tables contain INodes or Recses
 -- INodes contain Recses or Recs
 -- Recses contain Recs or INodes
@@ -268,6 +272,9 @@ instance (Show i, Show r) => Show (Table String i r) where
    show = showTable1
 
 instance (Show a, Show b, Show c, Show d) => Show (Table (a, b, c, d) Dynamic Dynamic) where
+   show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
+
+instance (Show a, Show b, Show c, Show d, Show e) => Show (Table (a, b, c, d, e) Dynamic Dynamic) where
    show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 -- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (map show . uncurry (:)) $ M.toList $ records t
 
@@ -291,6 +298,15 @@ setFields newnames (Table fields group) = let
    in Table (M.fromList $ zip names1 numbers) group
 
 setFieldsD newnames = setFields (map toDyn newnames)
+
+filterFields pred t = let
+   fieldsList = M.toList $ fields t
+   fieldsChosen = filter (pred . fst) fieldsList
+   fieldsNameToNumMap = M.fromList fieldsChosen
+   fieldsNumSet = S.fromList $ map snd fieldsChosen
+   func record = Record fieldsNameToNumMap $ T.fromList $ filter (\(k, v) -> S.member k fieldsNumSet) $ T.toList $ values record
+   
+   in mapTable func t
 
 size t = length $ ungroup $ tgroup t
 
@@ -324,6 +340,8 @@ fromGridHD []        = empty
 fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map2 (dynCell . clean) rs
 
 fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
+
+fromGridHD5 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ T.fromElems $ map (Rec . T.fromElems) recordl
@@ -474,8 +492,8 @@ joinFuzzyAux maxDist (Lev dist lk rk a) (lks, res, rks) =
       else (lks, res, rks)
 
 joinInclude (il, ii, ir) (rl, ri, rr) =
+      (if ii then M.union ri else id) $
       (if il then M.union rl else id) $
-      (if ii then M.union ri else id)
       (if ir then rr else M.empty)
 
 addCalcField name func table = let
