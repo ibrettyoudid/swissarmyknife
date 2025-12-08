@@ -33,7 +33,7 @@ import qualified HTTPTypes
 import qualified NumberParsers as NP
 
 import Parser3 hiding (Apply)
-import Iso hiding (foldl, foldr, right, (!!))
+import Iso2 hiding (foldl, foldr, right, (!!))
 
 import Data.List
 import qualified Data.Map.Lazy as M
@@ -731,25 +731,25 @@ strlit = valueIso >$< text "\"" *< many anytoken >* text "\""
 
 sepSpace = token ' '
 
-singIso = Iso (\a -> Just [a]) (\case [a] -> Just a; _ -> Nothing)
+singIso = Iso "singIso" (\a -> Just [a]) (\case [a] -> Just a; _ -> Nothing)
 
 u = unknown
 
-readShow = total read show
+readShow = total "readShow" read show
 
 num = "num" <=> valueIso >$< (readShow :: Iso String Int) >$< many (RangeR '0' '9')
 
 numIso = valueIso :: Iso Int Expr
 
-valueIso = Iso (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> Nothing)
+valueIso = Iso "valueIso" (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> Nothing)
 
-varIso = Iso (Just . VarRef1 u) varfn
+varIso = Iso "varIso" (Just . VarRef1 u) varfn
 
-varIsoT = Iso (\(v :- t) -> Just $ VarRef1 t v) varfnt
+varIsoT = Iso "varIsoT" (\(v :- t) -> Just $ VarRef1 t v) varfnt
 
 var = "var" <=> varIso >$< identifier
 
-vardefiso = Iso (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n :- t); _ -> Nothing)
+vardefiso = Iso "vardef" (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n :- t); _ -> Nothing)
 
 vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser3.pure u))
 
@@ -757,7 +757,7 @@ identifier = many (RangeR 'a' 'z')
 
 typeanno = expr >*< text "::" *< expr
 
-mem = Iso (Just . Member u) (\(Member _ n) -> Just n) >$< identifier
+mem = Iso "mem" (Just . Member u) (\(Member _ n) -> Just n) >$< identifier
 
 varfn (VarRef1 _ v) = Just v
 varfn (VarRef _ v _ _) = Just v
@@ -769,11 +769,12 @@ varfnt _ = Nothing
 
 app (Apply _ l) = l
 
-prediso p = Iso (ifPred p) (ifPred p)
+--prediso p = Iso (ifPred p) (ifPred p)
 
 opiso :: [String] -> Iso (Expr :- (String :- Expr)) Expr
 opiso ops =
    Iso
+      "opiso"
       (\(a :- op :- b) -> Just $ Apply u [VarRef1 u op, a, b])
       ( \case
          Apply _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a :- op :- b)
@@ -795,6 +796,7 @@ op = "op" <=> varIso >$< text "(" *< opc ops >* text ")"
 
 leftsec =
    Iso
+      "leftsec"
       (\(a :- op) -> Just $ Lambda u (Co "lam" [Member u "b"]) (Apply u [VarRef1 u op, a, VarRef1 u "b"]))
       ( \case
          (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, a, VarRef1 _ b])) -> ifJust (b `elem` map mname locals) (a :- op)
@@ -804,6 +806,7 @@ leftsec =
 
 rightsec =
    Iso
+      "rightsec"
       (\(op :- b) -> Just $ Lambda u (Co "lam" [Member u "a"]) (Apply u [VarRef1 u op, VarRef1 u "a", b]))
       ( \case
          (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, VarRef1 _ a, b])) -> ifJust (a `elem` map mname locals) (op :- b)
@@ -816,7 +819,7 @@ parens = text "(" *< expr >* text ")"
 list = text "[" *< list2 >* text "]"
 
 list3 = chainr1 expr (text ",")
-list2 = Iso (Just . Apply u . (VarRef1 u "list" :)) (\(Apply _ (f : xs)) -> ifJust (f == VarRef1 u "list") xs) >$< expr `sepBy` text ","
+list2 = Iso "list" (Just . Apply u . (VarRef1 u "list" :)) (\(Apply _ (f : xs)) -> ifJust (f == VarRef1 u "list") xs) >$< expr `sepBy` text ","
 
 term = "term" <=> num <|> var <|> leftsec <|> rightsec
 
@@ -827,6 +830,7 @@ varname _ = ""
 applic =
    "application"
       <=> Iso
+         "application"
          (\ts -> Just $ if length ts >= 2 then Apply u ts else head ts)
          ( \case
             Apply _ (f : xs) | notElem (varname f) ops -> Just (f : xs)
@@ -852,25 +856,27 @@ expr4 = "expr4" <=> opl ["<", "<=", "==", ">=", ">", "/="] expr5
 
 expr3 = "expr3" <=> opr ["&&", "||"] expr4
 
-expr0 = "expr0" <=> opr ["$", "="] expr3
+expr0 = "expr0" <=> opiso ["$", "="] >$< expr3 >*< opc ["$", "="] >*< expr0
 
 ifSyn =
    Iso
+      "if"
       (Just . If u)
       (\case If _ blah -> Just blah; _ -> Nothing)
       >$< text "if"
       *< groupOf (expr0 >*< text "->" *< expr0 :: RuleR Char (Expr :- Expr))
 
-conIso = Iso (Just . Co "data") (\case Co _ members -> Just members)
+conIso = Iso "conIso" (Just . Co "data") (\case Co _ members -> Just members)
 
-lambdaSyn =
-   Iso
+lambdaSyn = "lambdaSyn" <=>
+   Iso "lambdaSyn"
       (\(params :- exp) -> Just $ Lambda u (Co "" params) exp)
       (\case Lambda _ (Co _ params) exp -> Just (params :- exp); _ -> Nothing)
-      >$< text "\\" *< many mem >*< text "->" *< expr0
+         >$< text "\\" *< many mem >*< text "->" *< expr0
 
 blockSyn = "blockSyn" <=>
    Iso
+      "blockSyn"
       (\exp -> Just $ Block u (Co "" []) exp)
       (\case Block _ _ exp -> Just exp; _ -> Nothing)
       >$< groupOf expr0

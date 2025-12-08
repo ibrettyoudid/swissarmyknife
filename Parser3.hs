@@ -18,8 +18,8 @@ import qualified MyPretty2
 import {-# SOURCE #-} MHashDynamic2 hiding (Apply, expr)
 import NewTuple
 import qualified SetList as SL
-import Iso hiding (foldl, (!!))
-import qualified Iso
+import Iso2 hiding (foldl, (!!))
+import qualified Iso2
 --import Rule
 --import Syntax3 hiding (foldl, foldr)
 import Shell (ch)
@@ -163,7 +163,7 @@ groupOf i = sepBy i (text ";") -- <|> aligned i
 aligned i = ialign >$< many1 (whiteSpace *< PosR >*< i)
 
 ialign :: Iso [(Int, Int) :- c] [(Int, Int) :- c]
-ialign = Iso f g
+ialign = Iso "ialign" f g
    where
       f ((p :- i):is) = ifJust (all (\(p1 :- i1) -> snd p == snd p1) is) ((p :- i):is)
       g x = Just x
@@ -171,7 +171,7 @@ ialign = Iso f g
 
 whiteSpace = token ' ' <|> token '\n'
 
-chainl1 arg op f = Iso.ifoldl f >$< (arg >*< (many (op >*< arg)))
+chainl1 arg op f = Iso2.ifoldl f >$< (arg >*< (many (op >*< arg)))
 
 chainr1 arg op f = f >$< arg >*< (op >*< chainr1 arg op f) <|> arg
 
@@ -191,6 +191,7 @@ translate (a :/  b) = Apply ifst $ Seq [translate a, translate b]
 translate (a :// b) = Apply isnd $ Seq [translate a, translate b]
 translate (ApplyR a b) = Apply (isod a) $ translate b
 translate (NameR a b) = Name a $ translate b
+translate (NameStubR a) = NameStub a
 translate (BindR a (b, c)) = Bind (translate a) (\a -> translate (b $ fromDyn1 a), \b -> toDyn $ c $ fromDyn1 b)
 translate (TokenR a) = Token a
 translate AnyTokenR = AnyToken
@@ -310,18 +311,18 @@ format (Token a) = a
 --    EIso    :: Iso alpha beta -> Rule alpha -> Rule beta
 fd f x = do d <- fromDynamic x; r <- f d; return $ toDyn r
 
-isod (Iso f g) = Iso (fd f) (fd g)
+isod (Iso n f g) = Iso (n++"d") (fd f) (fd g)
 
-totald f g = isod (total f g)
+totald n f g = isod (total n f g)
 
-ifst = Iso f g
+ifst = Iso "ifst" f g
    where
       f d = do
          l <- fromDynamic d :: Maybe [Dynamic]
          return $ l !! 0
       g d = Just $ toDyn [d, undefined]
 
-isnd = Iso f g
+isnd = Iso "isnd" f g
    where
       f d = do
          l <- fromDynamic d :: Maybe [Dynamic]
@@ -336,7 +337,7 @@ strOfChars = map fromDyn1
 charsOfStr :: String -> [Dynamic]
 charsOfStr = map toDyn
 
-chars = totald strOfChars charsOfStr
+chars = totald "strOfChars" strOfChars charsOfStr
 
 --repl1 r = do n <- St.get; return $ Seq $ replicate (fromDyn n 0 :: Int) r
 
@@ -347,7 +348,7 @@ replPrint rule res = length res
 repl rule = (replParse rule, replPrint rule)
 
 intiso :: Iso String Int
-intiso = total read show
+intiso = total "intiso" read show
 
 intisod = isod intiso
 
@@ -376,10 +377,10 @@ instance Eq tok => Eq (Rule tok) where
 --   Seqd  a b == Seqd c d = (a, b) == (c, d)
    Seq   as  == Seq   bs  = as     == bs
    Alt   as  == Alt   bs  = as     == bs
-   Name  a _ == Name  b _ = a == b
-   Token a   == Token b   = a == b
+   Name  a _ == Name  b _ = a      == b
+   Token a   == Token b   = a      == b
    Range a b == Range c d = (a, b) == (c, d)
-   Not   a   == Not   b   = a == b
+   Not   a   == Not   b   = a      == b
    Then  a b == Then  c d = (a, b) == (c, d)
    _ == _ = False
 
@@ -557,15 +558,16 @@ showRule (Not     a) = enclose2 (("Not "   ++) .: showRule a) 7
 showRule (Bind  a b) = enclose2 (("Bind "  ++) .: showRule a) 6
 showRule (Apply a b) = enclose2 (("Apply " ++) .: showRule b) 5
 showRule (Many  a  ) = enclose2 (("Many "  ++) .: showRule a) 4
-showRule (Return  a) = enclose2 (("Return "++) .: show2 a) 1
+showRule (Return  a) = enclose2 (("Return "++) .: show2    a) 1
 showRule AnyToken    = \p -> showString "AnyToken"
 
-showSeq as p rest = let
+showSeq [] p = id
+showSeq as p = let
    (ts, ns) = span isToken as
 
    in if length ts >= 2
-         then show (map getToken ts) ++ showSeq1 ns
-         else intercalate "," (map show ts) ++ showSeq1 ns
+         then (show (map getToken ts)        ++) . showSeq1 ns p
+         else (intercalate "," (map show ts) ++) . showSeq1 ns p
 
 showSeq1 [] p = id
 showSeq1 as p = let
@@ -582,17 +584,6 @@ show2 p prep = (show prep ++)
 
 instance Show tok => Show (Item tok) where
    showsPrec p (Item rule res i2) = showItem rule i2 p . (' ':) . shows res
-   {-
-   showsPrec p (Item (Seq   as ) res (ISeq n)) = enclose (p > 1) $ unwords $ insertIndex n "." $ map show as
-   showsPrec p (Item (Alt   as ) res (IAlt n)) = enclose (p > 2) $ intercalate " | " $ map show as
-   showsPrec p (Item rule        res Item2   ) = enclose1 1 p rule res
-   showsPrec d (Name  a _) = unwords $ ii d [a]
-   showsPrec d (Token a  ) = unwords $ ii d [show a]
-   showsPrec d (Range a b) = unwords $ ii d ["[" ++ show a ++ ".." ++ show b ++ "]"]
-   showsPrec d (Not     a) = "Not " ++ innershow Nothing a
-   show (Item r s1 (IAlt n)) = outershow (Just n) r
-   show (Item r s1 _) = outershow Nothing r
-   -}
 
 --showItem (Seq as) (ISeq n) = \p rest -> unwords $ insertIndex n "." $ map (\x -> showsPrec p x "") as
 showItem (Seq as) (ISeq n) = enclose1 (intercalate "," . insertIndex n "*") as 3
@@ -603,12 +594,12 @@ showItem rule Item2 = enclose2 (`showsPrec` rule) 1
 enclose flag str = if flag then (("("++str++")")++) else (str ++)
 
 --enclose1 f as n p = enclose (p > n) $ f $ map (\x -> showsPrec p x "") as
-enclose1 f as n p = enclose (p > n) $ f $ map (\x -> showsPrec p x "") as
+enclose1 f as n p = enclose (p >= n) $ f $ map (\x -> showsPrec p x "") as
 --enclose1 f as = enclose2 (\p -> (f $ map (\x -> showsPrec p x "") as)++)
 
 
 enclose2 :: (Ord t, Num t) => (t -> [Char] -> [Char]) -> t -> t -> [Char] -> [Char]
-enclose2 f n p rest = if p > n then '(':f 0 (')':rest) else f n rest
+enclose2 f n p rest = if p >= n then '(':f 0 (')':rest) else f n rest
 --enclose2 f n p rest = if p > n then '(':f 0 (')':rest) else f n rest
 --enclose2 f n p rest = enclose (p > n) ('(':f 0 (')':rest)) (f n)
 
