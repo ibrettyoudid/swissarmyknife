@@ -737,7 +737,7 @@ u = unknown
 
 readShow = total "readShow" read show
 
-num = "num" <=> valueIso >$< (readShow :: Iso String Int) >$< many (RangeR '0' '9')
+num = "num" <=> valueIso >$< (readShow :: Iso String Int) >$< many1 (RangeR '0' '9')
 
 numIso = valueIso :: Iso Int Expr
 
@@ -753,7 +753,7 @@ vardefiso = Iso "vardef" (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n 
 
 vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser3.pure u))
 
-identifier = many (RangeR 'a' 'z')
+identifier = many1 (RangeR 'a' 'z')
 
 typeanno = expr >*< text "::" *< expr
 
@@ -782,7 +782,7 @@ opiso ops =
       )
 
 opc :: [[Char]] -> RuleR Char String
-opc ops = Prelude.foldr (<|>) (Parser3.pure "") $ map text ops
+opc ops = Prelude.foldr1 (<|>) $ map text ops
 
 opl :: [[Char]] -> RuleR Char Expr -> RuleR Char Expr
 opl ops term = chainl1 term (opc ops) $ opiso ops
@@ -840,23 +840,25 @@ applic =
 
 -- a :: A @ b :: B @ c :: C
 
-expr10 = "expr10" <=> opl ["@", "::"] applic
+expr10 = "expr10" <=> opiso ["@", "::"] >$< applic >*< opc ["@", "::"] >*< applic <|> applic
 
-expr9 = "expr9" <=> opr ["."] expr10
+expr9 = "expr9" <=> opiso ["."] >$< expr9 >*< opc ["."] >*< expr10 <|> expr10
 
-expr7 = "expr7" <=> opl ["*", "/"] expr9
+expr8 = "expr8" <=> expr9
+
+expr7 = "expr7" <=> opiso ["*", "/"] >$< expr7 >*< opc ["*", "/"] >*< expr8 <|> expr8
 
 -- expr7 = "expr7" <=> (opiso ["*"] >$< term >*< text1 "*" >*< expr7) <|> term
 
-expr6 = "expr6" <=> opl ["+", "-"] expr7
+expr6 = "expr6" <=> opiso ["+", "-"] >$< expr6 >*< opc ["+", "-"] >*< expr7 <|> expr7
 
-expr5 = expr6
+expr5 = "expr5" <=> expr6 
 
-expr4 = "expr4" <=> opl ["<", "<=", "==", ">=", ">", "/="] expr5
+expr4 = "expr4" <=> opiso ["<", "<=", "==", ">=", ">", "/="] >$< expr5 >*< opc ["<", "<=", "==", ">=", ">", "/="] >*< expr5 <|> expr5
 
-expr3 = "expr3" <=> opr ["&&", "||"] expr4
+expr3 = "expr3" <=> opiso ["&&", "||"] >$< expr4 >*< opc["&&", "||"] >*< expr3 <|> expr4
 
-expr0 = "expr0" <=> opiso ["$", "="] >$< expr3 >*< opc ["$", "="] >*< expr0
+expr0 = "expr0" <=> opiso ["$", "="] >$< expr3 >*< opc ["$", "="] >*< expr0 <|> expr3
 
 ifSyn =
    Iso

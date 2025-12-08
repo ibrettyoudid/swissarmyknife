@@ -566,14 +566,16 @@ showSeq as p = let
    (ts, ns) = span isToken as
 
    in if length ts >= 2
-         then (show (map getToken ts)        ++) . showSeq1 ns p
-         else (intercalate "," (map show ts) ++) . showSeq1 ns p
+         then maybeSep (show (map getToken ts)       ) "," . showSeq1 ns p
+         else maybeSep (intercalate "," (map show ts)) "," . showSeq1 ns p
 
 showSeq1 [] p = id
 showSeq1 as p = let
    (ns, ts) = break isToken as
 
    in (intercalate "," (map show ns) ++) . showSeq ts p
+
+maybeSep a x b = if null b then a else a++x++b
 
 isToken (Token _) = True
 isToken _         = False
@@ -586,8 +588,9 @@ instance Show tok => Show (Item tok) where
    showsPrec p (Item rule res i2) = showItem rule i2 p . (' ':) . shows res
 
 --showItem (Seq as) (ISeq n) = \p rest -> unwords $ insertIndex n "." $ map (\x -> showsPrec p x "") as
-showItem (Seq as) (ISeq n) = enclose1 (intercalate "," . insertIndex n "*") as 3
+showItem (Seq as) (ISeq n) = enclose1 (intercalate "," . insertIndex n "o") as 3
 showItem (Alt as) (IAlt n) = enclose1 ((++ ' ':show n) . intercalate " | ") as 2
+showItem (Many a) (IMany as) = (("Many "++show a++"=") ++) .: enclose1 (intercalate ",") as 0
 
 showItem rule Item2 = enclose2 (`showsPrec` rule) 1
 
