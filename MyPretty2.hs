@@ -3,6 +3,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Replace case with maybe" #-}
+{-# LANGUAGE MultiWayIf #-}
 {- HLINT ignore "Avoid lambda" -}
 
 module MyPretty2 (
@@ -20,6 +21,7 @@ module MyPretty2 (
    colWidthsF,
    colWidths1,
    colWidths5,
+   colWidths7,
    showGrid,
    showGrid1,
    showGridW,
@@ -292,12 +294,27 @@ colWidths1A width (wf, wv, _, colwsF, colwsV) =
 
 colWidths1B (wf, wv, _, colwsF, colwsV) = map fst $ zipWith min (map (,1) colwsF) (map (,2) colwsV)
 
+-- this is a list of all the cell widths / heights worth trying
+-- ie. the factors of length, plus all the naturals up to the square root
+
+-- can be considered as (height, width) or (width, height)
 factors :: [M.Map Int Int]
 factors = map (\length -> 
-            M.fromList $ mapMaybe (\width -> 
-               ifJust 
-                  (mod length width == 0) 
-                  (width, div length width)) [1..length]) [1..]
+            M.fromList $ unfold1 (factors1 length) (0, 0)) [1..]
+
+unfold1 f x = case f x of
+   Just y  -> y:unfold1 f y
+   Nothing -> []
+
+factors1 length (prevHeight, prevWidth)
+   | prevWidth <= 1 = Nothing
+   | prevWidth * prevWidth < length = let
+         height = prevHeight + 1
+         in Just (height, length // height)
+
+   | otherwise = let
+         width = length // (prevWidth - 1)
+         in Just (length // width, width)
 
 -- a refinement of colwidths1. divide cell widths by total width of row first
 cellHeightsRow a b = zipWith (flip (//)) a b
@@ -326,7 +343,7 @@ minWidthAux f colWidths cellMapsRow =
    in (maximum hs, sum ws)
 
 -- minimum increased widths to reduce height of row
-minWidthIncToDecHeight currWidths cellMapsRow =
+minIncWidthToDecHeight currWidths cellMapsRow =
    let
       currHeights = zipWith (\colWidth cellMap -> 
                      fromJust $ M.lookup colWidth cellMap) currWidths cellMapsRow
@@ -340,7 +357,7 @@ minWidthIncToDecHeight currWidths cellMapsRow =
 
    in (newHeight, newWidth, newWidths)
 
-minWidthIncToDecHeight2 currWidths newWidths = do
+minIncWidthToDecHeight2 currWidths newWidths = do
    minWidths <- get
    put $ zipWith3 (\c n m -> max c $ min n m) currWidths newWidths minWidths
 
@@ -379,19 +396,37 @@ colWidths3A width cellLengthRows cellMapsRows colWidths =
 
                      in (gh * newWidth, colWidths))
             $ nubSet
-            $ map (minWidthIncToDecHeight colWidths) cellMapsRows
+            $ map (minIncWidthToDecHeight colWidths) cellMapsRows
    
    in colWidths2
+{-
+lookupNearest key map = let
+   eq = M.lookup key map 
+   Just lt = M.lookupLT key map
+   Just gt = M.lookupGT key map
+   in if
+      | isJust eq                   -> fromJust eq
+      | key - fst lt < fst gt - key -> snd lt
+      | otherwise                   -> snd gt
+-}
+cellHeights cellFactorCol width = (width, map (snd . fromJust . M.lookupLE width) cellFactorCol)
 
+rowHeights cellFactorCols2 colWidths = let
+   cellHeightCols = map fromJust $ zipWith M.lookup colWidths cellFactorCols2
+   in map maximum $ transpose cellHeightCols
 
 colWidths4 width tab =
    let
       ncols = length tab
-      cellLengthRows = transposez 0 $ map2 length tab
-      cellMapsRows = transposez M.empty $ map2 (factors !!) cellLengthRows
+      cellLengthCols  = map2 length tab
+      cellLengthRows  = transposez 0 cellLengthCols
+      cellFactorRows  = map2 (factors !!) cellLengthRows
+      cellFactorCols  = map2 (factors !!) cellLengthCols
+      possColWidths   = map (map fst . M.toList . M.unions) cellFactorCols
+      cellFactorCols2 = zipWith (\cellFactorCol -> M.fromList . map (cellHeights cellFactorCol)) cellFactorCols possColWidths
       colWidths = replicate ncols 1
      
-   in colWidths4A width cellLengthRows cellMapsRows colWidths
+   in colWidths4A width cellLengthRows cellFactorRows colWidths
 
 -- colWidths4A :: Int -> [[a]] -> [[Int]] -> [Int] -> [Int]
 colWidths4A width cellLengthRows cellMapsRows colWidths =
@@ -404,9 +439,13 @@ colWidths4A width cellLengthRows cellMapsRows colWidths =
                      gridHeight cellLengthRows colWidths
                         * sum colWidths)
             $ nubSet
-            $ map (minWidthIncToDecHeight colWidths) cellMapsRows
+            $ map (minIncWidthToDecHeight colWidths) cellMapsRows
    
    in colWidths2
+
+unionWith3 :: Ord k => (a -> b -> c) -> (a -> c) -> (b -> c) -> M.Map k a -> M.Map k b -> M.Map k c
+unionWith3 f fl fr l r = 
+   M.unions [M.intersectionWith f l r, M.map fl (l M.\\ r), M.map fr (r M.\\ l)]
 
 {-
 colWidths5 width tab =
@@ -536,6 +575,9 @@ colWidths9B width tab celllrows colWidths = do
       then colWidths5B width tab celllrows colws2
       else return colWidths
 -}
+
+-- tank of liquid
+--colWidths10 width tab = 
 {-
 pointratios = map (x / y, x, y) points
 
@@ -696,6 +738,45 @@ groupCols e = let
    (right, _):empty = dropWhile (not . snd) filled
    in (left, right - 1):groupCols empty
 {-
+I think I found a general law:
+No column A with less total text than B can end up wider than B
+I can't think of a counterexample that would make sense
+
+Is that true for rows as well?
+
+Also, colWidths7 finds the ideal ratio for any two columns
+It calculates the ratio of corresponding cells in each column
+And then finds the ratio that has equal amounts of text in the limiting cells above and below that ratio
+With three columns you want equal amounts of text in all the limiting cells of each column
+If you put the columns together in order of total text, would that be ideal?
+
+I think I found an analogy:
+Gas makes no sense, text is incompressible
+
+Liquid in a compartmentalised tank where the walls can move left or right or up or down
+according to whether theyre vertical or horizontal (without friction)
+Somehow the vertical can move through the horizontal and vice versa
+
+No gravity, no air pressure
+
+the width has a fixed maximum ie. the thing is between four planes of infinite strength
+that do not move
+
+and the other two planes (horizontal) have some non-zero force pushing them together and
+are able to move
+
+And then... equalise the forces?
+
+pressure = vertical force / horizontal size
+pressure = horizontal force / vertical size
+
+vertical force * vertical size = horizontal force * horizontal size
+but only if that cell is holding up the row above (a limiting cell)/has more height than others in the row
+if the row above is resting on a cell, there is both a horizontal force and a vertical force from that cell
+
+I think the analogy breaks down when dealing with single characters
+Probably becomes like a Diophantine equation
+--------------------------------------------------------------------------------------------
 finding the best column widths seems to be exponential in the number of columns
 
 when you have two columns eg.

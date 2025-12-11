@@ -30,6 +30,7 @@ import Data.Char
 import qualified Data.Map as M
 
 import Control.Monad hiding (join)
+import Control.Monad.State hiding (join)
 import Control.Exception hiding (try)
 import Control.Applicative
 
@@ -308,7 +309,7 @@ vulg m = vulg1 m "https://en.wiktionary.org/w/index.php?title=Category:English_v
 vulg1 m url = do
    B.putStr url
    let html = getHTML m url
-   let nexturl = replaceEntities $ tagAttrib "href" $ findTree (\t -> tagType t == "a" && extractText t == "next page") html
+   let nexturl = tagAttrib "href" $ findTree (\t -> tagType t == "a" && extractText t == "next page") html
    let res1 = map extractText $ findTrees (tagType $= "li") $ findTree (\t -> "mw-category" `isInfixOf` tagClass t) html
    rest <- if null nexturl then return [] else vulg1 m $ relTo url nexturl
    return $ res1 ++ rest
@@ -441,19 +442,21 @@ cjgrid2 tm1 g2 = do
    return res
 -}
 wc m = do
-   let url = wiki "states0d.html"
+   let url = wiki "Lists of sovereign states and dependent territories"
    index <- readWriteHTML1 m url
-   let 
-      lists = map (\ul -> (extractText $ findType "h3" ul,
-                              map extractText $ findTypes "li" ul)) 
-         $ findTypes "div" index
-   putStrLn $ show (length lists) ++ " categories to get"
-   let statsm = stats m
-   master <- cjpageA m $ wiki "List of countries and dependencies by population"
-   putStrLn $ "MASTER=" ++ showTableMeta master
+   let blah = findTree (\x -> tagType x == "div" && classCon "mw-content-ltr" x) index
+   let foof = findTrees (\t -> tagType t == "ul" || headerNum t > 0) blah
+   let snit = map (\t -> if tagType t == "ul" then findTreeR (typeIs "a") t else t) foof
+   let list = concatMap extractLinks snit
+   putStrLn $ formatLBS $ Tag "html" [] snit
+   --putStrLn $ formatLBS $ Tag "html" [] $ nestHeaders $ subTags blah
+   --let blah = nestHeaders index
+   putStrLn $ show (length list) ++ " pages to get"
+   --master <- cjpageA m $ wiki "List of countries and dependencies by population"
+   --putStrLn $ "MASTER=" ++ showTableMeta master
    --let master = Table (uniquify $ zip (zipWith (\fn n -> ("stats", 1, fn, n)) (fields statsm) [1..]) [0..])
    --(res, missing) <- foldMB (cjpageB m jLeft) (master, []) links0
-   mapM_ (\(cat, pages) -> mapM_ (cjpageB m jLeft master cat) pages) lists
+   --mapM_ (cjpageB m jLeft master "") list
 
    --writeCsv "countries.csv" $ loftm1 ("", "") res
    {-}
@@ -717,9 +720,10 @@ headerNum html = case tagType html of
    "h6" -> 6
    _    -> 0
 
-nestHeaders html = nestHeaders1 [] html
+nestHeaders = evalState (nestHeaders2 0)
 
 nestHeaders1 :: [HTML] -> [HTML] -> HTML
+nestHeaders1 context [          ] = Text ""
 nestHeaders1 context (html:htmls) = let
    level  = Prelude.length context
    blah   = case findTrees ((>0) . headerNum) html of
@@ -727,8 +731,9 @@ nestHeaders1 context (html:htmls) = let
                (a : as) -> a
    level1 = headerNum blah
    in if | level1 == 0 ->
-            let (c : cs) = context
-            in nestHeaders1 (insertLastSubTag (convertEmpty html) c : cs) htmls
+            case context of
+               []       -> nestHeaders1 [] htmls
+               (c : cs) -> nestHeaders1 (insertLastSubTag (convertEmpty html) c : cs) htmls
 
          | level1 <= level ->
             nestHeaders1 (iterate pop context !! (level - level1)) htmls
@@ -738,8 +743,67 @@ nestHeaders1 context (html:htmls) = let
                blah : 
                map  
                   (\l -> Tag ("h"++c (show l)) [] []) 
-                  [level1 - 1, level1 - 2 .. level1 + 1] ++
+                  [level1 - 1, level1 - 2 .. level + 1] ++
                context) htmls
+
+output :: MonadState (a1, [a2]) m => a2 -> m ()
+output html = modify (\(i, o) -> (i, html:o))
+
+input :: MonadState [a] m => m (Maybe a)
+input = do
+   m <- get
+   case m of
+      []       -> return Nothing
+      (i : is) -> do
+         put is
+         return $ Just i
+
+putback :: MonadState [a] m => a -> m ()
+putback i = do
+   is <- get
+   put (i:is)
+
+nestHeaders2 level = do
+   m <- input
+   case m of
+      Nothing ->
+         return []
+      Just html -> do
+         let
+            blah   = case findTrees ((>0) . headerNum) html of
+                        []       -> Tag "blah" [] []
+                        (a : as) -> a
+            level1 = headerNum blah
+         if | level1 == 0 || level1 == level -> do
+                  res <- nestHeaders2 level
+                  return $ html : res
+                  
+            | level1 < level -> return []
+            | level1 > level -> do
+               res <- nestHeaders2 (level+1)
+               res2 <- nestHeaders2 level
+
+               return $ addTags res blah : res2
+
+nestHeaders3 func context level (html:htmls) = let
+   blah     = case findTrees ((>0) . headerNum) html of
+                  []       -> Tag "blah" [] []
+                  (a : as) -> a
+   level1   = headerNum blah
+   text     = extractText blah
+   context1 = if
+      | level1 == 0  -> context
+      | level1 <= level -> take level1 context
+      | level1 >  level -> context ++ replicate (level1 - level) text
+
+   in (context1, func html) : nestHeaders3 func context1 level htmls
+
+nhAux html = headerNum $ nhAux1 html
+
+nhAux1 html = case findTrees ((>0) . headerNum) html of
+                  []       -> Tag "blah" [] []
+                  (a : as) -> a
+
 
 {-
 nest = nest1 [Tag "DOC" [] []]

@@ -140,7 +140,6 @@ library
         Iso2,
         Layout, 
         Levenshtein,
-        Lex,
         Merge,
         MHash,
         MHashDynamic2,

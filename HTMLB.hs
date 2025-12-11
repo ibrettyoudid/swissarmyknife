@@ -46,6 +46,7 @@ import Network.URI
 import System.Directory
 
 import Data.Attoparsec.ByteString hiding (take, takeWhile, dropWhile)
+import qualified Data.Attoparsec.Combinator as AP
 import qualified Data.Attoparsec.ByteString as AP
 
 --import Text.Parsec
@@ -265,20 +266,23 @@ readHTTP m url = do
 
 --------------------------------------------------------------------------------------------
 
-nest = nest1 [Tag "DOC" [] []]
+nest = nest1 []
 
-nest1 context [] = head $ until (length $= 1) pop context
+nest1 context [] = case until ((< 2) . length) pop context of
+   []  -> Tag "html" [] [Tag "head" [] [], Tag "body" [] []] 
+   [a] -> a
 nest1 context (t : tags)
-   | isEnd t context =
+   | tagType t == "!doctype" = nest1 context tags
+   | isEnd t context && length context >= 2 =
          let 
             ty = tagType t
-            ix = fromJust $ elemIndex ty $ map tagType context
+            ix = fromMaybe (-1) $ elemIndex ty $ map tagType context
          in nest1 (iterate pop context !! (ix + 1)) tags
    | isCont t = nest1 (t : context) tags
    | otherwise =
-         let (c : cs) = context
-         
-         in nest1 (insertLastSubTag (convertEmpty t) c : cs) tags
+         case context of
+            [] -> nest1 context tags
+            (c : cs) -> nest1 (insertLastSubTag (convertEmpty t) c : cs) tags
 
 isCont (Tag name atts _) = let n = smap toLower name in n /= "p" && n /= "br" && (n /= "script" || not (any ((=="src") . fst) atts))-- S.member (map toLower name) tagSet
 isCont x = False
@@ -438,33 +442,6 @@ matchTags ts t = elem (tagType t) ts
 removeTags ts = filter (not . matchTags ts)
 getTags ts = filter (matchTags ts)
 
-entityList = [("&quot;", "\""), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&nbsp;", " "), ("&#160;", " "), ("&apos;", "'"), ("&cent;", "c"), ("&pound;", "£"), ("&yen;", "Y"), ("&euro;", "E"), ("&copy;", "(c)"), ("&reg;", "reg"), ("&trade;", "TM")]
-
-replaceEntities :: B.ByteString -> B.ByteString
-replaceEntities l
-   | null l = empty
-   | take 2 l == "&#" =
-         let
-            text = takeWhile (/= convertChar ';') $ drop 2 l
-            le   = length text + 3
-            n    = case parseOnly integer text of
-                     Left  l -> error l
-                     Right r -> r
-                     {-
-                     Done i x -> x
-                     Partial p -> error ("partial input="++c text)
-                     Fail i context msg -> error ("input="++c text++" context="++concat context++" msg="++msg)
-                     -}
-         in
-            cons (convertChar $ chr $ fromIntegral n) $ replaceEntities (drop le l)
-   | head l == convertChar '&' =
-         forFJE
-            (cons (head l) $ replaceEntities (tail l))
-            entityList
-            (\(e, r) -> ifJust (e `isPrefixOf` l) (r ++ replaceEntities (drop (length e) l)))
-   | head l == convertChar 'â' = cons (convertChar '-') $ replaceEntities $ tail l
-   | otherwise = cons (head l) $ replaceEntities $ tail l
-
 testNest = nest $ concatText $ filter (\x -> tagType x `notElem` ["a", "i"]) testParse
 
 subText = tagText . subTag
@@ -474,6 +451,8 @@ subTags (Tag _ _ x) = x
 subTags (EndTag _) = []
 subTags (Text _) = []
 firstSub t = head $ subTags t
+
+addTags add (Tag t a s) = Tag t a (s ++ add)
 
 attribs (Tag _ a _) = a
 attribs (EmptyTag _ a) = a
@@ -520,13 +499,15 @@ findTree pred tag = let
 
 wrap = Tag "results" []
 
+setSubTags (Tag typ attribs _) subtags = Tag typ attribs subtags
+
 filterType = filter . typeIs
 filterId = filter . idIs
 filterClass = filter . classIs
 
 -- all findTree type functions changed to findTreeR
 -- all findTree1 functions changed to findTree
-findTreeR pred tag = wrap $ findTrees pred tag
+findTreeR pred tag = setSubTags tag $ findTrees pred tag
 findTrees pred tag = if pred tag then [tag] else concatMap (findTrees pred) (subTags tag)
 findTree pred tag = case findTrees pred tag of
    [] -> Text ""
@@ -535,15 +516,15 @@ findTree pred tag = case findTrees pred tag of
 filterTree pred tag@(Tag typ atts subs) = ifPred pred $ Tag typ atts $ mapMaybe (filterTree pred) subs
 filterTree pred tag = ifPred pred tag
 
-mapTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ map (mapTree f) subs
-mapTree f tag = f tag
+mapTree f g h tag@(Tag {}) = f tag (g (mapTree f g h) $ subTags tag)
+mapTree f g h tag = h tag
 
-mapMaybeTree1 :: (HTML -> Maybe a) -> HTML -> Maybe a
-mapMaybeTree1 f tag@(Tag typ atts subs) = f tag <|> listToMaybe (mapMaybe (mapMaybeTree1 f) subs)
-mapMaybeTree1 f tag = f tag
-
-mapMaybeTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree f) subs
+mapMaybeTree :: (HTML -> Maybe a) -> HTML -> Maybe a
+mapMaybeTree f tag@(Tag typ atts subs) = f tag <|> listToMaybe (mapMaybe (mapMaybeTree f) subs)
 mapMaybeTree f tag = f tag
+
+mapMaybeTree1 f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree1 f) subs
+mapMaybeTree1 f tag = f tag
 
 mapMMaybeTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree f) subs
 mapMMaybeTree f tag = f tag
@@ -565,9 +546,9 @@ fetchScripts m html = do
    let y = replicate (length scripturls) empty
    scripts <- fetcher x y
    let env = zip scripturls scripts
-   return $ mapTree (\t -> if isSrcScript t
-                                                   then t { inner = [Text $ c $ fromJust $ lookup (getAttrib "src" t) env] }
-                                                   else t) html
+   return $ mapTree (\t u -> if isSrcScript t
+               then t { inner = [Text $ c $ fromJust $ lookup (getAttrib "src" t) env] }
+               else t) map id html
 
    --fetcher (mapM brRead scriptbods) $ replicate (length scripturls) LB.empty
 
@@ -625,15 +606,32 @@ commentEnd x = (do
    string "-->"
    return $ Tag "comment" [("comment", x)] []) <?> "commentEnd"
 
-textP = (do
-   t <- AP.takeWhile1 (notInClass "<")
-   return $ Text $ replaceEntities t) <?> "Text"
+textP = Text <$> charEnts "<&"
 
+charEnts endChars = concat <$> many1 (charEnts1 endChars)
+
+charEnts1 endChars = do
+   clear <- AP.takeWhile (notInClass endChars)
+   lchar <- AP.lookAhead anyChar1
+   if | lchar == '&' -> do
+         qchar <- option "" $ do
+            char '&'
+            choice  [do string "amp;"  ; return "&",
+                     do string "lt;"   ; return "<",
+                     do string "gt;"   ; return ">",
+                     do string "nbsp;" ; return " ",
+                     do string "apos;" ; return "'",
+                     do string "quot;" ; return "\"",
+                     do string "pound;"; return "£",
+                     do string "#" ; i <- fromIntegral <$> integer;                 return $ cons i empty,
+                     do string "#x"; i <- fromIntegral <$> baseInteger 16 hexDigit; return $ cons i empty]
+         return $ clear ++ qchar
+      | null clear -> fail "no text"
+      | otherwise  -> return clear
+      
 tagignore = do whiteSpace; char '<'; manyTill anyChar (char '>'); whiteSpace
 
-
-tag =
-   ( do
+tag = (do
          char '<'
          whiteSpace
          end <- option False (do char '/'; whiteSpace; return True)
@@ -646,10 +644,10 @@ tag =
 
          if | name == "script" && not end -> do
                script <- manyTill anyChar (try $ string "</script>")
-               return $ EmptyTag name (attribs ++ [("script", foldr cons empty script)]) 
+               return $ EmptyTag name (attribs ++ [("script", c script)]) 
             | name == "style" && not end -> do
                style <- manyTill anyChar (try $ string "</style>")
-               return $ EmptyTag name (attribs ++ [("style", foldr cons empty style)])
+               return $ EmptyTag name (attribs ++ [("style", c style)])
             | end ->
                return $ EndTag name
             | emptyTag ->
@@ -657,37 +655,7 @@ tag =
             | otherwise ->
                return $ Tag name attribs []
    
-   )
-      <?> "Tag"
-
-
-tag1 =
-   ( do
-         char '<'
-         whiteSpace
-         end <- option False (do char '/'; whiteSpace; return True)
-         name1 <- AP.takeWhile (notInClass " />\t\n\r")
-         let name = (smap toLower name1 :: B.ByteString)
-         whiteSpace
-         attribs <- many attrib
-         emptyTag <- option False (do char '/'; return True)
-         char '>'
-{-
-         if | name == "script" && not end -> do
-               script <- manyTill anyChar (try $ string "</script>")
-               return $ EmptyTag name (attribs ++ [("script", foldr cons empty script)]) 
-            | name == "style" && not end -> do
-               style <- manyTill anyChar (try $ string "</style>")
-               return $ EmptyTag name (attribs ++ [("style", foldr cons empty style)])
-            | end ->
-               return $ EndTag name
-            | emptyTag ->
-               return $ EmptyTag name attribs
-            | otherwise ->
-               return $ Tag name attribs []
-               -}
-   )
-      <?> "Tag1"
+      ) <?> "Tag"
 
 attrib :: Parser (B.ByteString, B.ByteString)
 attrib = (do
@@ -697,23 +665,35 @@ attrib = (do
    whiteSpace
    return (c i, c v)) <?> "attrib"
 
-value = quoteVal <|> quoteVal2 <|> rawVal
+value = quotedValue <|> quotedValue2 <|> rawValue
 
-quoteVal = (do
+quotedValue = (do
    char '"'
-   res <- AP.takeWhile (/= convertChar '"')
+   res <- charEnts "\"&"
    char '"'
    return res) <?> "quoteVal"
 
-quoteVal2 = (do
+quotedValue2 = (do
    char '\''
-   res <- AP.takeWhile (/= convertChar '\'')
+   res <- charEnts "'&"
    char '\''
    return res) <?> "quoteVal2"
 
-rawVal = AP.takeWhile (notInClass " />") <?> "rawVal"
+rawValue = charEnts " />" <?> "rawVal"
 
 rawVal2 = AP.takeWhile (notInClass " />'\"") <?> "rawVal2"
+
+--entityList = [("&quot;", "\""), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&nbsp;", " "), ("&#160;", " "), ("&apos;", "'"), ("&cent;", "c"), ("&pound;", "£"), ("&yen;", "Y"), ("&euro;", "E"), ("&copy;", "(c)"), ("&reg;", "reg"), ("&trade;", "TM")]
+
+escapeValue = do
+   list <- many $ do
+      clear <- AP.takeWhile1 (notInClass "&<'\"")
+      escape <- choice [do char '&' ; return "&amp;" ,
+                        do char '<' ; return "&lt;"  ,
+                        do char '"' ; return "&quot;",
+                        do char '\''; return "&#39;" ]
+      return $ clear ++ escape
+   return $ concat list
 
 indentStep = 3
 
@@ -743,19 +723,27 @@ formatAttribs a = mconcat $ map formatAttrib a
 formatLBS html = toLazyByteString $ formatB 0 html
 
 formatB :: Int -> HTML -> Builder
-formatB i (EndTag typ) = string7 "[/" <> byteString typ <> string7 "]"
-formatB i (EmptyTag typ attribs) = string7 "<" <> byteString typ <> (formatAttribs attribs) <> string7 "/>\n"
-formatB i (Text text) = byteString $ trim $ squash text
-formatB i (Tag typ attribs terms) = let
-   open = string7 "<" <> byteString typ <> formatAttribs attribs <> string7 ">"
-   close = string7 "</" <> byteString typ <> string7 ">"
+formatB i (EndTag   typ        ) = mempty --string7 (replicate i ' ') <> "[/" <> byteString typ <> "]\n"
+formatB i (EmptyTag typ attribs) = string7 (replicate i ' ') <> "<" <> byteString typ <> formatAttribs attribs <> "/>\n"
+formatB i (Text            text) = let
+   t = squash $ trim text
+   
+   in if t == "" || t == " " then mempty else string7 (replicate i ' ') <> byteString (trim $ squash text) <> "\n"
+
+formatB i t@(Tag typ attribs1 terms) = let
+   open  = "<"  <> byteString typ <> formatAttribs (attribs $ delAttrib "script" t) <> ">"
+   close = "</" <> byteString typ <> ">"
    fterms = map (formatB (i+3)) terms
-   ind = replicate i ' '
+   ind = string7 $ replicate i ' '
    --res = open <> mconcat fterms <> close
    
-   in open <> "\n" <> mconcat (map (\x -> string7 ind <> x <> "\n") fterms) <> "\n" <> close
+   in if typ == "script" && hasAttrib "script" t
+         then 
+            ind <> open <> "\n" <> byteString (getAttrib "script" t) <> ind <> close <> "\n"
+         else
+            ind <> open <> "\n" <> mconcat fterms <> ind <> close <> "\n"
 
-formatAttrib (name, val) = string7 " " <> byteString name <> string7 "=\"" <> byteString val <> string7 "\""
+formatAttrib (name, val) = " " <> byteString name <> "=\"" <> byteString val <> "\""
 formatAttribs a = mconcat $ map formatAttrib a
 
 
@@ -790,7 +778,7 @@ tag2 = do
    whiteSpace
    return r
 
-tagstuff = choice [rawVal2, quoteVal, quoteVal2]
+tagstuff = choice [rawVal2, quotedValue, quotedValue2]
 
 maybeP p = option Nothing (Just <$> p)
 

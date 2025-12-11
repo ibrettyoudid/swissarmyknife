@@ -275,6 +275,20 @@ instance ConvertString T.Text B.ByteString where
 instance ConvertString B.ByteString T.Text where
    convertString s = convertString (convertString s :: P.String)
 
+instance ConvertString [Word8] B.ByteString where
+   convertString = B.pack
+
+instance ConvertString B.ByteString [Word8] where
+   convertString = B.unpack
+
+instance ConvertString [Word8] LB.ByteString where
+   convertString = LB.pack
+
+instance ConvertString LB.ByteString [Word8] where
+   convertString = LB.unpack
+
+
+
 class ConvertChar a b where
    convertChar :: a -> b
 

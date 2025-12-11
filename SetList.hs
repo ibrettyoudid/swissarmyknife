@@ -37,3 +37,4 @@ singleton a = SetList (S.singleton a) (L.singleton a)
 
 instance Show a => Show (SetList a) where
    show a = "fromList "++show (list a)
+

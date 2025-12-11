@@ -497,7 +497,7 @@ data State tok = State { from::Int, to::Int, item::Item tok } deriving (Eq, Ord)
 instance Show z => Show (State z) where
    show (State b c i) = show i ++ " " ++ unwords (map show [b, c])
 
-data Result = Running | Fail | Pass Dynamic deriving (Eq, Ord, Show)
+data Result = Running | Fail | Pass { ast :: Dynamic } deriving (Eq, Ord, Show)
 
 data Item tok  = Item   (Rule tok) Result Item2 deriving (Eq, Ord)
 
@@ -557,7 +557,7 @@ showRule (Token a  ) = \p -> (show a++)
 showRule (Range a b) = \p -> (unwords ["[" ++ show a ++ ".." ++ show b ++ "]"]++)
 showRule (Not     a) = enclose2 (("Not "   ++) .: showRule a) 7
 showRule (Bind  a b) = enclose2 (("Bind "  ++) .: showRule a) 6
-showRule (Apply a b) = enclose2 ((("Apply " ++ show a) ++) .: showRule b) 5
+showRule (Apply a b) = enclose2 ((("Apply "++show a++" ") ++) .: showRule b) 5
 showRule (Many  a  ) = enclose2 (("Many "  ++) .: showRule a) 4
 showRule (Return  a) = enclose2 (("Return "++) .: show2    a) 1
 showRule AnyToken    = \p -> showString "AnyToken"
@@ -903,9 +903,9 @@ complete3 states main@(Item x@(Many a) q (IMany done)) substate =
 retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
 
 retrieve1 states mainseq n sub = let
-   prev1 = S.filter (\prevst -> pass (result $ item prevst) && mainseq !! n == rule (item prevst)) $ SL.set (states !! from sub)
+   prev1 = S.filter (\prevst -> pass (result $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (states !! from sub)
    prev  = only $ S.toList prev1
-   in if S.null prev1 then [] else prev : retrieve1 states mainseq (n-1) prev
+   in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) prev else []
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
