@@ -823,8 +823,35 @@ with a two column table you have the height as sum of cells where left column is
                         width of left column                 width of right column
 
 left cells become highest when left length   right length
-                                                ----------- > ------------
-                                                left width    right width
+                               ----------- > ------------
+                               left width    right width
+
+lengths
+12 3
+12 6
+
+widths 12 3
+heights
+1 1
+1 2
+total = 3
+
+widths 10 5
+heights
+1.2 0.6
+1.2 1.2
+total = 2.4
+
+
+
+with 3 columns
+
+      sum of length of highest A cells   sum of length of highest B cells   sum of length of highest C cells
+      -------------------------------- + -------------------------------- + --------------------------------
+             width of column A                  width of column B                    width of column C
+
+as you increase the width of A
+
 
 if you do a cumulative histogram of height of each column
 then narrowing a column expands its histogram to the right
