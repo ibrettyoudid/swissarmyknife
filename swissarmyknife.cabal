@@ -177,6 +177,7 @@ library
         SyntaxTH, 
         Table,
         Table1,
+        TableB,
         Test,
         TestBoomerang, 
         Tree, 

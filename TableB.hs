@@ -9,19 +9,22 @@
 {-# HLINT ignore "Move brackets to avoid $" #-}
 {-# HLINT ignore "Eta reduce" #-}
 
-module Table where
+module TableB where
 
-import Favs
+import Favs hiding (levenshtein)
 import HTML
 import MHashDynamic2 hiding (toList2)
 import MyPretty2
 import NumberParsers
 import ShowTuple
 import Tree qualified as T
-import HTML
+import BString
+import HTMLB
 
 import Data.Char
-import Data.List
+import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
+import qualified Prelude
+import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -128,7 +131,8 @@ renameAttrib (a, v) =
    , v
    )
 -}
-trimGrid1 = take 8
+{-
+trimGrid1 x = take 8 x
 
 trimGrid1a :: [[String]] -> [[String]]
 trimGrid1a = takeWhile (any (/= ""))
@@ -140,7 +144,7 @@ trimGrid2 = takeWhile (\x -> x !! 2 /= "")
 
 trimGrid2b :: [[String]] -> [[String]]
 trimGrid2b = reverse . dropWhile ((!! 2) $= "") . reverse . drop 2
-
+-}
 convertGrid1 f = map2 (parse1 csvcell f)
 {-
 convertGrid2 table =
@@ -156,11 +160,10 @@ readcsvs = concat <$> mapM readCSVFile names
 readCSVFile fn = do
    let fn1 = importdir ++ fn ++ ".csv"
    f <- readFile fn1
-   case parse csv fn f of
+   case parse csv fn $ convertString f of
       Left l -> do print l; return []
       Right r -> return $ map (String1 fn :) r
 
-csv :: Parsec String u [[Term]]
 csv = many csvline
 
 csvline = sepBy csvcell $ char ','
@@ -184,8 +187,8 @@ numberDyn = try (toDyn <$> forceFloating) <|> try (toDyn <$> intC)
 
 intC = fromInteger <$> integerC
 
-atleast n x r = do
-   z <- foldr ((\a b -> do w <- a; v <- optionMaybe b; return $ case v of { Just j -> w:j; Nothing -> [w]}) . (\b -> char b <|> char (toUpper b))) (return []) x
+atleast n x r = try $ do
+   z <- try $ foldr ((\a b -> do w <- a; v <- optionMaybe b; return $ case v of { Just j -> w:j; Nothing -> [w]}) . (\b -> char b <|> char (toUpper b))) (return []) x
    guard (length z >= n)
    return r
 
@@ -194,7 +197,7 @@ dateExcel = try (do
          try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
          char ' ')
       dom1 <- dom
-      char '/' <|> char '-' <|> try (do string " of "; return 'o') <|> char ' '
+      choice [char '/', char '-', try (do string " of "; return 'o'), char ' ']
       moy1 <- moy
       oneOf "/- "
       year <- integer
@@ -246,6 +249,10 @@ class UniqueList a where
 instance UniqueList String where
    uniquify = foldl (flip insertWith4) M.empty
    showField x = [x]
+
+instance UniqueList ByteString where
+   uniquify = foldl (flip insertWith4) M.empty
+   showField x = [show x]
 
 instance (Ord a, Ord b, Ord c, Ord d, Show a, Show b, Show c, Show d) => UniqueList (a, b, c, d) where
    uniquify = M.fromList
@@ -336,7 +343,7 @@ fromGridD = fromGridHD . transpose
 fromGrid1 f = fromGridH1 f . transpose
 
 fromGridH  (fs : rs) = fromGridH1 fs rs
-fromGridHD []        = empty
+fromGridHD []        = TableB.empty
 fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map2 (dynCell . clean) rs
 
 fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
@@ -360,7 +367,7 @@ toList r@(Rec _) = [r]
 
 toList2 = map unrec . toList
 
-clean = map (\a -> let c = ord a in if (c >= 32 && c <= 126) || (c > 160 && c <= 255) then chr c else ' ')
+--clean = map (\a -> let c = ord a in if (c >= 32 && c <= 126) || (c > 160 && c <= 255) then chr c else ' ')
 
 --cleanDyn x = read $ clean $ show x
 
@@ -464,7 +471,7 @@ appendR shift z fl (Recs rr) = Recs $ T.map (appendR shift z fl) rr
 
 showKey (k, v) = (k, show k, v)
 
-data Lev dist lk rk v = Lev dist lk rk v
+data Lev dist lk rk v = Lev dist lk rk v deriving (Show)
 
 instance (Eq dist) => Eq (Lev dist lk rk v) where
    Lev a _ _ _ == Lev b _ _ _ = a == b
@@ -556,10 +563,10 @@ insertWith3 (k, v) m = M.insert (forFJ ("" : map show [2 ..]) (\n -> let k1 = re
 insertWith4 (k, v) m =
    case M.lookup k m of
       Just j -> let
-         k1 = takeWhile (/= '_') k -- reverse (dropWhile isDigit $ reverse k)
-         n1 = readInt $ drop (length k1 + 1) k
+         k1 = takeWhile (/= convertChar '_') k -- reverse (dropWhile isDigit $ reverse k)
+         n1 = readNum $ convertString $ drop (length k1 + 1) k
          k2 = head $ mapMaybe (\n2 -> let
-            k3 = k1 ++ '_' : show n2
+            k3 = k1 ++ cons (convertChar '_') (c $ show n2)
             in case M.lookup k3 m of
                   Just j2 -> Nothing
                   Nothing -> Just k3) [n1+1..]
@@ -599,7 +606,7 @@ instance LookupR Dynamic (Table f Dynamic r) (Table f Dynamic r) where
 instance LookupR Int (Table f i r) (Record f r) where
    lookup = lookupg2
 
-t ! k = fromMaybe (error "Table lookup failed") $ Table.lookup k t
+t ! k = fromMaybe (error "Table lookup failed") $ TableB.lookup k t
 
 lookupgk k (Table f (INode m)) = Table f $ fromJust $ M.lookup k m
 
@@ -627,4 +634,4 @@ lookupr k r =
 (?) = flip lookupr
 
 --(??) :: (Ord [f]) => Record [f] t -> [f] -> t
-r ?? k = fromJust $ (values r T.!) $ snd $ fromJust $ find (isInfixOf k . map toLower . fst) $ M.toList $ fieldsr r
+--r ?? k = fromJust $ (values r T.!) $ snd $ fromJust $ find (isInfixOf k . map toLower . fst) $ M.toList $ fieldsr r

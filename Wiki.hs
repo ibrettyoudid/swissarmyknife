@@ -1,7 +1,6 @@
 -- Copyright 2025 Brett Curtis
 {-# HLINT ignore "Move brackets to avoid $" #-}
 {-# HLINT ignore "Use head" #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -16,7 +15,7 @@ import HTMLB
 import MHashDynamic2 hiding ((?), toList2)
 import MyPretty2
 import NumberParsersB
-import Table hiding (intC, insertWith4)
+import TableB hiding (intC, insertWith4)
 import ShowTuple
 import BString
 import Atto
@@ -37,6 +36,12 @@ import Control.Applicative
 import System.Directory
 import System.Mem
 
+instance {-# OVERLAPPING #-} (Show a) => Show (Table ByteString a Dynamic) where
+   show x = showGrid $ showTable2 x
+
+instance (Show i, Show r) => Show (Table ByteString i r) where
+   show = showTable1
+
 insertWith4 :: (ByteString, a) -> M.Map ByteString a -> M.Map ByteString a
 insertWith4 (k, v) m =
    case M.lookup k m of
@@ -52,9 +57,6 @@ insertWith4 (k, v) m =
       Nothing -> M.insert k v m
 
 -- wikiTable m i u = fromGrid i $ textGrid $ wikiTable m u
-instance UniqueList ByteString where
-   uniquify = foldl (flip insertWith4) M.empty
-   showField x = [c x]
 
 
 
@@ -65,7 +67,7 @@ wikiTablesD m = cTextTablesHD . getWikiTables m
 
 cTextTable   = fromGrid   . cTextGrid
 cTextTableH  = fromGridH  . cTextGridH
-cTextTableHD = fromGridHD . map2 c . cTextGridH
+cTextTableHD = fromGridHD . cTextGridH
 cTextTables   = map cTextTable
 cTextTablesH  = map cTextTableH
 cTextTablesHD = map cTextTableHD
@@ -156,7 +158,7 @@ eustats m = foldSubTable3 sum
    $ join jInner bzero (europe m) (stats m)
 -- milper m = fromGridN 0 $ map (\row -> (extractText $ findType "a" $ row !! 1) : (map extractText $ drop 2 row)) $ convertGridH $ wikiTable m "List of countries by number of military and paramilitary personnel"
 
-ip m = join jInner bzero (index $ map toDyn ["India"::ByteString, "Pakistan"]) $ stats m
+--ip m = join jInner bzero (index $ map toDyn ["India"::ByteString, "Pakistan"]) $ stats m
 
 text1 t =
    let
@@ -214,7 +216,6 @@ allies5 m =
          fromGrid1 ["group", "country"] $
             concatMap (\row -> map (\country -> [toDyn $ text1 $ row !! 1, toDyn $ extractText country]) $ findTypes "a" $ row !! 2) g
 
-tt = fromGridHD $ map2 show $ crossWith (*) [1..10] [1..10]
 {-allies6 m = let
       me = mileq m
       a  = allies5 m

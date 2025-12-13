@@ -198,8 +198,11 @@ readWriteHTML1 m url = do
          return h
       else do
          putStrLn $ "fetching " ++ file
-         html <- getHTMLIO m url
-         Data.ByteString.Builder.writeFile file $ formatB 0 html
+         str <- getHTTPIO m url
+         let html = nestParse str url
+         writeFileBinary file str
+         --html <- getHTMLIO m url
+         --Data.ByteString.Builder.writeFile file $ formatB 0 html
          putStrLn $ "written " ++ file
          return html
 
@@ -623,8 +626,8 @@ charEnts1 endChars = do
                      do string "apos;" ; return "'",
                      do string "quot;" ; return "\"",
                      do string "pound;"; return "£",
-                     do string "#" ; i <- fromIntegral <$> integer;                 return $ cons i empty,
-                     do string "#x"; i <- fromIntegral <$> baseInteger 16 hexDigit; return $ cons i empty]
+                     do string "#" ; i <- fromIntegral <$> integer;                 char ';'; return $ cons i empty,
+                     do string "#x"; i <- fromIntegral <$> baseInteger 16 hexDigit; char ';'; return $ cons i empty]
          return $ clear ++ qchar
       | null clear -> fail "no text"
       | otherwise  -> return clear

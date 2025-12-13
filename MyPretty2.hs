@@ -4,6 +4,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Replace case with maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
+{- HLINT ignore "Avoid lambda using `infix`" -}
 {- HLINT ignore "Use section" -}
 {- HLINT ignore "Avoid lambda" -}
 
@@ -15,10 +16,9 @@ module MyPretty2 (
    pp,
    findWidth,
    putGrid,
-   putGridF,
    showGridF,
    tryGridF,
-   firstRpt,
+   takeUntilRepeat,
    colWidthsF,
    colWidths1,
    colWidths5,
@@ -26,10 +26,13 @@ module MyPretty2 (
    showGrid,
    showGrid1,
    showGridW,
+   showGridWrap,
    showCol,
    putGridW,
-   putGridT,
    width,
+   wrapText,
+   justify,
+   justify1,
    GridH(..), 
    GridV(..),
    Term (Int1, Integer1, Data, Double1, String1, Date, DateTime, Bool1, List, NDiffTime, ByteStr),
@@ -59,7 +62,9 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Text.ParserCombinators.Parsec.Token qualified as T
 
-width = 413
+import Debug.Trace
+
+width = 412
 
 findWidth n = mapM_ putStrLn $ transpose $ padcol0 $ map show [1 .. n]
 
@@ -205,8 +210,8 @@ formatList width open sep close terms =
       fterms = map (format1 (width - ind)) terms
 
       res = open ++ intercalate sep fterms ++ close
-      in
-      if length res <= width
+   
+   in if length res <= width
          then res
          else openind ++ indent1 ind (intercalate (sep ++ "\n") fterms) ++ close
 
@@ -215,8 +220,8 @@ formatList1 width open sep close terms =
       ind = 3
       fterms = map (format1 (width - ind)) terms
       res = open ++ intercalate sep fterms ++ close
-      in
-      if length res <= width
+   
+   in if length res <= width
          then res
          else open ++ "\n" ++ indent ind (intercalate (sep ++ "\n") fterms) ++ close
 
@@ -263,19 +268,20 @@ colWidthsV cellwcols =
    let
       colWidths = map sum cellwcols
       mult = width // sum colWidths
-      in
-      (colWidths, map (mult *) colWidths)
+   
+   in (colWidths, map (mult *) colWidths)
 
 -- make the column widths proportional to the total length of all cells in them
 -- but no wider than the widest
 
 -- shrink them until no need
-colWidths1 width tab =
+colWidths1 :: (Integral a, Integral b) => a -> [[a]] -> ((a, a, [(a, b)], [a], [a]) -> (a, a, [(a, b)], [a], [a]), (a, a, [(a, b)], [a], [a]), (a, a, [(a, b)], [a], [a]) -> [a])
+colWidths1 width cellLengthCols =
    let
-      cellwcols = map2 length tab
-      colwsF = map maximum cellwcols
-      colwsV = map sum cellwcols
-      in
+      colwsF = map maximum cellLengthCols
+      colwsV = map sum cellLengthCols
+   
+   in
       -- mult      = fromIntegral width / fromIntegral (sum colwsV)
       -- colwsV1   = map (ceiling . (mult*) . fromIntegral) colwsV
 
@@ -290,8 +296,8 @@ colWidths1A width (wf, wv, _, colwsF, colwsV) =
       wv1 = sum [w | (w, x) <- colwsMin, x == 2]
       -- [(1, wf1), (2, wv1)] = combine (+) 0 $ map tflip colws5
       colwsV2 = map fst colwsMin
-      in
-      (wf1, wv1, colwsMin, colwsF, if wv1 == 0 then colwsF else colwsV2)
+   
+   in (wf1, wv1, colwsMin, colwsF, if wv1 == 0 then colwsF else colwsV2)
 
 colWidths1B (wf, wv, _, colwsF, colwsV) = map fst $ zipWith min (map (,1) colwsF) (map (,2) colwsV)
 
@@ -311,10 +317,12 @@ factors1 length (prevHeight, prevWidth)
    | prevWidth <= 1 = Nothing
    | prevWidth * prevWidth < length = let
          height = prevHeight + 1
+         
          in Just (height, length // height)
 
    | otherwise = let
          width = length // (prevWidth - 1)
+         
          in Just (length // width, width)
 
 -- a refinement of colwidths1. divide cell widths by total width of row first
@@ -328,17 +336,10 @@ rowHeights colWidths cellLengthsRow = reverse $ nubSet $ cellHeightsRow colWidth
 
 gridHeight cellLengthRows colWidths = sum $ map (rowHeight colWidths) cellLengthRows
 
-extend colWidths by col = zipWith (+) colWidths $ replicate col 0 ++ [by] ++ repeat 0
+adjustElem f col colWidths = let
+   (b, x:a) = splitAt col colWidths
 
-tryCW width cellwrows colWidths by
-   | sum colWidths + by >= width = colWidths
-   | otherwise = let 
-      r = mapfxx (gridHeight cellwrows) $ map (extend colWidths by) [0 .. length colWidths - 1]
-      ma = maximum r
-      mi = minimum r
-      in if fst ma == fst mi
-            then tryCW width cellwrows colWidths (by + 1)
-            else tryCW width cellwrows (snd mi) 1
+   in b ++ f x : a
 
 minWidthAux f colWidths cellMapsRow =
    let
@@ -465,25 +466,32 @@ unionWith3 f fl fr l r =
    M.unions [M.intersectionWith f l r, M.map fl (l M.\\ r), M.map fr (r M.\\ l)]
 
 
-colWidths5 width tab =
+colWidths5 width cellLengthCols1 =
    let
-      nCols = length tab
-      cellLengthCols = map2 length tab
+      cellLengthCols = map2 fromIntegral cellLengthCols1 :: [[Double]]
       cellLengthRows = transposez 0 cellLengthCols
-      colWidths = replicate nCols 1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
+      colWidths = map fromIntegral $ gridDriver $ colWidths1 width cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
-   in (colWidths5A width cellLengthRows cellLengthCols, colWidths, id)
+   in (colWidths5A (fromIntegral width) cellLengthRows cellLengthCols, colWidths, map ceiling)
 
 -- repeatedly widen the column that has the most cells that are keeping their row from being lower
 colWidths5A width cellLengthRows cellLengthCols colWidths =
-   if sum colWidths >= width 
+   if sum colWidths >= width - 5
       then colWidths 
       else let
          cellHeightCols = zipWith cellHeightsCol colWidths cellLengthCols
          rowHeights = map (rowHeight colWidths) cellLengthRows
-
-         in extend colWidths 1 $ snd $ maximum $
-            zip (zipWith (colWideningPressure rowHeights) colWidths cellLengthCols) [0..]
+         colForces = zipWith (colWideningPressure rowHeights) colWidths cellLengthCols
+         maxForce  = maximum colForces
+         minForce  = minimum colForces
+         nMaxes    = fromIntegral $ length $ filter (== maxForce) colForces
+         nMins     = fromIntegral $ length $ filter (== maxForce) colForces
+         add       = 1 / nMaxes
+         sub       = 1 / nMins
+         in zipWith (\f w -> if 
+                                 | f == maxForce -> w + add
+                                 | f == minForce -> w - sub
+                                 | otherwise     -> w) colForces colWidths
 
 colWidths5B width tab celllrows colWidths = do
    let t = transpose $ map (rowWideningPressure colWidths) celllrows
@@ -495,7 +503,7 @@ colWidths5B width tab celllrows colWidths = do
    print t3
    let t4 = maximum t3
    print t4
-   let colws2 = extend colWidths 1 $ snd t4
+   let colws2 = adjustElem (+1) (snd t4) colWidths
    print colws2
    if sum colws2 < width && colws2 /= colWidths
       then colWidths5B width tab celllrows colws2
@@ -504,8 +512,8 @@ colWidths5B width tab celllrows colWidths = do
 colWidths5Z width tab colWidths =
    let
       celllsrows = map2 length $ transpose tab -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
-      in
-      colWidths5B width tab celllsrows colWidths
+      
+   in colWidths5B width tab celllsrows colWidths
 
 --colWidths5 width = colWidths1 width
 
@@ -514,14 +522,14 @@ colWidths6 width celllcols =
       cellhcols = map (\celllcol -> mapxfx (\colw -> map (// colw) celllcol) [1 .. width]) celllcols
       colwscombs = crossList cellhcols
       tabhcomb = mapMaybe ((\(cw, rh) -> ifJust (sum cw == width) (sum rh, cw)) . (\colwscomb -> (map fst colwscomb, map maximum $ transpose $ map snd colwscomb))) colwscombs
-      in
-      tabhcomb
+   
+   in tabhcomb
 
 colWidths6A width = sort . colWidths6 width
 
 colWidths62 width = putStr . unlines . map ((`replicate` '#') . min 470 . ceiling . (400 /) . fst) . colWidths6 width
 
-data Column = Column { heights :: [Double], xw :: Double, number :: Int, text :: [String] }
+data Column = Column { heights :: [Double], xw :: Double, number :: Int }
             | Merged { heights :: [Double], wasted :: Double, colX :: Column, colY :: Column }
 
 foldl2 f xs = let
@@ -539,18 +547,20 @@ foldl3 f xs =
       xsnew@(a:b) -> foldl3 f xsnew
 
 colWidths7 width tab = 
+   (\x -> (id, x, id)) $
+   map xw $
    sortOn number $
    colWidths7D $
    foldl3 colWidths7B $ 
    zipWith (colWidths7A $ fromIntegral width) [0..] tab
 
-colWidths7A width number1 colText = let
-   h = map ((width /) . fromIntegral . length) colText
+colWidths7A width number1 lengths = let
+   h = map ((width /) . fromIntegral) lengths
+   
    in Column {
-      heights = h,
-      xw      = width,
-      number  = number1,
-      text    = colText }
+      heights  = h,
+      xw       = width,
+      number   = number1 }
 
 colWidths7B colX1 colY1 = let
    rowRatios = sort $ zipWith (\x y -> [x / y, x, y]) (heights colX1) (heights colY1)
@@ -595,32 +605,26 @@ n = sqrt (d^2 - 2d) - d - 1/2
       in (div, total)) as bs xs ys
 
    sorted = sort $ zip totals [0..]
-   (xw, yw) = if fst (sorted !! 1) / fst (sorted !! 0) > 0.5
-      then let
-
-         in (0, 0)
-      else let
-         index = snd $ head sorted
-         divx = divs !! index
-         divy = 1 - divx
-         xw = recip divx
-         yw = recip divy
-
-         in (xw, yw)
+   index = snd $ head sorted
+   divx = divs !! index
+   divy = 1 - divx
+   xw = recip divx
+   yw = recip divy
    xh = map (xw *) xs
    yh = map (yw *) ys
    maxh = zipWith max xh yh
    waste w h maxh = w * (maxh - h)
+   
    in Merged { 
       heights = maxh,
       wasted  = sum $ zipWith3 (\xh yh maxh -> max (waste xw xh maxh) (waste yw yh maxh)) xh yh maxh,
       colX    = colWidths7C xw colX1,
       colY    = colWidths7C yw colY1 }
 
-colWidths7C mult col@(Column lengths1 xw1 _ _) =
+colWidths7C mult col@(Column {}) =
    col {
       --lengths = map (mult *) lengths1,
-      xw      = mult * xw1 }
+      xw      = mult * xw col }
 
 colWidths7C mult col@(Merged {}) = 
    col {
@@ -661,8 +665,8 @@ colWidths7Z celllcols =
       boyw  = zipWith (/) b    yw     -- b / yw
       total = zipWith (+) aoxw boyw   -- a / xw + b / yw
       check = map (gridHeight celllrows) $ zipWith (\xw yw -> [xw, yw]) xw yw
-      in
-      putGrid $ z [r, x, y, xw, yw, a, b, aoxw, boyw, total, check]
+      
+   in putGrid $ z [r, x, y, xw, yw, a, b, aoxw, boyw, total, check]
 
 z cols = zipWith (:) ["r=x/y", "x", "y", "xw = x/(x+y)", "yw = y/(x+y)", "a", "b", "a/xw", "b/yw", "total", "check"] $ map2 show cols
 
@@ -675,8 +679,8 @@ xyz [r, rp1or, xacc, rp1, yacc] =
       ri = outersperse Nothing $ map Just r
       rp1i = outersperse Nothing $ map Just rp1
       rp1ori = outersperse Nothing $ map Just rp1or
-      in
-      putGrid $ map2 showm [ri, rp1ori, xacci, rp1i, yacci]
+      
+   in putGrid $ map2 showm [ri, rp1ori, xacci, rp1i, yacci]
 
 showm (Just j) = show j
 showm Nothing = ""
@@ -706,7 +710,7 @@ colWidths9 width tab =
 -- repeatedly widen the column that has the most cells that are keeping their row from being lower
 colWidths9A :: Int -> [[Int]] -> [Int] -> [Int]
 colWidths9A width celllsrows colWidths =
-   if sum colWidths >= width then colWidths else extend colWidths 1 $ snd $ maximum $ zip (map sum $ transpose $ mapNeedsWidening colWidths celllsrows) [0 ..]
+   if sum colWidths >= width then colWidths else adjustElem colWidths 1 $ snd $ maximum $ zip (map sum $ transpose $ mapNeedsWidening colWidths celllsrows) [0 ..]
 
 colWidths9B width tab celllrows colWidths = do
    let t = transpose $ map (needsWidening colWidths) celllrows
@@ -718,7 +722,7 @@ colWidths9B width tab celllrows colWidths = do
    print t3
    let t4 = maximum t3
    print t4
-   let colws2 = extend colWidths 1 $ snd t4
+   let colws2 = adjustElem colWidths 1 $ snd t4
    print colws2
    if sum colws2 < width && colws2 /= colWidths
       then colWidths5B width tab celllrows colws2
@@ -767,8 +771,8 @@ colWidths6A width celllrows colWidths colws1 = let
       colsums = zip (map sum $ transpose $ map (needsWidening colWidths) celllrows) [0..]
       mincol  = snd $ minimum colsums
       maxcol  = snd $ maximum colsums
-      colws2  = extend colws1   1  maxcol
-      colws3  = extend colws2 (-1) mincol
+      colws2  = adjustElem colws1   1  maxcol
+      colws3  = adjustElem colws2 (-1) mincol
 
       in if colws3 == colWidths || colws3 == colws1
          then colWidths
@@ -781,8 +785,8 @@ showTerm1 (Double1 d) =
       s = showFFloat (Just 3) d ""
       l = length s
       p = elemIndex '.' s
-      in
-      case p of
+      
+   in case p of
          Just j -> (j, l - j, 0, s)
          Nothing -> (l, 0, 0, s)
 
@@ -793,8 +797,8 @@ showTerm b a l (Double1 d) =
       s = showFFloat (Just 3) d ""
       l = length s
       p = fromMaybe l $ elemIndex '.' s
-      in
-      (p, l - p, 0, replicate (b - p) ' ' ++ s ++ replicate (a - (l - p)) ' ')
+   
+   in (p, l - p, 0, replicate (b - p) ' ' ++ s ++ replicate (a - (l - p)) ' ')
 
 showCol col =
    let
@@ -804,41 +808,53 @@ showCol col =
       l1 = maximum l
       l2 = max (b1 + a1) l1
       b2 = max b1 (l2 - a1)
-      in
-      c
+   
+   in c
 
 -- showGridF f width tab = showGrid1 (f (width - length tab) tab) tab
-showGrid = showGridW width
+showGrid = showGridF colWidths5 showGrid1 width
 
-showGridW = showGridF colWidths5
+showGridWrap = showGridF colWidths1 showGridWrap1
 
-showGridF f width1 tab =
+showGridW = showGridF colWidths1 showGrid1
+
+showGridF f g width1 tab =
    let
-      cellLengthsByCol = map2 length tab
-      colWidths1 = colWidthsF cellLengthsByCol
+      cellLengthCols = map2 length tab
+      colWidths1 = colWidthsF cellLengthCols
       width = width1 - length tab
       colWidths =
          if sum colWidths1 < width
             then colWidths1
-            else blah $ f width tab
-      in
-      showGrid1 colWidths $ padRWith "" tab
+            else gridDriver $ f width cellLengthCols
+      
+   in g colWidths cellLengthCols $ padRWith "" tab
 
-showGrid1 colWidths tab =
+showGrid1 colWidths cellLengthCols tab =
    let
       rows = transpose $ zipWith (\cw c -> map (\cell -> (cw, groupN cw cell)) c) colWidths tab
       rows2 =
          map
             ( \row ->
-                  let m = maximum $ map (length . snd) row
-                  in map (\(lc, cell) -> map (padr lc) $ padLWith1 "" m cell) row
+                  let li = maximum $ map (length . snd) row
+                  in map (\(cw, cell) -> map (padr cw) $ padRWith1 "" li cell) row
             )
             rows
-      in
-      -- in newrows
-      -- in length $ concat $ map2 (intercalate "|") $ map transpose rows2
+      
+   in unlines $ concat $ map2 (intercalate "|") $ map transpose rows2
 
-      unlines $ concat $ map2 (intercalate "|") $ map transpose rows2
+showGridWrap1 colWidths cellLengthCols tab =
+   let
+      rows = transpose $ zipWith (\cw c -> map (\cell -> (cw, wrapText cw cell)) c) colWidths tab
+      rows2 =
+         map
+            ( \row ->
+                  let li = maximum $ map (length . snd) row
+                  in map (\(cw, cell) -> map (padr cw) $ padRWith1 "" li cell) row
+            )
+            rows
+      
+   in unlines $ concat $ map2 (intercalate "|") $ map transpose rows2
 
 putGridW w = putStr . showGridW w
 
@@ -850,26 +866,25 @@ putGrid grid = do
    putStr $ showGridW width1 grid
 
 -- putGrid2 = putStr . showGridF colWidths5 420
-putGridF t = putStr $ showGrid1 (colWidthsF $ map2 length t) $ padRWith "" t
+takeUntilRepeat1 :: (Ord a) => S.Set a -> [a] -> [a]
+takeUntilRepeat1 set (x : xs) = if S.member x set then [x] else x : takeUntilRepeat1 (S.insert x set) xs
 
-firstRpt1 :: (Ord a) => S.Set a -> [a] -> [a]
-firstRpt1 set (x : xs) = if S.member x set then [x] else x : firstRpt1 (S.insert x set) xs
+takeUntilRepeat :: (Ord a) => [a] -> [a]
+takeUntilRepeat = takeUntilRepeat1 S.empty
 
-firstRpt :: (Ord a) => [a] -> [a]
-firstRpt = firstRpt1 S.empty
+gridDriver (f1, s, f2) = f2 $ last $ takeUntilRepeat $ iterate f1 s
 
-blah (f1, s, f2) = f2 $ last $ firstRpt $ iterate f1 s
+gridTester (f1, s, f2) = (r, f2 $ last r) where r = takeUntilRepeat $ iterate f1 s
 
-bleh (f1, s, f2) = (r, f2 $ last r) where r = firstRpt $ iterate f1 s
-
-tryGridF f width tab = bleh $ f (width - length tab) tab
-
+tryGridF f width tab = gridTester $ f (width - length tab) tab
+{-
 putGridT tab = do
    let f = colWidths5
-   let (colws1, colWidths) = bleh $ f (width - length tab) tab
+   let cellLengthCols = map2 length tab
+   let (colws1, colWidths) = gridTester $ f (width - length tab) cellLengthCols
    mapM_ (pp width) colws1
    pp width colWidths
-
+-}
 randGrid y x seed = runStateGen_ (mkStdGen seed) (replicateM y . replicateM x . uniformRM (1, 100))
 
 randGridS y x seed = map2 (`replicate` 'x') $ randGrid y x seed
@@ -885,6 +900,7 @@ groupCols [] = []
 groupCols e = let
    (left, _):filled = dropWhile snd e
    (right, _):empty = dropWhile (not . snd) filled
+   
    in (left, right - 1):groupCols empty
 {-
 I think I found a general law:
@@ -1037,4 +1053,40 @@ its pretty easy to add these up column by column
 
 -}
 
-mmm = 0
+wrapText width xs = let
+   ws = words xs
+   ls = map length ws
+
+   in wrapText1 width ws ls
+
+wrapText1 :: Int -> [String] -> [Int] -> [String]
+wrapText1 width [] _  = []
+wrapText1 width ws ls = let
+   ys = zipWith (+) (0 : [0..]) $ scanl (+) 0 ls
+   zs = takeWhile (<= width) ys
+   in if length zs <= 1
+         then let
+            w = take width $ head ws
+            w1 = drop width $ head ws
+
+            in w : wrapText1 width (w1:tail ws) (tail ls)
+
+         else let
+            (ws1, ws2) = splitAt (length zs - 1) ws
+            (ls1, ls2) = splitAt (length zs - 1) ls
+            
+            in justify1 width ws1 ls1 : wrapText1 width ws2 ls2
+         --else unwords (take (length zs) ws) : wrapText1 width ws ls
+
+justify width xs = let ws = words xs in justify1 width ws (map length ws)
+
+justify1 width ws ls = let
+   n = length ws - 1
+   sp = width - sum ls
+   d = fromIntegral sp / fromIntegral n
+   sps = map round [0, d..fromIntegral sp]
+   sp2 = map (\n -> replicate n ' ') $ zipWith (-) (tail sps) sps
+   
+   in if n > 0
+         then concat $ (head ws :) $ zipWith (++) sp2 (tail ws)
+         else concat ws ++ replicate sp ' '
