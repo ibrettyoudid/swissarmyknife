@@ -320,6 +320,8 @@ factors1 length (prevHeight, prevWidth)
 -- a refinement of colwidths1. divide cell widths by total width of row first
 cellHeightsRow a b = zipWith (flip (//)) a b
 
+cellHeightsCol colWidth cellLengthsCol = map (// colWidth) cellLengthsCol
+
 rowHeight colWidths cellLengthsRow = maximum $ cellHeightsRow colWidths cellLengthsRow
 
 rowHeights colWidths cellLengthsRow = reverse $ nubSet $ cellHeightsRow colWidths cellLengthsRow
@@ -364,7 +366,14 @@ minIncWidthToDecHeight2 currWidths newWidths = do
    minWidths <- get
    put $ zipWith3 (\c n m -> max c $ min n m) currWidths newWidths minWidths
 
-cellWideningPressure rowHeight colWidth cellHeight = if cellHeight >= rowHeight then cellHeight // colWidth else 0
+cellWideningPressure rowHeight colWidth cellHeight = let
+   advantage   = cellHeight // colWidth
+   vForce      = 1
+   hForce      = if cellHeight >= rowHeight then vForce * advantage else 0
+   --hNextChange = rowHeight2 / advantage
+   --hStretch    = vStretch * advantage^2 -- force divided by distance has advantage squared
+
+   in hForce
 
 rowWideningPressure colWidths cellLengthsRow = let
    cellHeightsRow1 = cellHeightsRow colWidths cellLengthsRow
@@ -374,7 +383,7 @@ rowWideningPressure colWidths cellLengthsRow = let
 
 --cellWideningPressure1 colWidth rowHeight cellLength cellHeight = if cellHeight >= rowHeight then cellHeight // colWidth else 0
 
-colWideningPressure colWidth rowHeights cellHeightsCol = 
+colWideningPressure rowHeights colWidth cellHeightsCol = 
    sum $ zipWith (flip cellWideningPressure colWidth) rowHeights cellHeightsCol
 
 -- in (zipped, maxh, maxhm1, sum blah, blah)
@@ -458,16 +467,23 @@ unionWith3 f fl fr l r =
 
 colWidths5 width tab =
    let
-      ncols = length tab
-      celllsrows = map2 length $ transposez "" tab
-      colWidths = replicate ncols 1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
-      in
-      (colWidths5A width celllsrows, colWidths, id)
+      nCols = length tab
+      cellLengthCols = map2 length tab
+      cellLengthRows = transposez 0 cellLengthCols
+      colWidths = replicate nCols 1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
+
+   in (colWidths5A width cellLengthRows cellLengthCols, colWidths, id)
 
 -- repeatedly widen the column that has the most cells that are keeping their row from being lower
-colWidths5A :: Int -> [[Int]] -> [Int] -> [Int]
-colWidths5A width celllsrows colWidths =
-   if sum colWidths >= width then colWidths else extend colWidths 1 $ snd $ maximum $ zip (map sum $ transpose $ map (rowWideningPressure colWidths) celllsrows) [0 ..]
+colWidths5A width cellLengthRows cellLengthCols colWidths =
+   if sum colWidths >= width 
+      then colWidths 
+      else let
+         cellHeightCols = zipWith cellHeightsCol colWidths cellLengthCols
+         rowHeights = map (rowHeight colWidths) cellLengthRows
+
+         in extend colWidths 1 $ snd $ maximum $
+            zip (zipWith (colWideningPressure rowHeights) colWidths cellLengthCols) [0..]
 
 colWidths5B width tab celllrows colWidths = do
    let t = transpose $ map (rowWideningPressure colWidths) celllrows
