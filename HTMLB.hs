@@ -516,11 +516,13 @@ findTree pred tag = case findTrees pred tag of
    [] -> Text ""
    (r : _) -> r
 
-extractText = trim . squash . clean . mapTree aux map (const "")
+extractText = trim . squash . clean . mapTree aux map tagText
    where
       
-      aux tag subtexts  | tagType tag == "li" || tagType tag == "td" = concat (head subtexts : map (cons $ convertChar ' ') subtexts)
-                        | otherwise = concat subtexts
+      aux tag subtexts  | tagType tag == "ul" || tagType tag == "td" = concat (head subtexts : map (cons $ convertChar ' ') (tail subtexts))
+                        | otherwise  = concat subtexts
+
+
 filterTree pred tag@(Tag typ atts subs) = ifPred pred $ Tag typ atts $ mapMaybe (filterTree pred) subs
 filterTree pred tag = ifPred pred tag
 
