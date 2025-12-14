@@ -401,8 +401,8 @@ jOuter = (True , True , True )
 join include empty l r =
    let
       (flr, j1) = joinClear empty l r
-   in
-      Table flr $ INode $ joinInclude include j1
+   
+   in Table flr $ INode $ joinInclude include j1
 
 foldlj f xs = foldl f (head xs, []) (tail xs)
 
@@ -411,14 +411,14 @@ miss x = (x, [])
 joinCollectMisses include empty (l, ml) (r, mr) =
    let
       (flr, j1@(l1, i, r1)) = joinClear empty l r
-   in
-      (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
+   
+   in (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
 
 joinFuzzy include maxDist empty l r =
    let
       (flr, j1) = joinFuzzy1 maxDist empty l r
-   in
-      Table flr $ INode $ joinInclude include j1
+   
+   in Table flr $ INode $ joinInclude include j1
 
 joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
    where

@@ -199,7 +199,7 @@ readWriteHTML1 m url = do
       else do
          putStrLn $ "fetching " ++ file
          str <- getHTTPIO m url
-         let html = nestParse str url
+         let html = nestParse url str
          writeFileBinary file str
          --html <- getHTMLIO m url
          --Data.ByteString.Builder.writeFile file $ formatB 0 html
@@ -265,7 +265,6 @@ writeFileBinary name dat = do
 readHTTP m url = do
    nsr <- simpleHTTP m (getRequest url)
    return $ responseBody nsr
-
 
 --------------------------------------------------------------------------------------------
 
