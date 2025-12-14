@@ -81,7 +81,7 @@ putTextGrid = putGrid . map2 c . cTextGrid
 putTextFile = putTextGrid . readHTML
 
 -- convertGridH tag = map (getTags ["td", "th"] . subTags) $ filter (("tr" ==) . tagType) $ subTags tag
-extractText = trim . squash . clean . concat . map text . findTrees isText
+extractText1 = trim . squash . clean . concat . map text . findTrees isText
 extractTexts htmls = trim $ squash $ concat $ map tagText htmls
 
 firstText = (\case { [] -> empty; (a:_) -> a }) . mapMaybe (ifPred (not . null) . trim . clean . tagText) . findTrees isText
@@ -516,6 +516,11 @@ findTree pred tag = case findTrees pred tag of
    [] -> Text ""
    (r : _) -> r
 
+extractText = trim . squash . clean . mapTree aux map (const "")
+   where
+      
+      aux tag subtexts  | tagType tag == "li" || tagType tag == "td" = concat (head subtexts : map (cons $ convertChar ' ') subtexts)
+                        | otherwise = concat subtexts
 filterTree pred tag@(Tag typ atts subs) = ifPred pred $ Tag typ atts $ mapMaybe (filterTree pred) subs
 filterTree pred tag = ifPred pred tag
 

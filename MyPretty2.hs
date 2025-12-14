@@ -63,8 +63,12 @@ import Data.Set qualified as S
 import Text.ParserCombinators.Parsec.Token qualified as T
 
 import Debug.Trace
+import GHC.IO (unsafePerformIO)
 
-width = 412
+width1 = 412
+
+{-# NOINLINE width #-}
+width = unsafePerformIO getWidth1
 
 findWidth n = mapM_ putStrLn $ transpose $ padcol0 $ map show [1 .. n]
 
@@ -470,28 +474,27 @@ colWidths5 width cellLengthCols1 =
    let
       cellLengthCols = map2 fromIntegral cellLengthCols1 :: [[Double]]
       cellLengthRows = transposez 0 cellLengthCols
-      colWidths = map fromIntegral $ gridDriver $ colWidths1 width cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
+      colWidths = map fromIntegral $ gridDriver width $ colWidths1 width cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
-   in (colWidths5A (fromIntegral width) cellLengthRows cellLengthCols, colWidths, map ceiling)
+   in (colWidths5A (fromIntegral width) cellLengthRows cellLengthCols, colWidths, map floor)
 
 -- repeatedly widen the column that has the most cells that are keeping their row from being lower
 colWidths5A width cellLengthRows cellLengthCols colWidths =
-   if sum colWidths >= width - 5
-      then colWidths 
-      else let
-         cellHeightCols = zipWith cellHeightsCol colWidths cellLengthCols
-         rowHeights = map (rowHeight colWidths) cellLengthRows
-         colForces = zipWith (colWideningPressure rowHeights) colWidths cellLengthCols
-         maxForce  = maximum colForces
-         minForce  = minimum colForces
-         nMaxes    = fromIntegral $ length $ filter (== maxForce) colForces
-         nMins     = fromIntegral $ length $ filter (== maxForce) colForces
-         add       = 1 / nMaxes
-         sub       = 1 / nMins
-         in zipWith (\f w -> if 
-                                 | f == maxForce -> w + add
-                                 | f == minForce -> w - sub
-                                 | otherwise     -> w) colForces colWidths
+   let
+      cellHeightCols = zipWith cellHeightsCol colWidths cellLengthCols
+      rowHeights = map (rowHeight colWidths) cellLengthRows
+      colForces = zipWith (colWideningPressure rowHeights) colWidths cellLengthCols
+      maxForce  = maximum colForces
+      minForce  = minimum colForces
+      nMaxes    = fromIntegral $ length $ filter (== maxForce) colForces
+      nMins     = fromIntegral $ length $ filter (== maxForce) colForces
+      add       = if sum colWidths > width then 0 else 1 / nMaxes
+      sub       = 1 / nMins
+      
+   in zipWith (\f w -> if 
+                              | f == maxForce -> w + add
+                              | f == minForce -> w - sub
+                              | otherwise     -> w) colForces colWidths
 
 colWidths5B width tab celllrows colWidths = do
    let t = transpose $ map (rowWideningPressure colWidths) celllrows
@@ -546,8 +549,9 @@ foldl3 f xs =
       [x] -> x
       xsnew@(a:b) -> foldl3 f xsnew
 
+
 colWidths7 width tab = 
-   (\x -> (id, x, id)) $
+   (id, , map ceiling) $
    map xw $
    sortOn number $
    colWidths7D $
@@ -814,7 +818,7 @@ showCol col =
 -- showGridF f width tab = showGrid1 (f (width - length tab) tab) tab
 showGrid = showGridF colWidths5 showGrid1 width
 
-showGridWrap = showGridF colWidths1 showGridWrap1
+showGridWrap = showGridF colWidths1 showGridWrap1 width
 
 showGridW = showGridF colWidths1 showGrid1
 
@@ -826,7 +830,7 @@ showGridF f g width1 tab =
       colWidths =
          if sum colWidths1 < width
             then colWidths1
-            else gridDriver $ f width cellLengthCols
+            else gridDriver width $ f width cellLengthCols
       
    in g colWidths cellLengthCols $ padRWith "" tab
 
@@ -858,23 +862,40 @@ showGridWrap1 colWidths cellLengthCols tab =
 
 putGridW w = putStr . showGridW w
 
-putGrid grid = do
+putGrid grid = putStr $ showGrid grid
+
+getWidth1 = do
    mwindow <- Term.size
-   let width1 = case mwindow of
-         Just window -> Term.width window
-         Nothing     -> width
-   putStr $ showGridW width1 grid
+   return $ case mwindow of
+      Just window -> Term.width window
+      Nothing     -> width1
+
+takeUntilRepeat :: (Ord a) => [a] -> [a]
+takeUntilRepeat = takeUntilRepeat1 S.empty
 
 -- putGrid2 = putStr . showGridF colWidths5 420
 takeUntilRepeat1 :: (Ord a) => S.Set a -> [a] -> [a]
 takeUntilRepeat1 set (x : xs) = if S.member x set then [x] else x : takeUntilRepeat1 (S.insert x set) xs
 
-takeUntilRepeat :: (Ord a) => [a] -> [a]
-takeUntilRepeat = takeUntilRepeat1 S.empty
+gridDriver width (f1, s, f2) = forceLess width $ f2 $ last $ takeUntilRepeat $ iterate f1 s
 
-gridDriver (f1, s, f2) = f2 $ last $ takeUntilRepeat $ iterate f1 s
+gridTester width (f1, s, f2) = (r, f2 $ last r) where r = takeUntilRepeat $ iterate f1 s
 
-gridTester (f1, s, f2) = (r, f2 $ last r) where r = takeUntilRepeat $ iterate f1 s
+forceLess width colWidths = let
+   colWidthsD  = map fromIntegral colWidths
+   total       = sum colWidthsD
+   mult        = fromIntegral width / total
+   colWidths2  = map (mult *) colWidthsD
+   colWidthsI  = map floor colWidths2
+   colWidthsZ  = sort $ zipWith (\w n -> (snd $ properFraction w, w, n)) colWidths2 [0..]
+   slack       = width - sum colWidthsI
+   (colWidthsB, colWidthsA) 
+               = splitAt (length colWidths - slack) colWidthsZ
+   colWidthsC  = map (\(f, w, n) -> (n, floor   w)) colWidthsB ++
+                 map (\(f, w, n) -> (n, ceiling w)) colWidthsA
+   
+   in map snd $ sort colWidthsC
+
 
 tryGridF f width tab = gridTester $ f (width - length tab) tab
 {-
