@@ -93,7 +93,7 @@ repl1 env = do
    putStrLn li2
    putStrLn "parsing"
    (Parser3.Pass exd:_) <- Parser3.parseT expr li2
-   let ex = fromDyn1 exd
+   let ex = fromDyn1 $ head exd
    --let ex = Value u 0
    putStrLn "doing vars"
    let ex1 = runDoVars ex (map fconstr env)

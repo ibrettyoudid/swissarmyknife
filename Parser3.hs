@@ -497,7 +497,7 @@ data State tok = State { from::Int, to::Int, item::Item tok } deriving (Eq, Ord)
 instance Show z => Show (State z) where
    show (State b c i) = show i ++ " " ++ unwords (map show [b, c])
 
-data Result = Running | Fail | Pass { ast :: Dynamic } deriving (Eq, Ord, Show)
+data Result = Running | Fail | Pass { asts :: [Dynamic] } deriving (Eq, Ord, Show)
 
 data Item tok  = Item   (Rule tok) Result Item2 deriving (Eq, Ord)
 
@@ -790,14 +790,14 @@ predict1 n (State _ c i) = map (State c c) $ predict2 n i
 
 predict2 n (Item (Seq    as   ) Running (ISeq j)) = [start (as !! j)]
 predict2 n (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
-predict2 n (Item (Many   a    ) Running _       ) = [start a, Item (Many a) (Pass $ toDyn ([]::[Dynamic])) (IMany [])]
+predict2 n (Item (Many   a    ) Running _       ) = [start a, Item (Many a) (Pass [toDyn ([]::[Dynamic])]) (IMany [])]
 predict2 n (Item (Name   a b  ) Running _       ) = [start b]
 predict2 n (Item (Apply  a b  ) Running _       ) = [start b]
 predict2 n (Item (Set    a b  ) Running _       ) = [start b]
-predict2 n (Item (Not    a    ) Running _       ) = [start a, Item (Not a) (Pass $ toDyn ()) Item2]
+predict2 n (Item (Not    a    ) Running _       ) = [start a, Item (Not a) (Pass [toDyn ()]) Item2]
 predict2 n (Item (Bind   a b  ) Running _       ) = [start a]
-predict2 n (Item (Return a    ) Running _       ) = [Item (Return a) (Pass a) Item2]
-predict2 n (Item  Pos           Running _       ) = [Item Pos (Pass $ toDyn n) Item2]
+predict2 n (Item (Return a    ) Running _       ) = [Item (Return a) (Pass [a]) Item2]
+predict2 n (Item  Pos           Running _       ) = [Item Pos (Pass [toDyn n]) Item2]
 --predict2 (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
 predict2 n (Item {}) = []
 
@@ -815,7 +815,7 @@ scanA c t items = mapMaybe (scan1 c (t !! (c - 1))) $ SL.list items
 
 scan1 c ch (State j _ t) = scan2 c ch j c t
 
-scan2 c ch j _ (Item r Running i2) = do sc <- saux ch r; return $ State j c $ Item r (if sc then Pass $ toDyn ch else Fail) i2
+scan2 c ch j _ (Item r Running i2) = do sc <- saux ch r; return $ State j c $ Item r (if sc then Pass [toDyn ch] else Fail) i2
 scan2 c ch _ _ _ = Nothing
 
 saux ch (Token c  ) = Just $ ch == c
@@ -854,7 +854,7 @@ complete3 states main@(Item r@(Seq as) s (ISeq n)) substate
    | otherwise          = [Item r Running (ISeq (n + 1))]
       where
          sub = item substate
-         res1 = if passi sub then Pass (toDyn $ retrieve states as n substate) else Fail
+         res1 = if passi sub then Pass $ map toDyn $ retrieve2 states substate else Fail
 
 complete3 states main@(Item x@(Alt as) q (IAlt n)) substate
    | passi sub     = [Item x (result sub) (IAlt  n     )]
@@ -869,23 +869,25 @@ complete3 states main@(Item x@(Name d e) q i2) substate = [Item x (result sub) i
 
 complete3 states main@(Item x@(Apply d e) q _) substate =
    case result sub of
-      Pass res ->
+      Pass reslist -> do
+         res <- reslist
          case x of
             Apply iso _ ->
                case apply iso res of
-                  Just j  -> [Item x (Pass j) Item2]
-                  Nothing -> [Item x  Fail    Item2]
+                  Just j  -> [Item x (Pass [j]) Item2]
+                  Nothing -> [Item x  Fail      Item2]
       Fail -> [Item x Fail Item2]
    where
       sub = item substate
 
-complete3 states main@(Item x@(Not d) q i2) substate = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass (toDyn ()) } ) Item2]
+complete3 states main@(Item x@(Not d) q i2) substate = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } ) Item2]
    where
       sub = item substate
 
 complete3 states main@(Item x@(Bind a (b, c)) q _) substate =
    case result sub of
-      Pass res ->
+      Pass reslist -> do
+         res <- reslist
          case b res of
             r2 -> [start r2]
       Fail -> [Item x Fail Item2]
@@ -895,17 +897,21 @@ complete3 states main@(Item x@(Bind a (b, c)) q _) substate =
 complete3 states main@(Item x@(Many a) q (IMany done)) substate =
 --   Item x (Pass $ toDyn done) Item2 :
    case result sub of
-      Pass res -> [Item x Running (IMany $ done ++ [res])]
+      Pass reslist -> do
+         res <- reslist
+         [Item x Running (IMany $ done ++ [res])]
       Fail     -> []
    where
       sub = item substate
-
+{-
 retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
 
 retrieve1 states mainseq n sub = let
    prev1 = S.filter (\prevst -> pass (result $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (states !! from sub)
    prev  = only $ S.toList prev1
    in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) prev else []
+-}
+retrieve2 states state = map (map (result . item)) $ children states state
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
@@ -1009,7 +1015,6 @@ scan3 t = Nothing
 scan4 c (State r@(Token ch   ) b _ 0) = Just (ch, State r b c 1)
 --scan3 c (State r@(Range c d) b _ 0) = ifJust (ch >= c && ch <= d) (State r b c 1)
 scan4 c t = Nothing
--}
 
 children states (State f t i) = do
    s1@(State f1 t1 i1) <- S.toList $ states !! t
@@ -1021,11 +1026,23 @@ children states (State f t i) = do
             else []
          else []
 
+-}
+
+children states (State f t i) = do
+   s1@(State f1 t1 i1) <- SL.list $ states !! t
+   if subitem i i1 && pass (result i1)
+         then do
+            s2@(State f2 t2 i2) <- SL.list $ states !! f1
+            if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
+                  then if pos i2 > 0 then map (s1:) $ children states s2 else [[s1]]
+            else []
+         else []
+
 data Tree z = Tree (State z) [Tree z] | Trees [Tree z] deriving (Eq, Ord)
 
 tree start states =
    let
-      [end] = filter ((0 ==) . from) $ S.toList $ last states
+      [end] = filter ((0 ==) . from) $ SL.list $ last states
    in
       tree1 states end
 
