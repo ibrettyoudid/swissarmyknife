@@ -35,7 +35,8 @@ import Data.Typeable
 import Debug.Trace
 
 import Data.IORef
-
+import Graphics.Rendering.Cairo (RectangleInt(x))
+import System.IO.Unsafe
 
 data Rule tok =
    Seq [Rule tok]
@@ -499,7 +500,10 @@ instance Show z => Show (State z) where
 
 data Result = Running | Fail | Pass { asts :: [Dynamic] } deriving (Eq, Ord, Show)
 
-data Item tok  = Item   (Rule tok) Result Item2 deriving (Eq, Ord)
+data Item tok  = Item   (Rule tok) Result Item2 deriving (Eq)
+
+instance Ord tok => Ord (Item tok) where
+   compare a b = compare (rule a, item2 a, result a) (rule b, item2 b, result b)
 
 data Item2     = Item2
                | ISeq  Int
@@ -691,7 +695,7 @@ parseE1D lps states t c items = do
    let scan1 = scanA c t items
    putStrLn $ "scan1=" ++ show scan1
    comp1 <- comppredD (getLC c lps) states $ SL.fromList scan1
-   putStrLn $ "comp1=" ++ show comp1
+   --putStrLn $ "comp1=" ++ show comp1
    return comp1
 
 conseq (a : b : cs)
@@ -730,12 +734,12 @@ closureDD f g items = closureDD1 f g items items
 
 closureDD1 f g done1 active1 = do
    putStrLn $ "COMPLETE " ++ replicate 71 '='
-   print active1
+   --print active1
    (a, done2) <- f done1 active1
    let active2 = SL.fromList $ catMaybes a
    let active3 = SL.union active1 active2
    putStrLn $ "PREDICT " ++ replicate 72 '='
-   print active3
+   --print active3
    (b, done3) <- g done2 active3
    let active4 = SL.fromList $ catMaybes b
    let active5 = SL.union active2 active4
@@ -840,11 +844,11 @@ complete1D states state = do
 
 complete2D :: (Show tok, Eq tok, Typeable tok) => [SL.SetList (State tok)] -> State tok -> State tok -> IO [State tok]
 complete2D states sub@(State b c subitem1) (State a b1 main) = do
-   print (sub, main, subitem main subitem1)
+   --print (sub, main, subitem main subitem1)
    if result subitem1 /= Running && result main == Running && subitem main subitem1
       then do
          let r = map (State a c) $ complete3 states main sub
-         print (sub, main, r)
+         --print (sub, main, r)
          return r
       else return []
 
@@ -911,7 +915,13 @@ retrieve1 states mainseq n sub = let
    prev  = only $ S.toList prev1
    in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) prev else []
 -}
-retrieve2 states state = map (map (result . item)) $ children states state
+mytrace x = unsafePerformIO $ mytrace1 x
+
+mytrace1 x = do
+   print x
+   return x
+
+retrieve2 states state = map (map (result . item)) $ mytrace $ children states state
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as

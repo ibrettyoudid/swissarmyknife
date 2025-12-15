@@ -81,7 +81,6 @@ repl1 env = do
    putStr "M#> "
    -- ex <- parseH <$> getLine
    hSetBinaryMode stdin True
-   print (Parser3.translate expr)
    li <- getLine
    li2 <- if li == "\\"
    then let 
