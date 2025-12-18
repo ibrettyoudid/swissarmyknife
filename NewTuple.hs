@@ -1,6 +1,8 @@
 module NewTuple where
 
-data a :- b = a :- b deriving (Eq, Show)
+import Data.Typeable
+
+data a :- b = a :- b deriving (Eq, Show, Typeable)
 
 infixr 1 :-
 

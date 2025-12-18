@@ -402,7 +402,7 @@ colWidths3 width tab =
       cellLengthRows = transposez 0 $ map2 length tab
       cellMapsRows = transposez M.empty $ map2 (factors !!) cellLengthRows
       colWidths = replicate ncols 1
-     
+      
    in (colWidths3A width cellLengthRows cellMapsRows, colWidths, id)
 
 -- colWidths4A :: Int -> [[a]] -> [[Int]] -> [Int] -> [Int]
@@ -447,7 +447,7 @@ colWidths4 width tab =
       possColWidths   = map (map fst . M.toList . M.unions) cellFactorCols
       colFactors      = zipWith (\cellFactorCol -> M.fromList . map (cellHeights cellFactorCol)) cellFactorCols possColWidths
       colWidths = replicate ncols 1
-     
+      
    in colWidths4A width cellLengthRows cellFactorRows colWidths
 
 -- colWidths4A :: Int -> [[a]] -> [[Int]] -> [Int] -> [Int]
@@ -892,7 +892,7 @@ forceLess width colWidths = let
    (colWidthsB, colWidthsA) 
                = splitAt (length colWidths - slack) colWidthsZ
    colWidthsC  = map (\(f, w, n) -> (n, floor   w)) colWidthsB ++
-                 map (\(f, w, n) -> (n, ceiling w)) colWidthsA
+                  map (\(f, w, n) -> (n, ceiling w)) colWidthsA
    
    in map snd $ sort colWidthsC
 
@@ -1009,8 +1009,8 @@ with a two column table you have the height as sum of cells where left column is
                         width of left column                 width of right column
 
 left cells become highest when left length   right length
-                               ----------- > ------------
-                               left width    right width
+                              ----------- > ------------
+                              left width    right width
 
 lengths
 12 3
@@ -1034,7 +1034,7 @@ with 3 columns
 
       sum of length of highest A cells   sum of length of highest B cells   sum of length of highest C cells
       -------------------------------- + -------------------------------- + --------------------------------
-             width of column A                  width of column B                    width of column C
+            width of column A                  width of column B                    width of column C
 
 as you increase the width of A
 

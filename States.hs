@@ -9,6 +9,13 @@ import qualified Data.Map as M
 --data states  a = states  { set :: S.Set a, list :: [a]}
 newtype StateSeq tok = StateSeq (M.Map int (States tok)) 
 
+data State tok = Scan     { item :: Item tok, from :: [State tok] }
+               | Predict  { item :: Item tok, from :: [State tok] } 
+               | Scanned  { tk   ::      tok, prev :: [State tok] }
+               | Complete { item :: Item tok, from :: [State tok], ast :: Dynamic }
+               | Previous { item :: Item tok, prev :: [State tok] }
+               deriving (Eq, Ord)
+
 {-
 prediction: need to be able to check if we already have predicted something
 
@@ -29,14 +36,18 @@ choices:
             in summary, subs know their mains, and mains know their subs 
                mains know their subs only through the AST
 
-
-
-seq start    seq continue
-[]           [A]  |          
-^                 |       
-|                 |      
-|                 v         
-scan A <----- scanned
+                                                         parse end
+            start symbol                                 complete
+               ^                                             |
+               |                                             |
+               |                                             v
+            seq start        seq next                    seq end
+            predict          complete <--+                complete
+               []           [A]  |        \                  |
+               ^                 |         \                 |
+               |                 |          \                |
+               |                 v           \               v
+               predict A <----- scanned    predict <----- scanned
 
 -}
 

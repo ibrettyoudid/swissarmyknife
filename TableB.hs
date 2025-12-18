@@ -13,7 +13,7 @@ module TableB where
 
 import Favs hiding (levenshtein)
 import HTML
-import MHashDynamic2 hiding (toList2)
+import MHashDynamic2 hiding (toList2, (?))
 import MyPretty2
 import NumberParsers
 import ShowTuple
@@ -80,56 +80,54 @@ groupBy f = combine (:) [] . mapfxx f
 applyL fs x = map ($ x) fs
 
 combine2 :: [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine2 fs ts rows =
-   let
-      frows = map (applyL fs) rows
+combine2 fs ts rows = let
+   frows = map (applyL fs) rows
 
-      fcols = transpose frows
-      in
-      -- rows2 = map (applyL fs) $ transpose rows
-      -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
+   fcols = transpose frows
+   in
+   -- rows2 = map (applyL fs) $ transpose rows
+   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
 
-      zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
+   zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
 
 combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine3 g fs ts rows =
-   let
-      frows = map (applyL fs) rows
-      fcols = transpose frows
-      gcol = map g rows
-      gf = combine (:) [] $ zip gcol fcols
-      x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
-      blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
-      in
-      -- rows2 = map (applyL fs) $ transpose rows
-      -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
+combine3 g fs ts rows = let
+   frows = map (applyL fs) rows
+   fcols = transpose frows
+   gcol = map g rows
+   gf = combine (:) [] $ zip gcol fcols
+   x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
+   blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
+   in
+   -- rows2 = map (applyL fs) $ transpose rows
+   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
 
-      blah
+   blah
 {-
 readfods = do
-   Right r <- parseFromFile htmlP (importdir ++ "money.fods")
-   return $
-      transpose1 $
-         concatMap (trimGrid2b . transpose1 . trimGrid1 . convertGrid2) $
-            drop 3 $
-               findTypes "table" $
-                  nest $
-                     map (renameAttribs . renameTag) r
+Right r <- parseFromFile htmlP (importdir ++ "money.fods")
+return $
+   transpose1 $
+      concatMap (trimGrid2b . transpose1 . trimGrid1 . convertGrid2) $
+      drop 3 $
+      findTypes "table" $
+         nest $
+            map (renameAttribs . renameTag) r
 
 renameTag t = setType t $ case tagType t of
-   "table:table" -> "table"
-   "table:table-row" -> "tr"
-   "table:table-cell" -> "td"
-   x -> x
+"table:table" -> "table"
+"table:table-row" -> "tr"
+"table:table-cell" -> "td"
+x -> x
 
 renameAttribs t = setAttribs t $ map renameAttrib $ attribs t
 
 renameAttrib (a, v) =
-   ( case a of
-         "table:number-columns-repeated" -> "colspan"
-         x -> x
-   , v
-   )
+( case a of
+      "table:number-columns-repeated" -> "colspan"
+      x -> x
+, v
+)
 -}
 {-
 trimGrid1 x = take 8 x
@@ -148,12 +146,12 @@ trimGrid2b = reverse . dropWhile ((!! 2) $= "") . reverse . drop 2
 convertGrid1 f = map2 (parse1 csvcell f)
 {-
 convertGrid2 table =
-   let
-      t = cTextGrid table
-      n = tagAttrib "table:name" table
-      l = maximum $ map length t
-      in
-      replicate l n : t
+let
+   t = cTextGrid table
+   n = tagAttrib "table:name" table
+   l = maximum $ map length t
+   in
+   replicate l n : t
 -}
 readcsvs = concat <$> mapM readCSVFile names
 
@@ -193,17 +191,17 @@ atleast n x r = try $ do
    return r
 
 dateExcel = try (do
-      optional (do
-         try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
-         char ' ')
-      dom1 <- dom
-      choice [char '/', char '-', try (do string " of "; return 'o'), char ' ']
-      moy1 <- moy
-      oneOf "/- "
-      year <- integer
-      return $ ymd (if | year <  40 -> year + 2000
-                       | year < 100 -> year + 1900
-                       | otherwise  -> year) moy1 dom1)
+   optional (do
+      try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
+      char ' ')
+   dom1 <- dom
+   choice [char '/', char '-', try (do string " of "; return 'o'), char ' ']
+   moy1 <- moy
+   oneOf "/- "
+   year <- integer
+   return $ ymd (if  | year <  40 -> year + 2000
+                     | year < 100 -> year + 1900
+                     | otherwise  -> year) moy1 dom1)
    <|> try (do
       optional (do
          try $ choice $ zipWith (atleast 2) ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] [1..7]
@@ -213,9 +211,9 @@ dateExcel = try (do
       dom1 <- dom
       oneOf "/- "
       year <- integer
-      return $ ymd (if | year <  40 -> year + 2000
-                       | year < 100 -> year + 1900
-                       | otherwise  -> year) moy1 dom1)
+      return $ ymd (if  | year <  40 -> year + 2000
+                        | year < 100 -> year + 1900
+                        | otherwise  -> year) moy1 dom1)
 
 
 
@@ -302,6 +300,7 @@ showTableMeta2 t = GridH $ map showT $ fieldsUT t
 setFields newnames (Table fields group) = let
    (names, numbers) = unzip $ sortOn snd $ M.toList fields
    names1 = newnames ++ drop (length newnames) names
+
    in Table (M.fromList $ zip names1 numbers) group
 
 setFieldsD newnames = setFields (map toDyn newnames)
@@ -312,7 +311,7 @@ filterFields pred t = let
    fieldsNameToNumMap = M.fromList fieldsChosen
    fieldsNumSet = S.fromList $ map snd fieldsChosen
    func record = Record fieldsNameToNumMap $ T.fromList $ filter (\(k, v) -> S.member k fieldsNumSet) $ T.toList $ values record
-   
+      
    in mapTable func t
 
 size t = length $ ungroup $ tgroup t
@@ -330,14 +329,7 @@ fieldsUT = fieldsU . fields
 fieldsUR = fieldsU . fieldsr
 
 inversePerm indices = map snd $ sort $ zip indices [0 ..]
-{-
-pTerm text =
-   let
-      t = takeWhile isDigit $ filter (`notElem` ", ") text
-      in
-      if null t then String1 text else Int1 $ readInt t
--}
--- fromGridG (fields:recordl) = fromGridG1 fields recordl
+
 fromGrid g = fromGridH $ transpose g
 fromGridD = fromGridHD . transpose
 fromGrid1 f = fromGridH1 f . transpose
@@ -370,6 +362,25 @@ toList2 = map unrec . toList
 --clean = map (\a -> let c = ord a in if (c >= 32 && c <= 126) || (c > 160 && c <= 255) then chr c else ' ')
 
 --cleanDyn x = read $ clean $ show x
+autoJoin joinType maxDist bzero master tab =
+   case findIndexField maxDist bzero master tab of
+      Just indexField -> joinFuzzy joinType maxDist bzero master $ by (? indexField) tab
+      Nothing -> error "could not find a matching index field"
+
+autoIndex maxDist bzero master tab = 
+   case findIndexField maxDist bzero master tab of
+      Just indexField -> by (? indexField) tab
+      Nothing -> error "could not find a matching index field"
+
+findIndexField maxDist bzero master tab =
+   snd <$> (
+      find ((> fromIntegral (size tab) / 4) . fromIntegral . fst)
+         $ map (\f -> (\r -> (size r, f))
+         $ joinFuzzy jInner maxDist bzero master
+         $ by (? f) tab) 
+         $ map fst
+         $ M.toList
+         $ fields tab)
 
 byz func = mapFromList (:) [] . mapfxx func
 
@@ -405,27 +416,24 @@ jLeft  = (True , True , False)
 jRight = (False, True , True )
 jOuter = (True , True , True )
 
-join include empty l r =
-   let
-      (flr, j1) = joinClear empty l r
-   in
-      Table flr $ INode $ joinInclude include j1
+join include empty l r = let
+   (flr, j1) = joinClear empty l r
+
+   in Table flr $ INode $ joinInclude include j1
 
 foldlj f xs = foldl f (head xs, []) (tail xs)
 
 miss x = (x, [])
 
-joinCollectMisses include empty (l, ml) (r, mr) =
-   let
-      (flr, j1@(l1, i, r1)) = joinClear empty l r
-   in
-      (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
+joinCollectMisses include empty (l, ml) (r, mr) = let
+   (flr, j1@(l1, i, r1)) = joinClear empty l r
+   
+   in (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
 
-joinFuzzy include maxDist empty l r =
-   let
-      (flr, j1) = joinFuzzy1 maxDist empty l r
-   in
-      Table flr $ INode $ joinInclude include j1
+joinFuzzy include maxDist empty l r = let
+   (flr, j1) = joinFuzzy1 maxDist empty l r
+
+   in Table flr $ INode $ joinInclude include j1
 
 joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
    where
@@ -482,16 +490,15 @@ instance (Ord dist) => Ord (Lev dist lk rk v) where
 joinClear empty l r =
    let
       (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
-      in
-      (flr, (M.map fl l1, i, M.map fr r1))
+   
+   in (flr, (M.map fl l1, i, M.map fr r1))
 
-joinFuzzy1 maxDist empty l r =
-   let
-      (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
-      levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Lev (levenshtein ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
-      (l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
-      in
-      (flr, (M.map fl l2, i2, M.map fr r2))
+joinFuzzy1 maxDist empty l r = let
+   (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
+   levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Lev (levenshtein ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
+   (l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
+   
+   in (flr, (M.map fl l2, i2, M.map fr r2))
 
 joinFuzzyAux maxDist (Lev dist lk rk a) (lks, res, rks) =
    if dist <= maxDist && M.member lk lks && M.member rk rks
@@ -499,14 +506,14 @@ joinFuzzyAux maxDist (Lev dist lk rk a) (lks, res, rks) =
       else (lks, res, rks)
 
 joinInclude (il, ii, ir) (rl, ri, rr) =
-      (if ii then M.union ri else id) $
-      (if il then M.union rl else id) $
-      (if ir then rr else M.empty)
+   (if ii then M.union ri else id) $
+   (if il then M.union rl else id) $
+   (if ir then rr else M.empty)
 
 addCalcField name func table = let
    i = (maximum $ map snd $ M.toList $ fields table) + 1
-   in
-      mapTable (\r@(Record fields rt) -> Record (M.insert name i fields) $ T.insert i (func r) rt) table
+   
+   in mapTable (\r@(Record fields rt) -> Record (M.insert name i fields) $ T.insert i (func r) rt) table
 
 appendRecs (Recs l) (Recs r) = Recs $ T.fromElems [fromJust $ T.lookup 0 l, fromJust $ T.lookup 0 r]
 
@@ -529,11 +536,13 @@ foldSubTable3G f (INode rs) = let
    (keys, vals) = unzip $ M.toList $ M.map (foldSubTable3G f) rs
    (totals, rebuild) = unzip vals
    newtotal = f totals
+   
    in (newtotal, INode $ (if length totals > 1 then M.insert (toDyn "ZZZZ") (Rec newtotal) else id) $ M.fromList $ zip keys rebuild)
 
 foldSubTable3G f (Recs rs) = let
    (totals, rebuild) = T.unzip $ T.map (foldSubTable3G f) rs
    newtotal = f $ T.toElems totals
+   
    in (newtotal, Recs $ if T.count totals > 1 then T.insert ((1+) $ snd $ T.span rebuild) (Rec newtotal) rebuild else rebuild)
 --foldSubTable3G f (Recs rs) = T.map f $ T.untree $ T.toElems $ T.map (foldSubTable3G f) rs
 
@@ -568,8 +577,8 @@ insertWith4 (k, v) m =
          k2 = head $ mapMaybe (\n2 -> let
             k3 = k1 ++ cons (convertChar '_') (c $ show n2)
             in case M.lookup k3 m of
-                  Just j2 -> Nothing
-                  Nothing -> Just k3) [n1+1..]
+               Just j2 -> Nothing
+               Nothing -> Just k3) [n1+1..]
          in M.insert k2 v m
       Nothing -> M.insert k v m
 
@@ -592,10 +601,10 @@ mapFieldsR f flds r = fieldsr $ f $ Record flds r
 
 {-}
 delField fieldName t = if head (fields t) == fieldName
-      then error ("can't delete index " ++ fieldName)
-      else let
-         Just fieldN = elemIndex fieldName $ fields t
-         in Table (deleteIndex fieldN $ fields t) $ M.fromList $ map (\(k, v) -> (k, deleteIndex (fieldN-1) v)) $ M.toList $ records t
+   then error ("can't delete index " ++ fieldName)
+   else let
+      Just fieldN = elemIndex fieldName $ fields t
+      in Table (deleteIndex fieldN $ fields t) $ M.fromList $ map (\(k, v) -> (k, deleteIndex (fieldN-1) v)) $ M.toList $ records t
 -}
 class LookupR a b c | a b -> c, c -> a where
    lookup :: a -> b -> c
@@ -626,6 +635,7 @@ lookupr k r =
             Nothing -> error $ let
                s = unlines $ T.showTree1 $ values r
                i = unsafePerformIO $ putStr s
+      
                in if i == () then "failed to find field "++show k++" number "++show n++" in record "++show r else "UH OH"
 
 -- lookupr k r = toDyn k

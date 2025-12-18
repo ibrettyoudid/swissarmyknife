@@ -2,15 +2,62 @@
 {-# LANGUAGE LexicalNegation #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use first" #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Levenshtein where
 
 import Favs
+import qualified Multimap as MM
+import qualified SetList as SL
 
 import Data.List
 import Data.Graph.AStar
 import qualified Data.Map as M
+import qualified Data.Set as S
 import qualified Data.HashSet as HS
+
+
+levenshtein maxDist a b =
+   let
+      --heuristic (x, y) = sqrt $ fromIntegral ((length a - x)^2 + (length b - y)^2)
+      heuristic (x, y) = abs ((length a - x) - (length b - y))
+
+      add k (x, y) queue = MM.insert (k + heuristic (x, y)) (k, x, y) queue
+
+      loop queue = let
+         Just (k1, sl) = M.lookupMin queue
+         Just (done, x, y) = S.lookupMin $ SL.toSet sl
+         
+         in if | x >= length a && y >= length b -> done
+               | k1 < maxDist -> loop $ add 
+                  (if x < length a && y < length b && a !! x == b !! y 
+                     then done 
+                     else done+1) (x+1, y+1) $ add (done+1) (x+1, y) $ add (done+1) (x, y+1) $ MM.delete k1 (done, x, y) queue
+               | otherwise -> k1
+
+   in loop $ add 0 (0, 0) M.empty
+
+
+levenshteinD maxDist a b =
+   let
+      --heuristic (x, y) = sqrt $ fromIntegral ((length a - x)^2 + (length b - y)^2)
+      heuristic (x, y) = abs ((length a - x) - (length b - y))
+
+      add k (x, y) queue = MM.insert (k + heuristic (x, y)) (k, x, y) queue
+
+      loop queue = let
+         Just (k1, sl) = M.lookupMin queue
+         Just (done, x, y) = S.lookupMin $ SL.toSet sl
+         
+         in queue : if  | x >= length a && y >= length b -> []
+                        | done < maxDist -> loop $ add 
+                           (if x < length a && y < length b && a !! x == b !! y 
+                              then done 
+                              else done+1) (x+1, y+1) $ add (done+1) (x+1, y) $ add (done+1) (x, y+1) $ MM.delete k1 (done, x, y) queue
+                        | otherwise -> []
+
+   in loop $ add 0 (0, 0) M.empty
+
 
 {-
 01234
@@ -76,7 +123,7 @@ levenshteinMulti xs = let
       mx1 = M.insert k v1 mx
       kn = length vx1
    -}
-      
+         
    nexts from = let
       z = zip [0..nseq1] from
       --el s m = foldr (\(x, f) -> insertWith2 (:) [] (xs !! x !! (f + s), (x, f + s))) m z
@@ -107,13 +154,13 @@ levenshteinMulti xs = let
    heuristicIO from = return $ heuristic from
 
    goalIO at = return $ at == lens
-      
+         
    start = replicate nseq 0
 
    startIO = return start :: IO [Int]
-      
+         
    --path = aStar nexts dist heuristic (==lens) start
-      
+         
    in nexts start
    --in aStarM nextsIO distIO heuristicIO goalIO startIO
    {-
@@ -225,11 +272,12 @@ levenshteinMulti2 xs = let
    start = replicate len 0
 
    path = aStar nexts dist heuristic (==lens) start
+
    in case path of
       Just path1 -> let
          path2 = zipWith (\from to -> (zipWith (\f t -> ifJust (t > f) (t - 1)) from to, dist from to)) (start:path1) path1
          (path3, dists) = unzip path2
-         
+            
          in Just (path3, sum dists)
       Nothing    -> Nothing
 {-       
@@ -239,26 +287,26 @@ Prelude.!!: index too large
 {-
 commonSubsequencesMulti1 xs =
 let
-   len = length xs
-   len1 = len - 1
-   steps = mapfxx ((len -) . sum) $ tail $ crossList $ replicate (length xs) [0, 1]
-   scoremap = M.fromList $ map commonSubsequencesA $ crossList $ map (\x -> [0 .. length x]) xs
-   commonSubsequencesA coords
-   | elem 0 coords = (coords, (0, []))
-   | otherwise =
-      let
-      zs = zipWith (\x y -> x !! (y - 1)) xs coords
-      --lose a point for each sequence you don't move forward on
-      --lose a point for each different value you have on the ones you do move forward on
-      as = map (\(fwdscore, fwd) -> let
-            at = zipWith (-) coords fwd
-            (oldscore, oldpath) = scoremap M.! at
-            vals = length $ nubSet $ catMaybes $ zipWith (\z f -> ifJust (f /= 0) z) zs fwd
+len = length xs
+len1 = len - 1
+steps = mapfxx ((len -) . sum) $ tail $ crossList $ replicate (length xs) [0, 1]
+scoremap = M.fromList $ map commonSubsequencesA $ crossList $ map (\x -> [0 .. length x]) xs
+commonSubsequencesA coords
+| elem 0 coords = (coords, (0, []))
+| otherwise =
+   let
+   zs = zipWith (\x y -> x !! (y - 1)) xs coords
+   --lose a point for each sequence you don't move forward on
+   --lose a point for each different value you have on the ones you do move forward on
+   as = map (\(fwdscore, fwd) -> let
+      at = zipWith (-) coords fwd
+      (oldscore, oldpath) = scoremap M.! at
+      vals = length $ nubSet $ catMaybes $ zipWith (\z f -> ifJust (f /= 0) z) zs fwd
 
-            in (oldscore - fwdscore - (vals - 1), oldpath)) steps
-      (newscore, oldpath) = maximum as
-      in
-      (coords, (newscore, coords : oldpath))
+      in (oldscore - fwdscore - (vals - 1), oldpath)) steps
+   (newscore, oldpath) = maximum as
+   in
+   (coords, (newscore, coords : oldpath))
 in
 scoremap M.! map length xs
 {-

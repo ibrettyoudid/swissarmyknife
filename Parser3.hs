@@ -858,7 +858,8 @@ complete3 states main@(Item r@(Seq as) s (ISeq n)) substate
    | otherwise          = [Item r Running (ISeq (n + 1))]
       where
          sub = item substate
-         res1 = if passi sub then Pass $ map toDyn $ retrieve2 states substate else Fail
+         --res1 = if passi sub then states !! from substate
+         res1 = if passi sub then Pass $ retrieve2 states substate else Fail
 
 complete3 states main@(Item x@(Alt as) q (IAlt n)) substate
    | passi sub     = [Item x (result sub) (IAlt  n     )]
@@ -921,7 +922,11 @@ mytrace1 x = do
    print x
    return x
 
-retrieve2 states state = map (map (result . item)) $ mytrace $ children states state
+retrieve2 states state = do
+   seq <- children states state
+   let seqf = reverse seq
+   asts1 <- map (asts . result . item) seqf
+   return $ toDyn asts1
 
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as

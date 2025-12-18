@@ -49,7 +49,7 @@ data Rule tok value name
    deriving (Show)
 
 newtype Pos = Pos { fromPos :: Int }
-            deriving (Eq, Ord, Show, Num)
+      deriving (Eq, Ord, Show, Num)
 
 -- | The result of a parse1.  This is parameterised over the type @i@
 -- of string that was processed.
@@ -63,7 +63,7 @@ data IResult i f r
    -- @[@'String'@]@ is a list of contexts in which the error
    -- occurred.  The 'String' is the message describing the error, if
    -- any.
---   | More (i -> IResult r f i)
+   --   | More (i -> IResult r f i)
    -- ^ Supply this continuation with more input so that the parse1r
    -- can resume.  To indicate that no more input is available, pass
    -- an empty string to the continuation.
@@ -76,24 +76,24 @@ data IResult i f r
       deriving Show
 
 data FResult i f
-   = FDone [i] f
-   | FFail [i] f String
-   deriving (Show)
+      = FDone [i] f
+      | FFail [i] f String
+      deriving (Show)
 {-
 newtype parse1r i f a = parse1r {
-      runparse1r :: forall r.
-                  State i -> Pos -> More
-               -> Failure i (State i) f r
-               -> Success i (State i) f a r
-               -> IResult i f r
-   }
+   runparse1r :: forall r.
+         State i -> Pos -> More
+      -> Failure i (State i) f r
+      -> Success i (State i) f a r
+      -> IResult i f r
+}
 
 type family State i
 type instance State ByteString = B.Buffer
 type instance State Text = T.Buffer
 
 type Failure i t f r = f -> t -> Pos -> More -> [String] -> String
-                        -> IResult i f r
+            -> IResult i f r
 type Success i t f a r = f -> t -> Pos -> More -> a -> IResult i f r
 -}
 
@@ -124,8 +124,8 @@ parse1 r@(Range from to) fs i c =
       []      -> Fail ("EOF when expecting "++show r) fs i
       (i1:is) ->
          if from <= i1 && i1 <= to
-            then Done is fs (toDyn i1)
-            else Fail ("expecting "++show r) fs i
+         then Done is fs (toDyn i1)
+         else Fail ("expecting "++show r) fs i
 
 parse1 (String str) fs i c =
    case stripPrefix str i of
@@ -136,8 +136,8 @@ parse1 (Then a b) fs i c =
    case parse1 a fs i c of
       Done i1 fs1 ar ->
          case parse1 b fs1 i1 c of
-            Done i2 fs2 br -> Done i2 fs2 (toDyn (ar, br))
-            fail@Fail {}   -> fail
+         Done i2 fs2 br -> Done i2 fs2 (toDyn (ar, br))
+         fail@Fail {}   -> fail
       fail@Fail {} -> fail
 
 parse1 (Seq as) fs i c =
@@ -158,16 +158,16 @@ parse1 (Alt as) fs i c =
    case as of
       (a:as1) ->
          case parse1 a fs i c of
-            Done i1 fs1 ar1 -> Done i1 fs1 ar1
-            fail@Fail {} -> parse1 (Alt as1) fs i c
+         Done i1 fs1 ar1 -> Done i1 fs1 ar1
+         fail@Fail {} -> parse1 (Alt as1) fs i c
       [] -> Fail i fs "no alternatives match"
 
 parse1 m@(Many a) fs i c =
    case parse1 a fs i c of
       Done i1 fs1 ar ->
          case parse1 m fs1 i1 c of
-            Done i2 fs2 mr -> Done i2 fs2 (toDyn (ar:fromDyn1 mr))
-            fail@Fail {}   -> fail
+         Done i2 fs2 mr -> Done i2 fs2 (toDyn (ar:fromDyn1 mr))
+         fail@Fail {}   -> fail
       Fail em fs1 i1 -> Done i fs (toDyn ([] :: [Dynamic]))
 
 parse1 m@(ManyTill a b) fs i c =
@@ -196,8 +196,8 @@ parse1 (Apply iso a) fs i c =
    case parse1 a fs i c of
       Done i1 fs1 ar ->
          case apply iso ar of
-            Just  j -> Done i1 fs1 j
-            Nothing -> Fail "apply failed" fs i
+         Just  j -> Done i1 fs1 j
+         Nothing -> Fail "apply failed" fs i
       fail@Fail {} -> fail
 
 parse1 (Count n x) fs i c =
@@ -243,7 +243,7 @@ parse1count x fs i n =
    case parse1 x fs i id of
       Done  i1 fs1 xr ->
          case parse1count x fs1 i1 (n-1) of
-            Done  i2 fs2 xsr -> Done i2 fs2 (toDyn $ xr:fromDyn1 xsr) 
+         Done  i2 fs2 xsr -> Done i2 fs2 (toDyn $ xr:fromDyn1 xsr) 
 
 --formatcount (r:rs) fs x 0 = FDone [] fs
 formatcount x fs []     = FDone [] fs
@@ -251,8 +251,8 @@ formatcount x fs (r:rs) =
    case formatcount x fs rs of
       FDone ts fs1 ->
          case format1 x fs1 r of
-            FDone t fs2 -> FDone (t++ts) fs2
-            fail@FFail{}-> fail
+         FDone t fs2 -> FDone (t++ts) fs2
+         fail@FFail{}-> fail
       fail@FFail{}-> fail
 
 format1 AnyToken fs r = FDone [fromDyn1 r] fs
@@ -286,8 +286,8 @@ format1 (Seq a) fs r =
             [] -> FFail [] fs "ran out of results to format1 in Seq"
       [] ->
          case fromDyn1 r of
-            ([] :: [Dynamic]) -> FDone [] fs
-            (r1:rs) -> FFail [] fs "too many results to format1 in Seq"
+         ([] :: [Dynamic]) -> FDone [] fs
+         (r1:rs) -> FFail [] fs "too many results to format1 in Seq"
 
 format1 (Alt as) fs r =
    case as of
@@ -301,22 +301,22 @@ format1 (Alt as) fs r =
       [] -> FFail [] fs "no alternatives match"
 {-
 format1 r fs m@(Many a) =
-   case format1 r fs a of
-      Done i1 fs1 ar ->
-         case parse1 i1 fs1 m of
-            Done i2 fs2 mr -> Done i2 fs2 $ toDyn (ar:fromDyn1 mr)
-            fail@Fail {}   -> fail
-      Fail i1 fs1 em -> Done i1 fs1 $ toDyn ([] :: [Dynamic])
+case format1 r fs a of
+   Done i1 fs1 ar ->
+      case parse1 i1 fs1 m of
+      Done i2 fs2 mr -> Done i2 fs2 $ toDyn (ar:fromDyn1 mr)
+      fail@Fail {}   -> fail
+   Fail i1 fs1 em -> Done i1 fs1 $ toDyn ([] :: [Dynamic])
 
 format1 i fs m@(ManyTill a b) =
-   case parse1 i fs b of
-      Done i1 fs1 br -> Done i1 fs1 $ toDyn ([] :: [Dynamic])
-      Fail i1 fs1 em ->
-         case parse1 i fs a of
-            Done i2 fs2 ar ->
-               case parse1 i2 fs2 m of
-                  Done i3 fs3 mr -> Done i3 fs3 $ toDyn (ar:fromDyn1 mr)
-                  fail@Fail {}   -> fail
+case parse1 i fs b of
+   Done i1 fs1 br -> Done i1 fs1 $ toDyn ([] :: [Dynamic])
+   Fail i1 fs1 em ->
+      case parse1 i fs a of
+      Done i2 fs2 ar ->
+      case parse1 i2 fs2 m of
+         Done i3 fs3 mr -> Done i3 fs3 $ toDyn (ar:fromDyn1 mr)
+         fail@Fail {}   -> fail
 -}
 
 format1 m@(Many a) fs r =

@@ -20,7 +20,7 @@
 module MHash where
 
 import Favs hiding (ifP)
-import MHashDynamic2
+import MHashDynamic3
 import MyPretty2
 
 import NewTuple
@@ -44,7 +44,7 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import Text.ParserCombinators.Parsec.Token qualified as T
 
-import qualified Parser3
+import qualified Parser7 as P
 
 type VarName = String
 
@@ -91,7 +91,7 @@ repl1 env = do
    else return li
    putStrLn li2
    putStrLn "parsing"
-   (Parser3.Pass exd:_) <- Parser3.parseT expr li2
+   (P.Pass exd:_) <- P.parseT num li2
    let ex = fromDyn1 $ head exd
    --let ex = Value u 0
    putStrLn "doing vars"
@@ -101,7 +101,7 @@ repl1 env = do
    putStrLn "print ex1"
    print ex1
    putStrLn "unparsing"
-   case Parser3.fp2 expr $ toDyn ex1 of
+   case P.fp2 expr $ toDyn ex1 of
       Just j -> putStrLn j
       Nothing -> putStrLn "unparsing failed"
    putStrLn ""

@@ -128,8 +128,10 @@ area m = by (? "country") $ setFields ["rank", "country", "area", "land area", "
 
 readNum = parseNoFail 0 floating
 
+mileq1 m = by (? "country") $ setFields ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"] $ wikiTableD m "List of countries by level of military equipment"
+
 mileq m =
-   by (? "country")
+   by (? ("country"::ByteString))
       $ fromGridH1 ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
       $ map
          ( \row ->
@@ -146,7 +148,7 @@ bzero = toDyn (BString.empty :: ByteString)
 
 join2 xs = foldl1 (joinCollectMisses jLeft bzero) xs
 
-stats m = foldl1 (join jLeft bzero) [cpop m, {-fst $ gdph m, fst $ gdph1 m,-} area m, milper m]
+stats m = foldl1 (join jLeft bzero) [cpop m, {-fst $ gdph m, fst $ gdph1 m,-} area m, milper m, mileq m]
 
 gdph m = foldl1 (joinCollectMisses jLeft bzero) $ map (miss . by (? "country") . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
 
@@ -587,7 +589,7 @@ cjgridB1 master cat u n g = do
    let
 --      tg = cTextGridH g
       tb = fromGridHD5 cat (replace "_" " " $ last $ split "/" u) n $ map2 c tg1
-      ix = findIndexField master tb 3
+      ix = findIndexField 3 bzero master tb
    case ix of
       Just ixj -> do
          let tb1 = by (? ixj) tb
@@ -643,7 +645,7 @@ canMerge1 a@(afs, ars) b@(bfs, brs) =
       ifJust (not (allDiff $ nubSet $ afs ++ bfs) && all null found) (afm, ifcs)
 
 merge a b = case canMerge1 a b of
-   Nothing -> joinTMapsFuzzy "" b a
+--   Nothing -> joinTMapsFuzzy "" b a
    Just c -> Wiki.merge1 c a
 
 merge1 (afm, ifcs) a@(afs, ars) = foldr (set afm) a ifcs
@@ -669,16 +671,6 @@ findIndexField1 master tab = let
    fs = map (\(fieldname, fieldnum) -> (,fieldname) $ M.size $ M.intersection xs $ M.fromList $ map ((, fieldnum) . fromJust . T.lookup fieldnum) list) $ M.toList $ fields tab
 
    in snd $ maximum fs
-
-findIndexField master tab maxDist =
-   snd <$> (
-      find ((> fromIntegral (size tab) / 4) . fromIntegral . fst)
-         $ map (\f -> (\r -> (size r, f))
-            $ joinFuzzy jInner maxDist bzero master
-            $ by (? f) tab) 
-         $ map fst
-         $ M.toList
-         $ fields tab)
 
 
 

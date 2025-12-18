@@ -15,8 +15,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module MHashDynamic2 (
-   module MHashDynamic2,
+module MHashDynamic3 (
+   module MHashDynamic3,
    Typeable,
    Data.Typeable.typeOf,
    typeRepArgs,
@@ -32,7 +32,7 @@ import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP
 
-import Parser3 hiding (Apply)
+import Parser7 hiding (Apply)
 import Iso2 hiding (foldl, foldr, right, (!!))
 
 import Data.List
@@ -48,6 +48,7 @@ import Data.Typeable
 
 import Type.Reflection hiding (TypeRep, typeOf, typeRepTyCon)
 
+import GHC.Stack
 --import Control.Exception
 
 --import Syntax3 hiding (foldl, foldr, print, right)
@@ -72,7 +73,12 @@ fromDyn a = D.fromDyn $ und a
 fromDyn1 :: (Typeable a) => Dynamic -> a
 fromDyn1 d = case fromDynamic d of
    Just j -> j
-   n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (und d))
+   n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (dynTypeRep d))
+
+fromDyn2 :: (Typeable a, HasCallStack) => String -> Dynamic -> a
+fromDyn2 e d = case fromDynamic d of
+   Just j -> j
+   Nothing -> error $ e ++ ", is " ++ show d
 
 
 instance Eq Dynamic where
@@ -495,6 +501,16 @@ convertm =
          , toDyn (realToFrac :: Int -> Rational)
          ] ++ showl)
 
+fromdynm d = mapMaybe (\f -> dynApply f d)
+   [toDyn (fromDynamic :: Dynamic -> Maybe Int),
+   toDyn (fromDynamic :: Dynamic -> Maybe Char),
+   toDyn (fromDynamic :: Dynamic -> Maybe String),
+   toDyn (fromDynamic :: Dynamic -> Maybe [Dynamic]),
+   toDyn (fromDynamic :: Dynamic -> Maybe (Dynamic, Dynamic)),
+   toDyn (fromDynamic :: Dynamic -> Maybe (Dynamic :- Dynamic)),
+   toDyn (fromDynamic :: Dynamic -> Maybe Dynamic)]
+
+
 --readRational s = try $ evaluate $ read s
 readNum2 str = case NP.parse NP.floating "convert String -> Double" str of
    Left  l -> 0
@@ -508,6 +524,13 @@ showDyn :: Dynamic -> String
 showDyn x = case applyMultimethod showm [x] of
    Left e -> show $ und x
    Right r -> fromMaybe "all show functions must return String" $ fromDynamic r
+
+showRec x = case applyMultimethod showm [x] of
+   Left e -> show $ und x
+   Right r -> 
+      case fromdynm x of
+         (a:_) -> "Dyn "++showRec a
+         [] -> show $ und x
 
 showAnyIO :: (Typeable a) => a -> IO String
 showAnyIO = showDynIO . toDyn
@@ -704,7 +727,6 @@ showl =
    , toDyn (show :: ([SomeTypeRep], Dynamic) -> String)
    , toDyn (show :: [SomeTypeRep] -> String)
    , toDyn (show :: SomeTypeRep -> String)
-   , toDyn (show :: Dynamic -> String)
    , toDyn (show :: M.Map HTTPTypes.HVar Dynamic -> String)
    , toDyn (show :: Ordering -> String)
    , toDyn (show :: MMEntry -> String)
@@ -715,6 +737,8 @@ showl =
    , toDyn (show :: Expr -> String)
    , toDyn (show :: Closure -> String)
    , toDyn (fromJust . fp expr)
+   , toDyn (show :: (Dynamic :- Dynamic) -> String)
+   , toDyn (show :: (Dynamic, Dynamic) -> String)
    ]
 
 showDate (YearMonthDay y m d) = pad0 2 (show d) ++ "/" ++ pad0 2 (show m) ++ "/" ++ show y
@@ -751,7 +775,7 @@ var = "var" <=> varIso >$< identifier
 
 vardefiso = Iso "vardef" (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n :- t); _ -> Nothing)
 
-vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser3.pure u))
+vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser7.pure u))
 
 identifier = many1 (RangeR 'a' 'z')
 

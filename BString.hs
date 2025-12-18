@@ -25,6 +25,8 @@ import Prelude hiding (String, drop, find, head, tail, length, null, map, (++), 
 
 import Data.Word
 
+import GHC.Stack
+
 type LByteString = LB.ByteString
 
 class Show s => BString s where
@@ -45,7 +47,7 @@ class Show s => BString s where
 
 class BString s => BStringC c s | s -> c where
    cons :: c -> s -> s
-   head :: s -> c
+   head :: HasCallStack => s -> c
    last :: s -> c
    (!!) :: s -> Int -> c
    find :: (c -> Bool) -> s -> Maybe c

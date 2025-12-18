@@ -231,12 +231,12 @@ watch out for ancestors being shifted
 at == m < k
 
          k              at
-        / \            / \
-       m   r   =>     ll  k
+         / \            / \
+      m   r   =>     ll  k
       / \                / \
-     ll rl              rl  r
+      ll rl              rl  r
 
-     must have k2 >= at && k2 >= m && k2 <= k
+      must have k2 >= at && k2 >= m && k2 <= k
 
 -}
                   Node m ll rl -> Node at ll (Node (k-at) rl r)
@@ -244,9 +244,9 @@ at == m < k
 at == m < k
 
          k              at
-        / \            / \
-       m   r   =>  Empty  k
-                         / \
+         / \            / \
+      m   r   =>  Empty  k
+                        / \
                         m   r
 
                         k2 >= at && k2 >= m && k2 <= k
@@ -259,24 +259,24 @@ at == m < k
 at == m > k
 
          k              at
-        / \            / \
-       l   m    =>    k   rr
-          / \        / \
-        lr   rr     l   lr
+         / \            / \
+      l   m    =>    k   rr
+         / \        / \
+         lr   rr     l   lr
 
-        k2 >= k && k2 < at
+         k2 >= k && k2 < at
 -}
                   Node m lr rr -> Node at (Node k l lr) rr
 {-
 at == m > k
 
          k              at
-        / \            / \
-       l   m    =>    k   Empty
+         / \            / \
+      l   m    =>    k   Empty
                      / \
-                    l   m 
+                     l   m 
 
-           k2 >= m && k2 < at
+            k2 >= m && k2 < at
 -}
                   Leaf m v     -> Node at (Node k l (Leaf m v)) Empty
 
@@ -287,10 +287,10 @@ rotate at lf@(Leaf k v)
 {-
 >>> rotate 16 $ fromList [(15,15), (4,4)]
                Leaf 4 4
-        Node 8
+         Node 8
                Leaf 15 15
 Node 16
-        Empty
+         Empty
 
 -}
 union n t = fromAscList $ merge (toList n) (toList t)
@@ -463,7 +463,7 @@ mapp a b = let
    n = max (length a) (length b)
    in zipWith3 (\a b c -> a ++ b ++ c) 
          (padRWith ' ' (padCWith1 "" n a))
-                       (padRWith1 "  " n [])
+                        (padRWith1 "  " n [])
          (padRWith ' ' (padCWith1 "" n b))
 
 mcat xs = unlines $ replicate 80 '-' : L.foldr mapp [] xs

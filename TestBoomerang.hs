@@ -78,9 +78,10 @@ intx m n = xmaph (intf m) (Just . unintf n m) (rep int n)
 intf m = foldl1 (\a b -> a * m + b)
 
 unintf 0 _ _ = []
-unintf n m x =
-   let (q, r) = divMod x (m ^ (n - 1))
-      in fromIntegral q : unintf (n - 1) m r
+unintf n m x = let
+   (q, r) = divMod x (m ^ (n - 1))
+   
+   in fromIntegral q : unintf (n - 1) m r
 
 unbits n x = take n $ map odd $ iterate (`shift` (-1)) x
 
@@ -111,49 +112,49 @@ autorep :: (Eq hdr) => Boomerang e tok ([a1] :- stack2) (hdr :- [a1] :- stack2) 
 autorep p q f g =
    Boomerang
       ( do
-            topf <- prs p
-            prs (push (mytop topf) . rep q (f (mytop topf)))
+         topf <- prs p
+         prs (push (mytop topf) . rep q (f (mytop topf)))
       )
       -- undefined
 
       ( \r0 -> do
-            (s1, r1) <- ser p r0
-            let l = length $ hhead r1
-            (s2, r2) <- ser (push (g l (hhead r0)) . rep q l) r0
-            -- (s2, r2) <- ser (rep q (length r0) . push (hhead r0)) r0
-            return (s1 . s2, r2)
+         (s1, r1) <- ser p r0
+         let l = length $ hhead r1
+         (s2, r2) <- ser (push (g l (hhead r0)) . rep q l) r0
+         -- (s2, r2) <- ser (rep q (length r0) . push (hhead r0)) r0
+         return (s1 . s2, r2)
       )
 
 pass p q f g h = 
    Boomerang
       ( do
-            topf <- prs p
-            let l = mytop topf
-            prs (push l . q (f l))
+         topf <- prs p
+         let l = mytop topf
+         prs (push l . q (f l))
       )
       ( \r0 -> do
-            (s1, r1) <- ser p r0
-            let l = h $ hhead r1
-            (s2, r2) <- ser (push (g l (hhead r0)) . q l) r0
-            return (s1 . s2, r2)
+         (s1, r1) <- ser p r0
+         let l = h $ hhead r1
+         (s2, r2) <- ser (push (g l (hhead r0)) . q l) r0
+         return (s1 . s2, r2)
       )
-      -- q = rep q
-      -- h = length
+   -- q = rep q
+   -- h = length
 
 {-
 autorep :: (Eq t1, Eq t2, Num t2) => Boomerang e tok ([a1] :- stack2) (t1 :- [a1] :- stack2) -> Boomerang e tok ([a1] :- stack2) (a1 :- [a1] :- stack2) -> (t1 -> t2) -> (t2 -> t1 -> t1) -> Boomerang e tok stack2 (t1 :- [a1] :- stack2)
 autorep p q f g = Boomerang
-      (do
-         topf <- prs p
-         prs (push (mytop topf) . rep q (f (mytop topf))))
-      --undefined
-      {-
-      (\r0 -> do
-         (s1, r1) <- ser p r0
-         (s2, r2) <- ser (push (hhead r0) . rep q (length r0)) r0
-         --(s2, r2) <- ser (rep q (length r0) . push (hhead r0)) r0
-         return (s1 . s2, r2))
-   -}
+   (do
+      topf <- prs p
+      prs (push (mytop topf) . rep q (f (mytop topf))))
+   --undefined
+   {-
+   (\r0 -> do
+      (s1, r1) <- ser p r0
+      (s2, r2) <- ser (push (hhead r0) . rep q (length r0)) r0
+      --(s2, r2) <- ser (rep q (length r0) . push (hhead r0)) r0
+      return (s1 . s2, r2))
+-}
 -}
 
 mytop :: (b -> a :- b) -> a
