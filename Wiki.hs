@@ -538,7 +538,7 @@ cjgridA1 u n g =
       tg = cTextGridH g
       tb = fromGridHD5 "Index" u n $ map2 c tg
       indexField = ("Index", wiki "List of countries and dependencies by population", n::Int, 2::Int, "Location")
-      tb1 = filterFields (== indexField) $ by (? indexField) tb
+      tb1 = filterFields (== indexField) $ byscrub (? indexField) tb
    in
       ifJust (not $ classCon "mw-collapsed" g) tb1
 

@@ -11,8 +11,7 @@
 
 module TableB where
 
-import Favs hiding (levenshtein)
-import HTML
+import Favs hiding (levenshtein, trim, squash)
 import MHashDynamic2 hiding (toList2, (?))
 import MyPretty2
 import NumberParsers
@@ -359,17 +358,17 @@ toList r@(Rec _) = [r]
 
 toList2 = map unrec . toList
 
---clean = map (\a -> let c = ord a in if (c >= 32 && c <= 126) || (c > 160 && c <= 255) then chr c else ' ')
+scrub = smap (\c -> if (c >= 65 && c <= 90) || (c >= 97 && c <= 122) then c else 32)
 
 --cleanDyn x = read $ clean $ show x
 autoJoin joinType maxDist bzero master tab =
    case findIndexField maxDist bzero master tab of
-      Just indexField -> joinFuzzy joinType maxDist bzero master $ by (? indexField) tab
+      Just indexField -> joinFuzzy joinType maxDist bzero master $ byscrub (? indexField) tab
       Nothing -> error "could not find a matching index field"
 
 autoIndex maxDist bzero master tab = 
    case findIndexField maxDist bzero master tab of
-      Just indexField -> by (? indexField) tab
+      Just indexField -> byscrub (? indexField) tab
       Nothing -> error "could not find a matching index field"
 
 findIndexField maxDist bzero master tab =
@@ -377,7 +376,7 @@ findIndexField maxDist bzero master tab =
       find ((> fromIntegral (size tab) / 4) . fromIntegral . fst)
          $ map (\f -> (\r -> (size r, f))
          $ joinFuzzy jInner maxDist bzero master
-         $ by (? f) tab) 
+         $ byscrub (? f) tab) 
          $ map fst
          $ M.toList
          $ fields tab)
@@ -391,6 +390,8 @@ byy2 f g = INode . M.map (byy1 g) . byz f
 
 byyn [] = Recs . tz . map Rec
 byyn (f : fs) = INode . M.map (byyn fs) . byz f
+
+byscrub f = by (trim . squash . scrub . convertString . show . f)
 
 by f (Table fields tgroup) = Table fields $ byy1 (f . Record fields) $ toList2 tgroup
 

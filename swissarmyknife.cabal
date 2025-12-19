@@ -143,14 +143,15 @@ library
         Merge,
         MHash,
         MHashDynamic2,
+        MHashDynamic3,
         Matrix, 
         Matrix2,
+        Multimap,
         MyPretty2, 
         NewTuple,
         NumberParsers,
         NumberParsersB,
         Parser, 
-        Parser2,
         Parser3,
         Parser4,
         Parser5,
@@ -176,13 +177,10 @@ library
         SyntaxCIPU2,
         SyntaxTH, 
         Table,
-        Table1,
         TableB,
-        Test,
-        TestBoomerang, 
+        TestBoomerang,
         Tree, 
-        Wiki,
-        Wiki1
+        Wiki
 
     -- Modules included in this library but not exported.
     -- other-modules:
