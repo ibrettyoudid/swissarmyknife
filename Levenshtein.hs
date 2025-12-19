@@ -7,11 +7,13 @@
 module Levenshtein where
 
 import Favs
+import BString
 import qualified Multimap as MM
 import qualified SetList as SL
 
-import Data.List
+import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
 import Data.Graph.AStar
+import Data.List (sort, transpose)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
@@ -37,6 +39,27 @@ levenshtein maxDist a b =
 
    in loop $ add 0 (0, 0) M.empty
 
+levenshtein2 maxDist a b =
+   let
+      --heuristic (x, y) = sqrt $ fromIntegral ((length a - x)^2 + (length b - y)^2)
+      heuristic (x, y) = abs ((length a - x) - (length b - y))
+
+      add k (x, y) queue = MM.insert (k + heuristic (x, y)) (k, x, y) queue
+
+      loop queue = let
+         Just (k1, sl) = M.lookupMin queue
+         Just j@(done, x, y) = S.lookupMin $ SL.toSet sl
+         
+         in k1 : if x >= length a && y >= length b 
+               then []
+               else loop $ add 
+                  (if x < length a && y < length b && a !! x == b !! y 
+                     then done 
+                     else done+1) (x+1, y+1) $ add (done+1) (x+1, y) $ add (done+1) (x, y+1) $ MM.delete k1 (done, x, y) queue
+
+   in loop $ add 0 (0, 0) M.empty
+
+levenshtein3 maxDist = takeWhile (<= maxDist)
 
 levenshteinD maxDist a b =
    let
@@ -66,6 +89,7 @@ levenshteinD maxDist a b =
 34567
 45678
 -}
+{-
 --astar nextdists heuristic goal start
 submap from to = M.takeWhileAntitone (<= to) . M.dropWhileAntitone (< from)
 
@@ -314,4 +338,5 @@ scoremap M.! map length xs
 (-3,[[3,3,3,3],[2,2,2,2],[1,1,1,1]])
 -}
 
+-}
 -}

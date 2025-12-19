@@ -19,6 +19,7 @@ import ShowTuple
 import Tree qualified as T
 import BString
 import HTMLB
+import Levenshtein
 
 import Data.Char
 import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
@@ -496,7 +497,7 @@ joinClear empty l r =
 
 joinFuzzy1 maxDist empty l r = let
    (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
-   levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Lev (levenshtein ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
+   levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Lev (levenshtein maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
    (l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
    
    in (flr, (M.map fl l2, i2, M.map fr r2))

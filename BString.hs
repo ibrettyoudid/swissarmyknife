@@ -306,30 +306,6 @@ instance ConvertChar a a where
 toLower :: (ConvertChar a Char, ConvertChar Char a) => a -> a
 toLower = convertChar . C.toLower . convertChar
 
-levenshtein :: (Eq a, BStringC a s) => s -> s -> Int
-levenshtein a b =
-      let
-            c = F.crossWith commonSubsequencesA [0 .. length a] [0 .. length b]
-            commonSubsequencesA an bn
-                  | an == 0 || bn == 0 = max an bn
-                  | otherwise =
-                              let
-                                    al = c !! (an - 1) !! bn
-                                    bl = c !! an !! (bn - 1)
-                                    cl = c !! (an - 1) !! (bn - 1)
-
-                                    ac = a !! (an - 1)
-                                    bc = b !! (bn - 1)
-                                 in
-                                    if ac == bc
-                                          then cl
-                                          else
-                                                if al < bl
-                                                      then al + 1
-                                                      else bl + 1
-         in
-            c !! length a !! length b
-
 
 
 filename list = drop (length list - 1 - fromMaybe (length list - 1) (B.elemIndex (convertChar '/') (B.reverse list))) list
