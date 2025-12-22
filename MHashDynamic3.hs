@@ -1093,7 +1093,9 @@ fromAssocsDA f z as = let
    (len : muls) = scanr (*) 1 lens
    dims = zipWith4 toDim2 mins maxs muls vals
    in
-   SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
+      if null as
+         then error "no assocs in fromAssocsDA, can't work out number of dimensions"
+         else SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
 checkRectangular as = let
    lens = map length as
@@ -1275,6 +1277,19 @@ showHyper2 xn yn a = let
    , crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
    )
 
+stringHyper2 xn yn a = let
+   xd = select xn $ dims a
+   yd = select yn $ dims a
+   xs = indices xd
+   ys = indices yd
+   d = xn ++ yn
+   ip = inversePerm d
+   in
+   ( map (zipWith showLabel xd) xs
+   , map (zipWith showLabel yd) ys
+   , crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
+   )
+
 showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 xn yn a
 
 showHyper a = let
@@ -1282,6 +1297,13 @@ showHyper a = let
    hn = div n 2
    in
    showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
+
+stringHyper a = let
+   n = length $ dims a
+   hn = div n 2
+   in
+   showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] a
+
 
 showLabel (DimInt{}) i = show i
 showLabel (DimMap _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1

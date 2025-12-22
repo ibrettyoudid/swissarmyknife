@@ -1059,7 +1059,7 @@ paux _ _ = []
 
 predict2 n (Item (Seq    as   ) Running (ISeq j)) = [start (as !! ilength j)]
 predict2 n (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
-predict2 n (Item (Many   a    ) Running (IMany done)) = if done == [[]] then [Item (Many a) (mytrace "predict2: " $ Pass []) (IMany [[]]), start a] else [start a]
+predict2 n (Item (Many   a    ) Running (IMany done)) = if done == [[]] then [Item (Many a) (mytrace2 "predict2: " $ Pass []) (IMany [[]]), start a] else [start a]
 predict2 n (Item (Name   a b  ) Running _       ) = [start b]
 predict2 n (Item (Apply  a b  ) Running _       ) = [start b]
 predict2 n (Item (Set    a b  ) Running _       ) = [start b]
@@ -1128,7 +1128,7 @@ complete3 sub main@(Item x@(Many a) q (IMany done)) =
    case result sub of
       Pass reslist -> 
          let newdone = [seq ++ [res] | seq <- done, res <- reslist]
-         in [Item x Running (IMany newdone), Item x (mytrace ("complete3: done="++show done++" newdone="++show newdone++" reslist="++show reslist++" returns ") $ Pass $ map toDyn newdone) (IMany newdone)]
+         in [Item x Running (IMany newdone), Item x (mytrace2 ("complete3: done="++show done++" newdone="++show newdone++" reslist="++show reslist++" returns ") $ Pass $ map toDyn newdone) (IMany newdone)]
       Fail     -> []
 {-
 retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
@@ -1138,9 +1138,9 @@ retrieve1 states mainseq n sub = let
    from7 = only $ S.toList prev1
    in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) from7else []
 -}
-mytrace m x = unsafePerformIO $ mytrace1 m x
+mytrace2 m x = unsafePerformIO $ mytrace3 m x
 
-mytrace1 m x = do
+mytrace3 m x = do
    putStrLn $ m ++ show x
    return x
 

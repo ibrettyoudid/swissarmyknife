@@ -5,12 +5,16 @@ import qualified SetList as SL
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-insert k v m = case M.lookup k m of
-   Just  j -> M.insert k (SL.insert  v j) m
-   Nothing -> M.insert k (SL.singleton v) m
+insert k k1 v m = case M.lookup k m of
+   Just m1 -> M.insert k (M.insert    k1 v m1) m
+   Nothing -> M.insert k (M.singleton k1 v   ) m
 
-delete k v m = case M.lookup k m of
+delete k k1 m = case M.lookup k m of
    Just  j -> let
-      sl = SL.delete v j
-      in if SL.null sl then M.delete k m else M.insert k sl m
+      m1 = M.delete k1 j
+      in if M.null m1 then M.delete k m else M.insert k m1 m
    Nothing -> m
+
+lookupMin k m = case M.lookup k m of
+   Just m1 -> M.lookupMin m1
+   Nothing -> Nothing

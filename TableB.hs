@@ -19,7 +19,7 @@ import ShowTuple
 import Tree qualified as T
 import BString
 import HTMLB
-import Levenshtein
+import FuzzyMatch
 
 import Data.Char
 import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
@@ -481,13 +481,13 @@ appendR shift z fl (Recs rr) = Recs $ T.map (appendR shift z fl) rr
 
 showKey (k, v) = (k, show k, v)
 
-data Lev dist lk rk v = Lev dist lk rk v deriving (Show)
+data Fuzzy dist lk rk v = Fuzzy dist lk rk v deriving (Show)
 
-instance (Eq dist) => Eq (Lev dist lk rk v) where
-   Lev a _ _ _ == Lev b _ _ _ = a == b
+instance (Eq dist) => Eq (Fuzzy dist lk rk v) where
+   Fuzzy a _ _ _ == Fuzzy b _ _ _ = a == b
 
-instance (Ord dist) => Ord (Lev dist lk rk v) where
-   compare (Lev a _ _ _) (Lev b _ _ _) = compare a b
+instance (Ord dist) => Ord (Fuzzy dist lk rk v) where
+   compare (Fuzzy a _ _ _) (Fuzzy b _ _ _) = compare a b
 
 joinClear empty l r =
    let
@@ -497,12 +497,12 @@ joinClear empty l r =
 
 joinFuzzy1 maxDist empty l r = let
    (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
-   levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Lev (levenshtein maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
+   levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Fuzzy (fuzzyMatch maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
    (l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
    
    in (flr, (M.map fl l2, i2, M.map fr r2))
 
-joinFuzzyAux maxDist (Lev dist lk rk a) (lks, res, rks) =
+joinFuzzyAux maxDist (Fuzzy dist lk rk a) (lks, res, rks) =
    if dist <= maxDist && M.member lk lks && M.member rk rks
       then (M.delete lk lks, M.insert lk a res, M.delete rk rks)
       else (lks, res, rks)

@@ -42,6 +42,8 @@ class Show s => BString s where
    length :: s -> Int
    intercalate :: s -> [s] -> s
    splitAt :: Int -> s -> (s, s)
+
+class PutStr s where
    putStr :: s -> IO ()
    putStrLn :: s -> IO ()
 
@@ -80,20 +82,7 @@ instance Show a => BString [a] where
    splitAt = L.splitAt
 --   split = F.split
 
-instance {-# OVERLAPPING #-} BString [Char] where
-   empty = []
-   tail = P.tail
-   (++) = (P.++)
-   take = P.take
-   drop = P.drop
-   init = P.init
-   inits = L.inits
-   tails = L.tails
-   null = P.null
-   length = P.length
-   intercalate = L.intercalate
-
-   splitAt = L.splitAt
+instance PutStr [Char] where
    putStr = P.putStr
    putStrLn = P.putStrLn
 
@@ -128,6 +117,8 @@ instance BString B.ByteString where
    length = B.length
    intercalate = B.intercalate
    splitAt = B.splitAt
+
+instance PutStr B.ByteString where
    putStr = B.putStr
    putStrLn = B.putStr . (++"\n")
 
@@ -162,6 +153,8 @@ instance BString LB.ByteString where
    length = fromIntegral . LB.length
    intercalate = LB.intercalate
    splitAt n = LB.splitAt (fromIntegral n)
+
+instance PutStr LB.ByteString where
    putStr = LB.putStr
    putStrLn = LB.putStr . (++"\n")
 

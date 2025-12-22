@@ -592,7 +592,7 @@ cjgridB1 master cat u n g = do
       ix = findIndexField 3 bzero master tb
    case ix of
       Just ixj -> do
-         let tb1 = by (? ixj) tb
+         let tb1 = byscrub (? ixj) tb
          
          putStrLn $ "grid "++show n
          print $ showTableMeta2 tb1

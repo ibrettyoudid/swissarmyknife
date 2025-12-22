@@ -801,6 +801,9 @@ joinMapsFuzzyAux (lev, lk, rk, a) (lks, res, rks) =
 joinTLists z ls = loftm z $ foldr1 (joinTMapsFuzzy z) $ map tmofl ls
 
 -}
+unionWith3 :: Ord k => (a -> b -> c) -> (a -> c) -> (b -> c) -> M.Map k a -> M.Map k b -> M.Map k c
+unionWith3 f fl fr l r = M.unions [M.intersectionWith f l r, M.map fl (l M.\\ r), M.map fr (r M.\\ l)]
+
 foldm f z xs = foldm0 f z $ groupN 2 xs
 
 foldm0 f z xss =
@@ -869,7 +872,6 @@ swapMap = M.fromList . map swap . M.toList
 
 swap (a, b) = (b, a)
 
-data Fuzzy = FuzzyDiff Int Int | FuzzyCommon Int
 --A* = never overestimate
 
 commonSubsequences a b =
@@ -1111,3 +1113,10 @@ bsofs = B.pack . map (fromIntegral . ord)
 filename list = drop (length list - 1 - fromMaybe (length list - 1) (elemIndex '/' (reverse list))) list
 
 ext list = drop (length list - 1 - fromMaybe (negate 1) (elemIndex '.' (reverse list))) list
+
+mytrace = unsafePerformIO . mytrace1
+
+mytrace1 x = do
+   print x
+   return x
+

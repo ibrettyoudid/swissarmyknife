@@ -916,12 +916,6 @@ retrieve1 states mainseq n sub = let
    prev  = only $ S.toList prev1
    in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) prev else []
 -}
-mytrace x = unsafePerformIO $ mytrace1 x
-
-mytrace1 x = do
-   print x
-   return x
-
 retrieve2 states state = do
    seq <- children states state
    let seqf = reverse seq
