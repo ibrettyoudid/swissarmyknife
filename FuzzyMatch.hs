@@ -62,9 +62,9 @@ pointfn (Point v ks) = ks
 -- ne is all nodes nex, ney such that y < ney < y1, and x such that x1 <= nex
 -- sw is all nodes swx, swy such that x < swx < x1, and y such that y < swy < y1
 
-data Tree k v = Tree { x :: k, y :: k, se :: Tree k v, sw :: Tree k v, ne :: Tree k v }
-            | Leaf { x :: k, y :: k, value :: v }
-            | Empty
+data Tree k v  = Tree { x :: k, y :: k, se :: Tree k v, sw :: Tree k v, ne :: Tree k v }
+               | Leaf { x :: k, y :: k, value :: v }
+               | Empty
 
 fuzzyMatch7 a b = let
    la = length a
@@ -220,13 +220,6 @@ m
 a
 s
 -}
-merge a               [             ] = a
-merge [             ] b               = b
-merge a@(a1:a2) b@(b1:b2)
-   | a1 <  b1 = a1:merge a2 b
-   | a1 == b1 = a1:merge a2 b2
-   | a1 >  b1 = b1:merge a  b2
-
 astar nearest checkDist heuristic isGoal start maxDist =
    let
       --heuristic (x, y) = sqrt $ fromIntegral ((length a - x)^2 + (length b - y)^2)
@@ -349,6 +342,7 @@ fuzzyMatch9 a b = let
    bi = index b
    int = M.intersectionWith (,) (index a) (index b)
    i = M.map (\(xs, ys) -> (S.fromList xs, S.fromList ys)) int
+   --u = M.map (\(xs, ys) -> (sort xs, sort ys)) $ unionWith3 (,) (,[]) ([],) ai bi
    z = concatMap (\(c, (xs, ys)) -> concat $ crossWith (c,,) xs ys) $ M.toList int
    fx = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, ys)) $ S.toList xs) $ M.toList i
    fy = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, xs)) $ S.toList ys) $ M.toList i
@@ -376,7 +370,7 @@ fuzzyMatch9 a b = let
             M.dropWhileAntitone (<= y0) fy
 
       --in map (\(x, y) -> (actDist c [x, y], [x, y])) $ concat $ zipWith merge xys yxs
-      in concat $ zipWith (\n l -> map (\(v, x, y) -> (n, [x, y])) l) [0..] $ zipWith merge xys yxs
+      in concat $ zipWith (\n l -> map (\(v, x, y) -> (n, [x, y])) l) [0..] $ zipWith (\a b -> merge [a, b]) xys yxs
 
    hsnearest = HS.fromList . nearest
 
@@ -452,20 +446,54 @@ fuzzyMatch10 a b = let
    in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
 {-x = not allowed
 
-i think the first distance grid here is better
-0xxxxx
-x01234
-x11234
-x22234
-x33334
-x44444
+i think the first actual distance grid here is better, that's what i've used
+centred on the point we're at
+01234
+11234
+22234
+33334
+44444
 
-0xxxxx
-x01234
-x12345
-x23456
-x34567
-x45678
+01234
+12345
+23456
+34567
+45678
+
+the heuristic grid is like this:
+centred on the goal diagonal
+
+01234    10123
+10123    21012
+21012 or 32101
+32101    43210
+43210    54321
+
+the sum looks like this, depending on how far we are W or E from the diagonal that ends at the goal:
+centre   1 west   2 west   3 west
+02468    11357    22246    33335791
+21357    32246    43335    54444680
+43246 or 54335 or 65444 or 76555579
+65435    76544    87655    98766668
+87654    98765    09876    10987777
+                           32109888
+
+the way I have it now, they come out in reverse Ls
+the reverse L at the bottom of 3 west
+     5          2          7
+     5          1          6
+     5  +       0          5
+     5          1          6
+     5          2          7
+555555     876543     321098
+
+is made up of
+
+321098 and 876567
+
+we want
+
+566778890123
 -}
 {-
 --astar nextdists heuristic goal start
@@ -489,27 +517,34 @@ f (Just v2) = Just $ combine v2
 -}
 -}
 --fuzzyMatchMulti :: [[a]]
-merge2 xs = merge2B $ multimap xs
 
-merge2C xs = map merge2A xs
+merge xs = merge2 $ merge1 xs
 
-merge2A [] = []
-merge2A x  = [(head x, x)]
+merge1 xs = multimap $ mapfxx head $ filter (not . null) xs
 
-merge2B xs = case M.toList $ M.take 2 xs of
-      (a, as):(b, _):xs2 -> let
-         (ab, aa) = span (<= b) as
-         in ab ++ merge2B (M.insert a aa $ M.drop 1 xs)
-      [(a, as)] -> as
-      []        -> []
+merge2 m = let
+   [(a, al), (b, _)] = M.toList $ M.take 2 m
+   (done, todo) = unzip $ map (span (<= b)) al
+   in concat done ++ merge2 (M.unionWith (++) (M.drop 1 m) (merge1 todo))
+
+checkAscending xs = let
+   ys = map fst xs
+   f = filter (uncurry (>)) $ zip ys (tail ys)
+   in if null f 
+         then xs
+         else error $ "not ascending! "++show f
 
 fuzzyMatch11 seqs = let
    lens = map length seqs
-   index a = multimap $ zip ('^':a++"$") [0::(Int) ..]
-   int = foldr (\seq rest -> M.intersectionWith (:) (index seq) rest) (M.map (\a -> [a]) $ index (last seqs)) $ init seqs
+   index a = multimap $ zip ('^':a++"$") [(0::Int) ..]
+   sing a = [a]
+   inter = foldr (\seq rest -> M.intersectionWith (:) (index seq) rest) (M.map sing $ index (last seqs)) $ init seqs
+   union = foldr (\seq rest -> unionWith3 (:) sing id (index seq) rest) (M.map sing $ index (last seqs)) $ init seqs
    --i = M.map (\[xs, ys, zs] -> (S.fromList xs, S.fromList ys, S.fromList zs)) int
-   i = M.map (map S.fromList) int
-   z = concatMap (\(c, ls) -> map (c,) $ concat $ crossList ls) $ M.toList int
+   --u = M.map (\(xs, ys) -> (sort xs, sort ys)) $ unionWith3 (,) (,[]) ([],) ai bi
+   i = M.map (map S.fromList) inter
+   u = M.map (map S.fromList) union
+   z = concatMap (\(c, ls) -> map (c,) $ concat $ crossList ls) $ M.toList union
    --fx = M.fromList $ concatMap (\(c, (xs, ys)) -> map (, ys) $ S.toList xs) $ M.toList i
    maps = map (\n -> M.fromList $ concatMap (\(c, sets) -> map (, deleteIndex n sets) $ S.toList $ sets !! n) (M.toList i)) [0..length seqs - 1]
 
@@ -556,7 +591,8 @@ fuzzyMatch11 seqs = let
                               ) $ 
                               M.toList $
                               M.dropWhileAntitone (<= x1) map1) [0..length seqs - 1] xs maps
-      in concat $ concat block
+
+      in checkAscending $ concat $ concat block -- concat is probably more efficient than merge, but does it always work? transpose can give surprising answers if the input is not rectangular
 
    --in showNearest nearest heuristic z
    in astar nearest actDist heuristic (== goal) start 100
