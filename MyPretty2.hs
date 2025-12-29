@@ -933,7 +933,7 @@ With three columns you want equal amounts of text in all the limiting cells of e
 If you put the columns together in order of total text, would that be ideal?
 
 I think I found an analogy:
-Gas makes no sense, text is incompressible
+Gas makes no sense, text is more like incompressible liquid
 
 Liquid in a compartmentalised tank where the walls can move left or right or up or down
 according to whether theyre vertical or horizontal (without friction)
