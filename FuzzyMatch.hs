@@ -27,15 +27,6 @@ import qualified Data.KdTree.Static as KD
 import Debug.Trace
 
 --heuristic [x, y] = abs ((length a - x) - (length b - y))
-fuzzyMatch maxDist a b = 0 --fuzzyMatch9 a b
-
-fuzzyMatch3 maxDist lev2 = let
-   (b, a) = span (<= maxDist) lev2
-
-   in case b of
-      []    -> Left a
-      (x:_) -> Right x
-
 fuzzyMatch6 a b = let
    la = length a
    lb = length b
@@ -220,52 +211,207 @@ m
 a
 s
 -}
-astar :: ([Int] -> M.Map Int [NodeList]) -> p -> ([Int] -> Int) -> ([Int] -> Bool) -> [Int] -> Int -> (Int, Int, [Int], [(Int, [Int])])
-astar nearest checkDist heuristic isGoal start maxDist =
+data Node   = AtLeast { dos1 :: Int, ds1 :: Int, pos1 :: [Int] } 
+            | Exactly { dsn1 :: Int, ds1 :: Int, step1 :: Int, pos1 :: [Int], path1 :: [(Int, [Int])] } | AtLeastH Int | ExactlyH Int
+            | Goal    { dsn1 :: Int, ds1 :: Int, step1 :: Int, pos1 :: [Int], path1 :: [(Int, [Int])] } deriving Show
+
+data NodeList = AtLeastL { dos :: Int, ds :: Int, step :: Int, pos :: [[Int]], path :: [(Int, [Int])] } | ExactlyL { dsn :: Int, pos :: [[Int]] } deriving (Show)
+
+instance Eq Node where
+   a == b = compare a b == EQ
+
+instance Ord Node where
+   compare = compare `on` gocompare1
+
+instance Eq NodeList where
+   a == b = compare a b == EQ
+
+instance Ord NodeList where
+   compare = compare `on` gocompare
+
+gocompare1 x@(Exactly {}) = (dsn1 x, 0)
+gocompare1 x@(AtLeast {}) = (dos1 x, 1)
+
+gocompare x@(ExactlyL {}) = (dsn x, 0)
+gocompare x@(AtLeastL {}) = (dos x, 1)
+
+expand heuristic (AtLeastL dos ds step xs prev) = map (\x -> Exactly (ds + heuristic x) ds step x ((step, x):prev)) xs
+
+head1 x@(ExactlyL {}) = ExactlyH $ dsn x
+head1 x@(AtLeastL {}) = AtLeastH $ dos x
+
+merge :: (Show t, Ord t) => [(t, [Node])] -> [(t, Node)]
+merge xs = merge2 $ merge1 xs
+
+merge1 :: (Ord b1) => [(b1, [Node])] -> M.Map (Int, b1) [Node]
+merge1 xs = M.fromList $ map (\(name, list) -> ((dsn1 $ head list, name), list)) $ filter (not . null . snd) xs
+
+merge2 m = 
+   case M.toList $ M.take 2 m of
+      [] -> []
+      [((_, name), list)] -> map (name,) list
+      [((_, name), list), ((next, _), _)] -> let
+         (done, todo) = span ((<= next) . dsn1) list
+         in map (name,) done ++ merge2 (M.unionWith (++) (M.drop 1 m) (merge1 [(name, todo)]))
+
+firstMatchesOnly xs = firstMatchesOnly2 $ merge1 xs
+
+firstMatchesOnly2 m = 
+   case M.toList $ M.take 2 m of
+      [] -> []
+      [((_, name), list)] -> let
+         f = filter isGoal list
+         in map (name,) f
+      [((_, (x, y)), list), ((next, _), _)] -> let
+         (done, todo) = span ((<= next) . dsn1) list
+         f = filter isGoal done
+         in if not $ null f
+            then map ((x, y),) f ++ firstMatchesOnly2 (M.filterWithKey (\(_, (x1, y1)) list1 -> x /= x1 && y /= y1) (M.drop 1 m))
+            else firstMatchesOnly2 (M.unionWith (++) (M.drop 1 m) (merge1 [((x, y), todo)]))
+
+mergeB a = concatMap snd $ M.toList $ multimap $ mapfxx dos a
+
+mergeC a = foldr1 (M.unionWith (++)) $ map (M.map sing . M.fromAscList . mapfxx dos) a
+
+sing a = [a]
+
+test1 = fuzzyMatch9 "the quick brown fox" "the quiet blue fog"
+
+test2 = fuzzyMatch9 "on the first day of christmas" "i'll tell you what i want, what i really really want"
+
+test3 = merge [("a", test1), ("b", test2)]
+
+test4 = firstMatch test3
+
+join xs ys = firstMatchesOnly $ concat $ crossWith (\x y -> ((x, y), fuzzyMatch9 x y)) xs ys
+
+showNearest nearest heuristic = mapM_ (\(d, c, x, y) ->
+   case nearest [x, y] of
+      [] -> return ()
+      n  -> do
+         print (c, x, y, heuristic [x, y])
+         putStrLn $ stringHyper $ fromAssocsDA (\x y -> y) "" $ map (\(step, to) -> (map toDyn to, show step)) n
+      ) . sort . map (\(c, x, y) -> (x + y, c, x, y))
+
+isGoal (Goal {}) = True
+isGoal _         = False
+
+continue maxDist (Left xs) = let
+   loop (goal@(Goal {}):xs) = Right goal
+   loop (x : xs)
+      | dsn1 x <= maxDist = loop xs
+      | otherwise = Left xs
+   in loop xs
+
+firstMatch [] = error "reached end of list with no match"
+firstMatch ((name, goal@(Goal {})):rest) = (name, goal)
+firstMatch (_:rest) = firstMatch rest
+
+fuzzyMatch maxDist a b = continue maxDist $ Left $ fuzzyMatch9 a b
+
+fuzzyMatch9 a b = let
+   la = length a
+   lb = length b
+   index a = multimap $ zip (cons '^' $ a++"$") [0..]
+   int = M.intersectionWith (,) (index a) (index b)
+   i = M.map (\(xs, ys) -> (S.fromList xs, S.fromList ys)) int
+   --u = M.map (\(xs, ys) -> (sort xs, sort ys)) $ unionWith3 (,) (,[]) ([],) ai bi
+   z = concatMap (\(c, (xs, ys)) -> concat $ crossWith (c,,) xs ys) $ M.toList int
+   fx = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, ys)) $ S.toList xs) $ M.toList i
+   fy = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, xs)) $ S.toList ys) $ M.toList i
+
+   start = [0, 0]
+   goal = [la + 1, lb + 1]
+
+   actDist k0 k1 = subtract 1 $ maximum $ map abs $ zipWith (-) k0 k1
+   heuristic k   = let d = zipWith (-) goal k in maximum d - minimum d
+   --m = M.map (\(as, bs) -> (S.fromList as, S.fromList bs)) $ M.intersectionWith (,) ai bi
+
+   nearest (Exactly _ done _ pos prev) = let
+      [x0, y0] = pos
+      oldh = heuristic pos
+      neighbour step tonodes = AtLeastL (done + oldh + step) (done + step) step tonodes prev
+      xys = map (\(x, (c, ys)) -> neighbour (x - x0 - 1) $
+                              map (\y -> [x, y]) $
+                              S.toList $
+                              S.takeWhileAntitone (<= x - x0 + y0) $
+                              S.dropWhileAntitone (<= y0) ys) $
+            M.toList $
+            M.dropWhileAntitone (<= x0) fx
+      yxs = map (\(y, (c, xs)) -> neighbour (y - y0 - 1)
+                              $ map (\x -> [x, y]) $
+                              S.toList $
+                              S.takeWhileAntitone (<  y - y0 + x0) $
+                              S.dropWhileAntitone (<= x0) xs) $
+            M.toList $
+            M.dropWhileAntitone (<= y0) fy
+
+      --in map (\(x, y) -> (actDist c [x, y], [x, y])) $ concat $ zipWith merge xys yxs
+      in mergeC [xys, yxs]
+
+   --in showNearest nearest heuristic z
+   in astar nearest heuristic (pos1 $= goal) start
+{-
+   --Just j = aStar hsnearest actDist hDist (== goal) start
+   in case astar nearest heuristic (== goal) start 10 of
+      Right (d, g, j) -> let
+         --in mapM print ps
+         --in mapM print j
+         ds = zipWith actDist j (tail j)
+         --in (sum ds, ds)
+         blah start = sort $ mapfxx (\(n, x) -> actDist start x + heuristic x) $ nearest start
+         --in blah [15, 15]
+         in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
+      Left (d, g, j) -> let
+         --in mapM print ps
+         --in mapM print j
+         ds = zipWith actDist j (tail j)
+         --in (sum ds, ds)
+         blah start = sort $ mapfxx (\(n, x) -> actDist start x + heuristic x) $ nearest start
+         --in blah [15, 15]
+         in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
+  -}
+
+astar nearest heuristic isGoal start =
    let
       --heuristic (x, y) = sqrt $ fromIntegral ((length a - x)^2 + (length b - y)^2)
-      add (byDist, byPos::M.Map [Int] (M.Map Int (Int, Int, [Int], [(Int, [Int])]))) ((step, to), (oldtotal, done, from, path)) = let
-         hFrom = heuristic from
-         hTo = heuristic to
-         doneNew = done + step
-         totalNew = doneNew + hTo
-         atNew = to
-         pathNew = (step, to):path
-         tdapNew = (totalNew, doneNew, atNew, pathNew)
-         in if hFrom <= hTo + step
-            then let
-                  byPos1 = MM.insert to doneNew tdapNew byPos
-                  byDist1 = MM.insert totalNew to tdapNew byDist
-                  in case MM.lookupMin to byPos of
-                     Just (k1, v) ->
-                        if doneNew < k1
-                           then (byDist1, byPos1)
-                           else (byDist, byPos1)
+      add (byDist, byPos) node@(Exactly totalNew doneNew step to from) = let
+         byPos1 = M.insert to node byPos
+         byDist1 = M.insert totalNew node byDist
+         in case M.lookup to byPos of
+            Just (Exactly _ k1 _ _ _) ->
+               if doneNew < k1
+                  then (byDist1, byPos1)
+                  else (byDist, byPos1)
 
-                     Nothing -> (byDist1, byPos1)
+            Nothing -> (byDist1, byPos1)
 
-            else
-               error "heuristic is not consistent!"
+      mergeA2 e p a = let
+         mergeA3 ek ev = if isGoal ev  then [Goal (dsn1 ev) (ds1 ev) (step1 ev) (pos1 ev) (path1 ev)]
+                                       else ev : mergeA2 (M.drop 1 e) p (M.unionWith (++) a (nearest ev))
+         mergeA4 ak av = let
+            (newe, newp) = foldl add (e, p) $ concatMap (expand heuristic) av
+            in mergeA2 newe newp (M.drop 1 a)
 
-      loop queues@(byDist, byPos::M.Map [Int] (M.Map Int (Int, Int, [Int], [(Int, [Int])]))) = let
-         Just (total, m1) = M.lookupMin byDist
-         Just (at1, j@(total1, done, at, path)) = M.lookupMax m1
-
-         in if | isGoal at -> j
-               | total < maxDist -> let
-                  near1 = nearest at
-                  --let check = map (\((step, to), (total, done, at, path)) -> (checkDist at to, step, to)) near1
-                  byDist1 = MM.delete total at1 byDist
-                  in loop $ foldl add (byDist1, byPos) near1
-
-               | otherwise -> j
-
-   in loop $ add (M.empty, M.empty) ((0, start), (0, 0, start, []))
+         in case M.lookupMin e of
+               Just (ek, ev) ->
+                  case M.lookupMin a of
+                     Just (ak, av) ->
+                        if ak < ek
+                           then mergeA4 ak av
+                           else mergeA3 ek ev
+                     Nothing -> mergeA3 ek ev
+               Nothing ->
+                  case M.lookupMin a of
+                     Just (ak, av) -> mergeA4 ak av
+                     Nothing       -> []
+   
+   in mergeA2 (M.fromList [(0, Exactly 0 0 0 start [])]) M.empty M.empty
 
 astar1 nearest checkDist heuristic isGoal start maxDist =
    let
       --heuristic (x, y) = sqrt $ fromIntegral ((length a - x)^2 + (length b - y)^2)
-      add (byDist, byPos::M.Map [Int] (M.Map Int (Int, Int, [Int], [(Int, [Int])]))) ((step, to), (oldtotal, done, from, path)) = let
+      add (byDist, byPos) ((step, to), (oldtotal, done, from, path)) = let
          hFrom = heuristic from
          hTo = heuristic to
          doneNew = done + step
@@ -288,7 +434,7 @@ astar1 nearest checkDist heuristic isGoal start maxDist =
             else
                error "heuristic is not consistent!"
 
-      loop queues@(byDist, byPos::M.Map [Int] (M.Map Int (Int, Int, [Int], [(Int, [Int])]))) = let
+      loop queues@(byDist, byPos) = let
          Just (total, m1) = M.lookupMin byDist
          Just (at1, j@(total1, done, at, path)) = M.lookupMax m1
 
@@ -302,6 +448,8 @@ astar1 nearest checkDist heuristic isGoal start maxDist =
                | otherwise -> j
 
    in loop $ add (M.empty, M.empty) ((0, start), (0, 0, start, []))
+
+--mergeA heuristic a = mergeA2 heuristic M.empty $ multimap $ mapfxx dos a
 
 astarD nearest checkDist heuristic isGoal start maxDist =
    let
@@ -363,136 +511,6 @@ astarD nearest checkDist heuristic isGoal start maxDist =
 
    in loop $ add (M.empty, M.empty) ((0, start), (0, 0, start, []))
 
-
-data Node = AtLeast { dos1 :: Int, ds1 :: Int, pos1 :: [Int] } | Exactly { dsn1 :: Int, pos1 :: [Int] } | AtLeastH Int | ExactlyH Int
-
-data NodeList = AtLeastL { dos :: Int, ds :: Int, pos :: [[Int]] } | ExactlyL { dsn :: Int, pos :: [[Int]] }
-
-instance Eq Node where
-   a == b = compare a b == EQ
-
-instance Ord Node where
-   compare = compare `on` gocompare1
-
-instance Ord NodeList where
-   compare = compare `on` gocompare
-
-gocompare1 (Exactly x   xs) = (x, 0)
-gocompare1 (AtLeast x y xs) = (x, 1)
-
-gocompare (ExactlyL x _  ) = (x, 0)
-gocompare (AtLeastL x _ _) = (x, 1)
-
-expand heuristic (AtLeastL dos ds xs) = map (\x -> Exactly (ds + heuristic x) x) xs
-
-head1 (ExactlyL x   _) = ExactlyH x
-head1 (AtLeastL x _ _) = AtLeastH x
-
-merge xs = merge2 $ merge1 xs
-
-merge1 xs = multimap $ mapfxx head $ filter (not . null) xs
-
-merge2 m = let
-   [(a, al), (b, _)] = M.toList $ M.take 2 m
-   (done, todo) = unzip $ map (span (<= b)) al
-   in concat done ++ merge2 (M.unionWith (++) (M.drop 1 m) (merge1 todo))
-
-mergeA heuristic a = mergeA2 heuristic M.empty $ multimap $ mapfxx dos a
-
-mergeA2 heuristic e a = let
-   mergeA3 ek ev = ev ++ mergeA2 heuristic (M.drop 1 e) a
-   mergeA4 ak av = mergeA2 heuristic (M.unionWith (++) e (multimap $ mapfxx dsn1 $ concatMap (expand heuristic) av)) (M.drop 1 a)
-   in case M.lookupMin e of
-         Just (ek, ev) ->
-            case M.lookupMin a of
-               Just (ak, av) ->
-                  if ak < ek
-                     then mergeA4 ak av
-                     else mergeA3 ek ev
-               Nothing -> mergeA3 ek ev
-         Nothing ->
-            case M.lookupMin a of
-               Just (ak, av) -> mergeA4 ak av
-               Nothing       -> []
-
-mergeB a = concatMap snd $ M.toList $ multimap $ mapfxx dos a
-
-mergeC a = foldr1 (M.unionWith (++)) $ map (multimap . mapfxx dos) a
-
-showNearest nearest heuristic = mapM_ (\(d, c, x, y) ->
-   case nearest [x, y] of
-      [] -> return ()
-      n  -> do
-         print (c, x, y, heuristic [x, y])
-         putStrLn $ stringHyper $ fromAssocsDA (\x y -> y) "" $ map (\(step, to) -> (map toDyn to, show step)) n
-      ) . sort . map (\(c, x, y) -> (x + y, c, x, y))
-
-fuzzyMatch9 a b = let
-   la = length a
-   lb = length b
-   dla = fromIntegral la
-   dlb = fromIntegral lb
-   index a = multimap $ zip ('^':a++"$") [0::(Int) ..]
-   ai = index a
-   bi = index b
-   int = M.intersectionWith (,) (index a) (index b)
-   i = M.map (\(xs, ys) -> (S.fromList xs, S.fromList ys)) int
-   --u = M.map (\(xs, ys) -> (sort xs, sort ys)) $ unionWith3 (,) (,[]) ([],) ai bi
-   z = concatMap (\(c, (xs, ys)) -> concat $ crossWith (c,,) xs ys) $ M.toList int
-   fx = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, ys)) $ S.toList xs) $ M.toList i
-   fy = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, xs)) $ S.toList ys) $ M.toList i
-
-   start = [0, 0]
-   goal = [dla + 1, dlb + 1]
-
-   actDist k0 k1 = subtract 1 $ maximum $ map abs $ zipWith (-) k0 k1
-   heuristic k   = let d = zipWith (-) goal k in maximum d - minimum d
-   --m = M.map (\(as, bs) -> (S.fromList as, S.fromList bs)) $ M.intersectionWith (,) ai bi
-
-   nearest done p = let
-      [x0, y0] = p
-      oldh = heuristic p
-      neighbour step tonodes = AtLeastL (done + oldh + step) (done + step) tonodes
-      xys = map (\(x, (c, ys)) -> neighbour (x - x0 - 1) $
-                              map (\y -> [x, y]) $
-                              S.toList $
-                              S.takeWhileAntitone (<= x - x0 + y0) $
-                              S.dropWhileAntitone (<= y0) ys) $
-            M.toList $
-            M.dropWhileAntitone (<= x0) fx
-      yxs = map (\(y, (c, xs)) -> neighbour (y - y0 - 1)
-                              $ map (\x -> [x, y]) $
-                              S.toList $
-                              S.takeWhileAntitone (<  y - y0 + x0) $
-                              S.dropWhileAntitone (<= x0) xs) $
-            M.toList $
-            M.dropWhileAntitone (<= y0) fy
-
-      --in map (\(x, y) -> (actDist c [x, y], [x, y])) $ concat $ zipWith merge xys yxs
-      in mergeC [xys, yxs]
-
-   --in showNearest nearest heuristic z
-   in astar nearest actDist heuristic (== goal) start 100
-{-
-   --Just j = aStar hsnearest actDist hDist (== goal) start
-   in case astar nearest heuristic (== goal) start 10 of
-      Right (d, g, j) -> let
-         --in mapM print ps
-         --in mapM print j
-         ds = zipWith actDist j (tail j)
-         --in (sum ds, ds)
-         blah start = sort $ mapfxx (\(n, x) -> actDist start x + heuristic x) $ nearest start
-         --in blah [15, 15]
-         in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
-      Left (d, g, j) -> let
-         --in mapM print ps
-         --in mapM print j
-         ds = zipWith actDist j (tail j)
-         --in (sum ds, ds)
-         blah start = sort $ mapfxx (\(n, x) -> actDist start x + heuristic x) $ nearest start
-         --in blah [15, 15]
-         in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
-  -}
 
 --bot = 
 fuzzyMatch10 a b = let
@@ -621,11 +639,10 @@ checkAscending xs = let
    in if null f
          then xs
          else error $ "not ascending! "++show f
-
+{-
 fuzzyMatch11 seqs = let
    lens = map length seqs
    index a = multimap $ zip ('^':a++"$") [(0::Int) ..]
-   sing a = [a]
    inter = foldr (\seq rest -> M.intersectionWith (:) (index seq) rest) (M.map sing $ index (last seqs)) $ init seqs
    union = foldr (\seq rest -> unionWith3 (:) sing id (index seq) rest) (M.map sing $ index (last seqs)) $ init seqs
    --i = M.map (\[xs, ys, zs] -> (S.fromList xs, S.fromList ys, S.fromList zs)) int
@@ -708,7 +725,7 @@ fuzzyMatch11 seqs = let
          --in blah [15, 15]
          in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
   -}
-
+-}
 --bot = 
 
 
