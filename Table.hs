@@ -463,8 +463,8 @@ joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
       maxl = maximum fieldnumsl
       minr = minimum fieldnumsr
       maxr = maximum fieldnumsr
-      shift = maxl - minr + 10
-      fieldsr1 = M.fromList $ map (\(k, v) -> (k, v + shift)) $ M.toList fieldsr
+      shift = maxl - minr + 1
+      fieldsr1 = M.map (+ shift) fieldsr
       fieldslr = appendFields fieldsl fieldsr1
       fl = appendL   shift empty fieldsr1
       fi = appendRec shift
@@ -508,6 +508,24 @@ joinClear empty l r = let
 
 joinFuzzy1 maxDist empty l r = let
    (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
+   (a, b) = unzip $ fuzzyJoin1 maxDist (map showKey $ M.toList l1) (map showKey $ M.toList r1)
+   (lks, rks) = unzip a
+   --levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Fuzzy (fuzzyMatch maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
+   --(l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
+   
+   l2 = l1 M.\\ (M.fromList $ map (, 0) lks)
+   r2 = r1 M.\\ (M.fromList $ map (, 0) rks)
+   i2 = M.fromList $ zipWith joinFuzzyAux lks rks
+
+   joinFuzzyAux lk rk = let
+      Just lv = M.lookup lk l1
+      Just rv = M.lookup rk r1
+      in (lk, lv `fi` rv) -- we choose the left key when they're not exactly the same
+
+   in (flr, (M.map fl l2, i2, M.map fr r2))
+{-
+joinFuzzy1 maxDist empty l r = let
+   (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
    levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Fuzzy (fuzzyMatch maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
    (l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
 
@@ -517,7 +535,7 @@ joinFuzzyAux maxDist (Fuzzy dist lk rk a) (lks, res, rks) =
    if dist <= maxDist && M.member lk lks && M.member rk rks
       then (M.delete lk lks, M.insert lk a res, M.delete rk rks)
       else (lks, res, rks)
-
+-}
 joinInclude (il, ii, ir) (rl, ri, rr) =
    (if ii then M.union ri else id) $
    (if il then M.union rl else id) $

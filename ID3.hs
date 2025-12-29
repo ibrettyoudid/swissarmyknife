@@ -27,7 +27,7 @@ import ShowTuple
 import Control.Applicative hiding (empty)
 import Control.Monad
 import System.Directory
-import System.IO
+import System.IO hiding (readFile, writeFile)
 import System.IO.Unsafe
 
 -- import System.IO.Extra
@@ -41,7 +41,7 @@ import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
 import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++), splitAt)
-import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), splitAt)
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), splitAt, readFile, writeFile)
 
 -- import Data.Algorithm.Diff
 import Data.Array.IArray hiding (range)

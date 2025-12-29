@@ -89,6 +89,8 @@ firstText = (\case { [] -> empty; (a:_) -> a }) . mapMaybe (ifPred (not . null) 
 extractLink = head . extractLinks
 extractLinks t = map (tagAttrib "href") $ findTypes "a" t
 
+extractTitles t = map (tagAttrib "title") $ findTypes "a" t
+
 extractLinks1 = map (tagAttrib "href") . filter (\t -> typeIs "a" t && hasAttrib "href" t)
 
 extractPics = mapMaybe (\t -> ifJust (tagType t == "img" && hasAttrib "src" t) (tagAttrib "src" t))
@@ -806,7 +808,7 @@ ws1 = oneOf " \t\n\r"
 
 file = readFileBinary "britfilms2010.htm"
 
-testParse = parseHTML (b "") file
+testParse = parseHTML B.empty file
 
 file1 = "<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\" dir=\"ltr\">\n<head>"
 
@@ -935,6 +937,8 @@ pmAll m = map (\u -> (pmReview m u, u)) . concatMap (pmIndexPage m . ("http://ww
 spacesToPluses :: B.ByteString -> B.ByteString
 spacesToPluses x = replace " " "+" x
 spacesToUnders x = replace " " "_" x
+
+undersToSpaces x = replace "_" " " x
 
 discSrch m typ name =
    map (tagAttrib "href") $

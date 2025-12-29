@@ -3,6 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+--{-# LANGUAGE NamedDefaults #-}
 
 module BString
 (
@@ -17,6 +18,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.List as L
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Char as C
 import Data.Maybe
 import System.IO
@@ -26,6 +28,8 @@ import Prelude hiding (String, drop, find, head, tail, length, null, map, (++), 
 import Data.Word
 
 import GHC.Stack
+
+default (B.ByteString)
 
 type LByteString = LB.ByteString
 
@@ -43,7 +47,11 @@ class Show s => BString s where
    intercalate :: s -> [s] -> s
    splitAt :: Int -> s -> (s, s)
 
-class PutStr s where
+--IO is separate because it only works for the String instance of lists
+
+class BStringIO s where
+   readFile :: FilePath -> IO s
+   writeFile :: FilePath -> s -> IO ()
    putStr :: s -> IO ()
    putStrLn :: s -> IO ()
 
@@ -59,6 +67,8 @@ class BString s => BStringC c s | s -> c where
    smap  :: (c -> c) -> s -> s
    takeWhile :: (c -> Bool) -> s -> s
    dropWhile :: (c -> Bool) -> s -> s
+   span :: (c -> Bool) -> s -> (s, s)
+
 
    -- these are here because of the Eq class on the characters
    stripPrefix :: s -> s -> Maybe s
@@ -80,11 +90,12 @@ instance Show a => BString [a] where
    intercalate = L.intercalate
 
    splitAt = L.splitAt
---   split = F.split
 
-instance PutStr [Char] where
+instance BStringIO P.String where
    putStr = P.putStr
    putStrLn = P.putStrLn
+   readFile = P.readFile
+   writeFile = P.writeFile
 
 instance (Eq a, Show a) => BStringC a [a] where
    cons = (:)
@@ -98,6 +109,7 @@ instance (Eq a, Show a) => BStringC a [a] where
    smap = L.map
    takeWhile = L.takeWhile
    dropWhile = L.dropWhile
+   span = L.span
 
    stripPrefix = L.stripPrefix
    isPrefixOf = L.isPrefixOf
@@ -118,9 +130,11 @@ instance BString B.ByteString where
    intercalate = B.intercalate
    splitAt = B.splitAt
 
-instance PutStr B.ByteString where
+instance BStringIO B.ByteString where
    putStr = B.putStr
    putStrLn = B.putStr . (++"\n")
+   readFile = B.readFile
+   writeFile = B.writeFile
 
 instance BStringC Word8 B.ByteString where
    cons = B.cons
@@ -134,6 +148,7 @@ instance BStringC Word8 B.ByteString where
    smap = B.map
    takeWhile = B.takeWhile
    dropWhile = B.dropWhile
+   span = B.span
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
    isPrefixOf = B.isPrefixOf
@@ -154,9 +169,11 @@ instance BString LB.ByteString where
    intercalate = LB.intercalate
    splitAt n = LB.splitAt (fromIntegral n)
 
-instance PutStr LB.ByteString where
+instance BStringIO LB.ByteString where
    putStr = LB.putStr
    putStrLn = LB.putStr . (++"\n")
+   readFile = LB.readFile
+   writeFile = LB.writeFile
 
 instance BStringC Word8 LB.ByteString where
    cons = LB.cons
@@ -170,6 +187,7 @@ instance BStringC Word8 LB.ByteString where
    smap = LB.map
    takeWhile = LB.takeWhile
    dropWhile = LB.dropWhile
+   span = LB.span
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
    isPrefixOf = LB.isPrefixOf
@@ -189,8 +207,12 @@ instance BString T.Text where
    length = T.length
    intercalate = T.intercalate
    splitAt = T.splitAt
-   --putStr = T.putStr
-   --putStrLn = T.putStrLn
+
+instance BStringIO T.Text where
+   putStr = T.putStr
+   putStrLn = T.putStrLn
+   readFile = T.readFile
+   writeFile = T.writeFile
 
 instance BStringC Char T.Text where
    cons = T.cons
@@ -204,6 +226,7 @@ instance BStringC Char T.Text where
    smap = T.map
    takeWhile = T.takeWhile
    dropWhile = T.dropWhile
+   span = T.span
 
    stripPrefix = T.stripPrefix
    isPrefixOf = T.isPrefixOf
@@ -305,13 +328,20 @@ filename list = drop (length list - 1 - fromMaybe (length list - 1) (B.elemIndex
 
 ext list = drop (length list - 1 - fromMaybe (negate 1) (B.elemIndex (convertChar '.') (B.reverse list))) list
 
-b :: B.ByteString -> B.ByteString
-b = id
 bofs :: P.String -> B.ByteString
 bofs = convertString
+bof :: ConvertString a B.ByteString => a -> B.ByteString
+bof = convertString
+sof :: ConvertString a P.String => a -> P.String
+sof = convertString
+lof :: ConvertString a LByteString => a -> LByteString
+lof = convertString
+tof :: ConvertString a T.Text => a -> T.Text
+tof = convertString
+
+b :: B.ByteString -> B.ByteString
+b = id
 s :: P.String -> P.String
 s = id
-l :: LByteString -> LByteString
-l = id
-t :: T.Text -> T.Text
-t = id
+
+showb x = bof $ show x

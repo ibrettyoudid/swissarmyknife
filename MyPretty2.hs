@@ -486,15 +486,11 @@ colWidths5A width cellLengthRows cellLengthCols colWidths =
       colForces = zipWith (colWideningPressure rowHeights) colWidths cellLengthCols
       maxForce  = maximum colForces
       minForce  = minimum colForces
-      nMaxes    = fromIntegral $ length $ filter (== maxForce) colForces
-      nMins     = fromIntegral $ length $ filter (== maxForce) colForces
-      add       = if sum colWidths > width then 0 else 1 / nMaxes
-      sub       = 1 / nMins
+      meanForce = mean colForces
+      cols      = fromIntegral $ length colWidths
+      freeSpace = width - sum colWidths
       
-   in zipWith (\f w -> if 
-                              | f == maxForce -> w + add
-                              | f == minForce -> w - sub
-                              | otherwise     -> w) colForces colWidths
+   in zipWith (\f w -> w + (f - meanForce) * freeSpace / meanForce / cols) colForces colWidths
 
 colWidths5B width tab celllrows colWidths = do
    let t = transpose $ map (rowWideningPressure colWidths) celllrows

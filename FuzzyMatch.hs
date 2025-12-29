@@ -14,7 +14,7 @@ import MHashDynamic3
 import qualified Multimap as MM
 import qualified SetList as SL
 
-import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
+import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, span, putStrLn, putStr)
 import Data.Graph.AStar
 import Data.List (sort, transpose)
 import GHC.Generics
@@ -254,9 +254,9 @@ merge2 m =
          (done, todo) = span ((<= next) . dsn1) list
          in map (name,) done ++ merge2 (M.unionWith (++) (M.drop 1 m) (merge1 [(name, todo)]))
 
-firstMatchesOnly xs = firstMatchesOnly2 $ merge1 xs
+firstMatchesOnly maxDist xs = firstMatchesOnly2 maxDist $ merge1 xs
 
-firstMatchesOnly2 m = 
+firstMatchesOnly2 maxDist m = 
    case M.toList $ M.take 2 m of
       [] -> []
       [((_, name), list)] -> let
@@ -264,10 +264,11 @@ firstMatchesOnly2 m =
          in map (name,) f
       [((_, (x, y)), list), ((next, _), _)] -> let
          (done, todo) = span ((<= next) . dsn1) list
-         f = filter isGoal done
-         in if not $ null f
-            then map ((x, y),) f ++ firstMatchesOnly2 (M.filterWithKey (\(_, (x1, y1)) list1 -> x /= x1 && y /= y1) (M.drop 1 m))
-            else firstMatchesOnly2 (M.unionWith (++) (M.drop 1 m) (merge1 [((x, y), todo)]))
+         f1 = filter isGoal done
+         f2 = filter ((> maxDist) . dsn1) done
+         in if | not $ null f1 -> map ((x, y),) f1 ++ firstMatchesOnly2 maxDist (M.filterWithKey (\(_, (x1, y1)) list1 -> x /= x1 && y /= y1) (M.drop 1 m))
+               | not $ null f2 -> [] --map ((x, y),) f2
+               | otherwise     -> firstMatchesOnly2 maxDist (M.unionWith (++) (M.drop 1 m) (merge1 [((x, y), todo)]))
 
 mergeB a = concatMap snd $ M.toList $ multimap $ mapfxx dos a
 
@@ -283,7 +284,9 @@ test3 = merge [("a", test1), ("b", test2)]
 
 test4 = firstMatch test3
 
-join xs ys = firstMatchesOnly $ concat $ crossWith (\x y -> ((x, y), fuzzyMatch9 x y)) xs ys
+fuzzyJoin maxDist xs ys = firstMatchesOnly maxDist $ concat $ crossWith (\x y -> ((x, y), fuzzyMatch9 x y)) xs ys
+
+fuzzyJoin1 maxDist xs ys = firstMatchesOnly maxDist $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> ((lk, rk), fuzzyMatch9 xs ys)) xs ys
 
 showNearest nearest heuristic = mapM_ (\(d, c, x, y) ->
    case nearest [x, y] of
@@ -309,10 +312,12 @@ firstMatch (_:rest) = firstMatch rest
 
 fuzzyMatch maxDist a b = continue maxDist $ Left $ fuzzyMatch9 a b
 
+data WithInf a = NegInf | Normal a | PosInf deriving (Eq, Ord, Show) 
+
 fuzzyMatch9 a b = let
    la = length a
    lb = length b
-   index a = multimap $ zip (cons '^' $ a++"$") [0..]
+   index a = multimap $ zip (cons NegInf (map Normal a)++[PosInf]) [0..]
    int = M.intersectionWith (,) (index a) (index b)
    i = M.map (\(xs, ys) -> (S.fromList xs, S.fromList ys)) int
    --u = M.map (\(xs, ys) -> (sort xs, sort ys)) $ unionWith3 (,) (,[]) ([],) ai bi

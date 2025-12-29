@@ -115,24 +115,24 @@ nato m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 2, ())) 
 
 cont m = by (? "country") $ setFields ["country", "geo", "inter", "continent"] $ wikiTableD m "List of countries and territories by the United Nations geoscheme"
 
-europe m = byl [(? "country")]
+europe m = by (showb . (? "country"))
    $ fromGridH1 ["country", "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
 
-gdp  m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (nominal)"
+gdp  m = by (showb . (? "country")) $ setFields ["country"] $ wikiTableD m "List of countries by GDP (nominal)"
 
-gdp1 m = by (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (PPP)"
+gdp1 m = by (showb . (? "country")) $ setFields ["country"] $ wikiTableD m "List of countries by GDP (PPP)"
 
-cpop m = by (? "Location") $ wikiTableD m "List of countries and dependencies by population"
+cpop m = byscrub (? "Location") $ wikiTableD m "List of countries and dependencies by population"
 
-area m = by (? "country") $ setFields ["rank", "country", "area", "land area", "water area", "%water", "blah"] $ wikiTableD m "List of countries and dependencies by area"
+area m = byscrub (? "country") $ setFields ["rank", "country", "area", "land area", "water area", "%water", "blah"] $ wikiTableD m "List of countries and dependencies by area"
 
 readNum = parseNoFail 0 floating
 
-mileq1 m = by (? "country") $ setFields ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"] $ wikiTableD m "List of countries by level of military equipment"
+mileq1 m = by (showb . (? "country")) $ setFields ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"] $ wikiTableD m "List of countries by level of military equipment"
 
 mileq m =
-   by (? ("country"::ByteString))
-      $ fromGridH1 ["country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
+   byscrub (? "country")
+      $ fromGridH1 [b "country", "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
       $ map
          ( \row ->
                (toDyn $ extractText $ findType "a" $ row !! 0)
@@ -142,17 +142,17 @@ mileq m =
       $ drop 1
       $ wikiGridH m "List of countries by level of military equipment"
 
-milper m = by (? "Country") $ wikiTableD m "List of countries by number of military and paramilitary personnel"
+milper m = byscrub (? "Country") $ wikiTableD m "List of countries by number of military and paramilitary personnel"
 
 bzero = toDyn (BString.empty :: ByteString)
 
 join2 xs = foldl1 (joinCollectMisses jLeft bzero) xs
 
-stats m = foldl1 (join jLeft bzero) [cpop m, {-fst $ gdph m, fst $ gdph1 m,-} area m, milper m, mileq m]
+stats m = foldl1 (join jLeft bzero) [cpop m, {-fst $ gdph m, fst $ gdph1 m,-} area m, milper m, mileq m] --, mileq m]
 
-gdph m = foldl1 (joinCollectMisses jLeft bzero) $ map (miss . by (? "country") . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
+gdph m = foldl1 (joinCollectMisses jLeft bzero) $ map (miss . by (showb . (? "country")) . setFields ["country"])$ take 7 $ wikiTablesD m "List of countries by past and projected GDP (nominal)"
 
-gdph1 m = foldl1 (joinCollectMisses jLeft bzero) $ map (miss . by (? "country") . setFields ["country"])$ take 5 $ wikiTablesD m "List of countries by past and projected GDP (PPP)"
+gdph1 m = foldl1 (joinCollectMisses jLeft bzero) $ map (miss . by (showb . (? "country")) . setFields ["country"])$ take 5 $ wikiTablesD m "List of countries by past and projected GDP (PPP)"
 
 eustats m = foldSubTable3 sum
    $ byl [(? "isRussia"), (? "country")]
@@ -450,16 +450,18 @@ wc m = do
    let blah = findTree (\x -> tagType x == "div" && classCon "mw-content-ltr" x) index
    let foof = findTrees (\t -> tagType t == "ul" || headerNum t > 0) blah
    let snit = map (\t -> if tagType t == "ul" then findTreeR (typeIs "a") t else t) foof
-   let list = concatMap extractLinks snit
+   let list = nestHeaders extractTitles snit
+
    putStrLn $ formatLBS $ Tag "html" [] snit
    --putStrLn $ formatLBS $ Tag "html" [] $ nestHeaders $ subTags blah
    --let blah = nestHeaders index
+   mapM_ print list
    putStrLn $ show (length list) ++ " pages to get"
-   --master <- cjpageA m $ wiki "List of countries and dependencies by population"
-   --putStrLn $ "MASTER=" ++ showTableMeta master
+   master <- cjpageA m $ wiki "List of countries and dependencies by population"
+   putStrLn $ "MASTER=" ++ showTableMeta master
    --let master = Table (uniquify $ zip (zipWith (\fn n -> ("stats", 1, fn, n)) (fields statsm) [1..]) [0..])
    --(res, missing) <- foldMB (cjpageB m jLeft) (master, []) links0
-   --mapM_ (cjpageB m jLeft master "") list
+   mapM_ (\(cat, titles) -> mapM_ (cjpageB m jLeft master cat) titles) list
 
    --writeCsv "countries.csv" $ loftm1 ("", "") res
    {-}
@@ -536,21 +538,22 @@ cjpageA m url = do
 cjgridA1 u n g =
    let
       tg = cTextGridH g
-      tb = fromGridHD5 "Index" u n $ map2 c tg
-      indexField = ("Index", wiki "List of countries and dependencies by population", n::Int, 2::Int, "Location")
+      tb = fromGridHD10 ["Index"::ByteString, "", "", "", "", ""] u n $ map2 c tg
+      indexField = ("Index", "", "", "", "", "", wiki "List of countries and dependencies by population", n::Int, 1::Int, "Location")
       tb1 = filterFields (== indexField) $ byscrub (? indexField) tb
    in
       ifJust (not $ classCon "mw-collapsed" g) tb1
 
-cjpageB m joinType master cat name = do
-   let url = wiki name :: ByteString
-   let fname = ".cache/out/"++spacesToUnders name
+cjpageB m joinType master cat title = do
+   let url = wiki title
+   let name = spacesToUnders title
+   let fname = ".cache/out/"++name
    exists <- doesFileExist $ convertString fname
    unless exists $ do 
       h <- readWriteHTML1 m url
       let gs1 = filterWikiTables h
       putStrLn $ show (length gs1) ++ " grids"
-      gs2 <- zipWithM (cjgridB1 master cat url) [1..] gs1
+      gs2 <- zipWithM (gridIndex master cat url) [1..] gs1
       let gs3 = catMaybes gs2
       --res <- foldM (cjgridB2 joinType) (master, missing) $ map miss $ catMaybes gs2
       if null gs3
@@ -563,9 +566,9 @@ cjpageB m joinType master cat name = do
             putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
             putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
          else do
-            g4 <- foldM (cjgridB2 joinType) master gs3
+            g4 <- foldM (gridJoin joinType) master gs3
             writeFileBinary (convertString fname) $ c $ toCsvT g4      
-   
+         
 
 {-
 cjpageBMissing m joinType (master, missing) url = do
@@ -580,7 +583,7 @@ cjpageBMissing m joinType (master, missing) url = do
    return res
 -}
 
-cjgridB1 master cat u n g = do
+gridIndex master cat u n g = do
    let
       tg = cTextGridH g
       tg1 = removeRidiculousCellsT $ removeRidiculousCells tg
@@ -588,7 +591,7 @@ cjgridB1 master cat u n g = do
    print $ GridH tg1
    let
 --      tg = cTextGridH g
-      tb = fromGridHD5 cat (replace "_" " " $ last $ split "/" u) n $ map2 c tg1
+      tb = fromGridHD10 cat (replace "_" " " $ last $ split "/" u) n $ map2 c tg1
       ix = findIndexField 3 bzero master tb
    case ix of
       Just ixj -> do
@@ -613,7 +616,7 @@ cjgridB1 master cat u n g = do
          return Nothing
 
 
-cjgridB2 joinType g1 g2 = do
+gridJoin joinType g1 g2 = do
    let res = joinFuzzy joinType 3 bzero g1 g2
    print $ showTableMeta2 res
    --putStrLn $ "miss=" ++ showTableMeta (last miss)
@@ -713,7 +716,7 @@ headerNum html = case tagType html of
    "h6" -> 6
    _    -> 0
 
-nestHeaders = evalState (nestHeaders2 0)
+nestHeaders func htmls = nestHeaders3 func [] htmls
 
 nestHeaders1 :: [HTML] -> [HTML] -> HTML
 nestHeaders1 context [          ] = Text ""
@@ -778,19 +781,21 @@ nestHeaders2 level = do
 
                return $ addTags res blah : res2
 
-nestHeaders3 func context level (html:htmls) = let
+nestHeaders3 func context [] = []
+nestHeaders3 func context (html:htmls) = let
+   level    = length context
    blah     = case findTrees ((>0) . headerNum) html of
                   []       -> Tag "blah" [] []
                   (a : as) -> a
    level1   = headerNum blah
    text     = extractText blah
    context1 = if
-      | level1 == 0  -> context
-      | level1 <= level -> take level1 context
-      | level1 >  level -> context ++ replicate (level1 - level) text
+      | level1 == 0     -> context
+      | level1 <= level -> take (level1 - 1) context ++ [text]
+      | level1 >  level -> context ++ replicate (level1 - level - 1) "" ++ [text]
 
-   in (context1, func html) : nestHeaders3 func context1 level htmls
-
+   in if level1 == 0 then (padRWith1 BString.empty 6 context1, func html) : nestHeaders3 func context1 htmls
+                     else nestHeaders3 func context1 htmls
 nhAux html = headerNum $ nhAux1 html
 
 nhAux1 html = case findTrees ((>0) . headerNum) html of

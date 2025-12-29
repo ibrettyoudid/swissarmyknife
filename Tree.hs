@@ -374,6 +374,7 @@ append k l     r     = Node k l r
 -}
 size (Node k _ r) = k + size r
 size (Leaf k _) = k + 1
+size Empty = 0
 
 count (Node _ l r) = count l + count r
 count (Leaf _ _) = 1
