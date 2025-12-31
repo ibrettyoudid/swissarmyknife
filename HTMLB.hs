@@ -112,7 +112,7 @@ p = Tag "p" []
 s = singleton
 (&) = singleton
 
-($<) :: BStringC c s => (t -> s) -> s -> t -> Bool
+($<) :: (BString s, Eq c, BStringC c s) => (t -> s) -> s -> t -> Bool
 f $< b = \x -> b `isPrefixOf` f x
 
 
@@ -520,7 +520,10 @@ findTree pred tag = case findTrees pred tag of
 extractText = trim . squash . clean . mapTree aux map tagText
    where
       
-      aux tag subtexts  | tagType tag == "ul" || tagType tag == "td" = B.intercalate " " subtexts
+      aux tag subtexts  | tagType tag == "ul" = B.concat $ map (++ "\n") subtexts
+                        | tagType tag == "td" = B.intercalate " " subtexts
+                        | tagType tag == "br" = "\n"
+                        | tagType tag == "p"  = "\n" ++ B.intercalate " " subtexts ++ "\n"
                         | otherwise  = concat subtexts
 
 k = B.intersperse
@@ -772,7 +775,7 @@ must also redo all the sub items
 or could format them originally for spreading as the spread indent is <= than the open+close tag
 -}
 
-squash :: (BStringC Word8 s, ConvertString String s) => s -> s
+squash :: (BString s, BStringC Word8 s, ConvertString String s) => s -> s
 squash x 
    | null   x      = x
    | length x == 1 = if isSpace2 (head x :: Word8) then c " " else x

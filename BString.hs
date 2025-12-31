@@ -33,7 +33,7 @@ default (B.ByteString)
 
 type LByteString = LB.ByteString
 
-class Show s => BString s where
+class BString s where
    empty :: s
    tail :: s -> s
    (++) :: s -> s -> s
@@ -52,6 +52,7 @@ class Show s => BString s where
 class BStringIO s where
    readFile :: FilePath -> IO s
    writeFile :: FilePath -> s -> IO ()
+   appendFile :: FilePath -> s -> IO ()
    putStr :: s -> IO ()
    putStrLn :: s -> IO ()
 
@@ -61,22 +62,23 @@ class BString s => BStringC c s | s -> c where
    last :: s -> c
    (!!) :: s -> Int -> c
    find :: (c -> Bool) -> s -> Maybe c
-   elem :: c -> s -> Bool
-   notElem :: c -> s -> Bool
+   elem :: Eq c => c -> s -> Bool
+   notElem :: Eq c => c -> s -> Bool
 
    smap  :: (c -> c) -> s -> s
    takeWhile :: (c -> Bool) -> s -> s
    dropWhile :: (c -> Bool) -> s -> s
    span :: (c -> Bool) -> s -> (s, s)
-
+   --filter :: (c -> Bool) -> s -> s
+   --partition :: (c -> Bool) -> s -> (s, s)
 
    -- these are here because of the Eq class on the characters
-   stripPrefix :: s -> s -> Maybe s
-   isPrefixOf :: s -> s -> Bool
-   isSuffixOf :: s -> s -> Bool
-   isInfixOf :: s -> s -> Bool
+   stripPrefix :: Eq c => s -> s -> Maybe s
+   isPrefixOf :: Eq c => s -> s -> Bool
+   isSuffixOf :: Eq c => s -> s -> Bool
+   isInfixOf :: Eq c => s -> s -> Bool
 
-instance Show a => BString [a] where
+instance BString [a] where
    empty = []
    tail = P.tail
    (++) = (P.++)
@@ -96,8 +98,9 @@ instance BStringIO P.String where
    putStrLn = P.putStrLn
    readFile = P.readFile
    writeFile = P.writeFile
+   appendFile = P.appendFile
 
-instance (Eq a, Show a) => BStringC a [a] where
+instance BStringC a [a] where
    cons = (:)
    head = P.head
    last = P.last
@@ -110,6 +113,8 @@ instance (Eq a, Show a) => BStringC a [a] where
    takeWhile = L.takeWhile
    dropWhile = L.dropWhile
    span = L.span
+   --filter = L.filter
+   --partition = L.partition
 
    stripPrefix = L.stripPrefix
    isPrefixOf = L.isPrefixOf
@@ -135,6 +140,7 @@ instance BStringIO B.ByteString where
    putStrLn = B.putStr . (++"\n")
    readFile = B.readFile
    writeFile = B.writeFile
+   appendFile = B.appendFile
 
 instance BStringC Word8 B.ByteString where
    cons = B.cons
@@ -174,6 +180,7 @@ instance BStringIO LB.ByteString where
    putStrLn = LB.putStr . (++"\n")
    readFile = LB.readFile
    writeFile = LB.writeFile
+   appendFile = LB.appendFile
 
 instance BStringC Word8 LB.ByteString where
    cons = LB.cons
@@ -213,6 +220,7 @@ instance BStringIO T.Text where
    putStrLn = T.putStrLn
    readFile = T.readFile
    writeFile = T.writeFile
+   appendFile = T.appendFile
 
 instance BStringC Char T.Text where
    cons = T.cons

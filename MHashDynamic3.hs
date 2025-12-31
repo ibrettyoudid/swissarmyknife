@@ -547,19 +547,41 @@ return $ case applyMultimethod showm [x] of
    Left e -> show $ und x
    Right r -> fromMaybe "all show functions must return String" $ fromDynamic r
 -}
-showTerm b a l d = case fromDynamic d :: Maybe String of
-   Just s -> (0, 0, length s, padr l s)
-   Nothing -> case fromDynamic d :: Maybe Int of
-      Just i -> let s = show i in (length s, 0, 0, padl b s)
-      Nothing -> case fromDynamic d :: Maybe Double of
-         Just d -> let
-            s = showFFloat (Just 3) d ""
-            l = length s
-            p = fromMaybe l $ elemIndex '.' s
-            in
-            (p, l - p, 0, replicate (b - p) ' ' ++ s ++ replicate (a - (l - p)) ' ')
-         Nothing -> let s = show d in (length s, 0, 0, padr l s)
+showTerm b a l d = 
+   case fromDynamic d :: Maybe String of
+      Just s -> (0, 0, length s, padr l s)
+      Nothing -> 
+         case fromDynamic d :: Maybe Int of
+            Just i -> let s = show i in (length s, 0, 0, padl b s)
+            Nothing -> 
+               case fromDynamic d :: Maybe Double of
+                  Just d -> let
+                     s = showFFloat (Just 3) d ""
+                     l = length s
+                     p = fromMaybe l $ elemIndex '.' s
+                     
+                     in (p, l - p, 0, replicate (b - p) ' ' ++ s ++ replicate (a - (l - p)) ' ')
+                  Nothing -> let s = show d in (length s, 0, 0, padr l s)
 
+
+{-
+showColD formats columns of Dynamics in a hopefully aesthetically pleasing way,
+namely numbers right justified, strings left justified, and doubles with the decimal points lining up
+
+using showTerm above, each entry OUTPUTS a tuple (b, a, l, c)
+b = characters before the decimal point
+a = characters after and including the decimal point
+l = total length
+c = a string formatted according to the INPUT arguments b a l d
+
+the input arguments are
+b a l = the maxima of the outputs, with some calculation
+d = the Dynamic value to be formatted
+
+d THROUGH LAZINESS IS CALCULATED FROM THE MAXIMA OF THE FIRST 3 ENTRIES OF THE *OUTPUT* TUPLE FOR THE WHOLE COLUMN
+
+the fourth entry therefore depends on the first three entries of the input tuple, which depend on the three of the output tuple
+-}
 showColD col = let
    (b, a, l, c) = unzip4 $ map (showTerm b2 a1 l2) col
    b1 = maximum b
@@ -567,8 +589,18 @@ showColD col = let
    l1 = maximum l
    l2 = max (b1 + a1) l1
    b2 = max b1 (l2 - a1)
-   in
-   c
+   
+   in c
+
+showColDH fcol col = let
+   (b, a, l, c) = unzip4 $ map (showTerm b2 a1 l2) col
+   b1 = maximum b
+   a1 = maximum a
+   l1 = maximum l
+   l2 = maximum ([b1 + a1, l1] ++ map length fcol)
+   b2 = max b1 (l2 - a1)
+   
+   in c
 
 putAny :: (Typeable a) => a -> IO ()
 putAny x = showAnyIO x >>= putStr
@@ -711,7 +743,7 @@ showl =
    [ toDyn (show :: Int -> String)
    , toDyn (show :: Integer -> String)
    , toDyn (show :: String -> String)
-   , toDyn (B.convertString :: B.ByteString -> String)
+   , toDyn (show :: B.ByteString -> String)
    , toDyn (show :: Bool -> String)
    , toDyn (singleton :: Char -> String)
    , toDyn ((\d -> showFFloat (Just 8) d "") :: Double -> String)
@@ -1173,14 +1205,11 @@ fromArrayList2 dl du as = let
    muly = map product $ tails leny1
    dimy = zipWith3 DimInt miny maxy $ tail muly
    leny = head muly
-   in
-   SubArrayD
-      (DimInt dl du leny : dimy)
-      0
-      ( A.array
-      (0, length as - 1)
-      (zipWith (\x (y, e) -> (x * leny + elemOffset y dimy, e)) [0 ..] $ concatMap toAssocs as)
-      )
+   
+   in SubArrayD
+         (DimInt dl du leny : dimy) 0 (A.array 
+            (0, length as - 1)
+            (zipWith (\x (y, e) -> (x * leny + elemOffset y dimy, e)) [0 ..] $ concatMap toAssocs as))
 
 fromAOA a = fromAssocs $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (i1 ++ i2, e2)) $ toAssocs e1) $ toAssocs a
 

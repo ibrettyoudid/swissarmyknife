@@ -547,6 +547,16 @@ showColD col = let
    in
    c
 
+showColDH fcol col = let
+   (b, a, l, c) = unzip4 $ map (showTerm b2 a1 l2) col
+   b1 = maximum b
+   a1 = maximum a
+   l1 = maximum l
+   l2 = maximum ([b1 + a1, l1] ++ map length fcol)
+   b2 = max b1 (l2 - a1)
+   
+   in c
+
 putAny :: (Typeable a) => a -> IO ()
 putAny x = showAnyIO x >>= putStr
 putAnyLn :: (Typeable a) => a -> IO ()

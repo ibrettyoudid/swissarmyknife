@@ -25,7 +25,7 @@ import FuzzyMatch
 import Data.Char
 import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, readFile, writeFile)
 import qualified Prelude
-import Data.List (singleton, transpose, sort, elemIndex, findIndex)
+import Data.List (singleton, transpose, sort, elemIndex, findIndex, partition)
 
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -168,7 +168,7 @@ csv = many csvline
 csvline = sepBy csvcell $ char ','
 
 
-dynCell  = parse1 (try (toDyn <$> dateExcel) <|> try numberDyn <|> toDyn <$> many anyChar) "dynCell"
+dynCell  = parse1 (try (toDyn <$> dateExcel) <|> try numberDyn <|> toDyn . bof <$> many anyChar) "dynCell"
 
 fodscell = try (Date <$> dateExcel) <|> try numberC <|> (String1 <$> many anyChar)
 
@@ -288,14 +288,12 @@ instance (Show a, Show b, Show c, Show d) => Show (Table (a, b, c, d) Dynamic Dy
    show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 
 instance (Show a, Show b, Show c, Show d, Show e) => Show (Table (a, b, c, d, e) Dynamic Dynamic) where
-   show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
+   show t = showGrid $ zipWith (++) (map showT $ fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => Show (Table (a, b, c, d, e, f, g, h, i, j) z Dynamic) where
-   show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
--- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (map show . uncurry (:)) $ M.toList $ records t
--- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (map show . uncurry (:)) $ M.toList $ records t
+   show t = showGrid $ zipWith showColDH (map showT $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
+   --show t = showGridD colWidths5 showGrid1 width $ zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
 
--- showTable t = showGrid $ transpose $ (("":fieldsUT t):) $ map (\(i, r) -> show i : map (\(j, t) -> show t) r) $ M.toList $ (\(Recs r) -> r) $ tgroup t
 showTable  t = showTableC 0 15 t
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
 showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
@@ -305,8 +303,10 @@ toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT
 
 showTableMeta (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records) ++ " " ++ show (fieldsU fields)
 showTableMeta (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (T.size records) ++ " " ++ show (fieldsU fields)
+showTableMeta (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1 ++ " " ++ show (fieldsU fields)
 showTableMeta1 (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records)
 showTableMeta1 (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (T.size records)
+showTableMeta1 (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1
 showTableMeta2 t = GridH $ map showT $ fieldsUT t
 
 setFields newnames (Table fields group) = let
@@ -354,6 +354,7 @@ fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1.
 
 fromGridHD5 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
+fromGridHD10 c u n [] = TableB.empty
 fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
@@ -427,9 +428,9 @@ putTable x = putStr $ showTable x
 -- join f l r = Table (M.fromList $ zip (fieldsUT l ++ fieldsUT r) [0..]) $ M.map (\v -> (v ++) $ values $ lookupt (f $ Record (fields l) v) r) $ records l
 
 -- joinMulti f l r = Table (M.fromList $ zip (fieldsUT l ++ fieldsUT r) [0..]) $ M.map (\v -> (v ++) $ singleton $ Table1 $ map (r !) (f $ Record (fields l) v)) $ records l
-jInner = (False, True , False)
+jInner = (True , False, False)
 jLeft  = (True , True , False)
-jRight = (False, True , True )
+jRight = (True , False, True )
 jOuter = (True , True , True )
 
 join include empty l r = let
@@ -442,7 +443,7 @@ foldlj f xs = foldl f (head xs, []) (tail xs)
 miss x = (x, [])
 
 joinCollectMisses include empty (l, ml) (r, mr) = let
-   (flr, j1@(l1, i, r1)) = joinClear empty l r
+   (flr, j1@(i, l1, r1)) = joinClear empty l r
    
    in (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
 
@@ -468,14 +469,14 @@ joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
       shift = maxl - minr + 1
       fieldsr1 = M.map (+shift) fieldsr
       fieldslr = appendFields fieldsl fieldsr1
-      fl = appendL   shift empty fieldsr1
-      fi = appendRec shift
-      fr = appendR   shift empty fieldsl
+      fl = joinL   shift empty fieldsr1
+      fi = joinRec shift
+      fr = joinR   shift empty fieldsl
       l1 = rl M.\\ rr
       r1 = rr M.\\ rl
       i = M.intersectionWith fi rl rr
 
-      res = (fieldslr, l1, i, r1, fl, fi, fr)
+      res = (fieldslr, i, l1, r1, fi, fl, fr)
 
 
 --index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Rec $ T.fromElems [toDyn ""]) xs
@@ -483,15 +484,15 @@ index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs 
 
 appendFields fieldsl fieldsr = uniquify $ M.toList fieldsl ++ M.toList fieldsr
 
-appendRec shift (Rec  l) (Rec  r) = Rec $ T.append shift l r
-appendRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ T.append shift l1 r1) (T.toElems l) (T.toElems r)
-appendRec shift l        r        = error $ "appendRec called with "++show l++" and "++show r
+joinRec shift (Rec  l) (Rec  r) = Rec $ T.append shift l r
+joinRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ T.append shift l1 r1) (T.toElems l) (T.toElems r)
+joinRec shift l        r        = error $ "joinRec called with "++show l++" and "++show r
 
-appendL shift z fr (Rec  rl) = Rec  $ T.append shift rl (blankRec z fr)
-appendL shift z fr (Recs rl) = Recs $ T.map (appendL shift z fr) rl
+joinL shift z fr (Rec  rl) = Rec  $ T.append shift rl (blankRec z fr)
+joinL shift z fr (Recs rl) = Recs $ T.map (joinL shift z fr) rl
 
-appendR shift z fl (Rec  rr) = Rec  $ T.append shift (blankRec z fl) rr
-appendR shift z fl (Recs rr) = Recs $ T.map (appendR shift z fl) rr
+joinR shift z fl (Rec  rr) = Rec  $ T.append shift (blankRec z fl) rr
+joinR shift z fl (Recs rr) = Recs $ T.map (joinR shift z fl) rr
 
 showKey (k, v) = (k, show k, v)
 
@@ -505,12 +506,12 @@ instance (Ord dist) => Ord (Fuzzy dist lk rk v) where
 
 joinClear empty l r =
    let
-      (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
+      (flr, i, l1, r1, fi, fl, fr) = joinAux empty l r
    
-   in (flr, (M.map fl l1, i, M.map fr r1))
+   in (flr, (i, M.map fl l1, M.map fr r1))
 
 joinFuzzy1 maxDist empty l r = let
-   (flr, l1, i, r1, fl, fi, fr) = joinAux empty l r
+   (flr, i, l1, r1, fi, fl, fr) = joinAux empty l r
    (a, b) = unzip $ fuzzyJoin1 maxDist (map showKey $ M.toList l1) (map showKey $ M.toList r1)
    (lks, rks) = unzip a
    --levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Fuzzy (fuzzyMatch maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
@@ -525,9 +526,9 @@ joinFuzzy1 maxDist empty l r = let
       Just rv = M.lookup rk r1
       in (lk, lv `fi` rv)
 
-   in trace (show (M.size i) ++ " " ++ show (M.size l1) ++ " " ++ show (M.size r1)) (flr, (M.map fl l2, i2, M.map fr r2))
+   in trace (show (M.size i) ++ " " ++ show (M.size l1) ++ " " ++ show (M.size r1)) (flr, (i2, M.map fl l2, M.map fr r2))
 
-joinInclude (il, ii, ir) (rl, ri, rr) =
+joinInclude (ii, il, ir) (ri, rl, rr) =
    (if ii then M.union ri else id) $
    (if il then M.union rl else id) $
    (if ir then rr else M.empty)
@@ -537,9 +538,28 @@ addCalcField name func table = let
    
    in mapTable (\r@(Record fields rt) -> Record (M.insert name i fields) $ T.insert i (func r) rt) table
 
-appendRecs (Recs l) (Recs r) = Recs $ T.fromElems [fromJust $ T.lookup 0 l, fromJust $ T.lookup 0 r]
-
 blankRec z f = T.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
+
+appendTable joinType (Table tfs tr) (Table bfs br) = let
+   fmap = joinFields joinType tfs bfs
+   in Table tfs $ appendTableG tr $ translateTableG fmap br -- fields are similar enough
+
+joinFields joinType tfs bfs = let
+   tfs1 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList tfs
+   bfs1 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList bfs
+   maxt = maximum $ map snd $ M.toList tfs
+   fmap = map snd $ M.toList $ unionWith3A joinType (,) (-1,) (,-1) tfs1 bfs1
+   (f, g) = partition ((< 0) . fst) fmap
+   f1 = zip [maxt+1..] $ map snd f
+   in M.fromList $ map tflip (f1 ++ g)
+
+appendTableG (INode ts) (INode bs) = INode $ M.unionWith appendTableG ts bs
+appendTableG (Recs  ts) (Recs  bs) = Recs  $ T.append (T.minKey bs - T.maxKey ts + 1) ts bs
+appendTableG (Rec   ts) (Rec   bs) = Rec   $ T.union ts bs
+
+translateTableG fmap (INode bs) = INode $ M.map (translateTableG fmap) bs
+translateTableG fmap (Recs  bs) = Recs  $ T.map (translateTableG fmap) bs
+translateTableG fmap (Rec   bs) = Rec   $ T.fromList $ M.toList $ M.compose (M.fromList $ T.toList bs) fmap
 
 -- foldTable f z n t =
 foldSubTable fs (Table flds g) = applyL fs $ Record flds $ foldSubTableG g
@@ -565,7 +585,7 @@ foldSubTable3G f (Recs rs) = let
    (totals, rebuild) = T.unzip $ T.map (foldSubTable3G f) rs
    newtotal = f $ T.toElems totals
    
-   in (newtotal, Recs $ if T.count totals > 1 then T.insert ((1+) $ snd $ T.span rebuild) (Rec newtotal) rebuild else rebuild)
+   in (newtotal, Recs $ if T.size totals > 1 then T.insert ((1+) $ snd $ T.span rebuild) (Rec newtotal) rebuild else rebuild)
 --foldSubTable3G f (Recs rs) = T.map f $ T.untree $ T.toElems $ T.map (foldSubTable3G f) rs
 
 foldSubTable3G f r@(Rec fs) = (fs, r)
@@ -585,8 +605,6 @@ mapSubTableGF f n (INode m) = mapSubTableGF f (n - 1) $ snd $ fromMaybe (error "
 -- join2 :: (Record f r -> i) -> Table f i r -> Table f i r -> Table f i r
 -- join2 f l r = mapTable (\re -> appendRec2 re $ lookupg2 0 $ lookupgk (f re) r) l -- probably very inefficient
 
-appendRec2 l r = Record (appendFields2 (fieldsr l) (fieldsr r)) $ T.append 0 (values l) $ values r
-
 -- mapTable fieldName f l = Table (M.fromList $ zip (fieldsUT l ++ [fieldName]) [0..]) $ M.map (\v -> (v ++) $ values $ f $ Record (fields l) v) $ records l
 
 insertWith3 (k, v) m = M.insert (forFJ ("" : map show [2 ..]) (\n -> let k1 = reverse (dropWhile isDigit $ reverse k) ++ n in case M.lookup k1 m of Nothing -> Just k1; Just _ -> Nothing)) v m
@@ -603,8 +621,6 @@ insertWith4 (k, v) m =
                Nothing -> Just k3) [n1+1..]
          in M.insert k2 v m
       Nothing -> M.insert k v m
-
-appendFields2 l r = uniquify $ fieldsU l ++ fieldsU r
 
 rebalance t = mapTable (\(Record f r) -> Record f $ T.rebalance r) 
 

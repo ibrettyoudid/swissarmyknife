@@ -182,6 +182,10 @@ map f (Node k l r) = Node k (Tree.map f l) (Tree.map f r)
 map f (Leaf k v) = Leaf k (f v)
 map f Empty = Empty
 
+mapWithKey f (Node k l r) = Node k (Tree.mapWithKey f l) (Tree.mapWithKey f r)
+mapWithKey f (Leaf k v) = Leaf k (f k v)
+mapWithKey f Empty = Empty
+
 foldr f z t = L.foldr f z $ toList t
 foldl f z t = L.foldl f z $ toList t
 
@@ -302,6 +306,35 @@ merge a@((ka, va):la) b@((kb, vb):lb)
    | ka == kb = (ka, va):merge la lb
    | ka >  kb = (kb, vb):merge  a lb
 
+unionWith f n t = fromAscList $ mergeWith f (toList n) (toList t)
+
+mergeWith f a               [             ] = a
+mergeWith f [             ] b               = b
+mergeWith f a@((ka, va):la) b@((kb, vb):lb) 
+   | ka <  kb = (ka,   va   ):mergeWith f la  b
+   | ka == kb = (ka, f va vb):mergeWith f la lb
+   | ka >  kb = (kb,      vb):mergeWith f  a lb
+
+unionWith3 f fa fb n t = fromAscList $ mergeWith3 f fa fb (toList n) (toList t)
+
+mergeWith3 :: Ord k => (a -> b -> c) -> (a -> c) -> (b -> c) -> [(k, a)] -> [(k, b)] -> [(k, c)]
+mergeWith3 f fa fb a               [             ] = L.map (\(k, a) -> (k, fa a)) a
+mergeWith3 f fa fb [             ] b               = L.map (\(k, b) -> (k, fb b)) b
+mergeWith3 f fa fb a@((ka, va):la) b@((kb, vb):lb) 
+   | ka <  kb = (ka, fa va   ):mergeWith3 f fa fb la  b
+   | ka == kb = (ka, f  va vb):mergeWith3 f fa fb la lb
+   | ka >  kb = (kb,    fb vb):mergeWith3 f fa fb  a lb
+
+unionWith3A (i, ia, ib) f fa fb n t = fromAscList $ mergeWith3A (i, ia, ib) f fa fb (toList n) (toList t)
+
+mergeWith3A :: Ord k => (Bool, Bool, Bool) -> (a -> b -> c) -> (a -> c) -> (b -> c) -> [(k, a)] -> [(k, b)] -> [(k, c)]
+mergeWith3A (i, ia, ib) f fa fb a               [             ] = if ia then L.map (\(k, a) -> (k, fa a)) a else []
+mergeWith3A (i, ia, ib) f fa fb [             ] b               = if ib then L.map (\(k, b) -> (k, fb b)) b else []
+mergeWith3A (i, ia, ib) f fa fb a@((ka, va):la) b@((kb, vb):lb) 
+   | ka <  kb = if ia then (ka, fa va   ):mergeWith3A (i, ia, ib) f fa fb la  b else mergeWith3A (i, ia, ib) f fa fb la  b
+   | ka == kb = if i  then (ka, f  va vb):mergeWith3A (i, ia, ib) f fa fb la lb else mergeWith3A (i, ia, ib) f fa fb la lb
+   | ka >  kb = if ib then (kb,    fb vb):mergeWith3A (i, ia, ib) f fa fb  a lb else mergeWith3A (i, ia, ib) f fa fb  a lb
+
 union1 n t = L.foldr (uncurry insert) t $ toList n
 
 union2 a b = let
@@ -372,13 +405,14 @@ append k l     Empty = l
 append k Empty r     = shift k r    
 append k l     r     = Node k l r
 -}
+{-
 size (Node k _ r) = k + size r
 size (Leaf k _) = k + 1
 size Empty = 0
-
-count (Node _ l r) = count l + count r
-count (Leaf _ _) = 1
-count Empty = 0
+-}
+size (Node _ l r) = size l + size r
+size (Leaf _ _) = 1
+size Empty = 0
 
 span n = (fst $ fromJust $ lookupMin n, fst $ fromJust $ lookupMax n)
 

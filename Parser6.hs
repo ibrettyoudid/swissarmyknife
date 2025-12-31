@@ -181,7 +181,7 @@ class BString s => SeqTuple a b f s t where
 instance BString s => SeqTuple () () f s t where
    parseseq () fs t = Done t fs ()
 
-instance (BString s, BStringC t s, SeqTuple a b f s t, Eq t, Show t, Ord t, Show f) => SeqTuple (Rule s t f r :- a) (r :- b) f s t where
+instance (Show s, BString s, BStringC t s, SeqTuple a b f s t, Eq t, Show t, Ord t, Show f) => SeqTuple (Rule s t f r :- a) (r :- b) f s t where
    parseseq (ah :- at) fs t =
       case parse1 ah fs t of
          Done tah fsah rah ->
@@ -224,7 +224,7 @@ format rule syntax = format1 rule () syntax
 
 --parse1 :: (Eq tok, Show tok, Ord tok) => Rule str tok frame res -> frame -> str -> IResult tok frame res
 --parse1 :: Rule LB.ByteString Word8 frame res -> frame -> LB.ByteString -> IResult tok frame res
-parse1 :: (BStringC tok str, Eq tok, Show tok, Ord tok) => Rule str tok frame res -> frame -> str -> IResult str tok frame res
+parse1 :: (Show str, BStringC tok str, Eq tok, Show tok, Ord tok) => Rule str tok frame res -> frame -> str -> IResult str tok frame res
 parse1 AnyToken fs i =
    if null i
       then Fail i fs "Expecting any token but got EOF"
@@ -448,7 +448,7 @@ search needle haystack
 --parse1 (Call fnew rule) fold ts =
 
 
-parse1count :: (BString str, BStringC tok str, Num n, Eq n, Show tok, Ord tok) => Rule str tok frame res -> frame -> str -> n -> IResult str tok frame [res]
+parse1count :: (Show str, BString str, BStringC tok str, Num n, Eq n, Show tok, Ord tok) => Rule str tok frame res -> frame -> str -> n -> IResult str tok frame [res]
 parse1count x f t 0 = Done t f []
 parse1count x f t n =
    case parse1 x f t of

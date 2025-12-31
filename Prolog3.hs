@@ -4,16 +4,17 @@
 {-# HLINT ignore "Eta reduce" #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Prolog where
+module Prolog3 where
 
-import Favs 
+import Favs
 
 import Control.Monad.State
 import Control.Applicative
 import Data.Char
-import Data.Map qualified as M
-import Data.IntMap qualified as I
+import qualified Data.Map as M
+import qualified Data.IntMap as I
 import Data.List
+import qualified Control.Monad.Logic as L
 import Data.Functor.Identity
 import Debug.Trace
 
@@ -30,7 +31,7 @@ db =
    , Apply [Apply [Sym "append", Apply [Sym "cons", Name "A", Name "As"], Name "Bs", Apply [Sym "cons", Name "A", Name "Cs"]], Apply [Sym "append", Name "As", Name "Bs", Name "Cs"]]
    ]
 
-test = [Apply [Sym "append", Sym "nil", expandSym (cycle "abc"), Name "Y"]]
+test = [Apply [Sym "append", Name "X", Name "Y", expandSym (cycle "abc")]]
 {- >>> run db test
 [[("X",List []),("Y",List [Sym "a",Sym "b",Sym "c",Sym "d"])],[("X",List [Sym "a"]),("Y",List [Sym "b",Sym "c",Sym "d"])],[("X",List [Sym "a",Sym "b"]),("Y",List [Sym "c",Sym "d"])],[("X",List [Sym "a",Sym "b",Sym "c"]),("Y",List [Sym "d"])],[("X",List [Sym "a",Sym "b",Sym "c",Sym "d"]),("Y",List [])]]
 -}
@@ -51,18 +52,27 @@ runM db goals =
       )
    -}
 
-run db goals = 
-   map 
+--run :: [Expr] -> [Expr] -> L.Logic Env
+--run :: [Expr] -> [Expr] -> L.LogicT IO Env
+run db goals =
+   {-
+   map
       (\(vars1, Env env n) -> let
          vars2 = I.fromList $ map (\(name, num) -> (num, name)) vars1
-         in map (\(name, num) -> (name, contractList (rename1 env vars2 $ env I.! num) env)) vars1) 
-      (runStateT
-         (do
-            (Apply new, vars1) <- instantiate $ Apply goals
-            doAnd db new
-            return vars1
-         )
+         in map (\(name, num) -> (name, contractList (rename1 env vars2 $ env I.! num) env)) vars1)
+     -}
+      L.runLogicT
+         (runStateT
+            (do
+               (Apply new, vars1) <- instantiate $ Apply goals
+               doAnd (convert db) new
+               return vars1
+            )
          $ Env I.empty 0) -- :: Identity [([(String, Int)], Env)])
+         showEach
+         (putStrLn "end")
+
+showEach a next = print a >> next
 
 doClause db goal clause = do
    new <- instantiate clause
@@ -89,31 +99,27 @@ In a stmt of an interactive GHCi command: evalPrint it_a6xvi
 
 (MonadState Env (t []), MonadTrans t) => t [] ()
 
-use lift to bring list monad stuff into the state monad
+use lift to bring state monad stuff into the list monad
 -}
 
-doAnd db = mapM_ (doOr db)
+a >|> b = a L.>>- const b
+
+doAnd db goals = do
+   foldr (>|>) (pure ()) $ map (doOr db) goals
 
 doOr db newgoal = convert db >>= doClause db newgoal
 
-convert db = foldr (<|>) empty $ map return db
+convert db = foldr L.interleave empty $ map pure db
 
+assert a = if a then pure () else empty
+
+unify :: Expr -> Expr -> StateT Env (L.LogicT IO) ()
 unify a b = do
    a1 <- getv a
    b1 <- getv b
-   trace ("a=" ++ show a ++ " b=" ++ show b) $ unify1 a1 b1
-
-assert a = lift $ if a then [()] else []
-
-{- >>> execStateT (unify (Var 1) (Sym "nil")) M.empty
-Just (fromList [(1,Sym "nil")])
-
->>> execStateT (unify (prepare 0 test) (head db)) M.empty
-Nothing
-
->>> head db
-Apply [Apply [Sym "append",Sym "nil",Name "Bs",Name "Bs"]]
--}
+   lift $ lift $ putStrLn $ "a="++show a++" b="++show b
+   unify1 a1 b1
+   --trace ("a=" ++ show a ++ " b=" ++ show b) $ unify1 a1 b1
 
 unify1 (I     a ) (I     b ) = assert $ a == b
 unify1 (Sym   a ) (Sym   b ) = assert $ a == b
@@ -121,7 +127,7 @@ unify1 (Str   a ) (Str   b ) = assert $ a == b
 unify1 (Apply as) (Apply bs) = do assert $ length as == length bs; zipWithM_ unify as bs
 unify1 (Var    a) b          = setv a b
 unify1 a          (Var   b ) = setv b a
-unify1 _          _          = lift []
+unify1 _          _          = mzero
 
 getNames (Name n) = [n]
 getNames (Apply as) = concatMap getNames as
@@ -150,6 +156,15 @@ getvarsub (Var var) env = case I.lookup var env of
    Nothing -> Var var
 getvarsub other env = other
 
+{- >>> execStateT (unify (Var 1) (Sym "nil")) M.empty
+Just (fromList [(1,Sym "nil")])
+
+>>> execStateT (unify (prepare 0 test) (head db)) M.empty
+Nothing
+
+>>> head db
+Apply [Apply [Sym "append",Sym "nil",Name "Bs",Name "Bs"]]
+-}
 
 visitPost f (Apply xs) = f $ Apply $ map (visitPost f) xs
 visitPost f (List  xs) = f $ List  $ map (visitPost f) xs
@@ -176,7 +191,7 @@ expandSym1 xs y = expandList1 (map (Sym . singleton) xs) y
 
 expandStr = expandList . map (I . ord)
 
-parser = 
+parser =
    Apply [Apply [Sym "=", Name "X", Name "X"]] : map expandTerm [
       Apply [Sym "-->", Apply [Sym "num1"]],
       Apply [Sym "-->", Apply [Sym "num1"], Apply [Sym "num"]],
@@ -200,8 +215,8 @@ IntMap.!: key 1 is not an element of the map
 
 parse xs s = let
    l      = (+1) $ length $ filter (\case { Braced {} -> False; _ -> True }) xs
-   vars = map (\n -> Name ("ET" ++ show n)) [1..l] 
-   vars1 = init vars       
+   vars = map (\n -> Name ("ET" ++ show n)) [1..l]
+   vars1 = init vars
    vars2 = tail vars
 
    es = expandTerm0 xs vars1 vars2
@@ -212,11 +227,11 @@ parse xs s = let
 
 expandTerm (Apply (Sym "-->":xs)) = let
    l     = length $ filter (\case { Braced {} -> False; _ -> True }) xs
-   vars  = map (\n -> Name ("ET" ++ show n)) [1..l] 
-   vars1 = head vars:init vars       
+   vars  = map (\n -> Name ("ET" ++ show n)) [1..l]
+   vars1 = head vars:init vars
    vars2 = last vars:tail vars
 
-   in Apply (expandTerm0 xs vars1 vars2) 
+   in Apply (expandTerm0 xs vars1 vars2)
 
 {-
 >>> expandTerm (Apply [Sym "-->", Sym "np", Sym "adj", Sym "n"])
@@ -233,7 +248,7 @@ expandTerm1 ((Braced x):xs)    as     bs  = x                           : expand
 
 expandTermD (Apply (Sym "-->":xs)) = let
    l     = length $ filter (\case { Braced {} -> False; _ -> True }) xs
-   vars  = map (\n -> Name ("ET" ++ show n)) [1..l] 
+   vars  = map (\n -> Name ("ET" ++ show n)) [1..l]
    vars1 = head vars:init vars
    vars2 = last vars:tail vars
    in do

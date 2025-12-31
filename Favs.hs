@@ -804,6 +804,11 @@ joinTLists z ls = loftm z $ foldr1 (joinTMapsFuzzy z) $ map tmofl ls
 unionWith3 :: Ord k => (a -> b -> c) -> (a -> c) -> (b -> c) -> M.Map k a -> M.Map k b -> M.Map k c
 unionWith3 f fl fr l r = M.unions [M.intersectionWith f l r, M.map fl (l M.\\ r), M.map fr (r M.\\ l)]
 
+unionWith3A :: Ord k => (Bool, Bool, Bool) -> (a -> b -> c) -> (a -> c) -> (b -> c) -> M.Map k a -> M.Map k b -> M.Map k c
+unionWith3A (i, il, ir) f fl fr l r = (if i  then M.union (M.intersectionWith f l r) else id) $
+                                      (if il then M.union (M.map fl (l M.\\ r))      else id) $
+                                      (if ir then M.map fr (r M.\\ l)                else M.empty)
+
 foldm f z xs = foldm0 f z $ groupN 2 xs
 
 foldm0 f z xss =

@@ -16,23 +16,23 @@ Functions that have proven useful to me
 
 ## MHash
 
-An interpreter for a Haskell like language
+An interpreter for a language with Haskell-like syntax but dynamic
+
+Uses type Dynamic for values
 
 It has two parsing/printing systems
 
 The one currently in use uses a single specification for both parsing and printing,
 using an idea from invertible-syntax and partial-isomorphisms on hackage.com.
-This system is in Syntax3, SyntaxCIPU and SyntaxTH
+This system is in Parser7 and Iso
 
 There is also an older one where the spec is separate, this is in MHash
-
-Uses type Dynamic for values
 
 ## MHashDynamic3
 
 An extended version of `Dynamic` from base, with multimethods and automatic conversion, and Eq, Ord and Show instances
 
-Also contains a multidimensional array type `SubArrayD e` (there are too many interdependencies for it to be separate)
+Also contains a multidimensional array type `SubArrayD e`
 
 `SubArrayD` can transpose dimensions in O(1) time. This makes it useful for complex maps and folds across dimensions
 

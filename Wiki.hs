@@ -17,12 +17,13 @@ import MyPretty2
 import NumberParsersB
 import TableB hiding (intC, insertWith4)
 import ShowTuple
+import Show1
 import BString
 import Atto
-import qualified BString as B
+import qualified Data.ByteString.Char8 as B
 import qualified Tree as T
 
-import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr)
+import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, readFile, writeFile, appendFile)
 import qualified Prelude
 import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 import Data.Char
@@ -35,6 +36,8 @@ import Control.Applicative
 
 import System.Directory
 import System.Mem
+
+import Network.HTTP.Client
 
 instance {-# OVERLAPPING #-} (Show a) => Show (Table ByteString a Dynamic) where
    show x = showGrid $ showTable2 x
@@ -463,6 +466,44 @@ wc m = do
    --(res, missing) <- foldMB (cjpageB m jLeft) (master, []) links0
    mapM_ (\(cat, titles) -> mapM_ (cjpageB m jLeft master cat) titles) list
 
+   joinVert m
+
+joinHoriz m = do
+   let url = wiki "Lists of sovereign states and dependent territories"
+   index <- readWriteHTML1 m url
+   let blah = findTree (\x -> tagType x == "div" && classCon "mw-content-ltr" x) index
+   let foof = findTrees (\t -> tagType t == "ul" || headerNum t > 0) blah
+   let snit = map (\t -> if tagType t == "ul" then findTreeR (typeIs "a") t else t) foof
+   let list = nestHeaders extractTitles snit
+
+   bl <- foldM (\bl (cat, titles) -> 
+      foldM (\buildlines title -> do
+         let fname = sof (".cache/outh/"++spacesToUnders title)
+         flag <- doesFileExist fname
+         if flag then do
+            newtext <- readFile fname
+            let newlines = B.lines newtext
+            return $ zipWith (++) buildlines newlines
+         else
+            return buildlines) bl titles) (replicate 200 B.empty) list
+   writeFile ".cache/outh/out.csv" $ B.unlines bl
+
+joinVert m = do
+   let url = wiki "Lists of sovereign states and dependent territories"
+   index <- readWriteHTML1 m url
+   let blah = findTree (\x -> tagType x == "div" && classCon "mw-content-ltr" x) index
+   let foof = findTrees (\t -> tagType t == "ul" || headerNum t > 0) blah
+   let snit = map (\t -> if tagType t == "ul" then findTreeR (typeIs "a") t else t) foof
+   let list = nestHeaders extractTitles snit
+
+   writeFile ".cache/out/out.csv" $ b ""
+   mapM_ (\(cat, titles) -> 
+      mapM_ (\title -> do
+         let fname = sof (".cache/out/"++spacesToUnders title)
+         flag <- doesFileExist fname
+         when flag $ do
+            stuff <- readFile fname
+            appendFile ".cache/out/out.csv" $ b stuff) titles) list
    --writeCsv "countries.csv" $ loftm1 ("", "") res
    {-}
    putStrLn ("writing countriesbig.html" :: ByteString)
@@ -544,32 +585,50 @@ cjgridA1 u n g =
    in
       ifJust (not $ classCon "mw-collapsed" g) tb1
 
+--cjpageB :: (BStringC f p1, Show1 i1, Show1 h2, Show1 f, Num i1, Num h2, Enum i1, Enum h2, Ord f, Ord h2, Ord i1, Show f, Show h2, Show i1) => Manager -> p2 -> Table      (f, f, f, f, f, f, ByteString, h2, i1, ByteString)      ByteString      Dynamic -> p1 -> ByteString -> IO ()
 cjpageB m joinType master cat title = do
    let url = wiki title
-   let name = spacesToUnders title
-   let fname = ".cache/out/"++name
+   let fname = ".cache/outh/"++spacesToUnders title
    exists <- doesFileExist $ convertString fname
    unless exists $ do 
       h <- readWriteHTML1 m url
       let gs1 = filterWikiTables h
       putStrLn $ show (length gs1) ++ " grids"
-      gs2 <- zipWithM (gridIndex master cat url) [1..] gs1
-      let gs3 = catMaybes gs2
+      ts2 <- zipWithM (tableIndex master cat url) [1..] gs1
+      let ts3 = catMaybes ts2
       --res <- foldM (cjgridB2 joinType) (master, missing) $ map miss $ catMaybes gs2
-      if null gs3
+      if null ts3
          then do
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
-            putStrLn $ b "NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS"
+            putStrLn $ b "NO       NO  RIDS NO GRID   O GRIDS NO   IDS NO GRID  NO GRIDS NO GRID   O GRIDS NO"
+            putStrLn $ b "NO G     NO GRIDS NO GRIDS NO GRIDS NO G IDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO"
+            putStrLn $ b "NO GR    NO GRI        IDS NO G          IDS      IDS NO GRI        IDS NO G       "
+            putStrLn $ b "NO GRI   NO GRI        IDS NO G      O G IDS NO GRID  NO GRI        IDS  O GRIDS N "
+            putStrLn $ b "NO  RID  NO GRI        IDS NO G      O G IDS NO GRID  NO GRI        IDS        S NO"
+            putStrLn $ b "NO   IDS NO GRIDS NO GRIDS NO GRIDS NO G IDS      IDS NO GRIDS NO GRIDS NO GRIDS NO"
+            putStrLn $ b "NO    DS NO  RIDS NO GRID   O GRIDS NO   IDS      IDS NO GRIDS NO GRID  NO GRIDS N "
          else do
-            g4 <- foldM (gridJoin joinType) master gs3
-            writeFileBinary (convertString fname) $ c $ toCsvT g4      
+            t6 <- if length ts3 >= 2
+               then do
+                  (t4, t5) <- foldM tableJoin (head ts3, ts3 !! 1) (drop 2 ts3)
+                  return $ join jLeft bzero t4 t5
+               else
+                  return $ head ts3
+            putStrLn $ b "t6 ="
+            print t6
+            let t7 = join jLeft bzero master t6
+            --putStrLn $ b "t7 ="
+            --print t7
+            --writeFileBinary (convertString fname) $ c $ toCsv t7
+            --putStrLn $ toCsv g4
+            when ("Religion" `isInfixOf` title) $ error "aaagh"
          
-
+foldMM f [x] = return x
+foldMM f (x:xs) = do
+   resxs <- foldMM f xs
+   res <- f x resxs
+   case res of
+      Just j  -> return j
+      Nothing -> return resxs
 {-
 cjpageBMissing m joinType (master, missing) url = do
    h <- readWriteHTML1 m url
@@ -583,12 +642,12 @@ cjpageBMissing m joinType (master, missing) url = do
    return res
 -}
 
-gridIndex master cat u n g = do
+tableIndex master cat u n g = do
    let
       tg = cTextGridH g
       tg1 = removeRidiculousCellsT $ removeRidiculousCells tg
-   print $ GridH tg
-   print $ GridH tg1
+   --print $ GridH tg
+   --print $ GridH tg1
    let
 --      tg = cTextGridH g
       tb = fromGridHD10 cat (replace "_" " " $ last $ split "/" u) n $ map2 c tg1
@@ -599,7 +658,7 @@ gridIndex master cat u n g = do
          
          putStrLn $ "grid "++show n
          print $ showTableMeta2 tb1
-   --print $ Table.lookup (toDyn "France") tb1
+
          return $
             ifJust (not $ classCon "mw-collapsed" g) tb1
 
@@ -616,11 +675,37 @@ gridIndex master cat u n g = do
          return Nothing
 
 
-gridJoin joinType g1 g2 = do
-   let res = joinFuzzy joinType 3 bzero g1 g2
-   print $ showTableMeta2 res
-   --putStrLn $ "miss=" ++ showTableMeta (last miss)
-   return res
+tableJoin (t1, t2) t3 = do
+   putStrLn $ b "t3 = "
+   print t3
+   let
+      fmap23 = joinFields jInner (fields t2) (fields t3)
+      join12 = join jInner bzero t1 t2
+      fj = fromIntegral (M.size fmap23)
+      f2 = fromIntegral (M.size (fields t2))
+      f3 = fromIntegral (M.size (fields t3))
+      fr = fj / (f2 + f3)
+      rj = fromIntegral (size join12)
+      r1 = fromIntegral (size t1)
+      r2 = fromIntegral (size t2)
+      rr = rj / (r1 + r2)
+   putGrid [["fj", "f2", "f3", "fr", "rj", "r1", "r2", "rr"], map show [fj, f2, f3, fr, rj, r1, r2, rr]]
+   if fr > rr * 2
+      then do
+         putStrLn $ b "appending"
+         let t4 = appendTable jOuter t2 t3
+         putStrLn $ b "t2 ="
+         print t4
+         return (t1, t4)
+      else do
+         putStrLn $ b "joining"
+         let t4 = join jLeft bzero t1 t2
+         putStrLn $ b "t1 ="
+         print t4
+         return (t4, t3)
+
+tableAppend t1 t2 = do
+   return $ appendTable t1 t2
 
 cjgridB2Missing joinType (g1, miss1) (g2, miss2) = do
    let res = joinFuzzy joinType 3 bzero g1 g2

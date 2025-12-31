@@ -572,7 +572,7 @@ foldSubTable3G f (INode rs) = let
 foldSubTable3G f (Recs rs) = let
    (totals, rebuild) = T.unzip $ T.map (foldSubTable3G f) rs
    newtotal = f $ T.toElems totals
-   in (newtotal, Recs $ if T.count totals > 1 then T.insert ((1+) $ snd $ T.span rebuild) (Rec newtotal) rebuild else rebuild)
+   in (newtotal, Recs $ if T.size totals > 1 then T.insert ((1+) $ snd $ T.span rebuild) (Rec newtotal) rebuild else rebuild)
 --foldSubTable3G f (Recs rs) = T.map f $ T.untree $ T.toElems $ T.map (foldSubTable3G f) rs
 
 foldSubTable3G f r@(Rec fs) = (fs, r)
