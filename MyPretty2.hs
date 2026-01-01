@@ -898,7 +898,7 @@ showGridD f width1 tab1 =
       cellLengthCols  = take ncols cellLengthColsz
       width2          = width1 - ncols
       colWidths       = if sum colWidths0 < width2
-                           then forceLess width2 colWidths0
+                           then colWidths0
                            else forceLess width2 $ f width cellLengthCols
 
       cols1  = zipWith showColD1 (map2 (\(b, a, l, s) -> (0, 0, b, a, l, s)) cols) tab
@@ -995,7 +995,7 @@ forceLess width colWidths = let
    colWidthsC  =  map (\(f, w, n) -> (n, floor   w)) colWidthsB ++
                   map (\(f, w, n) -> (n, ceiling w)) colWidthsA
 
-   in map snd $ sort colWidthsC
+   in if sum colWidths > width then map snd $ sort colWidthsC else colWidths
 
 
 tryGridF f width tab = gridTester $ f (width - length tab) tab

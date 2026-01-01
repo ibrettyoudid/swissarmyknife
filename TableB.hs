@@ -292,9 +292,14 @@ instance (Show a, Show b, Show c, Show d, Show e) => Show (Table (a, b, c, d, e)
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => Show (Table (a, b, c, d, e, f, g, h, i, j) z Dynamic) where
    --show t = showGrid $ zipWith showColDH (map showT $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
-   show t = showGridD colWidths1 width $ zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
+   show = showTable
+   
+showTable t =  showGridD colWidths1 width $ 
+               zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ 
+               transposez (toDyn "") $ 
+               ungroupFill (map (\(_, v) -> (v, toDyn "")) $ M.toList $ fields t) $
+               tgroup t
 
-showTable  t = showTableC 0 15 t
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
 showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
 showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
@@ -333,6 +338,13 @@ ungroup (Recs r) = map (ungroup2 . snd) $ T.toList r
 ungroup (Rec r) = [ungroup2 (Rec r)]
 
 ungroup2 (Rec r) = map snd $ T.toList r
+
+ungroupFill f (INode m) = concatMap (ungroup . snd) $ M.toList m
+ungroupFill f (Recs r) = map (ungroup2 . snd) $ T.toList r
+ungroupFill f (Rec r) = [ungroupFill2 f (Rec r)]
+
+ungroupFill2 f (Rec r) = map snd $ T.toList $ T.fromAscList $ T.merge (T.toList r) f
+
 
 applygroup f (Table fs g) = Table fs $ f g
 

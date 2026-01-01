@@ -1,6 +1,11 @@
-# haskell
+# swissarmyknife
 
-Use cabal to compile this, it's fairly automatic
+This is written in Haskell.
+To get the Haskell tool chain, I used ghcup at https://www.haskell.org/ghcup/.
+Linux is required for some parts. I use EndeavourOS.
+
+Download cabal, ghc version 9.6.7 and whatever else you want.
+Use cabal to compile this, it's fairly automatic. It will first download assorted libraries that are required for my code to work.
 
 ```
 git clone https://github.com/ibrettyoudid/swissarmyknife
@@ -205,9 +210,19 @@ OPERA
 ROTAS
 ```
 
-This is apparently the famous example from the film, I believe some of the words are Latin, though.
+This is the famous example from the film, I believe some of the words are Latin, though.
 
-And this is a 9x9 one I found with this code:
+```
+STANG A forked staff
+TENON A type of saw
+ANANA A pineapple!
+NONET A group of nine
+GNATS Insects
+```
+
+This is English (I swear) and was found with this code. I never managed to fix a larger one that's the same backwards and forwards like the original.
+
+But this is a 9x9 one with less symmetry I found with this code:
 
 ```
 NECESSISM extreme determinism
