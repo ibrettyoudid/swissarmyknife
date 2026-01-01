@@ -9,19 +9,19 @@ cabal build
 
 ## FuzzyMatch
 
-Edit distance (aka Levenshtein distance) between two strings / many strings / best matching pairs of strings
+Edit distance (aka Levenshtein distance) between two strings / many strings / best matching pairs of strings.
 
-The idea was to use it for joining Wikipedia tables together, SQL style
-I thought I could get good performance by using A* search over the whole problem
+The idea was to use it for joining Wikipedia tables together, SQL style.
+I thought I could get good performance by using A* search over the whole problem.
 
-Uses lazy evaluation creatively, I would say
+Uses lazy evaluation creatively, I would say.
 
 ## Wiki/Wiki1
 
-Uses the HTMLB module to scrape data tables from Wikipedia into tables held by TableB, join them up and writes to disk
-Caches them in a directory `.cache` so that they may be edited if errors occur
-Seems to work fine now without editing though
-Works on the Lists of countries and dependencies page, but presumably can be adapted to work on any of the Lists of lists pages
+Uses the HTMLB module to scrape data tables from Wikipedia into tables held by TableB, join them up and writes to disk.
+Caches them in a directory `.cache` so that they may be edited if errors occur.
+Seems to work fine now without editing though.
+Works on the Lists of countries and dependencies page, but presumably can be adapted to work on any of the Lists of lists pages.
 
 To run:
 
@@ -34,74 +34,74 @@ wc m
 
 ## Favs
 
-Functions that have proven useful to me
+Functions that have proven useful to me.
 
 ## MHash
 
-An interpreter for a language with Haskell-like syntax but dynamic
+An interpreter for a language with Haskell-like syntax but dynamic.
 
-Uses type Dynamic for values
+Uses type Dynamic for values.
 
-It has two parsing/printing systems
+It has two parsing/printing systems.
 
 The one currently in use uses a single specification for both parsing and printing,
 using an idea from invertible-syntax and partial-isomorphisms on hackage.com.
-This system is in Parser7 and Iso
+This system is in Parser7 and Iso.
 
-There is also an older one where the spec is separate, this is in MHash
+There is also an older one where the spec is separate, this is in MHash.
 
 ## MHashDynamic3
 
-An extended version of `Dynamic` from base, with multimethods and automatic conversion, and Eq, Ord and Show instances
+An extended version of `Dynamic` from base, with multimethods and automatic conversion, and Eq, Ord and Show instances.
 
 Also contains a multidimensional array type `SubArrayD e`
 
-`SubArrayD` can transpose dimensions in O(1) time. This makes it useful for complex maps and folds across dimensions
+`SubArrayD` can transpose dimensions in O(1) time. This makes it useful for complex maps and folds across dimensions.
 
-Each dimension can optionally have a `Dynamic` index (ie. making that dimension work like a Map)
+Each dimension can optionally have a `Dynamic` index (ie. making that dimension work like a Map).
 
-Uses putGrid to display `SubArrayD`s with as many dimensions as you like
+Uses putGrid to display `SubArrayD`s with as many dimensions as you like.
 
-Lots of stuff in one file due to cyclic dependencies which Haskell doesn't do so well
+Lots of stuff in one file due to cyclic dependencies which Haskell doesn't do so well.
 
 ## Matrix2
 
-Matrix arithmetic and some solvers for simultaneous linear equations
+Matrix arithmetic and some solvers for simultaneous linear equations.
 
 ## MyPretty2
 
-A pretty printer. `putGrid` can adjust column widths of tables (ie. values of type `[[String]]`) automatically to get the best use of space
+A pretty printer. `putGrid` can adjust column widths of tables (ie. values of type `[[String]]`) automatically to get the best use of space.
 
 Got way to deep into this, due to the desire to answer the question, can there be multiple minima?
 
-Trying to find something to impress people like you with I think
+Trying to find something to impress people like you with I think.
 
 I think I found a general law:
-No column A with less total text than B can end up wider than B
-I can't think of a counterexample that would make sense
+No column A with less total text than B can end up wider than B.
+I can't think of a counterexample that would make sense.
 
 Is that true for rows as well?
 
-Also, colWidths7 finds the ideal ratio for any two columns
-It calculates the ratio of corresponding cells in each column
-And then finds the ratio that has equal amounts of text in the limiting cells above and below that ratio
-With three columns you want equal amounts of text in all the limiting cells of each column
+Also, colWidths7 finds the ideal ratio for any two columns.
+It calculates the ratio of corresponding cells in each column.
+And then finds the ratio that has equal amounts of text in the limiting cells above and below that ratio.
+With three columns you want equal amounts of text in all the limiting cells of each column.
 If you put the columns together in order of total text, would that be ideal?
 
 I think I found an analogy:
-Gas makes no sense, text is more like incompressible liquid
+Gas makes no sense, text is more like incompressible liquid.
 
-Liquid in a compartmentalised tank where the walls can move left or right or up or down
-according to whether theyre vertical or horizontal (without friction)
-Somehow the vertical can move through the horizontal and vice versa
+Liquid in a compartmentalised tank where the walls can move left or right or up or down.
+according to whether theyre vertical or horizontal (without friction).
+Somehow the vertical can move through the horizontal and vice versa.
 
-No gravity, no air pressure
+No gravity, no air pressure.
 
 the width has a fixed maximum ie. the thing is between four planes of infinite strength
-that do not move
+that do not move.
 
 and the other two planes (horizontal) have some non-zero force pushing them together and
-are able to move
+are able to move.
 
 And then... equalise the forces?
 
@@ -109,18 +109,36 @@ And then... equalise the forces?
 ## Parser
 
 An Earley parser
+I would say these parsers are pretty powerful, although they need work.
+
+## Parser3
+
+An evolution of Parser, with operations like Many and Monads
 
 ## Parser4
 
 A parser/printer ie. same spec can both parse and print back out
+It uses the Dynamic type from MHashDynamic
+
+## ID3
+
+Uses attoparsec to read the metadata in MP3 files and standard IO to write them out
+
+## ID3P4
+
+A parser using the above module to read and write mp3 files
 
 ## Parser6
 
-Another one
+Another parser/printer. This uses GADTs to be type safe
+
+## ID3P6
+
+A parser using the above module to read and write mp3 files
 
 ## Parser7
 
-An attempt at an Earley parser/printer extended with operations like Not, Monads
+A different attempt at an Earley parser/printer extended with operations like Many, Not, Monads
 
 ## Prolog
 
@@ -153,6 +171,57 @@ read/write HTML from the web/a filesystem
 ## HTMLB
 
 HTML with ByteStrings
+
+## Chess
+
+The start of a chess engine
+
+## Dataflow2
+
+The start of a programming language which the user can edit graphically
+
+## Atlas
+
+Written to overlay bitmap maps on each other, changing the projection and other parameters
+
+## Anagram
+
+Anagrams
+This actually works
+
+## Crossword
+
+Crosswords.
+This actually works.
+Solves crosswords.
+Can also create sator squares and variations as in the film Tenet.
+A Sator square is a square of words.
+
+```
+SATOR
+AREPO
+TENET
+OPERA
+ROTAS
+```
+
+This is apparently the famous example from the film, I believe some of the words are Latin, though.
+
+And this is a 9x9 one I found with this code:
+
+```
+NECESSISM extreme determinism
+EXISTENCE shared reality
+CIRCUMFER to carry around
+ESCARPING to form a steep slope
+STURNIDAE starling family
+SEMPITERN eternal
+INFIDELIC of an infidel
+SCENARISE to create a scenario
+MERGENCES the act of merging, plural
+```
+
+I've improved the code a bit, since. I might try for a 10x10 one
 
 ## Poker
 
