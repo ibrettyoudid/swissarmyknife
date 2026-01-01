@@ -17,7 +17,7 @@ cabal build
 Edit distance (aka Levenshtein distance) between two strings / many strings / best matching pairs of strings.
 
 The idea was to use it for joining Wikipedia tables together, SQL style.
-I thought I could get good performance by using A* search over the whole problem.
+I thought I could get good performance by using A* search over the whole problem, such that the closest matches would be found first, due to the way A* works.
 
 Uses lazy evaluation creatively, I would say.
 
@@ -27,6 +27,7 @@ Uses the HTMLB module to scrape data tables from Wikipedia into tables held by T
 Caches them in a directory `.cache` so that they may be edited if errors occur.
 Seems to work fine now without editing though.
 Works on the Lists of countries and dependencies page, but presumably can be adapted to work on any of the Lists of lists pages.
+Currently saves each page as a CSV file, but can also do HTML, and the code is there to make one big table.
 
 To run:
 
