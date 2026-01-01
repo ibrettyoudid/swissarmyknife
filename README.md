@@ -2,13 +2,35 @@
 
 Use cabal to compile this, it's fairly automatic
 
+```
+git clone https://github.com/ibrettyoudid/swissarmyknife
+cabal build
+```
+
 ## FuzzyMatch
 
 Edit distance (aka Levenshtein distance) between two strings / many strings / best matching pairs of strings
 
-The idea was to use it for joining Wikipedia tables together but it was just too slow
+The idea was to use it for joining Wikipedia tables together, SQL style
+I thought I could get good performance by using A* search over the whole problem
 
 Uses lazy evaluation creatively, I would say
+
+## Wiki/Wiki1
+
+Uses the HTMLB module to scrape data tables from Wikipedia into tables held by TableB, join them up and writes to disk
+Caches them in a directory `.cache` so that they may be edited if errors occur
+Seems to work fine now without editing though
+Works on the Lists of countries and dependencies page, but presumably can be adapted to work on any of the Lists of lists pages
+
+To run:
+
+```
+cabal repl
+:mod + Wiki HTMLB
+m <- nm
+wc m
+```
 
 ## Favs
 
@@ -50,7 +72,9 @@ Matrix arithmetic and some solvers for simultaneous linear equations
 
 A pretty printer. `putGrid` can adjust column widths of tables (ie. values of type `[[String]]`) automatically to get the best use of space
 
-Got way to deep into this:
+Got way to deep into this, due to the desire to answer the question, can there be multiple minima?
+
+Trying to find something to impress people like you with I think
 
 I think I found a general law:
 No column A with less total text than B can end up wider than B
@@ -100,11 +124,15 @@ An attempt at an Earley parser/printer extended with operations like Not, Monads
 
 ## Prolog
 
-A very basic Prolog interpreter, can be parallelised
+A very basic Prolog interpreter, can be parallelised I think
 
 ## Prolog1
 
 A more complex Prolog interpreter that can be parallelised to a greater extent but nowhere near working
+
+## Prolog3
+
+A very basic Prolog interpreter using the logict package
 
 ## Table/TableB
 
@@ -125,10 +153,6 @@ read/write HTML from the web/a filesystem
 ## HTMLB
 
 HTML with ByteStrings
-
-## Wiki/Wiki1
-
-Uses the HTMLB module to scrape data tables from Wikipedia into tables held by TableB, join them up and write to disk
 
 ## Poker
 

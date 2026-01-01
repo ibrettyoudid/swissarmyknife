@@ -882,7 +882,7 @@ showRowD1 row = let
    rh = maximum $ map (\(cw, (b1, a1, l1, s)) -> ceiling (fromIntegral l1 / fromIntegral cw)) row
    in map (\(cw, (b1, a1, l1, s)) -> let
          l2 = cw * rh
-         b2 = ceiling (fromIntegral l2 / fromIntegral b1) * b1
+         b2 = if b1 + a1 > cw then ceiling (fromIntegral l2 / fromIntegral cw) * cw else b1
          a2 = l2 - b2
          in (cw, rh, b2, a2, l2, s)) row
 
