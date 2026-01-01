@@ -241,4 +241,6 @@ I've improved the code a bit, since. I might try for a 10x10 one
 
 ## Poker
 
-Doesn't compile and so is not in the cabal file but when it did it played poker on Facebook
+Poker bot for Facebook
+Needs a replacement Javascript file `bundle.min.js` that you set up in your browser, to make the browser talk to the Haskell code via a socket
+

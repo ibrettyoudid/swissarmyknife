@@ -23,6 +23,8 @@
 {-# HLINT ignore "Use first" #-}
 {-# HLINT ignore "Use ++" #-}
 
+module Poker where
+
 import Control.Applicative
 import Control.DeepSeq
 import Control.Monad.State.Lazy
@@ -126,7 +128,7 @@ showHandCat StraightFlush = "*** STRAIGHT FLUSH ***"
 showHandCat Four = "FOUR OF A KIND ***"
 showHandCat FullHouse = "FULL HOUSE!!"
 showHandCat Flush = "FLUSH!!!"
-showHandCat Straight = "Strait"
+showHandCat Straight = "Strait" -- Yes, I know this is misspelled
 showHandCat Three = "Three"
 showHandCat Pairs = "2 2s"
 showHandCat Pair = "2"
@@ -1118,16 +1120,9 @@ convLine xs = do
    convBytes xs3
 
 {-
-main = do
-      l <- getLine
-      case convLine l of
-         Just  j -> putStr j
-         Nothing -> putStrLn ('\n':l)
-      main
-
 INDEPENDENT HANDS
 
-if the hands are independent (which I don't think they are),
+if the hands are independent,
 
 maximise            ( chips + pot + n*raise )*p+(chips - raise)*(1-p)
                                  chips*p + pot*p + n*raise*p + raise*p - chips*p + chips - raise
@@ -1153,33 +1148,43 @@ if win probability is p between 0 and 1, or a ratio of a:b, this is the least yo
 n is the number of players that call your raise
 must be at least 1 because if no-one calls your raise you win anyway (unless some people are all-in)
 
-                  ( chipsNow + pot + n*raise )^a*(chipsNow - raise)^b  >  chipsBefore^(a+b)
-                                                            c^a*d^b  >  e^(a+b)
+expected value = ( chipsNow + pot + n*raise )^p*(chipsNow - raise)^(1-p)  >  chipsBefore
 
-set a=p
-b=1-p
-
-                  ( chipsNow + pot + n*raise )^p*(chipsNow - raise)^(1-p)  >  chipsBefore
+the comment continues below but here is this equation in Haskell
 -}
-
 expvalue chips pot nplayers winprob raise = (fromIntegral chips + fromIntegral pot + fromIntegral nplayers * raise) ** winprob * (fromIntegral chips - raise) ** (1 - winprob)
-
 {-
-I think that tends towards the additive equation above for independent hands when chipsNow & chipsBefore are large compared to pot and raise
 
 if x is totalChipsBeforeThisHand - yourpreviousbetsthihand + pot, then y is totalChipsBeforeThisHand - yourpreviousbetsthishand
-if x is totalChipsNow + pot, y = totalChipsNow
 
-substitute x = chips + pot, y = chips
+x = totalChipsNow + pot
+y = totalChipsNow
+r = raise 
+n = number of players
 
-(x+nr)^p*(y-r)^(1-p)     differentiate and set = 0
-n(py-r) + (p-1)x = 0
+(x+nr)^p*(y-r)^(1-p)     
+
+NOT SURE ABOUT THIS BIT:
+to maximise differentiate and set = 0
+
+n(py-r)  + (p-1)x = 0
 npy - nr + (p-1)x = 0
 nr = npy + (p-1)x
 r = py + (p-1)x/n
 npy
+NOT SURE ABOUT THE BIT ABOVE
 
-generalise                   r            = (ayp+bop+cp+dy+eo+f)/n+gyp+hop+ip+jy+kp+l
+substitute
+a=p
+b=1-p
+
+                  (    chipsNow + pot + n*raise )^a*(chipsNow - raise)^b  >  chipsBefore^(a+b)
+                                                                 c^a*d^b  >  e^(a+b)
+
+x = totalChipsNow + pot
+y = totalChipsNow
+r = raise 
+n = number of players
 
 if p = 0.5
       r = 1.5x/n+0.5y
@@ -1187,30 +1192,37 @@ if p = 0.5
 if p = 0.25
       r = 1.25x/n+0.25y
 
-maximise           (x+nr)^a*(y-r)^b
-differentiate      an(y-r)^b*(x+nr)^(a-1)-b(y-r)^(b-1)*(x+nr)^a = 0
-                              an(y-r)^b*(x+nr)^(a-1) = b(y-r)^(b-1)*(x+nr)^a             divide by (x+nr)^(a-1)
-                              an(y-r)^b              = b(y-r)^(b-1)*(x+nr)               divide by (y-r)^(b-1)
-                              an(y-r)                = b(x+nr)
 
-                              an     x + nr      np
-                              --  =  ------  =  -----
-                              b      y - r      1 - p
+(x+nr)^a*(y-r)^b                                           maximise this
 
-                              a     x/n + r       p
-                              -  =  -------  =  -----
-                              b     y   - r     1 - p
-
-                              a     x + nr        p
-                              -  =  -------  =  -----
-                              b     ny - nr     1 - p
-
-                              basically, pot odds. at least we've proved it though
-
-                              any - anr - bx - bnr   = 0
-                              (-an-bn)r + any - bx   = 0
-                                                any - bx   = (a+b)nr
-                                                         r   = (any - bx) / n(a + b)
+an(y-r)^b*(x+nr)^(a-1)-b(y-r)^(b-1)*(x+nr)^a = 0           solve the differential
+an(y-r)^b*(x+nr)^(a-1) = b(y-r)^(b-1)*(x+nr)^a             divide by (x+nr)^(a-1)
+an(y-r)^b              = b(y-r)^(b-1)*(x+nr)               divide by (y-r)^(b-1)
+an(y-r)                = b(x+nr)                                         
+                                                                             
+an     x + nr      np                                                              
+--  =  ------  =  -----                                                           
+b      y - r      1 - p                                       
+                                                             
+a     x/n + r       p                                             
+-  =  -------  =  -----                                           
+b     y   - r     1 - p                                       
+                                                           
+a     x + nr        p                                            
+-  =  -------  =  -----                                           
+b     ny - nr     1 - p                                      
+                                                          
+basically, pot odds. PROOF AT LAST                                
+                                                        
+                                                       
+any - anr - bx - bnr   = 0      (note: any is a * n * y)                  
+(-an-bn)r + any - bx   = 0                                    
+                  any - bx   = (a+b)nr                                      
+                         r   = (any - bx) / n(a + b)                             
+                                                                                
+                        *****************************                     
+                        *r   = (any - bx) / n(a + b)*                       
+                        *****************************                            
 
 if a = p and b = 1 - p
 
@@ -1270,7 +1282,7 @@ if you fold, you get y
 -- expvalue chips pot nplayers winprob raise = (fromIntegral chips + fromIntegral pot + fromIntegral nplayers*raise)**winprob * (fromIntegral chips - raise)**(1-winprob)
 -- max amount to bet, otherwise fold
 
-call chips pot nplayers winprob = secantMethod (expvalue chips pot nplayers winprob) 10 0 (fromIntegral chips) (fromIntegral chips)
+call chips pot nplayers winprob = secantMethod 10 0 (fromIntegral chips) (expvalue chips pot nplayers winprob)
 
 {-
 maximin chipsnow pot yourcards tablecards opponents = maxOn (\yourbet -> minimax chipsnow pot yourbet yourcards tablecards opponents) $ take 10 $ iterate (*2) 10 --winprob 10 $ trygame yourcards tablecards opponents
@@ -1346,38 +1358,38 @@ we can account for bluffing by the probability of the opponents folding
 if we choose our raise so that it makes no difference to either player whether they call or fold (but they could re-raise/go all in! need to seriously consider that)
 don't forget to check the value is higher than chipsBefore
 
-            (chipsNow + pot) = (chipsNow + pot + n*raise)^p * (chipsNow - raise)^(1-p)  >  chipsBefore
-
-                                          (chipsNow + pot + n*raise)^p * (chipsNow - raise)  >  chipsBefore
-            (chipsNow + pot) = (------------------------)
-                                          (    chipsNow - raise    )
-
-               chipsNow + pot    (chipsNow + pot + n*raise)^p  >  chipsBefore
-            ---------------- = (------------------------)
-            chipsNow - raise   (    chipsNow - raise    )
-
-               chipsNow + pot    (chipsNow + pot + n*raise)^p  >  chipsBefore
-            ---------------- = (------------------------)
-            chipsNow - raise   (    chipsNow - raise    )
-
-               ----------------
-            / chipsNow + pot      chipsNow + pot + n*raise  >  chipsBefore
-         p / ----------------  =  ------------------------
-         \/  chipsNow - raise         chipsNow - raise
-
-            (chipsNow - raise)^p       chipsNow - raise
-            --------------------  =  ------------------------
-                  chipsNow + pot         chipsNow + pot + n*raise
-
-                                                =         chipsNow                         raise
-                                                   ------------------------  -  --------------------------
-                                                   chipsNow + pot + n*raise     chipsNow + pot + n*raise
+--          (chipsNow + pot) = (chipsNow + pot + n*raise)^p * (chipsNow - raise)^(1-p)  >  chipsBefore
+--
+--                             (chipsNow + pot + n*raise)^p * (chipsNow - raise)  >  chipsBefore
+--          (chipsNow + pot) = (------------------------)
+--                             (    chipsNow - raise    )
+--
+--          chipsNow + pot     (chipsNow + pot + n*raise)^p  >  chipsBefore
+--          ---------------- = (------------------------)
+--          chipsNow - raise   (    chipsNow - raise    )
+--
+--           chipsNow + pot    (chipsNow + pot + n*raise)^p  >  chipsBefore
+--          ---------------- = (------------------------)
+--          chipsNow - raise   (    chipsNow - raise    )
+--
+--           ----------------
+--          / chipsNow + pot      chipsNow + pot + n*raise  >  chipsBefore
+--       p / ----------------  =  ------------------------
+--       \/  chipsNow - raise         chipsNow - raise
+--
+--          (chipsNow - raise)^p         chipsNow - raise
+--          --------------------  =  ------------------------
+--             chipsNow + pot        chipsNow + pot + n*raise
+--
+--                                              =         chipsNow                         raise
+--                                                 ------------------------  -  --------------------------
+--                                                 chipsNow + pot + n*raise     chipsNow + pot + n*raise
 
 can't find a way to solve that for raise so do it numerically
 -}
 -- expvalue chips pot nplayers winprob raise = (chips + pot + nplayers*raise)**winprob * (chips - raise)**(1-winprob)
 
-bluff chips pot nplayers winprob = secantMethod (expvalue chips pot nplayers winprob) 20 0 (fromIntegral chips) (fromIntegral chips / 2)
+--bluff chips pot nplayers winprob = secantMethod (expvalue chips pot nplayers winprob) 20 0 (fromIntegral chips) (fromIntegral chips / 2)
 
 {-
 when you bluff you are trying to change their perception of the strength of your hand
@@ -1743,106 +1755,106 @@ shiftChipsToPot ioref = do
 showComma n = reverse $ intercalate "," $ groupN 3 $ reverse $ show n
 
 talk ioref s = loop
-where
-   loop = do
-      dat <- recv s 1024
-      let headers = B.split 10 dat
-      let url = (!! 1) $ split " " $ sofbs $ head headers
-      let terms = tail $ split "/" url
-      print terms
-      var <- readIORef ioref
-      case terms of
-         ["you_are", readInt . drop 1 -> seat] -> do
-            let v = var{yourseat = seat}
-            writeIORef ioref v
-            putStrLn $ ("your seat: " ++) $ show $ yourseat v
-         ["sitplayer", readInt -> seat, name, readInt -> id, readInt -> level, levelName, readInt -> chipsTotal, readInt -> chipsHand, readInt -> chipsTable, readInt -> month, readInt -> day, readInt -> year] -> do
-            let v = var{players = M.alter (\x -> Just $ let player = fromMaybe emptyPlayer x in player{pname = name, pid = id, pnameid = name ++ take 4 (show id), plevel = level, plevelName = levelName, pchipsTotal = chipsTotal, pchipsHand = chipsHand, pchipsTable = chipsTable, pplayerSince = YearMonthDay (fromIntegral year) month day}) seat $ players var}
-            writeIORef ioref v
-            showPlayers $ players v
-         ["leave", readInt -> seat] -> do
-            let v = var{players = M.alter (\x -> Nothing) seat $ players var}
-            writeIORef ioref v
-            showPlayers $ players v
-         ["tablecard", readInt -> seat, readCard -> card] -> do
-            let t = M.insert seat card $ tablecards var
-            writeIORef ioref var{tablecards = t}
-            let c = map snd $ M.toList t
-            let cs = rsort c
-            putStrLn $ ("table cards: " ++) $ concatMap showCard c ++ " sorted: " ++ concatMap showCard cs
-            showWinProb ioref
-            when (elem (length c) [3, 4, 5]) $ shiftChipsToPot ioref
-         ["bet", readInt -> seat, readInt -> amount, readInt -> allIn, readInt -> chipsTotal, readInt -> chipsHand, readInt -> chipsTable] -> do
-            -- let v = var { players = M.alter (\x -> Just $ let player = fromMaybe emptyPlayer x in player { pbetsCur = M.insert (M.size $ tablecards var) (amount) $ pbetsCur player }) (seat) $ players var }
-            let trial = Trial 0 (M.size $ tablecards var) amount chipsTotal chipsHand chipsTable
-            let v = var{players = M.alter (\x -> Just $ let player = fromMaybe emptyPlayer x in player{pchipsTotal = chipsTotal, pchipsHand = chipsHand, pchipsTable = chipsTable, pamount = amount, pbetsCur = M.insert (tncards trial) trial $ pbetsCur player}) seat $ players var}
-            writeIORef ioref v
-            putStrLn $ intercalate "     " $ showPlayer $ (seat,) $ players v M.! seat
-            showYourBets v
-            hWaitForInput stdin 100
-            return ()
-         ("playercards" : seat1 : cards) -> do
-            let seat = if seat1 == "undefined" then yourseat var else readInt seat1
-            let playercards = map readCard cards :: [Card]
-            putStrLn $ "player " ++ show seat ++ " has " ++ concatMap showCard playercards
-            when (seat >= 0) $ do
-               let player = fromMaybe emptyPlayer $ M.lookup seat (players var)
-               let player1 = player{pcards = playercards}
-               let v = var{players = M.alter (\x -> Just player1) seat $ players var}
+   where
+      loop = do
+         dat <- recv s 1024
+         let headers = B.split 10 dat
+         let url = (!! 1) $ split " " $ sofbs $ head headers
+         let terms = tail $ split "/" url
+         print terms
+         var <- readIORef ioref
+         case terms of
+            ["you_are", readInt . drop 1 -> seat] -> do
+               let v = var{yourseat = seat}
                writeIORef ioref v
-               if seat1 == "undefined" || seat == yourseat var
-                  then do
-                     showWinProb ioref
-                  else do
-                     let tablecards1 = map snd $ M.toList $ tablecards var
-                     winprobs <-
-                        mapM
-                           ( \tbn -> do
-                                 let tablecardsZ = fromList (take tbn tablecards1) :: Int
-                                 let playercardsZ = fromList playercards :: Int
-                                 (_, _, winprob) <- stats 1000 $ trygame $ (trygame1 :: (MonadIO m) => [Card] -> [Card] -> Int -> m (Int, [Int])) playercards (take tbn tablecards1) (M.size $ players var)
-                                 return winprob
-                           )
-                           [0, 3, 4, 5]
-                     let bets = map (\bet -> bet{twinProb = winprobs !! tncards bet}) $ map snd $ M.toList $ pbetsCur player
-                     let playerbets = bets ++ pbets player
-                     let player2 = player1{pbets = playerbets}
-                     return ()
-         ["handend"] -> do
-            let v = var{pot = 0, tablecards = M.empty, players = M.map (\p -> p{pcards = [], pamount = 0, pchipsTable = 0}) $ players var}
-            writeIORef ioref v
+               putStrLn $ ("your seat: " ++) $ show $ yourseat v
+            ["sitplayer", readInt -> seat, name, readInt -> id, readInt -> level, levelName, readInt -> chipsTotal, readInt -> chipsHand, readInt -> chipsTable, readInt -> month, readInt -> day, readInt -> year] -> do
+               let v = var{players = M.alter (\x -> Just $ let player = fromMaybe emptyPlayer x in player{pname = name, pid = id, pnameid = name ++ take 4 (show id), plevel = level, plevelName = levelName, pchipsTotal = chipsTotal, pchipsHand = chipsHand, pchipsTable = chipsTable, pplayerSince = YearMonthDay (fromIntegral year) month day}) seat $ players var}
+               writeIORef ioref v
+               showPlayers $ players v
+            ["leave", readInt -> seat] -> do
+               let v = var{players = M.alter (\x -> Nothing) seat $ players var}
+               writeIORef ioref v
+               showPlayers $ players v
+            ["tablecard", readInt -> seat, readCard -> card] -> do
+               let t = M.insert seat card $ tablecards var
+               writeIORef ioref var{tablecards = t}
+               let c = map snd $ M.toList t
+               let cs = rsort c
+               putStrLn $ ("table cards: " ++) $ concatMap showCard c ++ " sorted: " ++ concatMap showCard cs
+               showWinProb ioref
+               when (elem (length c) [3, 4, 5]) $ shiftChipsToPot ioref
+            ["bet", readInt -> seat, readInt -> amount, readInt -> allIn, readInt -> chipsTotal, readInt -> chipsHand, readInt -> chipsTable] -> do
+               -- let v = var { players = M.alter (\x -> Just $ let player = fromMaybe emptyPlayer x in player { pbetsCur = M.insert (M.size $ tablecards var) (amount) $ pbetsCur player }) (seat) $ players var }
+               let trial = Trial 0 (M.size $ tablecards var) amount chipsTotal chipsHand chipsTable
+               let v = var{players = M.alter (\x -> Just $ let player = fromMaybe emptyPlayer x in player{pchipsTotal = chipsTotal, pchipsHand = chipsHand, pchipsTable = chipsTable, pamount = amount, pbetsCur = M.insert (tncards trial) trial $ pbetsCur player}) seat $ players var}
+               writeIORef ioref v
+               putStrLn $ intercalate "     " $ showPlayer $ (seat,) $ players v M.! seat
+               showYourBets v
+               hWaitForInput stdin 100
+               return ()
+            ("playercards" : seat1 : cards) -> do
+               let seat = if seat1 == "undefined" then yourseat var else readInt seat1
+               let playercards = map readCard cards :: [Card]
+               putStrLn $ "player " ++ show seat ++ " has " ++ concatMap showCard playercards
+               when (seat >= 0) $ do
+                  let player = fromMaybe emptyPlayer $ M.lookup seat (players var)
+                  let player1 = player{pcards = playercards}
+                  let v = var{players = M.alter (\x -> Just player1) seat $ players var}
+                  writeIORef ioref v
+                  if seat1 == "undefined" || seat == yourseat var
+                     then do
+                        showWinProb ioref
+                     else do
+                        let tablecards1 = map snd $ M.toList $ tablecards var
+                        winprobs <-
+                           mapM
+                              ( \tbn -> do
+                                    let tablecardsZ = fromList (take tbn tablecards1) :: Int
+                                    let playercardsZ = fromList playercards :: Int
+                                    (_, _, winprob) <- stats 1000 $ trygame $ (trygame1 :: (MonadIO m) => [Card] -> [Card] -> Int -> m (Int, [Int])) playercards (take tbn tablecards1) (M.size $ players var)
+                                    return winprob
+                              )
+                              [0, 3, 4, 5]
+                        let bets = map (\bet -> bet{twinProb = winprobs !! tncards bet}) $ map snd $ M.toList $ pbetsCur player
+                        let playerbets = bets ++ pbets player
+                        let player2 = player1{pbets = playerbets}
+                        return ()
+            ["handend"] -> do
+               let v = var{pot = 0, tablecards = M.empty, players = M.map (\p -> p{pcards = [], pamount = 0, pchipsTable = 0}) $ players var}
+               writeIORef ioref v
 
-      unless (B.null dat) $ do
-         -- sendAll s "HTTP/1.1 200 OK\n\n\n"
-         sendAll s $
-            B.intercalate
-               "\n"
-               [ "HTTP/1.1 200 OK"
-               , "Date: Sun, 12 May 2024 12:51:40 GMT"
-               , "Content-Type: text/html"
-               , "Content-Length: 1"
-               , -- "Connection: keep-alive",
-                  -- "Keep-Alive: timeout=120",
-                  "Cache-Control: public, max-age=3600, stale-while-revalidate=60, stale-if-error=86400"
-               , "req-svc-chain: GTM"
-               , "Location: https://www.bbc.co.uk/index.html"
-               , "Origin-Agent-Cluster: ?0"
-               , "nel: {\"report_to\":\"default\",\"max_age\":2592000,\"include_subdomains\":true,\"failure_fraction\":0.25}"
-               , "via: 1.1 BBC-GTM"
-               , "report-to: {\"group\":\"default\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://default.bbc-reporting-api.app/report-endpoint\",\"priority\":1}],\"include_subdomains\":true}"
-               , "Server: BBC-GTM"
-               , "Strict-Transport-Security: max-age=31536000; preload"
-               , "Permissions-Policy: browsing-topics=(), join-ad-interest-group=(), run-ad-auction=()"
-               , ""
-               , "<html>"
-               , "<head><title>301 Moved Permanently</title></head>"
-               , "<body>"
-               , "<center><h1>301 Moved Permanently</h1></center>"
-               , "<hr><center>openresty</center>"
-               , "</body>"
-               , "</html>"
-               ]
-         loop
+         unless (B.null dat) $ do
+            -- sendAll s "HTTP/1.1 200 OK\n\n\n"
+            sendAll s $
+               B.intercalate
+                  "\n"
+                  [ "HTTP/1.1 200 OK"
+                  , "Date: Sun, 12 May 2024 12:51:40 GMT"
+                  , "Content-Type: text/html"
+                  , "Content-Length: 1"
+                  , -- "Connection: keep-alive",
+                     -- "Keep-Alive: timeout=120",
+                     "Cache-Control: public, max-age=3600, stale-while-revalidate=60, stale-if-error=86400"
+                  , "req-svc-chain: GTM"
+                  , "Location: https://www.bbc.co.uk/index.html"
+                  , "Origin-Agent-Cluster: ?0"
+                  , "nel: {\"report_to\":\"default\",\"max_age\":2592000,\"include_subdomains\":true,\"failure_fraction\":0.25}"
+                  , "via: 1.1 BBC-GTM"
+                  , "report-to: {\"group\":\"default\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://default.bbc-reporting-api.app/report-endpoint\",\"priority\":1}],\"include_subdomains\":true}"
+                  , "Server: BBC-GTM"
+                  , "Strict-Transport-Security: max-age=31536000; preload"
+                  , "Permissions-Policy: browsing-topics=(), join-ad-interest-group=(), run-ad-auction=()"
+                  , ""
+                  , "<html>"
+                  , "<head><title>301 Moved Permanently</title></head>"
+                  , "<body>"
+                  , "<center><h1>301 Moved Permanently</h1></center>"
+                  , "<hr><center>openresty</center>"
+                  , "</body>"
+                  , "</html>"
+                  ]
+            loop
 
 -- what parameters should a strategy have?
 -- tightness, aggressiveness, randomness
@@ -1883,29 +1895,29 @@ main1 = do
 runTCPServer mhost port ioref server = withSocketsDo $ do
    addr <- resolve
    E.bracket (open addr) close loop
-where
-   resolve = do
-      let hints =
-               defaultHints
-                  { addrFlags = [AI_PASSIVE]
-                  , addrSocketType = Stream
-                  }
-      head <$> getAddrInfo (Just hints) mhost (Just port)
-   open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
-      setSocketOption sock ReuseAddr 1
-      withFdSocket sock setCloseOnExecIfNeeded
-      bind sock $ addrAddress addr
-      listen sock 128
-      return sock
-   loop sock = forever $
-      E.bracketOnError (accept sock) (close . fst) $
-         \(conn, _peer) ->
-            void $
-               -- 'forkFinally' alone is unlikely to fail thus leaking @conn@,
-               -- but 'E.bracketOnError' above will be necessary if some
-               -- non-atomic setups (e.g. spawning a subprocess to handle
-               -- @conn@) before proper cleanup of @conn@ is your case
-               forkFinally (server ioref conn) (const $ gracefulClose conn 5000)
+      where
+         resolve = do
+            let hints =
+                     defaultHints
+                        { addrFlags = [AI_PASSIVE]
+                        , addrSocketType = Stream
+                        }
+            head <$> getAddrInfo (Just hints) mhost (Just port)
+         open addr = E.bracketOnError (openSocket addr) close $ \sock -> do
+            setSocketOption sock ReuseAddr 1
+            withFdSocket sock setCloseOnExecIfNeeded
+            bind sock $ addrAddress addr
+            listen sock 128
+            return sock
+         loop sock = forever $
+            E.bracketOnError (accept sock) (close . fst) $
+               \(conn, _peer) ->
+                  void $
+                     -- 'forkFinally' alone is unlikely to fail thus leaking @conn@,
+                     -- but 'E.bracketOnError' above will be necessary if some
+                     -- non-atomic setups (e.g. spawning a subprocess to handle
+                     -- @conn@) before proper cleanup of @conn@ is your case
+                     forkFinally (server ioref conn) (const $ gracefulClose conn 5000)
 
 z = payoff <$> [1, 2, 3] <*> [1, 2, 3] <*> [1, 2, 3] <*> [1, 2, 3]
 

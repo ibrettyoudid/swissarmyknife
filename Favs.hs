@@ -1009,19 +1009,33 @@ showFF17 n = showFF 17 n
 -- showFF :: Int -> Double -> String
 showFF d n = pad (d + 3) $ showFFloat (Just d) n ""
 
--- secantMethod::(Double -> Double) -> Double -> Double -> Double -> Int -> Double
-secantMethod n x0 x1 f = search x0 x1 (f x0) (f x1) n
+secantMethod n x0 x1 f = search n x0 x1 (f x0) (f x1)
    where
-      search x0 x1 fx0 fx1 n =
+      search n x0 x1 fx0 fx1 =
          let
             x2 = (x0 * fx1 - x1 * fx0) / (fx1 - fx0)
             fx2 = f x2
          in if n <= 0
                then x2
-               else search x1 x2 fx1 fx2 (n - 1)
+               else search (n - 1) x1 x2 fx1 fx2
 
--- secantMethodD::(Double -> Double) -> Double -> Double -> Double -> Int -> IO Double
-falsePos epsilon f = falsePos1 epsilon f $ getBrackets f
+-- the following equation solvers (falsePos and itp) are used like:
+
+-- itp epsilon f
+
+-- epsilon = how close to 0 we want to f(x) to be
+-- f = the equation/function to solve
+
+-- they both use getBracketsR to initially find values of opposite sign (bracketing)
+
+-- they both search for the x such that f(x) = 0
+
+-- to find other values of f(x), alter f(x) using findy f y, 
+-- which creates a new function that will be zero where your function is y
+
+falsePos epsilon f = falsePos1 epsilon f $ getBracketsR f
+
+-- falsePos1 and itp1 allow you to specify the initial brackets yourself
 
 falsePos1 epsilon f = loop
    where
@@ -1035,9 +1049,9 @@ falsePos1 epsilon f = loop
                0 -> x
                -1 -> loop ((lx, ly), (x, y))
 
-itp epsilon f = itp1 epsilon f $ getBrackets f
+itp epsilon f = itp1 epsilon f $ getBracketsR f
 
-itp1 = itp2 0.1 2 1 
+itp1 = itp2 0.1 2 1 -- some numbers specific to the itp algorithm
 
 itp2 k1 k2 n0 epsilon f ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
    where
@@ -1087,6 +1101,24 @@ itp2d k1 k2 n0 epsilon f ((lx, ly), (rx, ry)) = loop 0 ((lx, ly), (rx, ry))
                         0 -> []
                         -1 -> loop (j + 1) ((xitp, yitp), (rx, ry))
                else [(xh, lx, rx, ly, ry, j, nh, nmax, r, xf, sigma, delta, xt, xitp, yitp)]
+
+until2 :: Num a => (a -> Bool) -> (g -> (a, g)) -> g -> [(a, g)]
+until2 pred f x = dropWhile (not . pred . fst) $ iterate (f . snd) (0, x)
+
+-- given a function f :: Num -> Num should find values of either sign, ((x0, f x0), (x1, f x1)) with f x0 * f x1 < 0
+getBracketsR :: (Ord b, Uniform a, Num a, Floating a, Num b) => (a -> b) -> ((a, b), (a, b))
+getBracketsR f = let 
+   i  = map (wild . fst) $ iterate (uniform . snd) (0, unsafePerformIO initStdGen)
+   x0 = head i
+   fx0 = f x0
+   x1 = head $ filter (\x -> f x * fx0 < 0) (tail i)
+   fx1 = f x1
+   in ((x0, fx0), (x1, fx1))
+
+-- i don't think we want it uniform, we want it more spread out towards the larger numbers
+wild x = exp x
+
+getBracketsUser f x0 x1 = ((x0, f x0), (x1, f x1))
 
 getBrackets f = getBrackets1 6 11 1 2 f 0 (f 0) 
 
