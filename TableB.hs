@@ -291,8 +291,8 @@ instance (Show a, Show b, Show c, Show d, Show e) => Show (Table (a, b, c, d, e)
    show t = showGrid $ zipWith (++) (map showT $ fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => Show (Table (a, b, c, d, e, f, g, h, i, j) z Dynamic) where
-   show t = showGrid $ zipWith showColDH (map showT $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
-   --show t = showGridD colWidths5 showGrid1 width $ zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
+   --show t = showGrid $ zipWith showColDH (map showT $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
+   show t = showGridD colWidths1 width $ zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
 
 showTable  t = showTableC 0 15 t
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t

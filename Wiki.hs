@@ -618,9 +618,9 @@ cjpageB m joinType master cat title = do
             let t7 = join jLeft bzero master t6
             --putStrLn $ b "t7 ="
             --print t7
-            --writeFileBinary (convertString fname) $ c $ toCsv t7
+            writeFileBinary (convertString fname) $ c $ toCsv t7
             --putStrLn $ toCsv g4
-            when ("Religion" `isInfixOf` title) $ error "aaagh"
+            --when ("Religion" `isInfixOf` title) $ error "aaagh"
          
 foldMM f [x] = return x
 foldMM f (x:xs) = do

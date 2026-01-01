@@ -35,6 +35,7 @@ module MyPretty2 (
    showRowD1,
    gridDriver,
    gridTester,
+   forceLess,
    putGridW,
    width,
    wrapText,
@@ -352,7 +353,7 @@ rowHeights colWidths cellLengthsRow = reverse $ nubSet $ cellHeightsRow colWidth
 
 gridHeight cellLengthRows colWidths = sum $ map (rowHeight colWidths) cellLengthRows
 
-takeColumns width cellLengthCols = takeWhile (< fromIntegral width) $ scanl (+) 0 $ map (sqrt . mean . map fromIntegral) cellLengthCols
+maxColumns width colWidths = length $ takeWhile (< fromIntegral width) $ tail $ scanl (+) 0 colWidths -- $ map (sqrt . fromIntegral) colWidths
 
 adjustElem f col colWidths = let
    (b, x:a) = splitAt col colWidths
@@ -384,6 +385,10 @@ minIncWidthToDecHeight currWidths cellMapsRow =
 minIncWidthToDecHeight2 currWidths newWidths = do
    minWidths <- get
    put $ zipWith3 (\c n m -> max c $ min n m) currWidths newWidths minWidths
+
+--minIncHeightFromDecWidth
+
+--maxDecWidthFromIncHeight
 
 cellWideningPressure rowHeight colWidth cellHeight = let
    advantage   = cellHeight // colWidth
@@ -491,21 +496,21 @@ colWidths5A width cellLengthCols1 =
       cellLengthRows = transposez 0 cellLengthCols
       colWidths = map fromIntegral $ colWidths1 width cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
-   in (colWidths5B (fromIntegral width) cellLengthRows cellLengthCols, (colWidths, iterate (*0.75) 1), map round . fst)
+   in (colWidths5B (fromIntegral width) cellLengthRows cellLengthCols, (colWidths, iterate (*0.75) 100), map round . fst)
 
 -- repeatedly widen the column that has the most cells that are keeping their row from being lower
+colWidths5B :: Double -> [[Double]] -> [[Double]] -> ([Double], [Double]) -> ([Double], [Double])
 colWidths5B width cellLengthRows cellLengthCols (colWidths, anneal) =
    let
       cellHeightCols = zipWith cellHeightsCol colWidths cellLengthCols
       rowHeights = map (rowHeight colWidths) cellLengthRows
       colForces = zipWith (colWideningPressure rowHeights) colWidths cellLengthCols
-      maxForce  = maximum colForces
-      minForce  = minimum colForces
       meanForce = mean colForces
       cols      = fromIntegral $ length colWidths
       freeSpace = width - sum colWidths
 
-   in (zipWith (\f w -> w + (f - meanForce) * head anneal * freeSpace / meanForce / cols) colForces colWidths, tail anneal)
+   in -- trace (show (rowHeights, colForces, meanForce, cols, freeSpace, head anneal)) 
+      (zipWith (\f w -> w + (f - meanForce) * head anneal / meanForce / cols) colForces colWidths, tail anneal)
 
 colWidths5C width tab celllrows colWidths = do
    let t = transpose $ map (rowWideningPressure colWidths) celllrows
@@ -827,7 +832,7 @@ showCol col =
    in c
 
 -- showGridF f width tab = showGrid1 (f (width - length tab) tab) tab
-showGrid = showGridF colWidths5 showGrid1 width
+showGrid = showGridF colWidths1 showGrid1 width
 
 showGridWrap = showGridF colWidths1 showGridWrap1 width
 
@@ -837,26 +842,33 @@ showGridF f g width1 tab =
    let
       cellLengthCols = map2 length tab
       colWidths1 = colWidthsF cellLengthCols
-      width = width1 - length tab
+      width2 = width1 - length tab
       colWidths =
-         if sum colWidths1 < width
-            then colWidths1
-            else f width cellLengthCols
+         if sum colWidths1 < width2
+            then forceLess width2 colWidths1
+            else forceLess width2 $ f width cellLengthCols
 
    in g colWidths cellLengthCols $ padRWith "" tab
 
-showTerms (cw, rh, b, a, l, _) d = case fromDynamic d :: Maybe String of
-   Just s -> (0, 0, length s, padr l s)
-   Nothing -> case fromDynamic d :: Maybe Int of
-      Just i -> let s = show i in (length s, 0, 0, padl b s)
-      Nothing -> case fromDynamic d :: Maybe Double of
-         Just d -> let
-            s = showFFloat (Just 3) d ""
-            l1 = length s
-            p = fromMaybe l1 $ elemIndex '.' s
-            in
-            (p, l1 - p, 0, replicate (b - p) ' ' ++ showFFloat (Just $ 3 + a + p - l1) d "")
-         Nothing -> let s = show d in (length s, 0, 0, padr l s)
+showTerms (cw, rh, b, a, l, _) d = 
+   case fromDynamic d :: Maybe String of
+      Just s -> (0, 0, length s, padr l s)
+      Nothing -> 
+         case fromDynamic d :: Maybe Int of
+            Just i -> let
+               s = show i 
+               in (length s, 0, length s, padl b s)
+            Nothing -> 
+               case fromDynamic d :: Maybe Double of
+                  Just d -> let
+                     s = showFFloat (Just 3) d ""
+                     l1 = length s
+                     p = fromMaybe l1 $ elemIndex '.' s
+               
+                     in (p, l1 - p, length s, replicate (b - p) ' ' ++ showFFloat (Just $ 3 + a + p - l1) d "")
+                  Nothing -> let
+                     s = show d 
+                     in (0, 0, length s, padr l s)
 
 showColD1 xs dyncol = let
    (b, a, l, s) = unzip4 $ zipWith showTerms xs dyncol
@@ -874,7 +886,37 @@ showRowD1 row = let
          a2 = l2 - b2
          in (cw, rh, b2, a2, l2, s)) row
 
-showGridD f g width1 tab =
+showGridD f width1 tab1 =
+   let
+      colsz           = map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab1
+      cellLengthColsz = map2 (\(b1, a1, l1, _) -> max (b1 + a1) l1) colsz
+      colWidths00     = colWidthsF cellLengthColsz
+      ncols           = maxColumns width colWidths00
+      colWidths0      = take ncols colWidths00
+      cols            = take ncols colsz
+      tab             = take ncols tab1
+      cellLengthCols  = take ncols cellLengthColsz
+      width2          = width1 - ncols
+      colWidths       = if sum colWidths0 < width2
+                           then forceLess width2 colWidths0
+                           else forceLess width2 $ f width cellLengthCols
+
+      cols1  = zipWith showColD1 (map2 (\(b, a, l, s) -> (0, 0, b, a, l, s)) cols) tab
+      cols2  = zipWith zip (map repeat colWidths) cols1
+      rows3  = map showRowD1 $ transpose cols2
+      cols4  = transpose rows3
+      cols5  = zipWith showColD1 cols4 tab
+      cols6  = zipWith zip (map repeat colWidths) cols5
+      rows7  = map showRowD1 $ transpose cols6
+      cols8  = transpose rows7
+      cols9  = zipWith showColD1 cols8 tab
+      cols10 = zipWith zip (map repeat colWidths) cols9
+      rows11 = map showRowD1 $ transpose cols10
+      rows12 = map2 (\(cw, rh, _, _, _, s) -> map (take cw . padr cw) $ take rh $ padRWith1 "" rh $ groupN cw s) rows3
+   
+   in unlines $ concat $ map2 (intercalate "|") $ map transpose rows12
+
+showGridD1 f g width1 tab =
    let
       cellLengthCols = map2 (\(b1, a1, l1, _) -> max (b1 + a1) l1) $ map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab      
       colWidths1     = colWidthsF cellLengthCols
@@ -941,16 +983,16 @@ gridDriver width (f1, s, f2) = forceLess width $ last $ takeWhileUnique $ map f2
 gridTester width (f1, s, f2) = takeWhileUnique $ map f2 $ iterate f1 s
 
 forceLess width colWidths = let
-   colWidthsD  = map fromIntegral colWidths
-   total       = sum colWidthsD
-   mult        = fromIntegral width / total
-   colWidths2  = map (mult *) colWidthsD
-   colWidthsI  = map floor colWidths2
-   colWidthsZ  = sort $ zipWith (\w n -> (snd $ properFraction w, w, n)) colWidths2 [0..]
-   slack       = width - sum colWidthsI
+   colWidthsD  =  map fromIntegral colWidths
+   total       =  sum colWidthsD
+   mult        =  fromIntegral width / total
+   colWidths2  =  map (mult *) colWidthsD
+   colWidthsI  =  map floor colWidths2
+   colWidthsZ  =  sort $ zipWith (\w n -> (snd $ properFraction w, w, n)) colWidths2 [0..]
+   slack       =  width - sum colWidthsI
    (colWidthsB, colWidthsA)
-               = splitAt (length colWidths - slack) colWidthsZ
-   colWidthsC  = map (\(f, w, n) -> (n, floor   w)) colWidthsB ++
+               =  splitAt (length colWidths - slack) colWidthsZ
+   colWidthsC  =  map (\(f, w, n) -> (n, floor   w)) colWidthsB ++
                   map (\(f, w, n) -> (n, ceiling w)) colWidthsA
 
    in map snd $ sort colWidthsC
@@ -994,6 +1036,8 @@ It calculates the ratio of corresponding cells in each column
 And then finds the ratio that has equal amounts of text in the limiting cells above and below that ratio
 With three columns you want equal amounts of text in all the limiting cells of each column
 If you put the columns together in order of total text, would that be ideal?
+
+The question remains: can there be multiple minima?
 
 I think I found an analogy:
 Gas makes no sense, text is more like incompressible liquid
