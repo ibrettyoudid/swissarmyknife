@@ -200,13 +200,13 @@ This actually works
 Crosswords.
 This actually works.
 Solves crosswords.
-Can also create sator squares and variations as in the film Tenet.
-A Sator square is a square of words.
+Can also create Sator squares and variations as in the film Tenet.
+A Sator square is an interlocking square of words.
 
 ```
 SATOR
-AREPO
-TENET
+AREPO A city in Ukraine
+TENET A 
 OPERA
 ROTAS
 ```
@@ -221,7 +221,7 @@ NONET A group of nine
 GNATS Insects
 ```
 
-This is English (I swear) and was found with this code. I never managed to fix a larger one that's the same backwards and forwards like the original.
+This is English (I swear) and was found with this code. I never managed to find a larger one that's the same backwards and forwards like the original.
 
 But this is a 9x9 one with less symmetry I found with this code:
 
