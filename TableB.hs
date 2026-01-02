@@ -261,6 +261,10 @@ instance (Ord a, Ord b, Ord c, Ord d, Ord e, Show a, Show b, Show c, Show d, Sho
    uniquify = M.fromList
    showField = showT
 
+instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g, Ord h, Ord i, Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i) => UniqueList (a, b, c, d, e, f, g, h, i) where
+   uniquify = M.fromList
+   showField = showT
+
 instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g, Ord h, Ord i, Ord j, Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => UniqueList (a, b, c, d, e, f, g, h, i, j) where
    uniquify = M.fromList
    showField = showT
@@ -365,6 +369,9 @@ fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map2 (dynCell . clean) rs
 fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
 fromGridHD5 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
+
+fromGridHD9 c u n fs [] = TableB.empty
+fromGridHD9 c u n fs rs = fromGridH1 (zipWith (\fnum fnames -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, fnum, map clean fnames)) [1..] fs) $ map2 (dynCell . clean) rs
 
 fromGridHD10 c u n [] = TableB.empty
 fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
@@ -554,7 +561,7 @@ blankRec z f = T.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
 
 appendTable joinType (Table tfs tr) (Table bfs br) = let
    (tftobf2, fieldsj) = joinFields joinType tfs bfs
-   in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br -- fields are similar enough
+   in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br
 
 joinFields joinType tfs bfs = let
    --y = map (\((a, b, c, d, e, f, g, h, i, j), k) -> let) $ M.toList tfs
