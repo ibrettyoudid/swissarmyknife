@@ -553,25 +553,48 @@ addCalcField name func table = let
 blankRec z f = T.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
 
 appendTable joinType (Table tfs tr) (Table bfs br) = let
-   fmap = joinFields joinType tfs bfs
-   in Table tfs $ appendTableG tr $ translateTableG fmap br -- fields are similar enough
+   (tftobf2, fieldsj) = joinFields joinType tfs bfs
+   in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br -- fields are similar enough
 
 joinFields joinType tfs bfs = let
-   tfs1 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList tfs
-   bfs1 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList bfs
-   maxt = maximum $ map snd $ M.toList tfs
-   fmap = map snd $ M.toList $ unionWith3A joinType (,) (-1,) (,-1) tfs1 bfs1
-   (f, g) = partition ((< 0) . fst) fmap
-   f1 = zip [maxt+1..] $ map snd f
-   in M.fromList $ map tflip (f1 ++ g)
+   --y = map (\((a, b, c, d, e, f, g, h, i, j), k) -> let) $ M.toList tfs
+   tfs1 = M.fromList $ map (\(y@(a, b, c, d, e, f, g, h, i, j), k) -> (y, (a, b, c, d, e, f, g, j))) $ M.toList tfs
+   bfs1 = M.fromList $ map (\(y@(a, b, c, d, e, f, g, h, i, j), k) -> (y, (a, b, c, d, e, f, g, j))) $ M.toList bfs
+   tfs2 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList tfs
+   bfs2 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList bfs
+   z = -1
+   -- the field numbers in bfs must be changed to match those in tfs
+   -- for the fields that are in bfs but not tfs, we need new numbers. 
+   -- we can start numbering from maxt+1 because we can ignore the current bfs numbers,
+   -- because they're going to be changed anyway
+   f8 = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
+   tftobf = map snd $ M.toList f8 
+   maxtf  = maximum $ map fst tftobf
+   (bnott, tfs3) = partition ((== z) . fst) tftobf -- bnott, the fields in bfs but not tfs, are marked with a -1 entry for tf (the first)
+   bnott1 = zip [maxtf+1..] $ map snd bnott -- new field numbers
+   tftobf2 = M.fromList (bnott1 ++ filter ((/= z) . snd) tfs3)
+   bftotf  = M.fromList $ map (\(tf, bf) -> if bf == z then (tf, tf) else (bf, tf)) (bnott1 ++ tfs3)
+
+   -- and now we need to do the field indices
+   -- M.union tfs bfs is all the original dectuples from tfs plus the ones from bfs not in tfs
+   -- ie. a map from tuples to field numbers in tfs or bfs
+   -- the ones in both have the tfs field numbers
+
+   -- in this call:
+   -- M.compose Map b c -> Map a b -> Map a c
+   -- a is the dectuples
+   -- b is the old field numbers
+   -- c is the new field numbers
+   fieldsj = M.compose bftotf (M.union tfs bfs) 
+   in (tftobf2, fieldsj)
 
 appendTableG (INode ts) (INode bs) = INode $ M.unionWith appendTableG ts bs
 appendTableG (Recs  ts) (Recs  bs) = Recs  $ T.append (T.minKey bs - T.maxKey ts + 1) ts bs
 appendTableG (Rec   ts) (Rec   bs) = Rec   $ T.union ts bs
 
-translateTableG fmap (INode bs) = INode $ M.map (translateTableG fmap) bs
-translateTableG fmap (Recs  bs) = Recs  $ T.map (translateTableG fmap) bs
-translateTableG fmap (Rec   bs) = Rec   $ T.fromList $ M.toList $ M.compose (M.fromList $ T.toList bs) fmap
+translateTableG tftobf2 (INode bs) = INode $ M.map (translateTableG tftobf2) bs
+translateTableG tftobf2 (Recs  bs) = Recs  $ T.map (translateTableG tftobf2) bs
+translateTableG tftobf2 (Rec   bs) = Rec   $ T.fromList $ M.toList $ M.compose (M.fromList $ T.toList bs) tftobf2
 
 -- foldTable f z n t =
 foldSubTable fs (Table flds g) = applyL fs $ Record flds $ foldSubTableG g

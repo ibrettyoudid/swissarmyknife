@@ -679,7 +679,7 @@ tableJoin (t1, t2) t3 = do
    putStrLn $ b "t3 = "
    print t3
    let
-      fmap23 = joinFields jInner (fields t2) (fields t3)
+      fmap23 = snd $ joinFields jInner (fields t2) (fields t3)
       join12 = join jInner bzero t1 t2
       fj = fromIntegral (M.size fmap23)
       f2 = fromIntegral (M.size (fields t2))
@@ -692,13 +692,13 @@ tableJoin (t1, t2) t3 = do
    putGrid [["fj", "f2", "f3", "fr", "rj", "r1", "r2", "rr"], map show [fj, f2, f3, fr, rj, r1, r2, rr]]
    if fr > rr * 2
       then do
-         putStrLn $ b "appending"
+         putStrLn $ b "-----APPENDING-----"
          let t4 = appendTable jOuter t2 t3
          putStrLn $ b "t2 ="
          print t4
          return (t1, t4)
       else do
-         putStrLn $ b "joining"
+         putStrLn $ b "| | | JOINING | | |"
          let t4 = join jLeft bzero t1 t2
          putStrLn $ b "t1 ="
          print t4

@@ -353,7 +353,7 @@ rowHeights colWidths cellLengthsRow = reverse $ nubSet $ cellHeightsRow colWidth
 
 gridHeight cellLengthRows colWidths = sum $ map (rowHeight colWidths) cellLengthRows
 
-maxColumns width colWidths = length $ takeWhile (< fromIntegral width) $ tail $ scanl (+) 0 colWidths -- $ map (sqrt . fromIntegral) colWidths
+maxColumns width colWidths = length $ takeWhile (< width) $ tail $ scanl (+) 0 $ map (+1) colWidths -- $ map (sqrt . fromIntegral) colWidths
 
 adjustElem f col colWidths = let
    (b, x:a) = splitAt col colWidths
@@ -882,8 +882,10 @@ showRowD1 row = let
    rh = maximum $ map (\(cw, (b1, a1, l1, s)) -> ceiling (fromIntegral l1 / fromIntegral cw)) row
    in map (\(cw, (b1, a1, l1, s)) -> let
          l2 = cw * rh
-         b2 = if b1 + a1 > cw then ceiling (fromIntegral l2 / fromIntegral cw) * cw else b1
-         a2 = l2 - b2
+         --b2 = if b1 + a1 > cw then ceiling (fromIntegral l2 / fromIntegral cw) * cw else b1
+         --a2 = l2 - b2
+         a2 = if b1 + a1 > cw then l2 // cw * cw else a1
+         b2 = l2 - a2
          in (cw, rh, b2, a2, l2, s)) row
 
 showGridD f width1 tab1 =
@@ -891,7 +893,7 @@ showGridD f width1 tab1 =
       colsz           = map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab1
       cellLengthColsz = map2 (\(b1, a1, l1, _) -> max (b1 + a1) l1) colsz
       colWidths00     = colWidthsF cellLengthColsz
-      ncols           = maxColumns width colWidths00
+      ncols           = maxColumns width1 colWidths00
       colWidths0      = take ncols colWidths00
       cols            = take ncols colsz
       tab             = take ncols tab1
@@ -912,7 +914,13 @@ showGridD f width1 tab1 =
       cols9  = zipWith showColD1 cols8 tab
       cols10 = zipWith zip (map repeat colWidths) cols9
       rows11 = map showRowD1 $ transpose cols10
-      rows12 = map2 (\(cw, rh, _, _, _, s) -> map (take cw . padr cw) $ take rh $ padRWith1 "" rh $ groupN cw s) rows3
+      rows12 = unsafePerformIO $ do
+         putStrLn ""
+         print $ map head cols2
+         putStrLn ""
+         print $ head rows3
+         putStrLn ""
+         return $ map2 (\(cw, rh, _, _, _, s) -> map (take cw . padr cw) $ take rh $ padRWith1 "" rh $ groupN cw s) rows11
    
    in unlines $ concat $ map2 (intercalate "|") $ map transpose rows12
 

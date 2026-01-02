@@ -12,6 +12,8 @@ git clone https://github.com/ibrettyoudid/swissarmyknife
 cabal build
 ```
 
+It's being updated regularly so it's possible some bugs may slip in with the features
+
 ## FuzzyMatch
 
 Edit distance (aka Levenshtein distance) between two strings / many strings / best matching pairs of strings.
@@ -206,7 +208,7 @@ A Sator square is an interlocking square of words.
 ```
 SATOR
 AREPO A city in Ukraine
-TENET A 
+TENET A principle or belief
 OPERA
 ROTAS
 ```
@@ -242,5 +244,5 @@ I've improved the code a bit, since. I might try for a 10x10 one
 ## Poker
 
 Poker bot for Facebook
-Needs a replacement Javascript file `bundle.min.js` that you set up in your browser, to make the browser talk to the Haskell code via a socket
+Uses a replacement Javascript file `bundle.min.js` that you set up in your browser, to make the browser talk to the Haskell code via a socket
 

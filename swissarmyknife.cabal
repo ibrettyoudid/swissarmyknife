@@ -164,6 +164,7 @@ library
         Prob, 
         Prolog, 
         Prolog3,
+        ReverseProxy,
         ReverseProxy2,
         RPS,
         SetList,
