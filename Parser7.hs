@@ -40,6 +40,7 @@ import GHC.Stack
 import Data.IORef
 import Graphics.Rendering.Cairo (RectangleInt(x))
 import System.IO.Unsafe
+import Foreign.C (CWchar)
 
 data Rule tok =
    Seq [Rule tok]
@@ -571,6 +572,7 @@ ii Nothing = id
 data State tok = Scan     { item :: Item tok, from :: SL.SetList (State tok) }
                | Predict  { item :: Item tok, from :: SL.SetList (State tok) }
                | Scanned  { item :: Item tok,                                 prev :: SL.SetList (State tok) }
+               | Early    { item :: Item tok,                                 prev :: SL.SetList (State tok) }
                | Complete { item :: Item tok, from :: SL.SetList (State tok) } --, prev :: [State tok] }
                | From     { item :: Item tok, from :: SL.SetList (State tok), prev :: SL.SetList (State tok) }
                deriving (Eq, Ord, Show)
@@ -738,8 +740,9 @@ parseE r t = do
    return $ map result $ filter ((r ==) . rule) $ map (item . snd) $ M.toList res
 
 parseE1 map1 (n, t) = do
-   putStrLn "SCANNING"
+   putStrLn "END OF TOKEN"
    mapM_ (print . fst) $ M.toList map1
+   putStrLn "SCANNING"
    let state = scan t map1
    putStrLn "SCANNED!!!!"
    print state
@@ -752,6 +755,18 @@ parseE2 map2 (n, t) = do
    (_, done, _) <- parseE3 complete predict n t (True, map2, SL.fromList $ map snd $ M.toList map2)
 
    return done
+
+{-
+                     +====swap f,g====+
+                     |                |
+                     v                |
+parseE2 ==> parseE3 ======> parseE4 ==+
+              /  \              |
+             /    \             |
+            /      \            v
+      (parseE5 f) (parseE5 g) (parseE5 f/g)
+-}
+
 
 parseE3 f g n t (changed, mapd, sln) = do
    a@(changed1, mapd1, sln1) <- parseE5 f n t (False, mapd, sln)
@@ -823,7 +838,7 @@ predict1 n t args s = do
 completeEarly n t args s = do
    let items = completeEarly2 n $ item s
 
-   res <- process Complete s args items
+   res <- process Early s args items
 
    return res
 
@@ -864,6 +879,57 @@ seqstart state@(Complete {})= do
 seqstart state@(Scanned {}) = do
    prev1 <- SL.list $ prev state
    seqstart prev1
+
+sequences state = map reverse $ sequences1 state
+
+sequences1 state@(Predict {}) = return [state]
+
+sequences1 state@(Complete {})= do
+   from1 <- SL.list $ from state
+   prev1 <- SL.list $ prev from1
+   rest <- sequences1 prev1
+   return $ state:rest
+
+sequences1 state@(Scanned {}) = do
+   prev1 <- SL.list $ prev state
+   rest <- sequences1 prev1
+   return $ state:rest
+
+sequences1 state@(Early {}) = do
+   prev1 <- SL.list $ prev state
+   rest <- sequences1 prev1
+   return $ state:rest
+
+seqInitsHard state@(Predict  {}) = [state]
+seqInitsHard state@(Complete {}) = concatMap seqInitsHard $ seqPrev state
+seqInitsHard state@(Scanned  {}) = concatMap seqInitsHard $ seqPrev state
+seqInitsHard state@(Early    {}) = concatMap seqInitsHard $ seqPrev state
+
+initParents :: State tok -> [State tok]
+initParents state@(Predict  {}) = SL.toList $ from state
+
+sequencesHard state = map reverse $ sequencesHard1 state
+
+sequencesHard1 :: State tok -> [[State tok]]
+sequencesHard1 state@(Predict  {}) = return [state]
+sequencesHard1 state = do
+   seqPrev1 <- seqPrev state
+   rest <- sequencesHard1 seqPrev1
+   return $ state : rest
+   
+seqPrev :: State tok -> [State tok]
+seqPrev state@(Complete {}) = do
+   from1 <- SL.toList $ from state
+   from2 <- SL.toList $ from from1
+   seqInit1 <- seqInitsHard from2
+   initParents seqInit1
+seqPrev state@(Scanned  {}) = SL.toList $ prev state
+seqPrev state@(Early    {}) = SL.toList $ prev state
+seqPrev state@(Predict  {}) = error "doesn't make sense to call seqPrev on a Predict"
+seqPrev state@(From     {}) = do
+   from2 <- SL.toList $ from state
+   seqInit1 <- seqInitsHard from2
+   initParents seqInit1
 
 --paux (Seq  as ) q = [as !! q | q < length as]
 paux (Alt  as ) 0 = as
@@ -980,50 +1046,6 @@ slength _ = 1
 
 ilength as = if null as then 0 else length $ head as
 
-
-sequences state = map reverse $ sequences1 state
-
-sequences1 state@(Predict {}) = return [state]
-
-sequences1 state@(Complete {})= do
-   from1 <- SL.list $ from state
-   prev1 <- SL.list $ prev from1
-   rest <- sequences1 prev1
-   return $ state:rest
-
-sequences1 state@(Scanned {}) = do
-   prev1 <- SL.list $ prev state
-   rest <- sequences1 prev1
-   return $ state:rest
-
-seqInitsHard state@(Predict  {}) = [state]
-seqInitsHard state@(Complete {}) = concatMap seqInitsHard $ seqPrev state
-seqInitsHard state@(Scanned  {}) = concatMap seqInitsHard $ seqPrev state
-
-initParents :: State tok -> [State tok]
-initParents state@(Predict  {}) = SL.toList $ from state
-
-sequencesHard state = map reverse $ sequencesHard1 state
-
-sequencesHard1 :: State tok -> [[State tok]]
-sequencesHard1 state@(Predict  {}) = return [state]
-sequencesHard1 state = do
-   seqPrev1 <- seqPrev state
-   rest <- sequencesHard1 seqPrev1
-   return $ state : rest
-   
-seqPrev :: State tok -> [State tok]
-seqPrev state@(Complete {}) = do
-   from1 <- SL.toList $ from state
-   from2 <- SL.toList $ from from1
-   seqInit1 <- seqInitsHard from2
-   initParents seqInit1
-seqPrev state@(Scanned  {}) = SL.toList $ prev state
-seqPrev state@(Predict  {}) = error "doesn't make sense to call seqPrev on a Predict"
-seqPrev state@(From     {}) = do
-   from2 <- SL.toList $ from state
-   seqInit1 <- seqInitsHard from2
-   initParents seqInit1
 
 
 showSequences state = unlines $ showSequences1 state
@@ -1275,7 +1297,17 @@ children states (State f t i) = do
 -}
 
 
-data Doc str = DStr str | DGroup [Doc str] | DSeq [Doc str] | DLines [str] | DTab [[Doc str]] | HStretch [Doc str] deriving (Eq, Ord, Show)
+data Doc char str = DStr                 str 
+                  | DGroup     [Doc char str] 
+                  | DSeq       [Doc char str] 
+                  | DLines              [str] 
+                  | DTab      [[Doc char str]] 
+                  | DRows      [Doc char str] -- should be made up of DStrs and VStretches
+                  | DCols      [Doc char str] -- should be made up of DStrs and HStretches
+                  | HStretch            [str]
+                  | VStretch             str
+                  | CharStr         char
+                  deriving (Eq, Ord, Show)
 
 data Doc2 str = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [str]} deriving (Eq, Ord)
 
@@ -1283,7 +1315,7 @@ fp p e = format <$> print1 p e
 
 fp2 p e = format <$> print2 (translate p) e
 
-print1 :: RuleR t a -> a -> Maybe (Doc [t])
+print1 :: RuleR t a -> a -> Maybe (Doc t [t])
 print1 (SeqR   as ) e = mergeSeq <$> zipWithM print1 as e
 print1 (AltR   as ) e = firstJust1 $ map (\a -> print1 a e) as
 print1 (ApplyR a b) e = unapply a e >>= print1 b
@@ -1294,7 +1326,7 @@ print1 (TokenR t  ) e = ifJust (t == e) $ DStr [t]
 print1 AnyTokenR    e = Just $ DStr [e]
 --print1 other        e = error $ show other
 
-print2 :: Rule Char -> Dynamic -> Maybe (Doc [Char])
+print2 :: Rule Char -> Dynamic -> Maybe (Doc Char [Char])
 print2 (Seq   as ) e = do m <- zipWithM print2 as (fromDyn1 e :: [Dynamic]); return $ mergeSeq m
 print2 (Alt   as ) e = firstJust1 $ map (\a -> print2 a e) as
 print2 (Apply a b) e = unapply a e >>= print2 b
@@ -1319,7 +1351,7 @@ sizes (DTab tab) = let
 tabSizes tab = let 
    sizes1 = map2 sizes tab
    colWidths = map maximum $ map2 fst sizes1
-   rowHeights = map maximum $ map2 snd $ transpose sizes1
+   rowHeights = map maximum $ transpose $ map2 snd sizes1
 
    in (colWidths, rowHeights)
 
@@ -1330,12 +1362,13 @@ format2 (DTab tab) = let
 
 format3 cw rh col = zipWith (format4 cw) rh col
 
-format4 w h (DLines lines1) = map (padRWith1 ' ' w) $ padRWith1 "" h lines1
+format4 w h (DLines   lines1) = map (padRWith1 ' ' w) $ padRWith1 "" h lines1
+format4 w h (HStretch lines1) = map (take w . cycle) lines1
+format4 w h (VStretch line1 ) = replicate h line1
 
-
-mergeDocs (DSeq s) = mergeSeq $ mergeStrs1 $ map mergeDocs s
+mergeDocs (DSeq   s) = mergeSeq $ mergeStrs1 $ map mergeDocs s
 mergeDocs (DGroup a) = DGroup $ map mergeDocs a
-mergeDocs (DStr s) = DStr s
+mergeDocs (DStr   s) = DStr s
 
 mergeStrs1 [] = []
 mergeStrs1 (DStr a : DStr b : cs) = mergeStrs1 (DStr (a ++ b) : cs)
