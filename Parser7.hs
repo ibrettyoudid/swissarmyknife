@@ -9,6 +9,8 @@
 {-# HLINT ignore "Redundant multi-way if" #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Avoid lambda using `infix`" #-}
+{-# HLINT ignore "Redundant return" #-}
+{-# HLINT ignore "Use const" #-}
 {- HLINT ignore "Use tuple-section" -}
 
 module Parser7 where
@@ -636,7 +638,7 @@ instance Show tok => Show (Rule tok) where
 showRule (Seq   as ) = enclose2 (showSeq as) 3
 showRule (Then  a b) = \p -> enclose (p >= 3) (showRule a 3 $ (" then " ++) $ showRule b 3 "")
 showRule (Alt   as ) = enclose1 (intercalate " | ") as 2
-showRule (Name  a _) = \p -> (a++)
+showRule (Name  a _) = \p -> ((a ++ " ") ++)
 showRule (Token a  ) = \p -> (show a++)
 showRule (Range a b) = \p -> (unwords ["[" ++ show a ++ ".." ++ show b ++ "]"]++)
 showRule (Not     a) = enclose2 (("Not "   ++) .: showRule a) 7
@@ -708,9 +710,9 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 --ident = Name "ident" $ cons (Alt [alpha, under]) ident1
 --ident1 = Many (Alt [alpha, under, digit])
 
---expr = Name "expr" $ Alt [expr `Then` Token '+' `Then` expr], Token 'a']
+exprsimple = Name "expr" $ Alt [Seq [exprsimple, Token '+', exprsimple], Token 'a']
 
-test = parseE (Seq [Token 'b', Token 'a']) "ba"
+test = parseE exprsimple "a+a+a"
 
 linePos = M.fromList . zip [(0::Int)..] . (0:) . map (+1) . findIndices (=='\n')
 
@@ -804,7 +806,8 @@ process f s args@(changed, mapd, sln) items = do
 
 predict n t args@(changed, mapd, sln) sla = do
    putStrLn "PREDICT ----------------------------"
-   foldM (predict1 n t) (changed, mapd, sln) sla
+   res <- foldM (predict1 n t) (changed, mapd, sln) sla
+   foldM (completeEarly n t) res sla
 
 predict1 n t args s = do
    --print s
@@ -815,6 +818,13 @@ predict1 n t args s = do
    res <- process Predict s args items
    --putStrLn "result"
    --print res
+   return res
+
+completeEarly n t args s = do
+   let items = completeEarly2 n $ item s
+
+   res <- process Complete s args items
+
    return res
 
 complete n t args@(changed, mapd, sln) sla = do
@@ -854,6 +864,122 @@ seqstart state@(Complete {})= do
 seqstart state@(Scanned {}) = do
    prev1 <- SL.list $ prev state
    seqstart prev1
+
+--paux (Seq  as ) q = [as !! q | q < length as]
+paux (Alt  as ) 0 = as
+paux (Name a b) 0 = [b]
+--paux (ManyTill a b) 0 = [a, b]
+paux _ _ = []
+
+predict2 n (Item (Seq    as   ) Running (ISeq j)) = [start (as !! ilength j)]
+predict2 n (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
+predict2 n (Item (Many   a    ) Running (IMany done)) = [start a]
+predict2 n (Item (Name   a b  ) Running _       ) = [start b]
+predict2 n (Item (Apply  a b  ) Running _       ) = [start b]
+predict2 n (Item (Set    a b  ) Running _       ) = [start b]
+predict2 n (Item (Not    a    ) Running _       ) = [start a]
+predict2 n (Item (Bind   a b  ) Running _       ) = [start a]
+--predict2 (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
+predict2 n (Item {}) = []
+
+--start r@(Not a) = Item r (Pass $ toDyn ()) Item2
+start r = Item r Running $ start1 r
+
+start1 (Seq  a) = ISeq [[]]
+start1 (Alt  a) = IAlt 0
+start1 (Many a) = IMany [[]]
+start1 _ = Item2
+
+saux ch (Token c  ) = ch == c
+saux ch (Range c d) = ch >= c && ch <= d
+saux ch AnyToken    = True
+saux _ _ = False
+
+
+completeEarly2 n (Item (Many   a    ) Running (IMany done)) = if done == [[]] then [Item (Many a) (mytrace2 "completeEarly2: " $ Pass []) (IMany [[]]), start a] else []
+completeEarly2 n (Item (Not    a    ) Running _           ) = [Item (Not a) (Pass [toDyn ()]) Item2]
+completeEarly2 n (Item (Return a    ) Running _           ) = [Item (Return a) (Pass [a]) Item2]
+completeEarly2 n (Item  Pos           Running _           ) = [Item Pos (Pass [toDyn n]) Item2]
+
+completeEarly2 n (Item {}) = []
+--retrieve = iterate prev
+
+complete3 sub main@(Item r@(Seq as) s (ISeq seqs))
+   | result sub == Fail = [Item r Fail      (ISeq  seqs   )]
+   | otherwise          = let
+      seqsNew = [seq ++ [ast] | seq <- seqs, ast <- asts $ result sub]
+      in trace ("seqsNew = "++show seqsNew++" asts = "++show (asts (result sub))) $ if ilength seqsNew == length as 
+            then [Item r (Pass $ map toDyn seqsNew) (ISeq  seqsNew)]
+            else [Item r Running                    (ISeq  seqsNew)]
+
+complete3 sub main@(Item x@(Alt as) q (IAlt n))
+   | passi sub     = [Item x (result sub) (IAlt  n     )]
+   | n < length as = [Item x Running      (IAlt (n + 1))]
+   | otherwise     = [Item x (result sub) (IAlt  n     )]
+
+complete3 sub main@(Item x@(Name d e) q i2) = [Item x (result sub) i2]
+
+complete3 sub main@(Item x@(Apply d e) q _) =
+   case result sub of
+      Pass reslist -> 
+         case x of
+            Apply iso@(Iso n f g) _ -> trace ("calling Iso "++n++" with mapMaybe (apply iso) "++show reslist) $
+               case mapMaybe (apply iso) reslist of
+                  [] -> [Item x  Fail    Item2]
+                  l  -> [Item x (Pass l) Item2]
+      Fail -> [Item x Fail Item2]
+
+complete3 sub main@(Item x@(Not d) q i2) = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } ) Item2]
+
+complete3 sub main@(Item x@(Bind a (b, c)) q _) =
+   case result sub of
+      Pass reslist -> do
+         res <- reslist
+         case b res of
+            r2 -> [start r2]
+      Fail -> [Item x Fail Item2]
+
+complete3 sub main@(Item x@(Many a) q (IMany done)) =
+--   Item x (Pass $ toDyn done) Item2 :
+   case result sub of
+      Pass reslist -> 
+         let newdone = [seq ++ [res] | seq <- done, res <- reslist]
+         in [Item x Running (IMany newdone), Item x (mytrace2 ("complete3: done="++show done++" newdone="++show newdone++" reslist="++show reslist++" returns ") $ Pass $ map toDyn newdone) (IMany newdone)]
+      Fail     -> []
+{-
+retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
+
+retrieve1 states mainseq n sub = let
+   prev1 = S.filter (\prevst -> pass (result $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (states !! from sub)
+   from7 = only $ S.toList prev1
+   in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) from7else []
+-}
+mytrace2 m x = unsafePerformIO $ mytrace3 m x
+
+mytrace3 m x = do
+   putStrLn $ m ++ show x
+   return x
+
+caux (Seq as) q y = as !! q == y
+caux (Alt as) q y = y `elem` as
+caux (Name a b) q y = b == y
+--caux (ManyTill a b) q y = a == y
+caux _ _ _ = False
+
+subitem (Item (Seq   as ) _ (ISeq seqs)) sub = let n = ilength seqs in n < length as && as !! n == rule sub
+subitem (Item (Then  a b) _ (ISeq seqs)) sub = let n = ilength seqs in case n of { 0 -> a == rule sub; 1 -> b == rule sub }
+subitem (Item (Alt   as ) _ _       ) sub = rule sub `elem` as
+subitem (Item (Name  a b) _ _       ) sub = b == rule sub
+subitem (Item (Apply a b) _ _       ) sub = b == rule sub
+subitem (Item (Not   a  ) _ _       ) sub = a == rule sub
+subitem (Item (Many  a  ) _ _       ) sub = a == rule sub
+subitem (Item {                    }) sub = False
+
+slength (Seq as) = length as
+slength _ = 1
+
+ilength as = if null as then 0 else length $ head as
+
 
 sequences state = map reverse $ sequences1 state
 
@@ -938,13 +1064,13 @@ showSequencesD3A state prev1 = showTree (showSequencesD1A prev1) ""
 
 showVTree lines1 =
                ["  /",
-               " / ",
-               "/  "]
+                " / ",
+                "/  "]
             ++ intercalate
                ["|  ",
-               "|  ",
-               "|  "]
-               lines1
+                "|  ",
+                "|  "]
+                lines1
               
 --showVTree lines1 = 
 
@@ -1051,118 +1177,6 @@ completeZ n (s:states) stateOfItem = let
    in completeZ n states stateOfItemNew
 -}
 
---paux (Seq  as ) q = [as !! q | q < length as]
-paux (Alt  as ) 0 = as
-paux (Name a b) 0 = [b]
---paux (ManyTill a b) 0 = [a, b]
-paux _ _ = []
-
-predict2 n (Item (Seq    as   ) Running (ISeq j)) = [start (as !! ilength j)]
-predict2 n (Item (Alt    as   ) Running (IAlt 0)) = [start a | a <- as]
-predict2 n (Item (Many   a    ) Running (IMany done)) = if done == [[]] then [Item (Many a) (mytrace2 "predict2: " $ Pass []) (IMany [[]]), start a] else [start a]
-predict2 n (Item (Name   a b  ) Running _       ) = [start b]
-predict2 n (Item (Apply  a b  ) Running _       ) = [start b]
-predict2 n (Item (Set    a b  ) Running _       ) = [start b]
-predict2 n (Item (Not    a    ) Running _       ) = [start a, Item (Not a) (Pass [toDyn ()]) Item2]
-predict2 n (Item (Bind   a b  ) Running _       ) = [start a]
-predict2 n (Item (Return a    ) Running _       ) = [Item (Return a) (Pass [a]) Item2]
-predict2 n (Item  Pos           Running _       ) = [Item Pos (Pass [toDyn n]) Item2]
---predict2 (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
-predict2 n (Item {}) = []
-
---start r@(Not a) = Item r (Pass $ toDyn ()) Item2
-start r = Item r Running $ start1 r
-
-start1 (Seq  a) = ISeq [[]]
-start1 (Alt  a) = IAlt 0
-start1 (Many a) = IMany [[]]
-start1 _ = Item2
-
-saux ch (Token c  ) = ch == c
-saux ch (Range c d) = ch >= c && ch <= d
-saux ch AnyToken    = True
-saux _ _ = False
-
-
-
-
---retrieve = iterate prev
-
-complete3 sub main@(Item r@(Seq as) s (ISeq seqs))
-   | result sub == Fail = [Item r Fail      (ISeq  seqs   )]
-   | otherwise          = let
-      seqsNew = [seq ++ [ast] | seq <- seqs, ast <- asts $ result sub]
-      in trace ("seqsNew = "++show seqsNew++" asts = "++show (asts (result sub))) $ if ilength seqsNew == length as 
-            then [Item r (Pass $ map toDyn seqsNew) (ISeq  seqsNew)]
-            else [Item r Running                    (ISeq  seqsNew)]
-
-complete3 sub main@(Item x@(Alt as) q (IAlt n))
-   | passi sub     = [Item x (result sub) (IAlt  n     )]
-   | n < length as = [Item x Running      (IAlt (n + 1))]
-   | otherwise     = [Item x (result sub) (IAlt  n     )]
-
-complete3 sub main@(Item x@(Name d e) q i2) = [Item x (result sub) i2]
-
-complete3 sub main@(Item x@(Apply d e) q _) =
-   case result sub of
-      Pass reslist -> 
-         case x of
-            Apply iso@(Iso n f g) _ -> trace ("calling Iso "++n++" with mapMaybe (apply iso) "++show reslist) $
-               case mapMaybe (apply iso) reslist of
-                  [] -> [Item x  Fail    Item2]
-                  l  -> [Item x (Pass l) Item2]
-      Fail -> [Item x Fail Item2]
-
-complete3 sub main@(Item x@(Not d) q i2) = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } ) Item2]
-
-complete3 sub main@(Item x@(Bind a (b, c)) q _) =
-   case result sub of
-      Pass reslist -> do
-         res <- reslist
-         case b res of
-            r2 -> [start r2]
-      Fail -> [Item x Fail Item2]
-
-complete3 sub main@(Item x@(Many a) q (IMany done)) =
---   Item x (Pass $ toDyn done) Item2 :
-   case result sub of
-      Pass reslist -> 
-         let newdone = [seq ++ [res] | seq <- done, res <- reslist]
-         in [Item x Running (IMany newdone), Item x (mytrace2 ("complete3: done="++show done++" newdone="++show newdone++" reslist="++show reslist++" returns ") $ Pass $ map toDyn newdone) (IMany newdone)]
-      Fail     -> []
-{-
-retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
-
-retrieve1 states mainseq n sub = let
-   prev1 = S.filter (\prevst -> pass (result $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (states !! from sub)
-   from7 = only $ S.toList prev1
-   in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) from7else []
--}
-mytrace2 m x = unsafePerformIO $ mytrace3 m x
-
-mytrace3 m x = do
-   putStrLn $ m ++ show x
-   return x
-
-caux (Seq as) q y = as !! q == y
-caux (Alt as) q y = y `elem` as
-caux (Name a b) q y = b == y
---caux (ManyTill a b) q y = a == y
-caux _ _ _ = False
-
-subitem (Item (Seq   as ) _ (ISeq seqs)) sub = let n = ilength seqs in n < length as && as !! n == rule sub
-subitem (Item (Then  a b) _ (ISeq seqs)) sub = let n = ilength seqs in case n of { 0 -> a == rule sub; 1 -> b == rule sub }
-subitem (Item (Alt   as ) _ _       ) sub = rule sub `elem` as
-subitem (Item (Name  a b) _ _       ) sub = b == rule sub
-subitem (Item (Apply a b) _ _       ) sub = b == rule sub
-subitem (Item (Not   a  ) _ _       ) sub = a == rule sub
-subitem (Item (Many  a  ) _ _       ) sub = a == rule sub
-subitem (Item {                    }) sub = False
-
-slength (Seq as) = length as
-slength _ = 1
-
-ilength as = if null as then 0 else length $ head as
 
 {-
 predict3 c (Item (Alt  as  ) 0) = [Item a 0 | a <- as]
