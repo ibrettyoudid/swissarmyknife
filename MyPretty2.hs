@@ -75,6 +75,7 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
+import GHC.Stack
 
 width1 = 412
 
@@ -277,7 +278,9 @@ instance Divisible Int where
 instance Divisible Double where
    (//) = (/)
 
-colWidthsF cellwcols = map maximum cellwcols
+checkNoNulls cellwcols = if not $ null $ filter null cellwcols then error "some columns are []" else cellwcols
+
+colWidthsF cellwcols = map maximum $ checkNoNulls cellwcols
 
 colWidthsV cellwcols =
    let
@@ -295,7 +298,7 @@ colWidths1 width cellLengthCols = gridDriver width (colWidths1A width cellLength
 colWidths1A :: (Integral a, Integral b) => a -> [[a]] -> ((a, a, [(a, b)], [a], [a]) -> (a, a, [(a, b)], [a], [a]), (a, a, [(a, b)], [a], [a]), (a, a, [(a, b)], [a], [a]) -> [a])
 colWidths1A width cellLengthCols =
    let
-      colwsF = map maximum cellLengthCols
+      colwsF = map maximum $ checkNoNulls cellLengthCols
       colwsV = map sum cellLengthCols
 
    in
@@ -850,24 +853,24 @@ showGridF f g width1 tab =
 
    in g colWidths cellLengthCols $ padRWith "" tab
 
-showTerms (cw, rh, b, a, l, _) d = 
+showTerms (cw, rh, b, a, l, _) d =
    case fromDynamic d :: Maybe String of
       Just s -> (0, 0, length s, padr l s)
-      Nothing -> 
+      Nothing ->
          case fromDynamic d :: Maybe Int of
             Just i -> let
-               s = show i 
+               s = show i
                in (length s, 0, length s, padl b s)
-            Nothing -> 
+            Nothing ->
                case fromDynamic d :: Maybe Double of
                   Just d -> let
                      s = showFFloat (Just 3) d ""
                      l1 = length s
                      p = fromMaybe l1 $ elemIndex '.' s
-               
+
                      in (p, l1 - p, length s, replicate (b - p) ' ' ++ showFFloat (Just $ 3 + a + p - l1) d "")
                   Nothing -> let
-                     s = show d 
+                     s = show d
                      in (0, 0, length s, padr l s)
 
 showColD1 xs dyncol = let
@@ -888,6 +891,7 @@ showRowD1 row = let
          b2 = l2 - a2
          in (cw, rh, b2, a2, l2, s)) row
 
+showGridD :: HasCallStack => (Int -> [[Int]] -> [Int]) -> Int -> [[Dynamic]] -> String
 showGridD f width1 tab1 =
    let
       colsz           = map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab1
@@ -921,12 +925,14 @@ showGridD f width1 tab1 =
          print $ head rows3
          putStrLn ""
          return $ map2 (\(cw, rh, _, _, _, s) -> map (take cw . padr cw) $ take rh $ padRWith1 "" rh $ groupN cw s) rows11
-   
-   in unlines $ concat $ map2 (intercalate "|") $ map transpose rows12
+
+   in if | null tab1 -> error "grid is entirely empty"
+         | any null tab1 -> "grid contains null columns"
+         | otherwise -> unlines $ concat $ map2 (intercalate "|") $ map transpose rows12
 
 showGridD1 f g width1 tab =
    let
-      cellLengthCols = map2 (\(b1, a1, l1, _) -> max (b1 + a1) l1) $ map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab      
+      cellLengthCols = map2 (\(b1, a1, l1, _) -> max (b1 + a1) l1) $ map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab
       colWidths1     = colWidthsF cellLengthCols
       width2         = width1 - length tab
       colWidths      = if sum colWidths1 < width2
@@ -939,7 +945,7 @@ showGridD1 f g width1 tab =
       cols2 = transpose rows
 
       in g colWidths cellLengthCols $ map2 (\(_, _, _, s) -> s) cols
-   
+
       --rows2 = map (maximum $ map (\(cw, (b, a, l)) -> showRowD1) rows
                   --in map (\(cw, cell) -> map (padr cw) $ padRWith1 "" li cell) row
 
@@ -950,7 +956,7 @@ showGrid1 colWidths cellLengthCols tab =
          map
             ( \row ->
                   let li = maximum $ map (length . snd) row
-                  in map (\(cw, cell) -> map (padr cw) $ padRWith1 "" li cell) row
+                  in map (\(cw, cell) -> if cell == ["£"] then replicate li (replicate cw '-') else map (padr cw) $ padRWith1 "" li cell) row
             )
             rows
 

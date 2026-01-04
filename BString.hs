@@ -8,7 +8,8 @@
 module BString
 (
    module BString,
-   B.ByteString
+   B.ByteString,
+   T.Text,
 )
 where
 
@@ -19,6 +20,11 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.IO as LT
+import qualified Data.Text.Lazy.Encoding as LT
+import qualified Data.Text.Encoding.Error as TE
 import qualified Data.Char as C
 import Data.Maybe
 import System.IO
@@ -32,6 +38,8 @@ import GHC.Stack
 default (B.ByteString)
 
 type LByteString = LB.ByteString
+
+type LText = LT.Text
 
 class BString s where
    empty :: s
@@ -69,6 +77,7 @@ class BString s => BStringC c s | s -> c where
    takeWhile :: (c -> Bool) -> s -> s
    dropWhile :: (c -> Bool) -> s -> s
    span :: (c -> Bool) -> s -> (s, s)
+   --singleton :: c -> s
    --filter :: (c -> Bool) -> s -> s
    --partition :: (c -> Bool) -> s -> (s, s)
 
@@ -113,6 +122,7 @@ instance BStringC a [a] where
    takeWhile = L.takeWhile
    dropWhile = L.dropWhile
    span = L.span
+   --singleton = L.singleton
    --filter = L.filter
    --partition = L.partition
 
@@ -155,6 +165,7 @@ instance BStringC Word8 B.ByteString where
    takeWhile = B.takeWhile
    dropWhile = B.dropWhile
    span = B.span
+   --singleton = B.singleton
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
    isPrefixOf = B.isPrefixOf
@@ -195,6 +206,7 @@ instance BStringC Word8 LB.ByteString where
    takeWhile = LB.takeWhile
    dropWhile = LB.dropWhile
    span = LB.span
+   --singleton = LB.singleton
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
    isPrefixOf = LB.isPrefixOf
@@ -235,11 +247,53 @@ instance BStringC Char T.Text where
    takeWhile = T.takeWhile
    dropWhile = T.dropWhile
    span = T.span
+   --singleton = T.singleton
 
    stripPrefix = T.stripPrefix
    isPrefixOf = T.isPrefixOf
    isSuffixOf = T.isSuffixOf
    isInfixOf = T.isInfixOf
+
+instance BString LT.Text where
+   empty = LT.empty
+   tail = LT.tail
+   (++) = LT.append
+   take n = LT.take (fromIntegral n)
+   drop n = LT.drop (fromIntegral n)
+   init = LT.init
+   inits = LT.inits
+   tails = LT.tails
+   null = LT.null
+   length = fromIntegral . LT.length
+   intercalate = LT.intercalate
+   splitAt n = LT.splitAt (fromIntegral n)
+
+instance BStringIO LT.Text where
+   putStr = LT.putStr
+   putStrLn = LT.putStrLn
+   readFile = LT.readFile
+   writeFile = LT.writeFile
+   appendFile = LT.appendFile
+
+instance BStringC Char LT.Text where
+   cons = LT.cons
+   head = LT.head
+   last = LT.last
+   l !! n = LT.index l (fromIntegral n)
+   find = LT.find
+   elem = LT.elem
+   notElem c s = not $ LT.elem c s
+
+   smap = LT.map
+   takeWhile = LT.takeWhile
+   dropWhile = LT.dropWhile
+   span = LT.span
+   --singleton = LT.singleton
+
+   stripPrefix = LT.stripPrefix
+   isPrefixOf = LT.isPrefixOf
+   isSuffixOf = LT.isSuffixOf
+   isInfixOf = LT.isInfixOf
 
 concat xs = foldr (++) empty xs
 
@@ -296,10 +350,10 @@ instance ConvertString a a where
    convertString = id
 
 instance ConvertString T.Text B.ByteString where
-   convertString s = convertString (convertString s :: P.String)
+   convertString = T.encodeUtf8
 
 instance ConvertString B.ByteString T.Text where
-   convertString s = convertString (convertString s :: P.String)
+   convertString = T.decodeUtf8With TE.lenientDecode
 
 instance ConvertString [Word8] B.ByteString where
    convertString = B.pack
@@ -313,7 +367,35 @@ instance ConvertString [Word8] LB.ByteString where
 instance ConvertString LB.ByteString [Word8] where
    convertString = LB.unpack
 
+instance ConvertString T.Text LT.Text where
+   convertString = LT.fromStrict
 
+instance ConvertString LT.Text T.Text where
+   convertString = LT.toStrict
+
+instance ConvertString LT.Text LB.ByteString where
+   convertString = LT.encodeUtf8
+
+instance ConvertString LB.ByteString LT.Text where
+   convertString = LT.decodeUtf8With TE.lenientDecode
+
+instance ConvertString LT.Text B.ByteString where
+   convertString = B.toStrict . LT.encodeUtf8
+
+instance ConvertString B.ByteString LT.Text where
+   convertString = LT.decodeUtf8With TE.lenientDecode . B.fromStrict
+
+instance ConvertString T.Text LB.ByteString where
+   convertString = LT.encodeUtf8 . LT.fromStrict
+
+instance ConvertString LB.ByteString T.Text where
+   convertString = LT.toStrict . LT.decodeUtf8With TE.lenientDecode
+
+instance ConvertString P.String LT.Text where
+   convertString = LT.pack
+
+instance ConvertString LT.Text P.String where
+   convertString = LT.unpack
 
 class ConvertChar a b where
    convertChar :: a -> b
@@ -351,5 +433,7 @@ b :: B.ByteString -> B.ByteString
 b = id
 s :: P.String -> P.String
 s = id
-
+t :: T.Text -> T.Text
+t = id
 showb x = bof $ show x
+showt x = tof $ show x

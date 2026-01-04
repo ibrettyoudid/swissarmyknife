@@ -1,0 +1,11 @@
+profiling: True
+profiling-detail: all-functions         
+library-profiling-detail: all-functions
+
+-- Optional but recommended for even better detail (late insertion reduces inlining loss):
+program-options
+  ghc-options: -fprof-late
+
+-- Enable eventlogging (low-overhead, required for modern tools like eventlog2html/ThreadScope)
+program-options
+  ghc-options: -eventlog

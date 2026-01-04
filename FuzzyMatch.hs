@@ -293,7 +293,7 @@ showNearest nearest heuristic = mapM_ (\(d, c, x, y) ->
       [] -> return ()
       n  -> do
          print (c, x, y, heuristic [x, y])
-         putStrLn $ stringHyper $ fromAssocsDA (\x y -> y) "" $ map (\(step, to) -> (map toDyn to, show step)) n
+         putStrLn $ stringHyper $ fromAssocsDA (\x y -> y) "" ["x", "y"] $ map (\(step, to) -> (map toDyn to, show step)) n
       ) . sort . map (\(c, x, y) -> (x + y, c, x, y))
 
 isGoal (Goal {}) = True
@@ -490,7 +490,7 @@ astarD nearest checkDist heuristic isGoal start maxDist =
             putStrLn ""
             putStrLn "-------------------------------------------------------------"
             --mapM_ (\(pos, sl) -> mapM (\(to, (total1, done, at, path)) -> print (to, total1, done, at, path)) $ M.toList sl) $ M.toList byPos
-            putStrLn $ stringHyper $ fromAssocsDA (flip const) "" $ map (\(pos, map1) -> let Just (done, tdap) = M.lookupMin map1 in (map toDyn pos, show done)) $ M.toList byPos
+            putStrLn $ stringHyper $ fromAssocsDA (flip const) "" (map (\x -> "d"++show x) [0..]) $ map (\(pos, map1) -> let Just (done, tdap) = M.lookupMin map1 in (map toDyn pos, show done)) $ M.toList byPos
             putStrLn ""
             putStrLn $ "total="++show total++" done="++show done++" at="++show at++" path="++show path
             --mapM_ (\(total, sl) -> do mapM_ (\(total1, done, at, path) -> print (total1, done, at, path)) $ SL.toList sl) $ M.toList byDist
@@ -502,7 +502,7 @@ astarD nearest checkDist heuristic isGoal start maxDist =
                   let near1 = map (,j) $ nearest at
                   let check = map (\((step, to), (total, done, at, path)) -> (checkDist at to, step, to)) near1
                   putStrLn $ "AT="++show at
-                  putStrLn $ stringHyper $ fromAssocsDA (flip const) "" $ map (\((step, to), _) -> (map toDyn to, show step)) near1
+                  putStrLn $ stringHyper $ fromAssocsDA (flip const) "" (map (\x -> "d" ++ show x) [0..]) $ map (\((step, to), _) -> (map toDyn to, show step)) near1
                   let byDist1 = MM.delete total at1 byDist
                   let (byDist2, byPos2) = foldl add (byDist1, byPos) near1
                   loop (byDist2, byPos2)

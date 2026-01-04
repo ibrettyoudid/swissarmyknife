@@ -8,6 +8,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Redundant $" #-}
+{- HLINT ignore "Use camelCase" -}
 {- HLINT ignore "Redundant multi-way if" -}
 
 module HTMLB where
@@ -20,7 +21,7 @@ import ShowTuple
 import BString
 import Atto
 
-import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn)
+import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, splitAt)
 import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
@@ -71,6 +72,9 @@ nm = newTlsManager
 cTextGrid  = map2 extractText . cGrid
 cTextGridH = map2 extractText . cGridH
 
+cTextGridHBF = map3t (map2 extractText) . cGridHBF
+cTextGridHBFH = map3t (map2 extractText) . cGridHBFH
+
 html h b = Tag "html" [] [Tag "head" [] h, Tag "body" [] b]
 
 textGridH = gridH . map2 (singleton . Text)
@@ -94,6 +98,23 @@ extractTitles t = map (tagAttrib "title") $ findTypes "a" t
 extractLinks1 = map (tagAttrib "href") . filter (\t -> typeIs "a" t && hasAttrib "href" t)
 
 extractPics = mapMaybe (\t -> ifJust (tagType t == "img" && hasAttrib "src" t) (tagAttrib "src" t))
+
+-- count rows in each of thead, tbody, tfoot
+countHBF tag = (length $ map (subTagsType "tr") $ subTagsType "thead" tag,
+                length ( map (subTagsType "tr") $ subTagsType "tbody" tag) + 
+                length (                          subTagsType "tr"    tag),
+                length $ map (subTagsType "tr") $ subTagsType "tfoot" tag)
+
+cGridHBFH tag = let
+   hbf = cGridH tag
+   (h, b, f) = countHBF tag
+   (h1, bf1) = splitAt h hbf
+   (b1, f1)  = splitAt (h+b) hbf
+   in (h1, b1, f1)
+
+map3t fn (h, b, f) = (fn h, fn b, fn f)
+
+cGridHBF tag = map3t transpose $ cGridHBFH tag
 
 cGridH tag = padRWith (Text "") $ expandV4 $ map (expand . findTrees (\t -> tagType t `elem` ["td", "th"])) (findTypes "tr" tag)
 cGrid = transpose . cGridH
@@ -451,6 +472,7 @@ testNest = nest $ concatText $ filter (\x -> tagType x `notElem` ["a", "i"]) tes
 subText = tagText . subTag
 subTagN n t = subTags t !! n
 subTag = head . subTags
+subTagsType ty = filter (typeIs ty) . subTags
 subTags (Tag _ _ x) = x
 subTags (EndTag _) = []
 subTags (Text _) = []

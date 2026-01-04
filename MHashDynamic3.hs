@@ -31,9 +31,10 @@ import NewTuple
 import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP
+import Show1
 
 import Parser7 hiding (Apply)
-import Iso2 hiding (foldl, foldr, right, (!!))
+import Iso2 hiding (foldl, foldr, right, (!!), ignore)
 
 import Data.List
 import qualified Data.Map.Lazy as M
@@ -150,7 +151,7 @@ data MMEntry = Method Dynamic | Types [MType]
 
 data Multimethod = Multimethod {mmname :: String, funcs :: M.Map [SomeTypeRep] Dynamic} deriving (Typeable)
 
-data MultimethodA = MultimethodA {namea :: String, funcsa :: SubArrayD Dynamic} deriving (Typeable)
+data MultimethodA = MultimethodA {namea :: String, funcsa :: SubArrayD Dynamic String} deriving (Typeable)
 
 data PartApply = PartApply [Dynamic] Constr Expr Env deriving (Typeable)
 
@@ -314,7 +315,7 @@ createMultimethod1 n fs = Multimethod n $ M.fromList $ mapfxx (init . args . dyn
 
 createMultimethod2 n fs = Multimethod n $ M.fromList $ mapfxx (args . dynTypeRep) fs
 
-createMultimethodA n fs = MultimethodA n $ fromAssocsDA (\_ x -> x) (toDyn "") $ map (\(i, e) -> (map toDyn i, e)) fs
+createMultimethodA n fs = MultimethodA n $ fromAssocsDA ignore (toDyn "") (map (\x -> "arg" ++ show x) [0..]) $ map (\(i, e) -> (map toDyn i, e)) fs
 
 args :: TypeRep -> [TypeRep]
 args f
@@ -525,6 +526,11 @@ showDyn x = case applyMultimethod showm [x] of
    Left e -> show $ und x
    Right r -> fromMaybe "all show functions must return String" $ fromDynamic r
 
+showDyn1 :: Dynamic -> String
+showDyn1 x = case applyMultimethod showm1 [x] of
+   Left e -> show $ und x
+   Right r -> fromMaybe "all show functions must return String" $ fromDynamic r
+
 showRec x = case applyMultimethod showm [x] of
    Left e -> show $ und x
    Right r -> 
@@ -718,8 +724,11 @@ instance Show Closure where
 instance Show Dynamic where
    show = showDyn
 
+instance Show1 Dynamic where
+   show1 = showDyn1
+
 instance Show Multimethod where
-   show mm = show $ fromAssocsDA (\_ x -> x) (toDyn "") $ map (\(i, e) -> (map toDyn i, e)) $ M.toList $ funcs mm
+   show mm = show $ fromAssocsDA (\_ x -> x) (toDyn "") (map (\x -> "arg"++show x) [0..]) $ map (\(i, e) -> (map toDyn i, e)) $ M.toList $ funcs mm
 
 instance Show MultimethodA where
    show (MultimethodA n a) = "name: " ++ n ++ "\n" ++ show a
@@ -744,6 +753,50 @@ showl =
    , toDyn (show :: Integer -> String)
    , toDyn (show :: String -> String)
    , toDyn (show :: B.ByteString -> String)
+   , toDyn (show :: B.LByteString -> String)
+   , toDyn (show :: B.Text -> String)
+   , toDyn (show :: B.LText -> String)
+   , toDyn (show :: Bool -> String)
+   , toDyn (singleton :: Char -> String)
+   , toDyn ((\d -> showFFloat (Just 8) d "") :: Double -> String)
+   , toDyn ((\d -> showFFloat (Just 4) d "") :: Float -> String)
+   , toDyn (show :: Rational -> String)
+   , toDyn (show :: () -> String)
+   , toDyn (show :: Maybe Dynamic -> String)
+   , toDyn (show :: [Dynamic] -> String)
+   , toDyn (show :: Multimethod -> String)
+   , toDyn (show :: MultimethodA -> String)
+   , toDyn (show :: M.Map [SomeTypeRep] Dynamic -> String)
+   , toDyn (show :: [([SomeTypeRep], Dynamic)] -> String)
+   , toDyn (show :: ([SomeTypeRep], Dynamic) -> String)
+   , toDyn (show :: [SomeTypeRep] -> String)
+   , toDyn (show :: SomeTypeRep -> String)
+   , toDyn (show :: M.Map HTTPTypes.HVar Dynamic -> String)
+   , toDyn (show :: Ordering -> String)
+   , toDyn (show :: MMEntry -> String)
+   , toDyn (show :: Person -> String)
+   , toDyn (show :: Field -> String)
+   , toDyn (show :: TC -> String)
+   , toDyn (showDate)
+   , toDyn (show :: Expr -> String)
+   , toDyn (show :: Closure -> String)
+   , toDyn (fromJust . fp expr)
+   , toDyn (show :: (Dynamic :- Dynamic) -> String)
+   , toDyn (show :: (Dynamic, Dynamic) -> String)
+   ]
+
+showm1 =
+   createMultimethod1
+      "show" showl1
+
+showl1 =    
+   [ toDyn (show :: Int -> String)
+   , toDyn (show :: Integer -> String)
+   , toDyn (id :: String -> String)
+   , toDyn (B.convertString :: B.ByteString -> String)
+   , toDyn (B.convertString :: B.Text -> String)
+   , toDyn (B.convertString :: B.LByteString -> String)
+   , toDyn (B.convertString :: B.LText -> String)
    , toDyn (show :: Bool -> String)
    , toDyn (singleton :: Char -> String)
    , toDyn ((\d -> showFFloat (Just 8) d "") :: Double -> String)
@@ -945,13 +998,13 @@ expr = "expr" <=> (ifSyn <|> lambdaSyn <|> blockSyn <|> expr0)
 
 exprs = groupOf expr
 
-data Dimension
-   = DimInt {dimLower :: Int, dimUpper :: Int, dimMult :: Int}
-   | DimMap {dimLower :: Int, dimUpper :: Int, dimMult :: Int, dimMap1 :: M.Map Int Dynamic, dimMap2 :: M.Map Dynamic Int}
+data Dimension name
+   = DimInt {dimName :: name, dimLower :: Int, dimUpper :: Int, dimMult :: Int}
+   | DimMap {dimName :: name, dimLower :: Int, dimUpper :: Int, dimMult :: Int, dimMap1 :: M.Map Int Dynamic, dimMap2 :: M.Map Dynamic Int}
 --            | DimCat { dimDim::Dimension, dimDiv::[Int], dimMult1::[Int] }
    deriving (Show)
 
-data SubArrayD e = SubArrayD {dims :: [Dimension], offset :: Int, payload :: A.Array Int e}
+data SubArrayD e dimName = SubArrayD {dims :: [Dimension dimName], offset :: Int, payload :: A.Array Int e}
 
 -- main = print $ Main.transpose 0 1 $ fromList2z 0 [[1,2,3],[4,5,6],[7,8,9]]
 
@@ -1000,29 +1053,35 @@ getSubDimDyn dn i a = SubArrayD (dbefore ++ dafter) (offset a + ((dimMap2 d M.! 
 
 getSubDims ds a = foldr (uncurry getSubDim) a ds
 
-getSubDimDyns ds a = foldr (uncurry getSubDimDyn) a ds
+getSubDimsDyn ds a = foldr (uncurry getSubDimDyn) a ds
 
 copy a = fromAssocs $ toAssocs a
 
 zipWitha f a b = fromAssocs $ zipWith (\i j -> ([i], f (getSub i a) (getSub j b))) (dimRange $ head $ dims a) (dimRange $ head $ dims b)
 
-mapEE f a = fromAssocs $ map (\(i, e) -> (i, f e)) $ toAssocs a
+mapEE f a = fromAssocs (dimNames $ dims a) $ map (\(i, e) -> (i, f e)) $ toAssocs a
 
-mapEA f a = fromAssocs $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (i1 ++ i2, e2)) $ toAssocs $ f e1) $ toAssocs a
+mapEA f a = let
+   assocs1 = toAssocs a
+   (i, e) = head assocs1
+   example = f e
+   
+   in fromAssocs (dimNames (dims a) ++ dimNames (dims example)) $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (i1 ++ i2, e2)) $ toAssocs $ f e1) assocs1
 
 mapAE f s a = let
    indices1 = indices $ select s $ dims a
    assocs1 = map (\i -> (i, f $ getSubDims (zip s i) a)) indices1
-   in
-   fromAssocs assocs1
+   
+   in fromAssocs (dimNames $ dims a) assocs1
 
 mapAA f t a = let
    s = [0 .. length (dims a) - 1] \\ sort t
    ist = inversePerm $ s ++ t
    indices1 = indicesD $ select s $ dims a
-   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocsD $ f $ getSubDimDyns (zip s i1) a) indices1
-   in
-   fromAssocsD assocs1
+   example = f $ getSubDimsDyn (zip s (head indices1)) a
+   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocsD $ f $ getSubDimsDyn (zip s i1) a) indices1
+   
+   in fromAssocsD (select ist $ dimNames (dims a) ++ dimNames (dims example)) assocs1
 
 foldE f a = f $ map snd $ toAssocs a
 
@@ -1038,39 +1097,39 @@ admean = appendFold ([toDyn "Mean"], dmean)
 
 mafs f ts a = foldr (mapAA f . singleton) a ts
 
-mapDim f (DimInt dl du dm) = DimMap dl du dm (M.fromList dm1) (M.fromList $ map tflip dm1) where dm1 = mapxfx f [dl .. du]
+mapDim f (DimInt dn dl du dm) = DimMap dn dl du dm (M.fromList dm1) (M.fromList $ map tflip dm1) where dm1 = mapxfx f [dl .. du]
 
 zipDims fs (SubArrayD d o p) = SubArrayD (zipWith mapDim fs d) o p
 
 reverseA a = let
-   (DimInt dl du dm : ds) = dims a
-   in
-   SubArrayD (DimInt dl du (-dm) : ds) (offset a + (du - dl + 1) * dm) (payload a)
+   (DimInt dn dl du dm : ds) = dims a
+   
+   in SubArrayD (DimInt dn dl du (-dm) : ds) (offset a + (du - dl + 1) * dm) (payload a)
 
 reverseDim d a = let
    ds = dims a
-   (DimInt dl du dm) = ds !! d
-   in
-   SubArrayD (replaceIndex d (DimInt dl du (-dm)) ds) (offset a + (du - dl + 1) * dm) (payload a)
+   (DimInt dn dl du dm) = ds !! d
+   
+   in SubArrayD (replaceIndex d (DimInt dn dl du (-dm)) ds) (offset a + (du - dl + 1) * dm) (payload a)
 
 shiftDim d s a = let
    ds = dims a
-   (DimInt dl du dm) = ds !! d
-   in
-   SubArrayD (replaceIndex d (DimInt (dl - s) (du - s) dm) ds) (offset a + s * dm) (payload a)
+   (DimInt dn dl du dm) = ds !! d
+   
+   in SubArrayD (replaceIndex d (DimInt dn (dl - s) (du - s) dm) ds) (offset a + s * dm) (payload a)
 
 sliceDim d s t a = let
    ds = dims a
-   (DimInt dl du dm) = ds !! d
-   in
-   SubArrayD (replaceIndex d (DimInt (dl - s) (t - s + 1) dm) ds) (offset a + s * dm) (payload a)
+   (DimInt dn dl du dm) = ds !! d
+   
+   in SubArrayD (replaceIndex d (DimInt dn (dl - s) (t - s + 1) dm) ds) (offset a + s * dm) (payload a)
 
 transposeA d1 d2 a = let
    ds = dims a
    e1 = ds !! d1
    e2 = ds !! d2
-   in
-   SubArrayD (replaceIndex d2 e1 $ replaceIndex d1 e2 ds) (offset a) (payload a)
+   
+   in SubArrayD (replaceIndex d2 e1 $ replaceIndex d1 e2 ds) (offset a) (payload a)
 
 {-
 toAssocs :: SubArrayD e -> [(Int, e)]
@@ -1079,62 +1138,63 @@ toAssocs a = let
    in map (\i -> (i, getElem [i] a)) [dimLower d..dimUpper d]
 -}
 -- cartesian [1,2,3] [[4],[5],[6]] = [[1,4],[2,4],[3,4],[1,5],[2,5],[3,5],[1,6],[2,6],[3,6]]
-dimRange (DimInt dl du _) = [dl .. du]
-dimRange (DimMap dl du _ _ _) = [dl .. du]
-dimRangeD (DimMap dl du _ dm1 _) = map (dm1 M.!) [dl .. du]
+dimRange (DimInt dn dl du _) = [dl .. du]
+dimRange (DimMap dn dl du _ _ _) = [dl .. du]
+dimRangeD (DimMap dn dl du _ dm1 _) = map (dm1 M.!) [dl .. du]
 dimRanges = map dimRange
 dimRangesD = map dimRangeD
+dimNames = map dimName
 
 indicesA a = indices $ dims a
 indices ds = crossList $ dimRanges ds
 indicesD ds = crossList $ dimRangesD ds
 
-toAssocs :: SubArrayD e -> [([Int], e)]
+toAssocs :: SubArrayD e dimName -> [([Int], e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indicesA a
 
 toAssocsD a = map (\i -> (zipWith elemName i d, getElem i a)) $ indicesA a where d = dims a
 
-elemName i (DimInt dl du dm) = toDyn i
-elemName i (DimMap dl du dm dm1 dm2) = dm1 M.! i
+elemName i (DimInt dn dl du dm) = toDyn i
+elemName i (DimMap dn dl du dm dm1 dm2) = dm1 M.! i
 
-fromAssocs :: [([Int], e)] -> SubArrayD e
-fromAssocs as = let
+fromAssocs :: [dimName] -> [([Int], e)] -> SubArrayD e dimName
+fromAssocs ns as = let
    (mins, maxs, lens) = unzip3 $ map toDim $ transpose $ checkRectangular $ map fst as
    (len : muls) = scanr (*) 1 lens
-   dims = zipWith3 DimInt mins maxs muls
-   in
-   SubArrayD dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffset i dims, e)) as
+   dims = zipWith4 DimInt ns mins maxs muls
+   
+   in SubArrayD dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffset i dims, e)) as
 
 toDim is = let
    mi = minimum is
    ma = maximum is
    le = ma - mi + 1
-   in
-   (mi, ma, le)
+   
+   in (mi, ma, le)
 
-fromAssocsD :: [([Dynamic], e)] -> SubArrayD e
-fromAssocsD as = let
+fromAssocsD :: [dimName] -> [([Dynamic], e)] -> SubArrayD e dimName
+fromAssocsD dnames as = let
    (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectangular $ map fst as
    (len : muls) = scanr (*) 1 lens
-   dims = zipWith4 toDim2 mins maxs muls vals
+   dims = zipWith5 toDim2 dnames mins maxs muls vals
    in
    SubArrayD dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
-fromAssocsDA f z as = let
+fromAssocsDA f zeroel dnames as = let
    (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectangular $ map fst as
    (len : muls) = scanr (*) 1 lens
-   dims = zipWith4 toDim2 mins maxs muls vals
-   in
-      if null as
-         then error "no assocs in fromAssocsDA, can't work out number of dimensions"
+   dims = zipWith5 toDim2 dnames mins maxs muls vals
+   
+   in if null as
+         then error "no assocs in fromAssocsDA, can't figure out dimension information"
          else SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
 checkRectangular as = let
    lens = map length as
    mi = minimum lens
    ma = maximum lens
-   in
-   if mi /= ma then error "varying number of dimensions" else as
+   
+   in if mi /= ma then error "varying number of dimensions" else as
 
 {-
 toDimD is = if
@@ -1143,8 +1203,8 @@ toDimD is = if
 -}
 toDimD is = toDimIS1 is
 
-toDim2 min max mul [] = DimInt min max mul
-toDim2 min max mul vals = DimMap min max mul (M.fromList $ zip [0 ..] vals) (M.fromList $ zip vals [0 ..])
+toDim2 name min max mul []   = DimInt name min max mul
+toDim2 name min max mul vals = DimMap name min max mul (M.fromList $ zip [0 ..] vals) (M.fromList $ zip vals [0 ..])
 
 isInt d = dynTypeRep d == intR
 
@@ -1156,30 +1216,30 @@ toDimII is = let
    mi = minimum is
    ma = maximum is
    le = ma - mi + 1
-   in
-   (mi, ma, le, [])
+   
+   in (mi, ma, le, [])
 
 toDimIS1 is = let
    se = S.fromList is
    le = S.size se
-   in
-   (0, le - 1, le, S.toList se)
+   
+   in (0, le - 1, le, S.toList se)
 
 toDimIS2 is = let
    mi = minimum is
    mx = maximum is
    se = [mi .. mx]
    le = length se
-   in
-   (0, le, le, se)
+   
+   in (0, le, le, se)
 
 -- fromList1 es = SubArrayD [DimInt 0 l 1] 0 (A.array (0, l) (zip [0..] es)) where l = length es - 1
-fromList1 es = SubArrayD [DimInt 0 (l - 1) 1] 0 $ A.listArray (0, l - 1) es where l = length es
+fromList1 es = SubArrayD [DimInt "" 0 (l - 1) 1] 0 $ A.listArray (0, l - 1) es where l = length es
 fromList2z zero ess = let
    d0 = length ess
    d1 = maximum $ map length ess
-   in
-   SubArrayD [DimInt 0 (d0 - 1) d1, DimInt 0 (d1 - 1) 1] 0 $ A.listArray (0, d0 * d1 - 1) $ concatMap (padRWith1 zero d1) ess
+   
+   in SubArrayD [DimInt "" 0 (d0 - 1) d1, DimInt "" 0 (d1 - 1) 1] 0 $ A.listArray (0, d0 * d1 - 1) $ concatMap (padRWith1 zero d1) ess
 
 fromList2 = fromList2z undefined
 
@@ -1187,8 +1247,8 @@ fromList3 zero esss = let
    d0 = length esss
    d1 = maximum $ map length esss
    d2 = maximum $ map (maximum . map length) esss
-   in
-   SubArrayD [DimInt 0 (d0 - 1) (d1 * d2), DimInt 0 (d1 - 1) d2, DimInt 0 (d2 - 1) 1] 0 $ A.listArray (0, d0 * d1 * d2 - 1) $ concatMap (padRWith1 zero (d1 * d2) . concatMap (padRWith1 zero d2)) esss
+   
+   in SubArrayD [DimInt "" 0 (d0 - 1) (d1 * d2), DimInt "" 0 (d1 - 1) d2, DimInt "" 0 (d2 - 1) 1] 0 $ A.listArray (0, d0 * d1 * d2 - 1) $ concatMap (padRWith1 zero (d1 * d2) . concatMap (padRWith1 zero d2)) esss
 
 toList1 a = map (`getElem` a) $ indicesA a
 
@@ -1203,33 +1263,33 @@ fromArrayList2 dl du as = let
    maxy = map maximum $ Data.List.transpose $ map (map dimUpper . dims) as
    leny1 = zipWith (\min max -> max - min + 1) miny maxy
    muly = map product $ tails leny1
-   dimy = zipWith3 DimInt miny maxy $ tail muly
+   dimy = zipWith4 DimInt (repeat "") miny maxy $ tail muly
    leny = head muly
    
    in SubArrayD
-         (DimInt dl du leny : dimy) 0 (A.array 
+         (DimInt "" dl du leny : dimy) 0 (A.array 
             (0, length as - 1)
             (zipWith (\x (y, e) -> (x * leny + elemOffset y dimy, e)) [0 ..] $ concatMap toAssocs as))
 
 fromAOA a = fromAssocs $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (i1 ++ i2, e2)) $ toAssocs e1) $ toAssocs a
 
-newtype SubArray1 b = SubArray1 (SubArrayD b)
-newtype SubArray2 b = SubArray2 (SubArrayD b)
-newtype SubArray3 b = SubArray3 (SubArrayD b)
+newtype SubArray1 b dimName = SubArray1 (SubArrayD b dimName)
+newtype SubArray2 b dimName = SubArray2 (SubArrayD b dimName)
+newtype SubArray3 b dimName = SubArray3 (SubArrayD b dimName)
 
 class SubArray a e where
    (!) :: a -> Int -> e
    (?) :: a -> Dynamic -> e
 
-instance SubArray (SubArray1 b) b where
+instance SubArray (SubArray1 b dimName) b where
    SubArray1 a ! i = getElem [i] a
    SubArray1 a ? i = getElem [] $ getSubDyn i a
 
-instance SubArray (SubArray2 b) (SubArray1 b) where
+instance SubArray (SubArray2 b dimName) (SubArray1 b dimName) where
    SubArray2 a ! i = SubArray1 $ getSub i a
    SubArray2 a ? i = SubArray1 $ getSubDyn i a
 
-instance (Show e) => Show (SubArrayD e) where
+instance (Show dimName, Show e) => Show (SubArrayD e dimName) where
    show = showHyper
 
 {-
@@ -1238,6 +1298,7 @@ toAssocs a = map (\i -> (i, getElem i a)) $ indices a
 -}
 select indices from = map (from !!) indices
 
+-- if indices and from are the same length then select indices (select (inversePerm indices) from)) == from
 inversePerm indices = map snd $ sort $ zip indices [0 ..]
 
 splitAt2 major minor ls = (unzip $ map (splitAt minor) $ take major ls, unzip $ map (splitAt minor) $ drop major ls)
@@ -1248,11 +1309,11 @@ readUniqueHeader h (x : xs) = if S.member x h then h else readUniqueHeader (S.in
 readUniqueHeaders [] _ = []
 readUniqueHeaders (h : hs) mult = let
    h1 = S.toList $ readUniqueHeader S.empty $ map (\(x : xs) -> x) $ groupN mult h
-   in
-   h1 : readUniqueHeaders hs (mult * length h1)
+   
+   in h1 : readUniqueHeaders hs (mult * length h1)
 
-groupN1 n (SubArrayD (DimInt dl du dm : ds) o p)
-   | mod l n == 0 = SubArrayD (DimInt 0 (div l n - 1) (dm * n) : DimInt 0 (n - 1) dm : ds) o p
+groupN1 n (SubArrayD (DimInt dn dl du dm : ds) o p)
+   | mod l n == 0 = SubArrayD (DimInt dn 0 (div l n - 1) (dm * n) : DimInt (dn ++ "1") 0 (n - 1) dm : ds) o p
    | otherwise = error ("not divisible into groups of " ++ show n)
       where
          l = du - dl + 1   
@@ -1267,8 +1328,8 @@ readUniqueHyper xhn yhn a = let
    xh = readUniqueHeaders (reverse $ map (drop yhn) xh1) 1
    yh = readUniqueHeaders (reverse $ transpose yh1) 1
    d = readHyper9 (map length xh) (map length yh) $ fromList1 a2
-   in
-   d
+   
+   in d
 
 readHyper2 xh yh a = concat $ zipWith zip (crossWith (++) xh yh) a
 
@@ -1276,22 +1337,26 @@ readHyper1 xhn yhn ri re a = let
    (_, xh1, yh, a1) = readQuarters xhn yhn a
    xh = transpose xh1
    d = readHyper2 xh yh $ map2 re a1
-   in
-   d
+   
+   in d
 
 readQuarters xhn yhn a = let
    (w, e) = unzip $ map (splitAt yhn) a
    (nw, sw) = splitAt xhn w
    (ne, se) = splitAt xhn e
-   in
-   (nw, ne, sw, se)
+   
+   in (nw, ne, sw, se)
 
-showQuarters :: ([[String]], [[String]], [[String]]) -> [[String]]
-showQuarters (xh, yh, a) = let
+showQuarters3 :: ([[String]], [[String]], [[String]]) -> [[String]]
+showQuarters3 (xh, yh, a) = let
    nw = replicate (length $ head xh) $ replicate (length $ head yh) ""
-   b = zipWith (++) (nw ++ yh) (transpose xh ++ transpose a)
-   in
-   b
+   
+   in zipWith (++) (nw ++ yh) (transpose xh ++ transpose a)
+
+showQuarters (xn, yn, xh, yh, a) = let
+   nw = replicate (length xn) (zipWith (++) (replicate (length yn) "") xn) ++ [yn ++ [" "]]
+   
+   in zipWith (++) (nw ++ yh) (transpose xh ++ [replicate (length yh) "£"] ++ transpose a)
 
 showHyper2 xn yn a = let
    xd = select xn $ dims a
@@ -1301,7 +1366,9 @@ showHyper2 xn yn a = let
    d = xn ++ yn
    ip = inversePerm d
    in
-   ( map (zipWith showLabel xd) xs
+   ( map (show . dimName) xd, 
+     map (show . dimName) yd, 
+     map (zipWith showLabel xd) xs
    , map (zipWith showLabel yd) ys
    , crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
    )
@@ -1314,7 +1381,9 @@ stringHyper2 xn yn a = let
    d = xn ++ yn
    ip = inversePerm d
    in
-   ( map (zipWith showLabel xd) xs
+   ( map (show . dimName) xd,
+     map (show . dimName) yd,
+     map (zipWith showLabel xd) xs
    , map (zipWith showLabel yd) ys
    , crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
    )
@@ -1324,20 +1393,21 @@ showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 xn yn a
 showHyper a = let
    n = length $ dims a
    hn = div n 2
-   in
-   showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
+   
+   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] $ mapEE show a
+   --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
 stringHyper a = let
    n = length $ dims a
    hn = div n 2
-   in
-   showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] a
+   
+   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
 
 showLabel (DimInt{}) i = show i
-showLabel (DimMap _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1
+showLabel (DimMap dn _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1
 
-test d = fromAssocs $ mapxfx id $ indices $ replicate d $ DimInt 0 2 1
+test d = fromAssocs (repeat "dim") $ mapxfx id $ indices $ replicate d $ DimInt "" 0 2 1
 
 -- printa a = putTableF $ arrayToElemList a
 
@@ -1345,11 +1415,13 @@ test d = fromAssocs $ mapxfx id $ indices $ replicate d $ DimInt 0 2 1
 instance SubArray (SubArray3 b) (SubArray2 b)  where
    SubArray3 a ! i = SubArray2 $ getSub i a
 -}
-appendAA f z a1 a2 = fromAssocsDA f z $ toAssocsD a1 ++ toAssocsD a2
-concatAA f z as = fromAssocsDA f z $ concatMap toAssocsD as
-joinAA f z dn dv a1 a2 = fromAssocsDA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocsD a1) ++ toAssocsD a2
+unionAA f z a1 a2 = fromAssocsDA f z $ toAssocsD a1 ++ toAssocsD a2
+unionsAA f z as = fromAssocsDA f z $ concatMap toAssocsD as
+joinAAAdd f z dn dv a1 a2 = fromAssocsDA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocsD a1) ++ toAssocsD a2
+
+ignore = const id
 
 insertAt n v l = let
    (b, a) = splitAt n l
-   in
-   b ++ v : a
+   
+   in b ++ v : a

@@ -4,32 +4,38 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Redundant $" #-}
+{- HLINT ignore "Use camelCase" -}
 {- HLINT ignore "Redundant multi-way if" -}
 
-module HTMLLB where
+module HTMLLT where
 
 import Favs hiding (split, trim, trimtrailing, replace)
-import MyPretty2
-import NumberParsersB
+import MyPretty2 hiding (format)
+import NumberParsersT
 --import NumberParsers hiding (parse, try)
 import ShowTuple
 import BString
-import Atto
+import AttoLT
 
-import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile)
+import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, splitAt)
 import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.IO as LT
+import Data.Text.Lazy.Builder hiding (singleton)
+import Data.Monoid
 import Data.Word (Word8)
 
 import Control.Monad
 import Control.Applicative hiding (empty, many)
 import Data.Char hiding (toLower)
 import Data.IORef
-import System.IO
+import System.IO hiding (putStrLn)
 import System.IO.Unsafe
 
 -- import System.Win32.Process
@@ -42,30 +48,34 @@ import Network.HTTP.Types
 import Network.URI
 import System.Directory
 
-import Data.Attoparsec.ByteString.Lazy hiding (take, takeWhile, dropWhile)
-import qualified Data.Attoparsec.ByteString.Lazy as AP
+import Data.Attoparsec.Text.Lazy hiding (take, takeWhile, dropWhile)
+import qualified Data.Attoparsec.Combinator as AP
+import qualified Data.Attoparsec.Text.Lazy as AP
 
 --import Text.Parsec
 --import Text.Parsec.Combinator
 
 data HTML
-   = Tag      { tagType_ :: LB.ByteString, tagAttribs :: [(LB.ByteString, LB.ByteString)], inner :: [HTML] }
-   | EmptyTag { tagType_ :: LB.ByteString, tagAttribs :: [(LB.ByteString, LB.ByteString)] }
-   | EndTag   { tagType_ :: LB.ByteString }
-   | Text     { text     :: LB.ByteString }
+   = Tag      { tagType_ :: LT.Text, tagAttribs :: [(LT.Text, LT.Text)], inner :: [HTML] }
+   | EmptyTag { tagType_ :: LT.Text, tagAttribs :: [(LT.Text, LT.Text)] }
+   | EndTag   { tagType_ :: LT.Text }
+   | Text     { text     :: LT.Text }
    deriving (Show, Eq, Ord)
 
 putLines l = mapM_ putStrLn l
 
-ukulele m = filter (not . null) $ extractLinks $ findTree (\t -> tagType t == "table" && tagAttrib "width" t == "407") $ getNested m "https://wpu3a.org.uk/Groups/ukulele-for-beginners"
+ukulele m = filter (not . null) $ extractLinks $ findTree (\t -> tagType t == "table" && tagAttrib "width" t == "407") $ getHTML m "https://wpu3a.org.uk/Groups/ukulele-for-beginners"
 
 uku m = mapM (writeHTTP m . relTo "https://wpu3a.org.uk") $ tail $ ukulele m
 
 nm :: IO Manager
 nm = newTlsManager
 
-cTextGrid  = map2 firstText . cGrid
-cTextGridH = map2 firstText . cGridH
+cTextGrid  = map2 extractText . cGrid
+cTextGridH = map2 extractText . cGridH
+
+cTextGridHBF = map3t (map2 extractText) . cGridHBF
+cTextGridHBFH = map3t (map2 extractText) . cGridHBFH
 
 html h b = Tag "html" [] [Tag "head" [] h, Tag "body" [] b]
 
@@ -74,20 +84,39 @@ textGrid = textGridH . transpose
 
 putTextGrid = putGrid . map2 c . cTextGrid
 
-putTextFile = putTextGrid . readNested
+putTextFile = putTextGrid . readHTML
 
 -- convertGridH tag = map (getTags ["td", "th"] . subTags) $ filter (("tr" ==) . tagType) $ subTags tag
-extractText = trim . squash . concat . map text . findTrees isText
+extractText1 = trim . squash . clean . concat . map text . findTrees isText
 extractTexts htmls = trim $ squash $ concat $ map tagText htmls
 
-firstText = (\case { [] -> empty; (a:_) -> a }) . mapMaybe (ifPred (not . null) . trim . tagText) . findTrees isText
+firstText = (\case { [] -> empty; (a:_) -> a }) . mapMaybe (ifPred (not . null) . trim . clean . tagText) . findTrees isText
 
 extractLink = head . extractLinks
 extractLinks t = map (tagAttrib "href") $ findTypes "a" t
 
+extractTitles t = map (tagAttrib "title") $ findTypes "a" t
+
 extractLinks1 = map (tagAttrib "href") . filter (\t -> typeIs "a" t && hasAttrib "href" t)
 
 extractPics = mapMaybe (\t -> ifJust (tagType t == "img" && hasAttrib "src" t) (tagAttrib "src" t))
+
+-- count rows in each of thead, tbody, tfoot
+countHBF tag = (length $ map (subTagsType "tr") $ subTagsType "thead" tag,
+                length ( map (subTagsType "tr") $ subTagsType "tbody" tag) + 
+                length (                          subTagsType "tr"    tag),
+                length $ map (subTagsType "tr") $ subTagsType "tfoot" tag)
+
+cGridHBFH tag = let
+   hbf = cGridH tag
+   (h, b, f) = countHBF tag
+   (h1, bf1) = splitAt h hbf
+   (b1, f1)  = splitAt (h+b) hbf
+   in (h1, b1, f1)
+
+map3t fn (h, b, f) = (fn h, fn b, fn f)
+
+cGridHBF tag = map3t transpose $ cGridHBFH tag
 
 cGridH tag = padRWith (Text "") $ expandV4 $ map (expand . findTrees (\t -> tagType t `elem` ["td", "th"])) (findTypes "tr" tag)
 cGrid = transpose . cGridH
@@ -106,88 +135,181 @@ p = Tag "p" []
 s = singleton
 (&) = singleton
 
+($<) :: (BString s, Eq c, BStringC c s) => (t -> s) -> s -> t -> Bool
+f $< b = \x -> b `isPrefixOf` f x
+
+
 link url = Tag "a" [("href", url)]
 img url = EmptyTag "img" [("src", url)]
 textLink url txt = link url $ [Text txt]
 imgLink url thumb = link url $ [img thumb]
 
-isSpace2 x = x < 32 || x > 126
+isSpace2 c = let x = ord c in x <= 32 || x > 126
 
-trim :: LB.ByteString -> LB.ByteString
+trim :: LT.Text -> LT.Text
 trim = trimtrailing . dropWhile isSpace2
 
-trimtrailing :: LB.ByteString -> LB.ByteString
+trimtrailing :: LT.Text -> LT.Text
 trimtrailing xs
    | null xs = empty
    | otherwise = let xst = trimtrailing (tail xs) in if isSpace2 (head xs) && null xst then empty else cons (head xs) xst
 
--- getHTTPB -> parse html "" -> nest -> findTree (\t -> mbAttrib "id" t == "main")
-getNested m url = nest $ parseHTML url $ getHTTP m url
-getNestedReq m req = nest $ getParsedReq m req
-getParsed m url = parseHTML url $ getHTTP m url
-getParsedReq m req = parseHTML (show $ reqPath req) $ c $ unsafePerformIO $ getHTTPReq m req
-nestParse = nest . parseHTML ""
-
-readNested = nest . readParsed
-readParsed filename = parseHTML filename $ readFileBinary filename
+clean = smap (\c -> let x = ord c in if (x >= 32 && x <= 126) || (x > 160 && x <= 255) then c else ' ')
 
 --------------------------------------------------------------------------------
-getHTTP m url = c $ unsafePerformIO $ getHTTPB m url
+{-
+HHH     HHH TTTTTTTTTT TTTTTTTTTT PPPPPPPP
+HHH     HHH     TT         TT     PPP    PPP
+HHH     HHH     TT         TT     PPP    PPP
+HHHHHHHHHHH     TT         TT     PPPPPPPP
+HHH     HHH     TT         TT     PPP
+HHH     HHH     TT         TT     PPP
+HHH     HHH     TT         TT     PPP
+-}
+
+
+simpleHTTP m req = httpLbs req m
+
+getRequest :: LT.Text -> Request
+getRequest = addUserAgent . parseRequest_ . c
+--------------------------------------------------------------------------------
+getHTTP :: Manager -> LT.Text -> LT.Text
+getHTTP m url = c $ unsafePerformIO $ getHTTPIO m url
 
 --------------------------------------------------------------------------------
-getHTTPB m url = do
+getHTTPIO :: Manager -> LT.Text -> IO LT.Text
+getHTTPIO m url = do
    let req = getRequest url
    -- print req
    resp <- simpleHTTP m req
    -- print resp
-   return $ responseBody resp
+   return $ c $ responseBody resp
 
 --------------------------------------------------------------------------------
-simpleHTTP m req = httpLbs req m
 
-getRequest :: LB.ByteString -> Request
-getRequest = addUserAgent . parseRequest_ . c
+-- getHTTPIO -> parse html "" -> nest -> findTree (\t -> mbAttrib "id" t == "main")
+getHTML m url = nestParse url $ getHTTP m url
+getHTMLIO m url = nestParse url <$> getHTTPIO m url
+getHTMLReq m req = nestParse (show $ reqPath req) $ c $ unsafePerformIO $ getHTTPReq m req
+nestParse f = nest . parseHTML f
 
-parseHTML sn xs = case parse htmlP xs of
-   Done i r -> r
-   Fail i cont msg -> error $ "context = "++concat cont++" message="++msg++" input="++c i
+readHTML f = nestParse f $ readFileBinary f
+
+readWriteHTTP m url = unsafePerformIO $ readWriteHTTP1 m url
+readWriteHTML m url = unsafePerformIO $ readWriteHTML1 m url
+
+readWriteHTTP1 m url = do
+   let file = urlToFileName url
+   flag <- doesFileExist file
+   if flag
+      then do
+         let h = readFileBinary file
+         putStrLn $ "read " ++ file
+         return h
+      else do
+         putStrLn $ "fetching " ++ file
+         dat <- getHTTPIO m url
+         writeFileBinary file dat
+         putStrLn $ "written " ++ file
+         return dat
+
+readWriteHTML1 m url = do
+   let file = urlToFileName url
+   flag <- doesFileExist file
+   if flag
+      then do
+         let h = readHTML file
+         putStrLn $ "read " ++ file
+         return h
+      else do
+         putStrLn $ "fetching " ++ file
+         str <- getHTTPIO m url
+         let html = nestParse url str
+         writeFileBinary file str
+         --html <- getHTMLIO m url
+         --Data.ByteString.Builder.writeFile file $ formatB 0 html
+         putStrLn $ "written " ++ file
+         return html
+
+
+mytrace x = unsafePerformIO (do print x; return x)
+
 -- $ (\weird -> if null weird then xs else error weird) $ mapMaybe (ifPred isWeird) xs
 
--- getHTTPB with refering page as first parameter
+-- getHTTPIO with refering page as first parameter
 --lbsofs = LB.pack . map (fromIntegral . ord)
 
 --soflbs = map chr . filter (\x -> x == 10 || x == 13 || x >= 32 && x <= 127 || x >= 160 && x <= 255) . map fromIntegral . LB.unpack
 
+getHTTPRefr :: Manager -> LT.Text -> LT.Text -> IO LT.Text
 getHTTPRefr m ref url = do
-   nsr <- simpleHTTP m (getRequestRefr ref url)
-   return $ responseBody nsr
+   nsr <- simpleHTTP m (getRequestRefr (convertString ref) url)
+   return $ c $ responseBody nsr
 
+getHTTPReq :: Manager -> Request -> IO LT.Text
 getHTTPReq m req = do
    let url = reqPath req
    putStrLn ("getting " ++ show url)
    nsr <- simpleHTTP m req
-   return $ responseBody nsr
+   return $ c $ responseBody nsr
 
 reqPath = Network.HTTP.Client.path
 
 reqURI = fromJust . parseURI . c . reqPath
 
+
+urlToFileName :: LT.Text -> String
+urlToFileName url =
+   let
+      s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
+   
+   in c $ ".cache/"++last s
+
+writeHTTP m url = do
+   let fileName = urlToFileName url
+   rbody <- getHTTPIO m url
+   writeFileBinary fileName rbody
+
+writeHTTPRefr m ref url = getHTTPRefr m ref url >>= writeFileBinary (urlToFileName url)
+writeHTTPReq m req = getHTTPReq m req >>= writeFileBinary (urlToFileName $ convertString $ reqPath req)
+
+writeHTTPAs m file req = do
+   rbody <- getHTTPReq m req
+   putStrLn ("saving " ++ file)
+   writeFileBinary file rbody
+
+readFileBinary name = unsafePerformIO $ do
+   handle <- openBinaryFile name ReadMode
+   LT.hGetContents handle
+
+writeFileBinary name dat = do
+   handle <- openBinaryFile name WriteMode
+   LT.hPutStr handle dat
+   hClose handle
+
+readHTTP m url = do
+   nsr <- simpleHTTP m (getRequest url)
+   return $ responseBody nsr
+
 --------------------------------------------------------------------------------------------
 
-nest = nest1 [Tag "DOC" [] []]
+nest = nest1 []
 
-nest1 context [] = head $ until (length $= 1) pop context
+nest1 context [] = case until ((< 2) . length) pop context of
+   []  -> Tag "html" [] [Tag "head" [] [], Tag "body" [] []] 
+   [a] -> a
 nest1 context (t : tags)
-   | isEnd t context =
+   | tagType t == "!doctype" = nest1 context tags
+   | isEnd t context && length context >= 2 =
          let 
             ty = tagType t
-            ix = fromJust $ elemIndex ty $ map tagType context
+            ix = fromMaybe (-1) $ elemIndex ty $ map tagType context
          in nest1 (iterate pop context !! (ix + 1)) tags
    | isCont t = nest1 (t : context) tags
    | otherwise =
-         let (c : cs) = context
-         
-         in nest1 (insertLastSubTag (convertEmpty t) c : cs) tags
+         case context of
+            [] -> nest1 context tags
+            (c : cs) -> nest1 (insertLastSubTag (convertEmpty t) c : cs) tags
 
 isCont (Tag name atts _) = let n = smap toLower name in n /= "p" && n /= "br" && (n /= "script" || not (any ((=="src") . fst) atts))-- S.member (map toLower name) tagSet
 isCont x = False
@@ -210,8 +332,8 @@ getRequestRefr ref url =
    let
       r = getRequest url
       h = requestHeaders r
-      in
-      r{requestHeaders = h ++ [(hReferer, c ref)]}
+   
+   in r{requestHeaders = h ++ [(hReferer, ref)]}
 
 addUserAgent req = req{requestHeaders = (hUserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") : requestHeaders req}
 
@@ -221,62 +343,7 @@ urlToFileName url = let
 
       in if last s == "" then last (init s) ++ ".html" else last s
 -}
-urlToFileName :: BStringC Word8 LB.ByteString => LB.ByteString -> String
-urlToFileName url =
-   let
-      s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
-   
-   in c $ ".cache/"++last s
 
-writeHTTP m url = do
-   let fileName = urlToFileName url
-   rbody <- getHTTPB m url
-   writeFileBinary fileName rbody
-
-writeHTTPRefr m ref url = do
-   let fileName = urlToFileName url
-   rbody <- getHTTPRefr m ref url
-   writeFileBinary fileName rbody
-
-writeHTTPReq m req = do
-   let fileName = urlToFileName $ c $ reqPath req
-   rbody <- getHTTPReq m req
-   writeFileBinary fileName rbody
-
-writeHTTPAs m file req = do
-   rbody <- getHTTPReq m req
-   putStrLn ("saving " ++ file)
-   writeFileBinary file rbody
-
-readFileBinary name = unsafePerformIO $ do
-   handle <- openBinaryFile name ReadMode
-   LB.hGetContents handle
-
-writeFileBinary name dat = do
-   handle <- openBinaryFile name WriteMode
-   LB.hPut handle dat
-   hClose handle
-
-readHTTP m url = do
-   nsr <- simpleHTTP m (getRequest url)
-   return $ responseBody nsr
-
-
-readNestedUrl m url = unsafePerformIO $ readNestedUrl1 m url
-
-readNestedUrl1 m url = do
-   let file = urlToFileName url
-   flag <- doesFileExist file
-   if flag
-      then do
-         let h = readNested file
-         putStrLn $ "read " ++ file
-         return h
-      else do
-         dat <- getHTTPB m url
-         writeFileBinary file dat
-         putStrLn $ "written " ++ file
-         return $ nest $ parseHTML url $ c dat
 
 isPicName url = any (`isSuffixOf` url) [".jpg", ".jpeg", ".bmp", ".png", ".gif"]
 
@@ -287,7 +354,7 @@ getHdrLocation1 _                      = Nothing
 getHdrLocation h = head $ catMaybes $ map getHdrLocation1 h
 -}
 
-wget :: Manager -> LB.ByteString -> (LB.ByteString -> Bool) -> (LB.ByteString -> Bool) -> Int -> IO ()
+wget :: Manager -> LT.Text -> (LT.Text -> Bool) -> (LT.Text -> Bool) -> Int -> IO ()
 wget m url recP saveP levels = do
    done <- newIORef S.empty
    let
@@ -298,16 +365,16 @@ wget m url recP saveP levels = do
             then return ()
             else do
                modifyIORef done (S.insert url)
-               LB.putStr url
-               rbody <- getHTTPB m url
+               LT.putStr url
+               rbody <- getHTTPIO m url
                writeFileBinary (urlToFileName url) rbody
-               let tags = parseHTML "" $ c rbody
+               let tags = parseHTML url $ c rbody
                let links1 = map (relTo url) $ extractLinks1 tags
                let linksp = filter isPicName links1
                let pics1 = map (relTo url) $ extractPics tags
                let links = filter recP links1
                let pics = filter saveP (linksp ++ pics1)
-               mapM_ LB.putStr pics
+               mapM_ LT.putStr pics
                mapM_ (writeHTTPRefr m url) pics
                when (level > 1) $ mapM_ (wget1 (level - 1)) links
 
@@ -315,9 +382,9 @@ wget m url recP saveP levels = do
 
 zeropad n l = let str = show n in replicate (l - length str) '0' ++ str
 
-formatSpaces :: LB.ByteString -> LB.ByteString
+formatSpaces :: LT.Text -> LT.Text
 formatSpaces = replace "%20" " "
-parseSpaces :: LB.ByteString -> LB.ByteString
+parseSpaces :: LT.Text -> LT.Text
 parseSpaces = replace " " "%20"
 parseURI1 u = parseURI $ c $ parseSpaces u
 
@@ -329,18 +396,18 @@ relTo1 sa sr =
       in
       relativeTo ur ua
 
-relTo :: LB.ByteString -> LB.ByteString -> LB.ByteString
+relTo :: LT.Text -> LT.Text -> LT.Text
 relTo sa sr = c $ show $ relTo1 sa sr
 
 -------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------
-getRowSpan = max 1 . fromIntegral . parse1 integer . tagAttrib "rowspan"
+getRowSpan = fromIntegral . maybe 1 (parseNoFail 0 integer) . mbAttrib "rowspan"
 
 setRowSpan r t
    | r > 0 = setAttrib "rowspan" (c $ show r) t
    | otherwise = delAttrib "rowspan" t
 
-expand1 t = let colspan = max 1 $ fromIntegral $ parse1 integer $ tagAttrib "colspan" t in replicate colspan t
+expand1 t = let colspan = fromIntegral $ maybe 1 (parseNoFail 1 integer) $ mbAttrib "colspan" t in replicate colspan t
 
 expand :: [HTML] -> [HTML]
 expand = concatMap expand1
@@ -402,44 +469,27 @@ matchTags ts t = elem (tagType t) ts
 removeTags ts = filter (not . matchTags ts)
 getTags ts = filter (matchTags ts)
 
-entityList = [("&quot;", "\""), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&nbsp;", " "), ("&#160;", " ")]
-
-replaceEntities :: LB.ByteString -> LB.ByteString
-replaceEntities l
-   | null l = empty
-   | take 2 l == "&#" =
-         let
-            text = takeWhile (/= convertChar ';') $ tail $ tail l
-            le = length text + 3
-            Done i n = parse integer text 
-         in
-            cons (convertChar $ chr $ fromIntegral n) $ replaceEntities (drop le l)
-   | head l == convertChar '&' =
-         forFJE
-            (cons (head l) $ replaceEntities (tail l))
-            entityList
-            (\(e, r) -> ifJust (e `isPrefixOf` l) (r ++ replaceEntities (drop (length e) l)))
-   | head l == convertChar 'â' = cons (convertChar '-') $ replaceEntities $ tail l
-   | otherwise = cons (head l) $ replaceEntities $ tail l
-
 testNest = nest $ concatText $ filter (\x -> tagType x `notElem` ["a", "i"]) testParse
 
 subText = tagText . subTag
 subTagN n t = subTags t !! n
 subTag = head . subTags
+subTagsType ty = filter (typeIs ty) . subTags
 subTags (Tag _ _ x) = x
 subTags (EndTag _) = []
 subTags (Text _) = []
 firstSub t = head $ subTags t
+
+addTags add (Tag t a s) = Tag t a (s ++ add)
 
 attribs (Tag _ a _) = a
 attribs (EmptyTag _ a) = a
 attribs (EndTag _) = []
 attribs (Text _) = []
 
-setAttribs (Tag n a s) a1 = Tag n a1 s
+setAttribs (Tag      n a s) a1 = Tag n a1 s
 setAttribs (EmptyTag n a) a1 = EmptyTag n a1
-setAttribs (EndTag n) a1 = EndTag n
+setAttribs (EndTag   n) a1 = EndTag n
 setAttribs (Text t) a1 = Text t
 
 with a = mergeAttribs a
@@ -477,26 +527,43 @@ findTree pred tag = let
 
 wrap = Tag "results" []
 
+setSubTags (Tag typ attribs _) subtags = Tag typ attribs subtags
+
 filterType = filter . typeIs
 filterId = filter . idIs
 filterClass = filter . classIs
 
 -- all findTree type functions changed to findTreeR
 -- all findTree1 functions changed to findTree
-findTreeR pred tag = wrap $ findTrees pred tag
+findTreeR pred tag = setSubTags tag $ findTrees pred tag
 findTrees pred tag = if pred tag then [tag] else concatMap (findTrees pred) (subTags tag)
 findTree pred tag = case findTrees pred tag of
    [] -> Text ""
    (r : _) -> r
 
+extractText = trim . squash . clean . mapTree aux map tagText
+   where
+      
+      aux tag subtexts  | tagType tag == "ul" = LT.concat $ map (++ "\n") subtexts
+                        | tagType tag == "td" = LT.intercalate " " subtexts
+                        | tagType tag == "br" = "\n"
+                        | tagType tag == "p"  = "\n" ++ LT.intercalate " " subtexts ++ "\n"
+                        | otherwise  = concat subtexts
+
+k = LT.intersperse
+
 filterTree pred tag@(Tag typ atts subs) = ifPred pred $ Tag typ atts $ mapMaybe (filterTree pred) subs
 filterTree pred tag = ifPred pred tag
 
-mapTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ map (mapTree f) subs
-mapTree f tag = f tag
+mapTree f g h tag@(Tag {}) = f tag (g (mapTree f g h) $ subTags tag)
+mapTree f g h tag = h tag
 
-mapMaybeTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree f) subs
+mapMaybeTree :: (HTML -> Maybe a) -> HTML -> Maybe a
+mapMaybeTree f tag@(Tag typ atts subs) = f tag <|> listToMaybe (mapMaybe (mapMaybeTree f) subs)
 mapMaybeTree f tag = f tag
+
+mapMaybeTree1 f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree1 f) subs
+mapMaybeTree1 f tag = f tag
 
 mapMMaybeTree f tag@(Tag typ atts subs) = f $ Tag typ atts $ mapMaybe (mapMaybeTree f) subs
 mapMMaybeTree f tag = f tag
@@ -518,16 +585,16 @@ fetchScripts m html = do
    let y = replicate (length scripturls) empty
    scripts <- fetcher x y
    let env = zip scripturls scripts
-   return $ mapTree (\t -> if isSrcScript t
-                                                   then t { inner = [Text $ c $ fromJust $ lookup (getAttrib "src" t) env] }
-                                                   else t) html
+   return $ mapTree (\t u -> if isSrcScript t
+               then t { inner = [Text $ c $ fromJust $ lookup (getAttrib "src" t) env] }
+               else t) map id html
 
    --fetcher (mapM brRead scriptbods) $ replicate (length scripturls) LB.empty
 
-fetcher :: (Monad m) => m [B.ByteString] -> [LB.ByteString] -> m [LB.ByteString]
+fetcher :: (Monad m, ConvertString ByteString LT.Text) => m [B.ByteString] -> [LT.Text] -> m [LT.Text]
 fetcher rs ss = do
    es <- rs
-   if all null es then return ss else fetcher rs $ zipWith (++) ss $ map c es
+   if all null es then return ss else fetcher rs $ zipWith (++) ss $ (map (convertString :: B.ByteString -> LT.Text) (es :: [B.ByteString]) :: [LT.Text])
 
 emptyTag (Tag t _ []) = t == "span"
 emptyTag (Text t) = trim (squash t) == empty
@@ -551,50 +618,173 @@ findAttribs a = findTrees . attribIs a
 -- HH   HH    T    MM   MM LL
 -- HH   HH    T    MM   MM LLLLLLL
 
-htmlP = many (try comment <|> tag <|> textP)
+#define ONLY
+parseHTML sn xs = 
+#ifdef ONLY
+   case parseOnly htmlP xs of
+      Left  l -> error l
+      Right r -> r
+#else
+   case parse htmlP xs of
+      Done i r        -> r
+      Partial cont    -> error $ c $ "partial input in "++sn
+      Fail i ctxt msg -> error $ "context = "++concat ctxt++" message="++msg++" input="++c i
+#endif
 
-comment = do
+htmlP = manyTill (choice [tag, textP, comment, Text <$> takeLazyText]) endOfInput
+
+comment = (do
    string "<!--"
-   manyTill anyChar (try $ string "-->")
-   return $ Tag "comment" [] []
+   commentMid "") <?> "comment"
 
-textP =
-   ( do
-         t <- manyTill2 "<"
-         return $ Text $ replaceEntities t
-   )
-      <?> "Text"
+commentMid x = (do
+   com <- AP.takeWhile1 (notInClass "-")
+   let comLT = convertString com :: LT.Text
+   choice [commentMid (x++comLT), commentEnd (x++comLT)]) <?> "commentMid"
+
+commentEnd x = (do
+   string "-->"
+   return $ Tag "comment" [("comment", x)] []) <?> "commentEnd"
+
+textP = Text <$> charEnts "<&"
+
+charEnts endChars = convertString . concat <$> many1 (charEnts1 endChars)
+
+charEnts1 endChars = do
+   clear <- AP.takeWhile (notInClass endChars)
+   lchar <- AP.lookAhead anyChar
+   if | lchar == '&' -> do
+         qchar <- option "" $ do
+            char '&'
+            choice  [do string "amp;"  ; return "&",
+                     do string "lt;"   ; return "<",
+                     do string "gt;"   ; return ">",
+                     do string "nbsp;" ; return " ",
+                     do string "apos;" ; return "'",
+                     do string "quot;" ; return "\"",
+                     do string "pound;"; return "£",
+                     do string "#" ; i <- fromIntegral <$> integer;                 char ';'; return $ cons (chr i) empty,
+                     do string "#x"; i <- fromIntegral <$> baseInteger 16 hexDigit; char ';'; return $ cons (chr i) empty]
+         return $ clear ++ qchar
+      | null clear -> fail "no text"
+      | otherwise  -> return clear
+      
+tagignore = do whiteSpace; char '<'; manyTill anyChar (char '>'); whiteSpace
+
+tag = (do
+         char '<'
+         whiteSpace
+         end <- option False (do char '/'; whiteSpace; return True)
+         name1 <- AP.takeWhile1 (notInClass " />\t\n\r")
+         let name = smap toLower $ convertString name1 
+         whiteSpace
+         attribs <- many attrib
+         emptyTag <- option False (do char '/'; return True)
+         char '>'
+
+         if | name == "script" && not end -> do
+               script <- manyTill anyChar (try $ string "</script>")
+               return $ EmptyTag name (attribs ++ [("script", c script)]) 
+            | name == "style" && not end -> do
+               style <- manyTill anyChar (try $ string "</style>")
+               return $ EmptyTag name (attribs ++ [("style", c style)])
+            | end ->
+               return $ EndTag name
+            | emptyTag ->
+               return $ EmptyTag name attribs
+            | otherwise ->
+               return $ Tag name attribs []
+   
+      ) <?> "Tag"
+
+attrib :: Parser (LT.Text, LT.Text)
+attrib = (do
+   i <- AP.takeWhile1 (notInClass " =/>\t\n\r")
+   whiteSpace
+   v <- option "" (do char '='; whiteSpace; value)
+   whiteSpace
+   return (c i, c v)) <?> "attrib"
+
+value = quotedValue <|> quotedValue2 <|> rawValue
+
+quotedValue = (do
+   char '"'
+   res <- charEnts "\"&"
+   char '"'
+   return res) <?> "quoteVal"
+
+quotedValue2 = (do
+   char '\''
+   res <- charEnts "'&"
+   char '\''
+   return res) <?> "quoteVal2"
+
+rawValue = charEnts " />" <?> "rawVal"
+
+rawVal2 = AP.takeWhile (notInClass " />'\"") <?> "rawVal2"
+
+--entityList = [("&quot;", "\""), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&nbsp;", " "), ("&#160;", " "), ("&apos;", "'"), ("&cent;", "c"), ("&pound;", "£"), ("&yen;", "Y"), ("&euro;", "E"), ("&copy;", "(c)"), ("&reg;", "reg"), ("&trade;", "TM")]
+
+escapeValue = do
+   list <- many $ do
+      clear <- AP.takeWhile1 (notInClass "&<'\"")
+      escape <- choice [do char '&' ; return "&amp;" ,
+                        do char '<' ; return "&lt;"  ,
+                        do char '"' ; return "&quot;",
+                        do char '\''; return "&#39;" ]
+      return $ clear ++ escape
+   return $ concat list
 
 indentStep = 3
 
-formatAttrib (name, val) = " " ++ name ++ "=\"" ++ val ++ "\""
-formatAttribs a = concat $ map formatAttrib a
-
-ph = LB.putStr . formatLBS 1
+ph = LB.putStr . formatLBS 
 
 c x = convertString x
-
-aa :: LB.ByteString -> B.ByteString
-aa x = convertString x
-
-ar:: B.ByteString -> LB.ByteString
-ar x = convertString x
-
+{-
 --formatLBS = lbsofs . formatH 1
-formatLBS :: Int -> HTML -> LB.ByteString
-formatLBS width (EndTag typ) = "[/" ++ c typ ++ "]"
-formatLBS width (EmptyTag typ attribs) = "<" ++ c typ ++ formatAttribs attribs ++ "/>\n"
-formatLBS width (Text text) = trim $ squash text
-formatLBS width (Tag typ attribs terms) =
+formatBS1 :: HTML -> LByteString
+formatBS1 (EndTag typ) = "[/" ++ c typ ++ "]"
+formatBS1 (EmptyTag typ attribs) = "<" ++ c typ ++ c (formatAttribs attribs) ++ "/>\n"
+formatBS1 (Text text) = c $ trim $ squash text
+formatBS1 (Tag typ attribs terms) =
    let
-      open = "<" ++ c typ ++ formatAttribs attribs ++ ">"
+      open = "<" ++ c typ ++ c (formatAttribs attribs) ++ ">"
       close = "</" ++ c typ ++ ">"
-      fterms = map (formatLBS (width - indentStep)) terms
+      fterms = map formatLBS terms
       res = open ++ concat fterms ++ close
       in
       if length res <= width
-         then res
+         then c res
          else open ++ "\n" ++ c (indent indentStep $ intercalate "\n" $ map c fterms) ++ "\n" ++ close
+
+formatAttrib (name, val) = string7 " " <> byteString name <> string7 "=\"" <> byteString val <> string7 "\""
+formatAttribs a = mconcat $ map formatAttrib a
+-}
+formatLBS html = convertString $ toLazyText $ format 0 html
+
+format :: Int -> HTML -> Builder
+format i (EndTag   typ        ) = mempty --string7 (replicate i ' ') <> "[/" <> fromLazyText typ <> "]\n"
+format i (EmptyTag typ attribs) = fromString (replicate i ' ') <> "<" <> fromLazyText typ <> formatAttribs attribs <> "/>\n"
+format i (Text            text) = let
+   t = squash $ trim text
+   
+   in if t == "" || t == " " then mempty else fromString (replicate i ' ') <> fromLazyText (trim $ squash text) <> "\n"
+
+format i t@(Tag typ attribs1 terms) = let
+   open  = "<"  <> fromLazyText typ <> formatAttribs (attribs $ delAttrib "script" t) <> ">"
+   close = "</" <> fromLazyText typ <> ">"
+   fterms = map (format (i+3)) terms
+   ind = fromString $ replicate i ' '
+   --res = open <> mconcat fterms <> close
+   
+   in if typ == "script" && hasAttrib "script" t
+         then 
+            ind <> open <> "\n" <> fromLazyText (getAttrib "script" t) <> ind <> close <> "\n"
+         else
+            ind <> open <> "\n" <> mconcat fterms <> ind <> close <> "\n"
+
+formatAttrib (name, val) = " " <> fromLazyText name <> "=\"" <> fromLazyText val <> "\""
+formatAttribs a = mconcat $ map formatAttrib a
 
 
 {-
@@ -610,17 +800,17 @@ must also redo all the sub items
 or could format them originally for spreading as the spread indent is <= than the open+close tag
 -}
 
-squash :: (BStringC Word8 s, ConvertString String s) => s -> s
+squash :: (BString s, BStringC Char s, ConvertString String s) => s -> s
 squash x 
    | null   x      = x
-   | length x == 1 = if isSpace2 (head x :: Word8) then c " " else x
+   | length x == 1 = if isSpace2 (head x :: Char) then c " " else x
    | length x >  1 = if
       | isSpace2 $ head x -> if
          | isSpace2 $ x !! 1 -> squash $ c " " ++ drop 2 x
          | otherwise -> c " " ++ squash (drop 1 x)
       | otherwise -> cons (head x) $ squash $ drop 1 x
 
-tag1 = do
+tag2 = do
    char '<'
    whiteSpace
    r <- many (lexeme tagstuff)
@@ -628,69 +818,13 @@ tag1 = do
    whiteSpace
    return r
 
-tagstuff = choice [rawVal2, quoteVal, quoteVal2]
-
-tagignore = do whiteSpace; char '<'; manyTill anyChar (char '>'); whiteSpace
-
-tag =
-   ( do
-         char '<'
-         whiteSpace
-         end <- option False (do char '/'; return True)
-         whiteSpace
-         name1 <- c <$> AP.takeWhile (notInClass " />\t\n\r")
-         let name = smap toLower name1 :: LB.ByteString
-         whiteSpace
-         attribs <- many attrib
-         empty <- option False (do char '/'; return True)
-         char '>'
-
-         if | name == "script" && not end -> do
-               script <- manyTill anyChar (try $ string "</script>")
-               return $ Tag name attribs [] --Text script]
-            | name == "style" && not end -> do
-               style <- manyTill anyChar (try $ string "</style>")
-               return $ Tag name attribs [] --Text style]
-            | end ->
-               return $ EndTag name
-            | empty ->
-               return $ EmptyTag name attribs
-            | otherwise ->
-               return $ Tag name attribs []
-   )
-      <?> "Tag"
-
-attrib :: Parser (LB.ByteString, LB.ByteString)
-attrib = do
-   i <- AP.takeWhile (notInClass " =/>\t\n\r")
-   whiteSpace
-   v <- option "" (do char '='; whiteSpace; value)
-   whiteSpace
-   return (c i, c v)
-
-value = quoteVal <|> quoteVal2 <|> rawVal
-
-quoteVal = do
-   char '"'
-   res <- AP.takeWhile (/= convertChar '"')
-   char '"'
-   return res
-
-quoteVal2 = do
-   char '\''
-   res <- AP.takeWhile (/= convertChar '\'')
-   char '\''
-   return res
-
-rawVal = AP.takeWhile (\x -> notElem x $ map convertChar " />")
-
-rawVal2 = manyTill2 " />'\""
+tagstuff = choice [rawVal2, quotedValue, quotedValue2]
 
 maybeP p = option Nothing (Just <$> p)
 
 lexeme p = do r <- p; whiteSpace; return r
 
-whiteSpace = ws
+whiteSpace = AP.takeWhile (inClass " \t\n\r")
 
 ws = many ws1
 
@@ -702,7 +836,7 @@ ws1 = oneOf " \t\n\r"
 
 file = readFileBinary "britfilms2010.htm"
 
-testParse = parseHTML "" file
+testParse = parseHTML LT.empty file
 
 file1 = "<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\" dir=\"ltr\">\n<head>"
 
@@ -828,15 +962,17 @@ pmAll :: [Integer] -> [(Integer, String)]
 pmAll m = map (\u -> (pmReview m u, u)) . concatMap (pmIndexPage m . ("http://www.popmatters.com/pm/reviews/recent/section/dvds/P" ++) . show)
 -}
 -- http://s3.amazonaws.com/data.tumblr.com/tumblr_lnd2c7MAK31qldyuto1_1280.jpg?AWSAccessKeyId=AKIAJ6IHWSU3BX3X7X3Q&Expires=1318390589&Signature=ojbE2oqAD6wQBbLfC9xOvVQsxHo%3D
-spacesToPluses :: LB.ByteString -> LB.ByteString
+spacesToPluses :: LT.Text -> LT.Text
 spacesToPluses x = replace " " "+" x
 spacesToUnders x = replace " " "_" x
+
+undersToSpaces x = replace "_" " " x
 
 discSrch m typ name =
    map (tagAttrib "href") $
       subTags $
          findTree ((== "search_result_title") . tagClass) $
-            getNestedReq m $
+            getHTMLReq m $
                addUserAgent $
                   getRequest ("https://www.discogs.com/search/?q=" ++ spacesToPluses name ++ "&type=" ++ typ)
 
@@ -851,7 +987,7 @@ discTracks m name =
       $ subTags
       $ findType "tr"
       $ findTree (("tracklist" `isPrefixOf`) . tagClass)
-      $ getNestedReq m
+      $ getHTMLReq m
       $ addUserAgent
       $ (\url -> getRequest ("https://www.discogs.com" ++ url))
       $ head
@@ -862,7 +998,7 @@ discImage m name =
       subTag $
          findType "img" $
             findClass "link_1ctor link_33If6" $
-               getNestedReq m $
+               getHTMLReq m $
                   addUserAgent $
                      (\url -> getRequest ("https://www.discogs.com" ++ url)) $ c $
                         head $
@@ -875,7 +1011,7 @@ discImage m name =
 -}
 upIO = unsafePerformIO
 
-gnusrch m typ name = getNested m ("http://gnudLB.org/" ++ typ ++ "/" ++ spacesToPluses name)
+gnusrch m typ name = getHTML m ("http://gnudb.org/" ++ typ ++ "/" ++ spacesToPluses name)
 
 gov = "List of British governments"
 
@@ -916,7 +1052,7 @@ putMap1 = putGrid . transposez "" . sortOn (readInt . (!! 2)) . map (uncurry (:)
 
 putMap2 = putGrid . transposez "" . sortOn (readInt . (!! 2)) . map (\(a, b :: [Int]) -> a : map show b) . M.toList
 
-lego = concatMap (findTrees (attribIs "data-test" "pab-item")) $ concatMap (\p -> findTrees (attribIs "data-test" "pab-search-results-list") $ readNested $ "/home/brett/swissarmyknife/.cache/lego"++show p++".html") [1..5]
+lego = concatMap (findTrees (attribIs "data-test" "pab-item")) $ concatMap (\p -> findTrees (attribIs "data-test" "pab-search-results-list") $ readHTML $ "lego"++show p++".html") [1..5]
 
 dropBut n l = drop (length l - n) l
 
@@ -925,4 +1061,8 @@ lego1 = sort $ map (\item -> let
    img = dropBut 11 $ tagAttrib "src" $ findType "img" $ findTree (attribIs "data-test" "pab-item-image") item
    in (title, take 7 img, img)) lego
 
-lego2 = writeFileBinary ".cache/lego.html" $ formatLBS 1 $ Tag "table" [] $ map (\(title, n, img) -> Tag "tr" [] [Tag "td" [] [Text n], Tag "td" [] [Text title], Tag "td" [] [Tag "image" [("src", img)] []]]) lego1
+writeHTML file html = writeFileBinary file $ convertString $ toLazyText $ format 0 html
+
+writeHTMLT file htmls = writeFileBinary file $ convertString $ toLazyText $ mconcat $ map (format 0) htmls
+
+lego2 = writeHTML "lego.html" $ Tag "table" [] $ map (\(title, n, img) -> Tag "tr" [] [Tag "td" [] [Text n], Tag "td" [] [Text title], Tag "td" [] [Tag "image" [("src", img)] []]]) lego1

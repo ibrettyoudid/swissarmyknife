@@ -8,6 +8,7 @@ module Prolog3 where
 
 import Favs
 
+import Control.Monad
 import Control.Monad.State
 import Control.Applicative
 import Data.Char

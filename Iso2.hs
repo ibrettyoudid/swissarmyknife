@@ -11,7 +11,7 @@ where
 import SyntaxTH
 import SyntaxCIPU2
 
-import NewTuple
+import NewTuple hiding (apply)
 
 import Prelude hiding (id, (.))
 

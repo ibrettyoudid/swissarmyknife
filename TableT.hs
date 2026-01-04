@@ -12,7 +12,7 @@
 {-# HLINT ignore "Move brackets to avoid $" #-}
 {-# HLINT ignore "Eta reduce" #-}
 
-module TableB where
+module TableT where
 
 import Favs hiding (levenshtein, trim, squash)
 import MHashDynamic2 hiding (toList2, (?))
@@ -22,10 +22,10 @@ import ShowTuple
 import Show1
 import qualified Tree as Tree
 import BString
-import HTMLB
+import HTMLT
 import FuzzyMatch
-import Atto as AP
-import qualified NumberParsersB as NP
+import AttoT as AP
+import qualified NumberParsersT as NP
 
 import Data.Char
 import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, readFile, writeFile)
@@ -37,7 +37,7 @@ import qualified Data.Set as S
 import Data.Time.Calendar
 import Data.Time.LocalTime
 
-import Data.Attoparsec.ByteString hiding (take, takeWhile)
+import Data.Attoparsec.Text hiding (take, takeWhile)
 
 import Control.Monad hiding (join)
 
@@ -46,6 +46,7 @@ import Control.DeepSeq
 import System.IO.Unsafe
 
 import GHC.Generics
+import GHC.Stack
 
 import Debug.Trace
 
@@ -169,7 +170,7 @@ csvline = sepBy csvcell $ char ','
 
 txt = toDyn . bof <$> do char '"'; s <- many anyChar; char '"'; return s
 
-dynCell  = parse1 (choice [try (toDyn <$> dateExcel), try numberDyn, txt])
+dynCell  = parse1 (choice [try (toDyn <$> dateExcel), try numberDyn, try txt, toDyn <$> string ""])
 
 fodscell = choice [try (toDyn <$> dateExcel), try numberDyn, toDyn <$> many anyChar]
 
@@ -244,6 +245,10 @@ instance {-# OVERLAPPING #-} UniqueList String where
    uniquify = foldl (flip insertWith4) M.empty
    showField x = [x]
 
+instance {-# OVERLAPPING #-} UniqueList Text where
+   uniquify = foldl (flip insertWith4) M.empty
+   showField x = [show1 x]
+
 -- supposedly overlaps the ProperTuple one but both can't ACTUALLY apply to the same type, so I think we're OK
 instance {-# OVERLAPPING #-} UniqueList ByteString where
    uniquify = foldl (flip insertWith4) M.empty
@@ -263,7 +268,7 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance {-# OVERLAPPING #-} Show1 ByteString where
+instance {-# OVERLAPPING #-} Show1 Text where
    show1 = convertString
 
 instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
@@ -277,29 +282,32 @@ instance (ProperTuple a, ShowNewTuple a) => Show (Table a z Dynamic) where
 
 showTable t =  showGridD colWidths1 width $ 
                zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ 
-               transposez (toDyn (""::ByteString)) $ 
-               ungroupFill (map (\(_, v) -> (v, toDyn (""::ByteString))) $ M.toList $ fields t) $
+               transposez (toDyn (""::Text)) $ 
+               ungroupFill (map (\(_, v) -> (v, toDyn (""::Text))) $ M.toList $ fields t) $
                tgroup t
 
+showTableNew :: (ShowNewTuple f, HasCallStack) => Table f i Dynamic -> String
 showTableNew t =  showGridD colWidths1 width $ 
                   zipWith (++) (map (map toDyn . showNewT) $ fieldsUT t) $ 
-                  transposez (toDyn (""::ByteString)) $ 
-                  ungroupFill (map (\(_, v) -> (v, toDyn (""::ByteString))) $ M.toList $ fields t) $
+                  transposez (toDyn (""::Text)) $ 
+                  ungroupFill (map (\(_, v) -> (v, toDyn (""::Text))) $ M.toList $ fields t) $
                   tgroup t
 
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
 showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
-showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ map showColD $ transposez (toDyn (""::ByteString)) $ ungroup $ tgroup t
+showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ map showColD $ transposez (toDyn (""::Text)) $ ungroup $ tgroup t
 
 toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ tgroup t
 
 showTableMeta (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records) ++ " " ++ show (fieldsU fields)
 showTableMeta (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (Tree.size records) ++ " " ++ show (fieldsU fields)
 showTableMeta (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1 ++ " " ++ show (fieldsU fields)
+
 showTableMeta1 (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records)
 showTableMeta1 (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (Tree.size records)
 showTableMeta1 (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1
-showTableMeta2 t = GridH $ map showT $ fieldsUT t
+
+showTableMeta2 t = GridH $ map showNewT $ fieldsUT t
 
 setFields newnames (Table fields group) = let
    (names, numbers) = unzip $ sortOn snd $ M.toList fields
@@ -346,20 +354,24 @@ fromGridD = fromGridHD . transpose
 fromGrid1 f = fromGridH1 f . transpose
 
 fromGridH  (fs : rs) = fromGridH1 fs rs
-fromGridHD []        = TableB.empty
+fromGridHD []        = TableT.empty
 fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map2 (dynCell . clean) rs
 
 fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
 fromGridHD5 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
-fromGridHD9 c u n fs [] = TableB.empty
+fromGridHD9 c u n fs [] = TableT.empty
 fromGridHD9 c u n fs rs = fromGridH1 (zipWith (\fnum fnames -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, fnum, map clean fnames)) [1..] fs) $ map2 (dynCell . clean) rs
 
-fromGridHD10 c u n [] = TableB.empty
+fromGridHD10 c u n [] = TableT.empty
 fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
-fromGridHBF (hs, bs, fs) = fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1..]) $ map2 (dynCell . clean) bs
+fromGridHBF (hs, bs, fs) = unsafePerformIO $ do
+   print hs
+   print bs
+   print fs
+   return $ fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1::Int ..]) $ map2 (dynCell . clean) bs
 
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ Tree.fromElems $ map (Rec . Tree.fromElems) recordl
@@ -378,7 +390,7 @@ toList r@(Rec _) = [r]
 
 toList2 = map unrec . toList
 
-scrub = smap (\c -> if (c >= 65 && c <= 90) || (c >= 97 && c <= 122) then c else 32)
+scrub = smap (\c -> let x = ord c in if (x >= 65 && x <= 90) || (x >= 97 && x <= 122) then c else ' ')
 
 --cleanDyn x = read $ clean $ show x
 autoJoin joinType maxDist bzero master tab =
@@ -394,8 +406,8 @@ autoIndex maxDist bzero master tab =
 findIndexField maxDist bzero master tab =
    snd <$> (
       find ((> fromIntegral (size tab) / 4) . fromIntegral . fst)
-         $ map (\f -> (\r -> (size r, f))
-         $ join jInner bzero master
+         $ map (\f -> (\r -> (M.size r, f))
+         $ joinAux1 master
          $ byscrub (? f) tab) 
          $ map fst
          $ M.toList
@@ -456,6 +468,16 @@ joinFuzzy include maxDist empty l r = let
 
    in Table flr $ INode $ joinInclude include j1
 
+joinAux1 a b = {-trace (show il ++ " " ++ show ir) -}res
+   where
+      Table fieldsl il = a
+      Table fieldsr ir = b
+
+      INode rl = il
+      INode rr = ir
+
+      res = M.union rl rr
+
 joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
    where
       Table fieldsl il = a
@@ -484,7 +506,7 @@ joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
 
 
 --index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Rec $ Tree.fromElems [toDyn ""]) xs
-index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs $ tz [Rec $ Tree.fromElems [toDyn (""::ByteString)]]) xs
+index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs $ tz [Rec $ Tree.fromElems [toDyn (""::Text)]]) xs
 
 appendFields fieldsl fieldsr = uniquify $ M.toList fieldsl ++ M.toList fieldsr
 
@@ -547,6 +569,16 @@ blankRec z f = Tree.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
 appendTable joinType func (Table tfs tr) (Table bfs br) = let
    (tftobf2, fieldsj) = joinFields joinType func tfs bfs
    in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br
+
+mapFields func (Table fs rs) = let
+   (fs3, fs2) = mapFields1 func fs 
+   in Table fs2 $ mapFieldsG func fs3 rs
+
+mapFields1 func fs = let
+   fs1 = M.fromList $ map (\(fld, k) -> (k, func fld)) $ M.toList fs
+   fs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList fs
+   fs3 = M.fromList $ map tflip $ M.toList $ M.compose fs2 fs1
+   in (fs3, fs2)
 
 joinFields joinType func tfs bfs = let
    --y = map (\((a, b, c, d, e, f, g, h, i, j), k) -> let) $ M.toList tfs
@@ -625,13 +657,17 @@ translateTableG tftobf2 (INode bs) = INode $ M.map (translateTableG tftobf2) bs
 translateTableG tftobf2 (Recs  bs) = Recs  $ Tree.map (translateTableG tftobf2) bs
 translateTableG tftobf2 (Rec   bs) = Rec   $ Tree.fromList $ M.toList $ M.compose (M.fromList $ Tree.toList bs) tftobf2
 
+mapFieldsG func fs3 (INode rs) = INode $ M.map (mapFieldsG func fs3) rs
+mapFieldsG func fs3 (Recs  rs) = Recs  $ Tree.map (mapFieldsG func fs3) rs
+mapFieldsG func fs3 (Rec   rs) = Rec   $ Tree.fromList $ M.toList $ M.compose (M.fromList $ Tree.toList rs) fs3
+
 -- foldTable f z n t =
 foldSubTable fs (Table flds g) = applyL fs $ Record flds $ foldSubTableG g
 
 foldSubTableG g = Tree.untree $ toList2 g
 
 -- foldSubTable1 fs (Table flds g) = applyL fs $ Record flds $ foldSubTable1G (Tree.fromElems fs) g
-addTotals t = Table (fields t) $ INode $ M.insert (toDyn ("ZZZZ"::ByteString)) (Rec $ foldSubTable2 sum t) g where INode g = tgroup t
+addTotals t = Table (fields t) $ INode $ M.insert (toDyn ("ZZZZ"::Text)) (Rec $ foldSubTable2 sum t) g where INode g = tgroup t
 foldSubTable2 f t = foldSubTable2G f $ tgroup t
 foldSubTable2G f g = Tree.map f $ Tree.untree $ toList2 g
 
@@ -643,7 +679,7 @@ foldSubTable3G f (INode rs) = let
    (totals, rebuild) = unzip vals
    newtotal = f totals
    
-   in (newtotal, INode $ (if length totals > 1 then M.insert (toDyn ("ZZZZ"::ByteString)) (Rec newtotal) else id) $ M.fromList $ zip keys rebuild)
+   in (newtotal, INode $ (if length totals > 1 then M.insert (toDyn ("ZZZZ"::Text)) (Rec newtotal) else id) $ M.fromList $ zip keys rebuild)
 
 foldSubTable3G f (Recs rs) = let
    (totals, rebuild) = Tree.unzip $ Tree.map (foldSubTable3G f) rs
@@ -727,10 +763,10 @@ lookupg2 k (Table f (Rec r)) = Record f r
 -- lookupgf k (Table f (Rec r)) = fromJust $ Tree.lookup (fromJust (M.lookup k f)) r
 
 -- unrec (Rec r) = r
-lookupr :: (Ord f, Show f, Show t) => f -> Record f t -> t
+lookupr :: (HasCallStack, Ord f, Show f, Show t) => f -> Record f t -> t
 lookupr k r =
    case M.lookup k $ fieldsr r of
-      Nothing -> error $ "failed to find field name "++show k++" in record "++show r
+      Nothing -> error $ "failed to find field name "++show k++" in record "++show (fieldsr r)
       Just n ->
          case Tree.lookup n $ values r of
             Just j  -> j
@@ -742,7 +778,7 @@ lookupr k r =
 
 -- lookupr k r = toDyn k
 
-(?) :: (Ord f, Show f, Show t) => Record f t -> f -> t
+(?) :: (Ord f, Show f, Show t, HasCallStack) => Record f t -> f -> t
 (?) = flip lookupr
 
 --(??) :: (Ord [f]) => Record [f] t -> [f] -> t

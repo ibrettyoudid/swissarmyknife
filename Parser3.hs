@@ -16,7 +16,7 @@ module Parser3 where
 import Favs hiding (indent1, indent2)
 import qualified MyPretty2
 import {-# SOURCE #-} MHashDynamic2 hiding (Apply, expr)
-import NewTuple
+import NewTuple hiding (apply)
 import qualified SetList as SL
 import Iso2 hiding (foldl, (!!))
 import qualified Iso2
