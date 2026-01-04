@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use second" #-}
@@ -14,7 +15,8 @@ module TableB where
 import Favs hiding (levenshtein, trim, squash)
 import MHashDynamic2 hiding (toList2, (?))
 import MyPretty2
-import NumberParsers
+import qualified NumberParsersT as NPT
+import NewTuple
 import ShowTuple
 import Show1
 import Tree qualified as T
@@ -32,10 +34,7 @@ import Data.Set qualified as S
 import Data.Time.Calendar
 import Data.Time.LocalTime
 
-import Text.Parsec.Char
-import Text.Parsec.Combinator
-import Text.Parsec.Prim
-import Text.Parsec.String
+import Data.Attoparsec.ByteString hiding (take, takeWhile)
 
 import Control.Monad hiding (join)
 
@@ -170,17 +169,13 @@ csvline = sepBy csvcell $ char ','
 
 dynCell  = parse1 (try (toDyn <$> dateExcel) <|> try numberDyn <|> toDyn . bof <$> many anyChar) "dynCell"
 
-fodscell = try (Date <$> dateExcel) <|> try numberC <|> (String1 <$> many anyChar)
+fodscell = try (toDyn <$> dateExcel) <|> try numberC <|> (toDyn <$> many anyChar)
 
-csvcell  = try (Date <$> dateExcel) <|> try number <|> txt
+csvcell  = try (toDyn <$> dateExcel) <|> try numberDyn <|> txt
 
-wikicell = try (Date <$> dateExcel) <|> try numberC <|> txt
-
-number = Int1 <$> int <|> (Double1 <$> floating)
+wikicell = try (toDyn <$> dateExcel) <|> try numberDyn <|> txt
 
 int = fromInteger <$> integer
-
-numberC = Int1 <$> intC <|> (Double1 <$> floating)
 
 numberDyn = try (toDyn <$> forceFloating) <|> try (toDyn <$> intC)
 
@@ -245,30 +240,19 @@ class UniqueList a where
    uniquify :: (Enum b, Num b) => [(a, b)] -> M.Map a b
    showField :: a -> [String]
 
-instance UniqueList String where
+instance {-# OVERLAPPING #-} UniqueList String where
    uniquify = foldl (flip insertWith4) M.empty
    showField x = [x]
 
-instance UniqueList ByteString where
+-- supposedly overlaps the ProperTuple one but both can't ACTUALLY apply to the same type, so I think we're OK
+instance {-# OVERLAPPING #-} UniqueList ByteString where
    uniquify = foldl (flip insertWith4) M.empty
    showField x = [show x]
 
-instance (Ord a, Ord b, Ord c, Ord d, Show a, Show b, Show c, Show d) => UniqueList (a, b, c, d) where
+-- requires UndecidableInstances
+instance (ProperTuple a, ShowNewTuple a, Ord a) => UniqueList a where
    uniquify = M.fromList
-   showField = showT
-
-instance (Ord a, Ord b, Ord c, Ord d, Ord e, Show a, Show b, Show c, Show d, Show e) => UniqueList (a, b, c, d, e) where
-   uniquify = M.fromList
-   showField = showT
-
-instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g, Ord h, Ord i, Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i) => UniqueList (a, b, c, d, e, f, g, h, i) where
-   uniquify = M.fromList
-   showField = showT
-
-instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g, Ord h, Ord i, Ord j, Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => UniqueList (a, b, c, d, e, f, g, h, i, j) where
-   uniquify = M.fromList
-   showField = showT
-
+   showField = showNewT
 -- Tables contain INodes or Recses
 -- INodes contain Recses or Recs
 -- Recses contain Recs or INodes
@@ -288,21 +272,20 @@ instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
 instance (Show i, Show r) => Show (Table String i r) where
    show = showTable1
 
-instance (Show a, Show b, Show c, Show d) => Show (Table (a, b, c, d) Dynamic Dynamic) where
-   show t = showGrid $ {-zipWith (++) (map showT $ fieldsUT t) $-} map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
+instance (ProperTuple a, ShowNewTuple a) => Show (Table a z Dynamic) where
+   show = showTableNew
 
-instance (Show a, Show b, Show c, Show d, Show e) => Show (Table (a, b, c, d, e) Dynamic Dynamic) where
-   show t = showGrid $ zipWith (++) (map showT $ fieldsUT t) $ map showColD $ transposez (toDyn "") $ ungroup $ tgroup t
-
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j) => Show (Table (a, b, c, d, e, f, g, h, i, j) z Dynamic) where
-   --show t = showGrid $ zipWith showColDH (map showT $ fieldsUT t) $ transposez (toDyn "") $ ungroup $ tgroup t
-   show = showTable
-   
 showTable t =  showGridD colWidths1 width $ 
                zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ 
                transposez (toDyn "") $ 
                ungroupFill (map (\(_, v) -> (v, toDyn "")) $ M.toList $ fields t) $
                tgroup t
+
+showTableNew t =  showGridD colWidths1 width $ 
+                  zipWith (++) (map (map toDyn . showNewT) $ fieldsUT t) $ 
+                  transposez (toDyn "") $ 
+                  ungroupFill (map (\(_, v) -> (v, toDyn "")) $ M.toList $ fields t) $
+                  tgroup t
 
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
 showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
@@ -375,6 +358,8 @@ fromGridHD9 c u n fs rs = fromGridH1 (zipWith (\fnum fnames -> (c !! 0, c !! 1, 
 
 fromGridHD10 c u n [] = TableB.empty
 fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
+
+fromGridHBF (hs, bs, fs) = fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1..]) $ map2 (dynCell . clean) bs
 
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ T.fromElems $ map (Rec . T.fromElems) recordl
@@ -559,16 +544,16 @@ addCalcField name func table = let
 
 blankRec z f = T.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
 
-appendTable joinType (Table tfs tr) (Table bfs br) = let
-   (tftobf2, fieldsj) = joinFields joinType tfs bfs
+appendTable joinType func (Table tfs tr) (Table bfs br) = let
+   (tftobf2, fieldsj) = joinFields joinType func tfs bfs
    in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br
 
-joinFields joinType tfs bfs = let
+joinFields joinType func tfs bfs = let
    --y = map (\((a, b, c, d, e, f, g, h, i, j), k) -> let) $ M.toList tfs
-   tfs1 = M.fromList $ map (\(y@(a, b, c, d, e, f, g, h, i, j), k) -> (y, (a, b, c, d, e, f, g, j))) $ M.toList tfs
-   bfs1 = M.fromList $ map (\(y@(a, b, c, d, e, f, g, h, i, j), k) -> (y, (a, b, c, d, e, f, g, j))) $ M.toList bfs
-   tfs2 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList tfs
-   bfs2 = M.fromList $ map (\((a, b, c, d, e, f, g, h, i, j), k) -> ((a, b, c, d, e, f, g, j), k)) $ M.toList bfs
+   tfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList tfs
+   bfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList bfs
+   tfs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList tfs
+   bfs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList bfs
    z = -1
    -- the field numbers in bfs must be changed to match those in tfs
    -- for the fields that are in bfs but not tfs, we need new numbers. 
@@ -577,10 +562,10 @@ joinFields joinType tfs bfs = let
    f8 = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
    tftobf = map snd $ M.toList f8 
    maxtf  = maximum $ map fst tftobf
-   (bnott, tfs3) = partition ((== z) . fst) tftobf -- bnott, the fields in bfs but not tfs, are marked with a -1 entry for tf (the first)
-   bnott1 = zip [maxtf+1..] $ map snd bnott -- new field numbers
-   tftobf2 = M.fromList (bnott1 ++ filter ((/= z) . snd) tfs3)
-   bftotf  = M.fromList $ map (\(tf, bf) -> if bf == z then (tf, tf) else (bf, tf)) (bnott1 ++ tfs3)
+   (tfz, tfs3) = partition ((== z) . fst) tftobf                 -- tfz, the fields in bfs but not tfs, are marked with a -1 entry for tf (the first)
+   newbyold = zip [maxtf+1..] $ map snd tfz                      -- new field numbers for fields in bfs not tfs
+   tftobf2 = M.fromList (newbyold ++ filter ((/= z) . snd) tfs3) -- updated field numbers for all of bfs
+   bftotf  = M.fromList $ map (\(tf, bf) -> if bf == z then (tf, tf) else (bf, tf)) (newbyold ++ tfs3)
 
    -- and now we need to do the field indices
    -- M.union tfs bfs is all the original dectuples from tfs plus the ones from bfs not in tfs
@@ -592,8 +577,45 @@ joinFields joinType tfs bfs = let
    -- a is the dectuples
    -- b is the old field numbers
    -- c is the new field numbers
-   fieldsj = M.compose bftotf (M.union tfs bfs) 
+   compb = M.compose (M.fromList $ map tflip newbyold) bfs  -- using newbyold, we only get the new fields from bfs
+   compt = M.compose (M.map fst f8) tfs1
+   fieldsj = M.union compt compb
    in (tftobf2, fieldsj)
+      {-
+      unsafePerformIO $ do
+      putStrLn "tfs="
+      mapM_ print $ M.toList tfs
+      putStrLn "bfs="
+      mapM_ print $ M.toList bfs
+      putStrLn "tfs1="
+      mapM_ print $ M.toList tfs1
+      putStrLn "bfs1="
+      mapM_ print $ M.toList bfs1
+      putStrLn "tfs2="
+      mapM_ print $ M.toList tfs2
+      putStrLn "bfs2="
+      mapM_ print $ M.toList bfs2
+      putStrLn "f8="
+      mapM_ print $ M.toList f8
+      putStrLn "tftobf="
+      mapM_ print tftobf
+      putStrLn $ "maxtf="++show maxtf
+      putStrLn "tfz="
+      mapM_ print tfz
+      putStrLn "tfs3="
+      mapM_ print tfs3
+      putStrLn "newbyold="
+      mapM_ print newbyold
+      putStrLn "tftobf2="
+      mapM_ print $ M.toList tftobf2
+      putStrLn "bftotf="
+      mapM_ print $ M.toList bftotf
+      putStrLn "compb="
+      mapM_ print $ M.toList compb
+      putStrLn "compt="
+      mapM_ print $ M.toList compt
+      return (tftobf2, fieldsj)
+      -}
 
 appendTableG (INode ts) (INode bs) = INode $ M.unionWith appendTableG ts bs
 appendTableG (Recs  ts) (Recs  bs) = Recs  $ T.append (T.minKey bs - T.maxKey ts + 1) ts bs
