@@ -11,11 +11,12 @@
 {-# HLINT ignore "Use second" #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# HLINT ignore "Use first" #-}
 
 module TableT where
 
 import Favs hiding (levenshtein, trim, squash)
-import MHashDynamic2 hiding (toList2, (?))
+import MHashDynamic3 hiding (toList2, (?))
 import MyPretty2
 import NewTuple
 import ShowTuple
@@ -28,9 +29,10 @@ import AttoT as AP
 import qualified NumberParsersT as NP
 
 import Data.Char
-import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, readFile, writeFile)
+import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, readFile, writeFile, maximum)
 import qualified Prelude
 import Data.List (singleton, transpose, sort, elemIndex, findIndex, partition)
+import Maximum
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -168,15 +170,19 @@ csv = many csvline
 
 csvline = sepBy csvcell $ char ','
 
-txt = toDyn . bof <$> do char '"'; s <- many anyChar; char '"'; return s
+txt x = let
+   r = reads x
+   in if null r then x else fst $ head r
 
-dynCell  = parse1 (choice [try (toDyn <$> dateExcel), try numberDyn, try txt, toDyn <$> string ""])
+dynCell s = case parseOnly (choice [try (toDyn <$> dateExcel), try numberDyn]) s of
+   Left l -> let r = reads $ convertString s in if null r then toDyn s else toDyn (fst $ head r :: Text)
+   Right r -> r
 
 fodscell = choice [try (toDyn <$> dateExcel), try numberDyn, toDyn <$> many anyChar]
 
-csvcell  = choice [try (toDyn <$> dateExcel), try numberDyn, txt]
+csvcell  = choice [try (toDyn <$> dateExcel), try numberDyn]
 
-wikicell = choice [try (toDyn <$> dateExcel), try numberDyn, txt]
+wikicell = choice [try (toDyn <$> dateExcel), try numberDyn]
 
 int = fromInteger <$> NP.integer
 
@@ -590,14 +596,28 @@ joinFields joinType func tfs bfs = let
    -- the field numbers in bfs must be changed to match those in tfs
    -- for the fields that are in bfs but not tfs, we need new numbers. 
    -- we can start numbering from maxt+1 because we can ignore the current bfs numbers,
-   -- because they're going to be changed anyway
-   f8 = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
-   tftobf = map snd $ M.toList f8 
-   maxtf  = maximum $ map fst tftobf
-   (tfz, tfs3) = partition ((== z) . fst) tftobf                 -- tfz, the fields in bfs but not tfs, are marked with a -1 entry for tf (the first)
-   newbyold = zip [maxtf+1..] $ map snd tfz                      -- new field numbers for fields in bfs not tfs
-   tftobf2 = M.fromList (newbyold ++ filter ((/= z) . snd) tfs3) -- updated field numbers for all of bfs
-   bftotf  = M.fromList $ map (\(tf, bf) -> if bf == z then (tf, tf) else (bf, tf)) (newbyold ++ tfs3)
+   -- because they're going to be changed anyway#
+
+   -- tf uname
+   -- tf jname
+   -- 3 types of fields numbers
+   -- tf f# original
+   -- tfn f# new
+   -- bf f#
+   -- 3 types of pairs
+   -- t = fields only in tf
+   -- b = fields only in bf
+   -- j = fields only in both
+   f8 = M.union tfs2 bfs2
+   
+
+   f8        = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
+   tf_bf_a   = map snd $ M.toList f8 
+   maxtf     = if null tftobf then 0 else maximum $ map fst tftobf
+   tf_bf_b   = filter ((== z) . fst) tf_bf_a
+   tf_bf_j   = filter (\(tf, bf) -> tf >= 0 && bf >= 0) tf_bf_a
+   tfn_bf_b  = zip [maxtf+1..] $ map snd tf_bf_b                      -- new field numbers for fields in bfs not tfs
+   tfn_bf_bj = M.fromList (tfn_bf_b ++ tf_bf_j) -- updated field numbers for all of bfs
 
    -- and now we need to do the field indices
    -- M.union tfs bfs is all the original dectuples from tfs plus the ones from bfs not in tfs
@@ -609,10 +629,10 @@ joinFields joinType func tfs bfs = let
    -- a is the dectuples
    -- b is the old field numbers
    -- c is the new field numbers
-   compb = M.compose (M.fromList $ map tflip newbyold) bfs  -- using newbyold, we only get the new fields from bfs
+   compb = M.compose (M.fromList $ map tflip tfn_bf_b) bfs  -- using newbyold, we only get the new fields from bfs
    compt = M.compose (M.map fst f8) tfs1
    fieldsj = M.union compt compb
-   in (tftobf2, fieldsj)
+   in (tfn_bf_bj, fieldsj)
       {-
       unsafePerformIO $ do
       putStrLn "tfs="

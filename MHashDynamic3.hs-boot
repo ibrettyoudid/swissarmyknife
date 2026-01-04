@@ -2,6 +2,7 @@ module MHashDynamic3 where
 
 import Data.Dynamic qualified as D
 import Data.Typeable
+import Show1
 import GHC.Stack
 
 newtype Dynamic = Dynamic D.Dynamic
@@ -18,3 +19,4 @@ fromDyn2 :: (Typeable a, HasCallStack) => String -> Dynamic -> a
 instance Eq Dynamic
 instance Ord Dynamic
 instance Show Dynamic
+instance Show1 Dynamic

@@ -12,7 +12,7 @@ module Wiki where
 
 import Favs hiding (readNum, split, replace, ($<))
 import HTMLT
-import MHashDynamic2 hiding ((?), toList2)
+import MHashDynamic3 hiding ((?), toList2)
 import MyPretty2
 import NumberParsersT
 import TableT hiding (intC, insertWith4)
@@ -520,14 +520,10 @@ cjpageA m url = do
    return $ fromJust a
 
 cjgridA1 u n gn g = do
-   let
-      tg = cTextGridHBFH g
+   let tg = cTextGridHBFH g
    print $ map3t GridH tg
    putStr $ formatHTML $ wrap $ filter headerrow $ subTagsType "tr" g
-   let
-      --tb = fromGridHBF ["Index"::Text, ""] u n $ map2 c tg
-      u1 = replace "_" " " $ last $ split "/" u
-      tb = fromGridHBF tg
+   let tb = fromGridHBF tg
    putStrLn $ b "printing master"
    print tb
    putStrLn $ b "printed master"
@@ -610,9 +606,7 @@ tableIndex master n g = do
          putStrLn $ "grid "++show n++"="++showTableMeta tb
          return Nothing
 
-f10to8 (a, b, c, d, e, f, g, h, i, j) = (a, b, c, d, e, f, g, j)
-
-f6to4 (h2 :- h3 :- url :- gn :- fld :- fldn :- ()) = h2 :- h3 :- url :- fld :- ()
+f6to4 (header2 :- header3 :- url :- gridNum :- fieldName :- fieldNum :- ()) = header2 :- header3 :- url :- fieldName :- ()
 
 getFieldName (gridNum :- fieldName :- fieldNum :- ()) = fieldName
 
@@ -638,13 +632,13 @@ tableJoin (t1, t2) t3 = do
          print $ showTableMeta2 t2
          print $ showTableMeta2 t3
          print $ showTableMeta2 t4
-         putStrLn $ b "t2 ="
+         putStrLn $ b "result: t2 ="
          print t4
          return (t1, t4)
       else do
          putStrLn $ b "| | | JOINING | | |"
          let t4 = join jLeft bzero t1 t2
-         putStrLn $ b "t1 ="
+         putStrLn $ b "result: t1 ="
          print t4
          return (t4, t3)
 
@@ -770,12 +764,17 @@ quote1 x = if x < ' ' then "\\" ++ show (ord x) else [x]
 findIndexField1 master tab = let
    INode xs = tgroup master
    list = toList2 $ tgroup tab
-   fs = map (\(fieldname, fieldnum) -> (,fieldname) $ M.size $ M.intersection xs $ M.fromList $ map ((, fieldnum) . fromJust . Tree.lookup fieldnum) list) $ M.toList $ fields tab
+   fs = map (\(fieldname, fieldnum) -> (,fieldname) $ 
+      M.size $ 
+      M.intersection xs $ 
+      M.fromList $ 
+      map ((, fieldnum) . 
+            fromJust . 
+            Tree.lookup fieldnum) list) $ 
+               M.toList $ 
+               fields tab
 
    in snd $ maximum fs
-
-
-
    --in concatMap Tree.toList $ toList2 $ tgroup tab
 {-
 main = do
@@ -814,10 +813,6 @@ headerNum html = case tagType html of
    "h5" -> 5
    "h6" -> 6
    _    -> 0
-
-nestHeaders2 htmls = evalState (nestHeaders2A 0) htmls
-
-nestHeaders3 func htmls = nestHeaders3A func [] htmls
 
 nestHeaders1A :: [HTML] -> [HTML] -> HTML
 nestHeaders1A context [          ] = Text ""
@@ -860,6 +855,8 @@ putback i = do
    is <- get
    put (i:is)
 
+nestHeaders2 htmls = evalState (nestHeaders2A 0) htmls
+
 nestHeaders2A level = do
    m <- input
    case m of
@@ -881,6 +878,8 @@ nestHeaders2A level = do
                res2 <- nestHeaders2A level
 
                return $ addTags res blah : res2
+
+nestHeaders3 func htmls = nestHeaders3A func [] htmls
 
 nestHeaders3A func context [] = []
 nestHeaders3A func context (html:htmls) = let

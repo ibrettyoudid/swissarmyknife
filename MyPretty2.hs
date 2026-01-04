@@ -50,14 +50,17 @@ where
 import Favs
 import Numeric
 import Show1
-import {-# SOURCE #-} MHashDynamic2
+import {-# SOURCE #-} MHashDynamic3
 
 import Data.Functor
-import Data.List
+import Prelude hiding (maximum)
+import Data.List hiding (maximum)
+import Maximum
+import qualified Data.List
 import Text.ParserCombinators.Parsec hiding (Column)
 import Text.ParserCombinators.Parsec.Language hiding (Column)
 
-import Data.ByteString qualified as B
+import qualified Data.ByteString as B
 import Data.Fixed
 import Data.Time.Calendar
 import Data.Time.Clock
@@ -69,8 +72,8 @@ import System.Random.Stateful
 
 import qualified System.Console.Terminal.Size as Term
 
-import Data.Map qualified as M
-import Data.Set qualified as S
+import qualified Data.Map as M
+import qualified Data.Set as S
 import Text.ParserCombinators.Parsec.Token qualified as T
 
 import Debug.Trace
@@ -356,7 +359,7 @@ rowHeights colWidths cellLengthsRow = reverse $ nubSet $ cellHeightsRow colWidth
 
 gridHeight cellLengthRows colWidths = sum $ map (rowHeight colWidths) cellLengthRows
 
-maxColumns width colWidths = length $ takeWhile (< width) $ tail $ scanl (+) 0 $ map (+1) colWidths -- $ map (sqrt . fromIntegral) colWidths
+maxColumns width colWidths = max 1 $ length $ takeWhile (< width) $ tail $ scanl (+) 0 $ map (+1) colWidths -- $ map (sqrt . fromIntegral) colWidths
 
 adjustElem f col colWidths = let
    (b, x:a) = splitAt col colWidths

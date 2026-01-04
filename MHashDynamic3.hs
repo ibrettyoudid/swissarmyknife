@@ -787,7 +787,7 @@ showl =
 
 showm1 =
    createMultimethod1
-      "show" showl1
+      "show1" showl1
 
 showl1 =    
    [ toDyn (show :: Int -> String)

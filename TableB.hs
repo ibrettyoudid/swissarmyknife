@@ -15,7 +15,7 @@
 module TableB where
 
 import Favs hiding (levenshtein, trim, squash)
-import MHashDynamic2 hiding (toList2, (?))
+import MHashDynamic3 hiding (toList2, (?))
 import MyPretty2
 import NewTuple
 import ShowTuple
