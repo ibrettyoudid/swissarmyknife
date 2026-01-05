@@ -373,7 +373,8 @@ fromGridHD9 c u n fs rs = fromGridH1 (zipWith (\fnum fnames -> (c !! 0, c !! 1, 
 fromGridHD10 c u n [] = TableT.empty
 fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
-fromGridHBF (hs, bs, fs) = unsafePerformIO $ do
+fromGridHBF (c, hs, bs, fs) = unsafePerformIO $ do
+   print c
    print hs
    print bs
    print fs
@@ -517,8 +518,9 @@ index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs 
 appendFields fieldsl fieldsr = uniquify $ M.toList fieldsl ++ M.toList fieldsr
 
 joinRec shift (Rec  l) (Rec  r) = Rec $ Tree.append shift l r
-joinRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r)
-joinRec shift l        r        = error $ "joinRec called with "++show l++" and "++show r
+joinRec shift (Recs l) (Recs r) = if Tree.size l <= 1 && Tree.size r <= 1 then Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r) else error "too many Recs"
+-- joinRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r)
+-- joinRec shift l r = error $ "joinRec called with "++show (ungroup l)++" and "++show (ungroup r)
 
 joinL shift z fr (Rec  rl) = Rec  $ Tree.append shift rl (blankRec z fr)
 joinL shift z fr (Recs rl) = Recs $ Tree.map (joinL shift z fr) rl
@@ -588,11 +590,10 @@ mapFields1 func fs = let
 
 joinFields joinType func tfs bfs = let
    --y = map (\((a, b, c, d, e, f, g, h, i, j), k) -> let) $ M.toList tfs
-   tfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList tfs
-   bfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList bfs
+   --tfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList tfs
+   --bfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList bfs
    tfs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList tfs
    bfs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList bfs
-   z = -1
    -- the field numbers in bfs must be changed to match those in tfs
    -- for the fields that are in bfs but not tfs, we need new numbers. 
    -- we can start numbering from maxt+1 because we can ignore the current bfs numbers,
@@ -602,75 +603,65 @@ joinFields joinType func tfs bfs = let
    -- tf jname
    -- 3 types of fields numbers
    -- tf f# original
-   -- tfn f# new
+   -- tfn f# new -- a new number for a field that was previously not in tfs, only in bfs
    -- bf f#
    -- 3 types of pairs
    -- t = fields only in tf
    -- b = fields only in bf
-   -- j = fields only in both
-   f8 = M.union tfs2 bfs2
-   
-
-   f8        = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
-   tf_bf_a   = map snd $ M.toList f8 
-   maxtf     = if null tftobf then 0 else maximum $ map fst tftobf
-   tf_bf_b   = filter ((== z) . fst) tf_bf_a
-   tf_bf_j   = filter (\(tf, bf) -> tf >= 0 && bf >= 0) tf_bf_a
-   tfn_bf_b  = zip [maxtf+1..] $ map snd tf_bf_b                      -- new field numbers for fields in bfs not tfs
+   -- j = fields only in tf & bf
+   -- bj = fields in b and j
+   f8_tf_bf  = M.intersectionWith (,) tfs2 bfs2
+   tf_bf_j   = map snd $ M.toList f8_tf_bf
+   f8_bf_b   = bfs2 M.\\ tfs2
+   tf_t      = map snd $ M.toList tfs
+   max_tf    = if null tf_t then 0 else maximum tf_t
+   tfn_bf_b  = zip [max_tf+1..] $ map snd $ M.toList f8_bf_b
    tfn_bf_bj = M.fromList (tfn_bf_b ++ tf_bf_j) -- updated field numbers for all of bfs
 
-   -- and now we need to do the field indices
-   -- M.union tfs bfs is all the original dectuples from tfs plus the ones from bfs not in tfs
-   -- ie. a map from tuples to field numbers in tfs or bfs
-   -- the ones in both have the tfs field numbers
-
-   -- in this call:
+{-
+   f8        = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
+   tf_bf_a   = map snd $ M.toList f8 
+   maxtf     = if null tf_bf_a then 0 else maximum $ map fst tf_bf_a
+   tf_bf_b   = filter ((== z) . fst) tf_bf_a
+   tfn_bf_b  = zip [maxtf+1..] $ map snd tf_bf_b                      -- new field numbers for fields in bfs not tfs
+   tf_bf_j   = filter (\(tf, bf) -> tf >= 0 && bf >= 0) tf_bf_a
+   tfn_bf_bj = M.fromList (tfn_bf_b ++ tf_bf_j) -- updated field numbers for all of bfs
+-}
    -- M.compose Map b c -> Map a b -> Map a c
-   -- a is the dectuples
-   -- b is the old field numbers
-   -- c is the new field numbers
-   compb = M.compose (M.fromList $ map tflip tfn_bf_b) bfs  -- using newbyold, we only get the new fields from bfs
-   compt = M.compose (M.map fst f8) tfs1
-   fieldsj = M.union compt compb
-   in (tfn_bf_bj, fieldsj)
-      {-
+   compb = M.compose (M.fromList $ map tflip $ M.toList tfn_bf_bj) bfs
+   fieldsj = union3A joinType tfs compb
+   in  -- (tfn_bf_bj, fieldsj)
+      
       unsafePerformIO $ do
-      putStrLn "tfs="
+      putStrLn $ t "tfs="
       mapM_ print $ M.toList tfs
-      putStrLn "bfs="
+      putStrLn $ t "bfs="
       mapM_ print $ M.toList bfs
-      putStrLn "tfs1="
-      mapM_ print $ M.toList tfs1
-      putStrLn "bfs1="
-      mapM_ print $ M.toList bfs1
-      putStrLn "tfs2="
+      putStrLn $ t "tfs2="
       mapM_ print $ M.toList tfs2
-      putStrLn "bfs2="
+      putStrLn $ t "bfs2="
       mapM_ print $ M.toList bfs2
-      putStrLn "f8="
-      mapM_ print $ M.toList f8
-      putStrLn "tftobf="
-      mapM_ print tftobf
-      putStrLn $ "maxtf="++show maxtf
-      putStrLn "tfz="
-      mapM_ print tfz
-      putStrLn "tfs3="
-      mapM_ print tfs3
-      putStrLn "newbyold="
-      mapM_ print newbyold
-      putStrLn "tftobf2="
-      mapM_ print $ M.toList tftobf2
-      putStrLn "bftotf="
-      mapM_ print $ M.toList bftotf
-      putStrLn "compb="
+      putStrLn $ t "f8_tf_bf="
+      mapM_ print $ M.toList f8_tf_bf
+      putStrLn $ t "tf_bf_j="
+      mapM_ print tf_bf_j
+      putStrLn $ t "f8_bf_b="
+      mapM_ print $ M.toList f8_bf_b
+      putStrLn $ t "tf_t="
+      mapM_ print tf_t
+      putStrLn $ "max_tf="++show max_tf
+      putStrLn $ t "tfn_bf_b="
+      mapM_ print tfn_bf_b
+      putStrLn $ t "tfn_bf_bj="
+      mapM_ print $ M.toList tfn_bf_bj
+      putStrLn $ t "compb="
       mapM_ print $ M.toList compb
-      putStrLn "compt="
-      mapM_ print $ M.toList compt
-      return (tftobf2, fieldsj)
-      -}
+      putStrLn $ t "fieldsj="
+      mapM_ print $ M.toList fieldsj
+      return (tfn_bf_bj, fieldsj)
 
 appendTableG (INode ts) (INode bs) = INode $ M.unionWith appendTableG ts bs
-appendTableG (Recs  ts) (Recs  bs) = Recs  $ Tree.append (Tree.minKey bs - Tree.maxKey ts + 1) ts bs
+--appendTableG (Recs  ts) (Recs  bs) = Recs  $ Tree.append (Tree.minKey bs - Tree.maxKey ts + 1) ts bs
 appendTableG (Rec   ts) (Rec   bs) = Rec   $ Tree.union ts bs
 
 translateTableG tftobf2 (INode bs) = INode $ M.map (translateTableG tftobf2) bs

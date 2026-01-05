@@ -28,7 +28,7 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Text.Lazy.Builder hiding (singleton)
-import Data.List (singleton)
+import Data.List (singleton, partition)
 import Data.Monoid
 import Data.Word (Word8)
 
@@ -109,13 +109,18 @@ countHBF tag = (length $ map (subTagsType "tr") $ subTagsType "thead" tag,
                 length $ map (subTagsType "tr") $ subTagsType "tfoot" tag)
 
 cGridHBFH tag = let
+   caption = extractText $ wrap $ subTagsType "caption" tag
    rows = findTypes "tr" tag
    h = filter        headerrow  rows
    b = filter (not . headerrow) rows
    f = concatMap (subTagsType "tr") $ subTagsType "tfoot" tag
-   in map3t (cGridH . wrap) (h, b, f)
+   in map3t (cGridH . wrap) (caption, h, b, f)
 
-headerrow (Tag "tr" attr subs) = any (tagType $= "th") subs
+headerrow (Tag "tr" attr subs) = most (tagType $= "th") subs
+
+most pred xs = let
+   (p, f) = Data.List.partition pred xs
+   in length p >= length f
 
 --headerrow (Tag "tr" attr subs) = unsafePerformIO $ do
 --   mapM_ print subs
@@ -128,7 +133,7 @@ cGridHBFH tag = let
    (b1, f1)  = splitAt (b-h) bf1
    in (h1, b1, f1)
 -}
-map3t fn (h, b, f) = (fn h, fn b, fn f)
+map3t fn (c, h, b, f) = (c, fn h, fn b, fn f)
 
 cGridHBF tag = map3t transpose $ cGridHBFH tag
 

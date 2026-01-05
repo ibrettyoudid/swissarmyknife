@@ -49,6 +49,7 @@ import Network.HTTP.Client
 
 wikiTable   m = cTextTableH   . getWikiTable  m
 wikiTableD  m u = cTextTableHD  $ getWikiTable  m u
+wikiTableHBF m u = cTextTableHBF $ getWikiTable  m u
 wikiTables  m = cTextTablesH  . getWikiTables m
 wikiTablesD m = cTextTablesHD . getWikiTables m
 
@@ -434,23 +435,9 @@ cjgrid2 tm1 g2 = do
    return res
 -}
 wc m = do
-   let url = wiki "Lists of sovereign states and dependent territories"
-   index <- readWriteHTML1 m url
-   let blah = findTree (\x -> tagType x == "div" && classCon "mw-content-ltr" x) index
-   let foof = findTrees (\t -> tagType t == "ul" || headerNum t > 0) blah
-   let snit = map (\t -> if tagType t == "ul" then findTreeR (typeIs "a") t else t) foof
-   let list = nestHeaders3 extractTitles snit
-   --let list = nestHeaders2 snit
-   --putStr $ formatHTML $ wrap list
-
-   --let blah = nestHeaders index
-   putStrLn $ show (length list) ++ " pages to get"
-   master1 <- cjpageA m $ wiki "List of countries and dependencies by population"
-
-   let master = mapFields (\a -> ("Index"::Text) :- (""::Text) :- (0::Int) :- "Index" :- (0::Int) :- a) master1
-   putStrLn $ "MASTER=" ++ showTableMeta master
-   --let master = Table (uniquify $ zip (zipWith (\fn n -> ("stats", 1, fn, n)) (fields statsm) [1..]) [0..])
-   --(res, missing) <- foldMB (cjpageB m jLeft) (master, []) links0
+   list <- getList m
+   master <- getMaster m
+   cjpageB m jLeft master (\a -> "Demographics" :- "Religion" :- 1 :- "Religion by country" :- a) "Religion by country"
    mapM_ (\(cat, titles) -> 
       zipWithM_ (\n title -> 
          cjpageB m jLeft master (\a -> cat !! 2 :- cat !! 3 :- n :- title :- a) 
@@ -459,6 +446,23 @@ wc m = do
                   list
 
    joinHoriz m
+
+getMaster m = do
+   master1 <- cjpageA m $ wiki "List of countries and dependencies by population"
+
+   let master = mapFields (\a -> ("Index"::Text) :- (""::Text) :- (0::Int) :- ("Index"::Text) :- (0::Int) :- a) master1
+   putStrLn $ "MASTER=" ++ showTableMeta master
+   return master
+
+getList m = do
+   let url = wiki "Lists of sovereign states and dependent territories"
+   index <- readWriteHTML1 m url
+   let blah = findTree (\x -> tagType x == "div" && classCon "mw-content-ltr" x) index
+   let foof = findTrees (\t -> tagType t == "ul" || headerNum t > 0) blah
+   let snit = map (\t -> if tagType t == "ul" then findTreeR (typeIs "a") t else t) foof
+   let list = nestHeaders3 extractTitles snit
+   putStrLn $ show (length list) ++ " pages to get"
+   return list
 
 joinHoriz m = do
    let url = wiki "Lists of sovereign states and dependent territories"
