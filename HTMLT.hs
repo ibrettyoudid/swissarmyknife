@@ -666,7 +666,7 @@ commentEnd x = (do
 
 textP = Text <$> charEnts "<&"
 
-charEnts endChars = concat <$> many1 (charEnts1 endChars)
+charEnts endChars = concat <$> many1 (charEnts1 endChars) <?> "charEnts"
 
 charEnts1 endChars = do
    clear <- AP.takeWhile (notInClass endChars)

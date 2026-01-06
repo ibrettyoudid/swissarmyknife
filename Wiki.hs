@@ -552,13 +552,13 @@ cjpageB m joinType master cat title = do
       --res <- foldM (cjgridB2 joinType) (master, missing) $ map miss $ catMaybes gs2
       if null ts3
          then do
-            putStrLn $ b "NO       NO  RIDS NO GRID   O GRIDS NO   IDS NO GRID  NO GRIDS NO GRID   O GRIDS NO"
-            putStrLn $ b "NO G     NO GRIDS NO GRIDS NO GRIDS NO G IDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO"
-            putStrLn $ b "NO GR    NO GRI        IDS NO G          IDS      IDS NO GRI        IDS NO G       "
-            putStrLn $ b "NO GRI   NO GRI        IDS NO G      O G IDS NO GRID  NO GRI        IDS  O GRIDS N "
-            putStrLn $ b "NO  RID  NO GRI        IDS NO G      O G IDS NO GRID  NO GRI        IDS        S NO"
-            putStrLn $ b "NO   IDS NO GRIDS NO GRIDS NO GRIDS NO G IDS      IDS NO GRIDS NO GRIDS NO GRIDS NO"
-            putStrLn $ b "NO    DS NO  RIDS NO GRID   O GRIDS NO   IDS      IDS NO GRIDS NO GRID  NO GRIDS N "
+            putStrLn $ b "NO       NO  RIDS NO GRID      O GRIDS NO   IDS NO GRID  NO GRIDS NO GRID   O GRIDS NO"
+            putStrLn $ b "NO G     NO GRIDS NO GRIDS    NO GRIDS NO G IDS NO GRIDS NO GRIDS NO GRIDS NO GRIDS NO"
+            putStrLn $ b "NO GR    NO GRI        IDS    NO G          IDS      IDS NO GRI        IDS NO G       "
+            putStrLn $ b "NO GRI   NO GRI        IDS    NO G      O G IDS NO GRID  NO GRI        IDS  O GRIDS N "
+            putStrLn $ b "NO  RID  NO GRI        IDS    NO G      O G IDS NO GRID  NO GRI        IDS        S NO"
+            putStrLn $ b "NO   IDS NO GRIDS NO GRIDS    NO GRIDS NO G IDS      IDS NO GRIDS NO GRIDS NO GRIDS NO"
+            putStrLn $ b "NO    DS NO  RIDS NO GRID      O GRIDS NO   IDS      IDS NO GRIDS NO GRID  NO GRIDS N "
          else do
             t6 <- if length ts3 >= 2
                then do
@@ -578,16 +578,17 @@ cjpageB m joinType master cat title = do
             --when ("Religion" `isInfixOf` title) $ error "aaagh"
          
 tableIndex master n g = do
-   let
-      tg = cTextGridHBF g
-      tg1 = map3t removeRidiculousLinesT $ map3t removeRidiculousLines tg
+   let tg@(c, h, body, f) = cTextGridHBF g
+   putStrLn $ showGrid $ map2 convertString h
+   putStrLn $ showGrid $ map2 convertString body
+   let tg1 = map3t removeRidiculousLinesT $ map3t removeRidiculousLines tg
       --tb = fromGridHBF ["Index"::Text, ""] u n $ map2 c tg
-      tb = fromGridHBF tg1
+   let tb = fromGridHBF tg1
    --print $ GridH tg
    --print $ GridH tg1
 --      tg = cTextGridH g
       --tb = fromGridHD10 cat  n $ map2 c tg1
-      ix = findIndexField 3 bzero master tb
+   let ix = findIndexField 3 bzero master tb
    case ix of
       Just ixj -> do
          let tb1 = mapFields (\a -> n :- a) $ byscrub (? ixj) tb
@@ -616,6 +617,7 @@ getFieldName (gridNum :- fieldName :- fieldNum :- ()) = fieldName
 
 tableJoin (t1, t2) t3 = do
    putStrLn $ b "t3 = "
+   putStrLn $ showStructure t3
    print t3
    let
       fmap23 = snd $ joinFields jInner getFieldName (fields t2) (fields t3)

@@ -315,6 +315,17 @@ showTableMeta1 (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fiel
 
 showTableMeta2 t = GridH $ map showNewT $ fieldsUT t
 
+showStructure (Table fields group) = foldr (++) "" $ map (++"\n") $ showStructureI 0 group
+
+showStructureI i (INode records) = (sp i ++ "INode") : concatMap (showStructureG (i+5)) (M.toList records)
+
+showStructureG i (k, Recs  records) = (sp i ++ "Recs"  ++ showt k) : concatMap (showStructureR (i+5)) (Tree.toList records)
+
+showStructureR i (k, Rec   records) = [sp i ++ "Rec"   ++ showt k ++ "=" ++ showt (Tree.toList records)]
+
+sp :: Int -> Text
+sp n = convertString $ replicate n ' '
+
 setFields newnames (Table fields group) = let
    (names, numbers) = unzip $ sortOn snd $ M.toList fields
    names1 = newnames ++ drop (length newnames) names
@@ -517,8 +528,14 @@ index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs 
 
 appendFields fieldsl fieldsr = uniquify $ M.toList fieldsl ++ M.toList fieldsr
 
+joinRec :: (Show i1, Show r, HasCallStack) => Int -> Group i2 r -> Group i3 r -> Group i1 r
 joinRec shift (Rec  l) (Rec  r) = Rec $ Tree.append shift l r
-joinRec shift (Recs l) (Recs r) = if Tree.size l <= 1 && Tree.size r <= 1 then Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r) else error "too many Recs"
+joinRec shift (Recs l) (Recs r) = let
+   ls = Tree.size l
+   rs = Tree.size r
+   in if ls <= 1 && rs <= 1 
+      then Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r) 
+      else error $ "too many Recs l="++show ls++" r="++show rs
 -- joinRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r)
 -- joinRec shift l r = error $ "joinRec called with "++show (ungroup l)++" and "++show (ungroup r)
 
@@ -569,7 +586,7 @@ joinInclude (ii, il, ir) (ri, rl, rr) =
 
 addCalcField name func table = let
    i = (maximum $ map snd $ M.toList $ fields table) + 1
-   
+
    in mapTable (\r@(Record fields rt) -> Record (M.insert name i fields) $ Tree.insert i (func r) rt) table
 
 blankRec z f = Tree.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
