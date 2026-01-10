@@ -562,10 +562,10 @@ cjpageB m joinType master cat title = do
          else do
             t6 <- if length ts3 >= 2
                then do
-                  (t4, t5) <- foldM tableJoin (head ts3, ts3 !! 1) (drop 2 ts3)
+                  ((g4, t4), (g5, t5)) <- foldM tableJoin (head ts3, ts3 !! 1) (drop 2 ts3)
                   return $ join jLeft bzero t4 t5
                else
-                  return $ head ts3
+                  return $ snd $ head ts3
             putStrLn $ b "t6 ="
             print t6
             let t7 = mapFields cat t6
@@ -597,7 +597,7 @@ tableIndex master n g = do
          print $ showTableMeta2 tb1
 
          return $
-            ifJust (not $ classCon "mw-collapsed" g) tb1
+            ifJust (not $ classCon "mw-collapsed" g) (g, tb1)
 
       Nothing -> do
          putStrLn $ b "IIIIII NN   NN DDDDDD  EEEEEEE XX    XX  "
@@ -615,7 +615,7 @@ f6to4 (header2 :- header3 :- url :- gridNum :- fieldName :- fieldNum :- ()) = he
 
 getFieldName (gridNum :- fieldName :- fieldNum :- ()) = fieldName
 
-tableJoin (t1, t2) t3 = do
+tableJoin ((g1, t1), (g2, t2)) (g3, t3) = do
    putStrLn $ b "t3 = "
    putStrLn $ showStructure t3
    print t3
@@ -640,13 +640,13 @@ tableJoin (t1, t2) t3 = do
          print $ showTableMeta2 t4
          putStrLn $ b "result: t2 ="
          print t4
-         return (t1, t4)
+         return ((g1, t1), (wrap [g2, g3], t4))
       else do
          putStrLn $ b "| | | JOINING | | |"
          let t4 = join jLeft bzero t1 t2
          putStrLn $ b "result: t1 ="
          print t4
-         return (t4, t3)
+         return ((wrap [g1, g2], t4), (g3, t3))
 
 foldMM f [x] = return x
 foldMM f (x:xs) = do
