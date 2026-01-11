@@ -569,12 +569,14 @@ outershow d r@(Not     a) = innershow Nothing r
 ii (Just d) = insertIndex d "*"
 ii Nothing = id
 
-data State tok = Scan     { item :: Item tok, from :: SL.SetList (State tok) }
-               | Predict  { item :: Item tok, from :: SL.SetList (State tok) }
-               | Scanned  { item :: Item tok,                                 prev :: SL.SetList (State tok) }
-               | Early    { item :: Item tok,                                 prev :: SL.SetList (State tok) }
+-- from is up or down the hierarchy
+-- prev is to the prev step in the sequence
+
+data State tok = Predict  { item :: Item tok, from :: SL.SetList (State tok) }
                | Complete { item :: Item tok, from :: SL.SetList (State tok) } --, prev :: [State tok] }
                | From     { item :: Item tok, from :: SL.SetList (State tok), prev :: SL.SetList (State tok) }
+               | Scanned  { item :: Item tok,                                 prev :: SL.SetList (State tok) }
+               | Early    { item :: Item tok,                                 prev :: SL.SetList (State tok) }
                deriving (Eq, Ord, Show)
 {-
 instance Show z => Show (State z) where
@@ -582,7 +584,9 @@ instance Show z => Show (State z) where
 -}
 data Result = Running | Fail | Pass { asts :: [Dynamic] } deriving (Eq, Ord, Show)
 
-data Item tok  = Item (Rule tok) Result (Item2 tok) deriving (Eq)
+data Item tok  = Item (Rule tok) Result (Item2 tok) 
+               | ItemEmpty 
+               deriving (Eq)
 
 instance Ord tok => Ord (Item tok) where
    compare a b = compare (rule a, item2 a, result a) (rule b, item2 b, result b)
@@ -650,19 +654,20 @@ showRule (Many  a  ) = enclose2 (("Many "  ++) .: showRule a) 4
 showRule (Return  a) = enclose2 (("Return "++) .: show2    a) 1
 showRule AnyToken    = \p -> showString "AnyToken"
 
-showSeq [] p = id
-showSeq as p = let
+showSeq [] p r = r
+showSeq as p r = let
    (ts, ns) = span isToken as
 
-   in if length ts >= 2
-         then maybeSep (show (map getToken ts)       ) "," . showSeq1 ns p
-         else maybeSep (intercalate "," (map show ts)) "," . showSeq1 ns p
+   in --show (map getToken ts) ++ "," ++ showSeq1 ns p r
+      if length ts >= 1
+         then maybeSep (show (map getToken ts)       ) "," (showSeq1 ns p r)
+         else maybeSep (intercalate "," (map show ts)) "," (showSeq1 ns p r)
 
-showSeq1 [] p = id
-showSeq1 as p = let
+showSeq1 [] p r = r
+showSeq1 as p r = let
    (ns, ts) = break isToken as
 
-   in (intercalate "," (map show ns) ++) . showSeq ts p
+   in intercalate "," (map show ns) ++ "," ++ showSeq ts p r
 
 maybeSep a x b = if null a || null b || isPrefixOf x b then a++b else a++x++b
 
@@ -743,6 +748,7 @@ parseE1 map1 (n, t) = do
    putStrLn "END OF TOKEN"
    mapM_ (print . fst) $ M.toList map1
    putStrLn "SCANNING"
+   putStrLn $ take 80 $ cycle "/\\"
    let state = scan t map1
    putStrLn "SCANNED!!!!"
    print state
@@ -847,26 +853,27 @@ complete n t args@(changed, mapd, sln) sla = do
    foldM (complete1 n t) (changed, mapd, sln) sla
 
 complete1 n t args sub = do
-   --print sub
+   putStrLn $ "sub="++showSequences sub
 
    let p1 = makeFrom n sub
-   --putStrLn "mains"
-   --print p1
+   putStrLn $ "from="++showSequences p1
 
    let items = concatMap (complete3 $ item sub) (SL.map item $ prev p1)
-   --putStrLn "new main items"
-   --print items
+   putStrLn "new main items"
+   mapM_ print items
 
    if passi $ item sub then do
       res <- process Complete p1 args items
-      --putStrLn "result"
-      --print res
+      putStrLn "result"
+      print res
       return res
    else
       return args
 
 scan ch soi = Scanned (Item (Token ch) (Pass [toDyn ch]) Item2) $ SL.fromList $
    mapMaybe (\(it, state) -> ifJust (saux ch (rule it)) state) $ M.toList soi
+
+
 
 makeFrom n s = From (item s) (SL.singleton s) (SL.concat $ map from $ seqstart s)
 
@@ -1054,6 +1061,8 @@ showSequences1 :: Show tok => State tok -> [String]
 showSequences1 state@(Predict  {}) = showTree [[""]] (show $ item state)
 showSequences1 state@(Complete {}) = showSequences2 state $ SL.toList $ from state
 showSequences1 state@(Scanned  {}) = showSequences3 state $ SL.toList $ prev state
+showSequences1 state@(From     {}) = showSequences3 state $ SL.toList $ prev state
+--showSequences1 state@(Early    {}) = showSequences 
 
 showSequences2 :: Show tok => State tok -> [State tok] -> [String]
 showSequences2 state from1 = showTree (map (showSequences3 state . SL.toList . prev) from1) (show $ item state)
@@ -1083,6 +1092,14 @@ showSequencesD2A state from1 = showTree (map (showSequencesD3A state) $ SL.toLis
 showSequencesD3A :: Show tok => State tok -> State tok -> [String]
 showSequencesD3A state prev1 = showTree (showSequencesD1A prev1) ""
 
+showSequencesA2 state@(Scanned {}) = DRow [DCol $ map showSequencesA2 $ SL.toList $ prev state, docOfState state]
+showSequencesA2 state@(From    {}) = DRow [DCol $ map showSequencesA2 $ SL.toList $ prev state, docOfState state]
+showSequencesA2 state@(Early   {}) = DRow [DCol $ map showSequencesA2 $ SL.toList $ prev state, docOfState state]
+showSequencesA2 state@(Predict {}) = docOfState state
+
+docOfState state = DStr $ show $ item state
+
+showSequencesA1 state@(Predict {}) = DCol $ map showSequencesA2 $ SL.toList $ from state
 
 showVTree lines1 =
                ["  /",
@@ -1106,7 +1123,7 @@ showTree lines1 line4 = let
    i = (n - nh - nl - 1) `div` 2
    lines3 = replicate nh "" ++
             map (\x ->  replicate (x+k) ' ' ++ "\\") [0..i-1] ++
-                        [replicate (i+k) ' ' ++ if null line4 then line4 else line4 ++ "==>"] ++
+                       [replicate (i+k) ' ' ++ line4 ++ "==>"] ++
             map (\x ->  replicate (x+k) ' ' ++ "/" ) [i-1, i-2..0] ++
             replicate nl ""
 
@@ -1302,8 +1319,8 @@ data Doc char str = DStr                 str
                   | DSeq       [Doc char str] 
                   | DLines              [str] 
                   | DTab      [[Doc char str]] 
-                  | DRows      [Doc char str] -- should be made up of DStrs and VStretches
-                  | DCols      [Doc char str] -- should be made up of DStrs and HStretches
+                  | DRow       [Doc char str] -- should be made up of DStrs and VStretches
+                  | DCol       [Doc char str] -- should be made up of DStrs and HStretches
                   | HStretch            [str]
                   | VStretch             str
                   | CharStr         char
