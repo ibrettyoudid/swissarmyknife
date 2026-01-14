@@ -32,6 +32,25 @@ instance (Ord a, Ord b) => Ord (a :- b) where
 instance (Show1 a, Show1 b) => Show1 (a :- b) where
    show1 (a :- b) = show1 a ++ " :- " ++ show1 b
 
+class NamedTuple a b c | a b -> c, c -> a where
+   lookup :: a -> b -> c
+{-
+instance (NamedTuple a ((a :- b) :- c) (a :- b)) => NamedTuple a ((d :- e) :- (a :- b) :- c) (a :- b) where
+   lookup a (de :- abc) = NewTuple.lookup a abc
+-}
+instance NamedTuple a e (a :- b) => NamedTuple a (d :- e) (a :- b) where
+   lookup a (e :- f) = NewTuple.lookup a f
+
+instance NamedTuple a ((a :- b) :- c) (a :- b) where
+   lookup a (ab@(a1 :- b) :- c) = ab
+
+data A = A deriving (Eq, Ord, Show)
+data B = B deriving (Eq, Ord, Show)
+data C = C deriving (Eq, Ord, Show)
+
+nt = (A :- "hello") :- (B :- "there") :- (C :- "jim") :- ()
+
+
 class ShowNewTuple a where
    showNewT :: a -> [String]
 
@@ -40,6 +59,15 @@ instance ShowNewTuple () where
 
 instance (Show1 a, ProperTuple b, ShowNewTuple b) => ShowNewTuple (a :- b) where
    showNewT (a :- b) = show1 a : showNewT b
+
+class ReadNewTuple a where
+   readNewT :: [String] -> a
+
+instance ReadNewTuple () where
+   readNewT [] = ()
+
+instance (Read a, ProperTuple b, ReadNewTuple b) => ReadNewTuple (a :- b) where
+   readNewT (a : b) = read a :- readNewT b
 
 class (ElemsProperTuple a) => Concat a b where
    concat2 :: a -> b
@@ -62,14 +90,62 @@ instance ProperTuple b => Append () b b where
 instance Append as bs cs => Append (a :- as) bs (a :- cs) where
    appendT (a :- as) bs = a :- appendT as bs
 
+headT (a :- b) = a
+tailT (a :- b) = b
+
+class Length a b where
+   lengthT :: a -> b
+
+instance Length () () where
+   lengthT () = ()
+
+instance Length b bl => Length (a :- b) (() :- bl) where
+   lengthT (a :- b) = () :- lengthT b
+
+class Index a b c where
+   indexT :: a -> b -> c
+
+instance Index () (a :- b) a where
+   indexT () (a :- b) = a
+
+instance Index b d e => Index (a :- b) (c :- d) e where
+   indexT (a :- b) (c :- d) = indexT b d
+
+type I0 = ()
+type I1 = () :- ()
+type I2 = () :- () :- ()
+type I3 = () :- () :- () :- ()
+type I4 = () :- () :- () :- () :- ()
+type I5 = () :- () :- () :- () :- () :- ()
+type I6 = () :- () :- () :- () :- () :- () :- ()
+type I7 = () :- () :- () :- () :- () :- () :- () :- ()
+type I8 = () :- () :- () :- () :- () :- () :- () :- () :- ()
+type I9 = () :- () :- () :- () :- () :- () :- () :- () :- () :- ()
+type I10 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :- ()
+
+i0 = () :: I0
+i1 = () :- () :: I1
+i2 = () :- () :- () :: I2
+i3 = () :- () :- () :- () :: I3
+i4 = () :- () :- () :- () :- () :: I4
+i5 = () :- () :- () :- () :- () :- () :: I5
+i6 = () :- () :- () :- () :- () :- () :- () :: I6
+i7 = () :- () :- () :- () :- () :- () :- () :- () :: I7
+i8 = () :- () :- () :- () :- () :- () :- () :- () :- () :: I8
+i9 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :: I9
+i10 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :- () :: I10
+
 class Map f a b where
    mapT :: f -> a -> b
+
+instance Map f () () where
+   mapT f () = ()
 
 class Apply f a b where
    applyC :: f -> a -> b
 
-instance Map f () () where
-   mapT f () = ()
+instance Apply (a -> b) a b where
+   applyC f = f
 
 instance (Apply f a b, Map f as bs) => Map f (a :- as) (b :- bs) where
    mapT f (a :- as) = applyC f a :- mapT f as

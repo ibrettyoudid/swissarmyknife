@@ -29,6 +29,8 @@ import Data.IORef
 
 import Data.List
 
+import Data.Functor ((<&>))
+
 import Control.Applicative ((<|>))
 import Control.Applicative qualified as A
 import Control.DeepSeq
@@ -83,17 +85,20 @@ repl1 env = do
    hSetBinaryMode stdin True
    li <- getLine
    li2 <- if li == "\\"
-   then let 
+   then let
       aux = do
          l <- getLine
          if null l then return [] else do r <- aux; return (l:r)
-      in unlines <$> aux 
+      in unlines <$> aux
    else return li
    putStrLn li2
    putStrLn "parsing"
+   {-}
    (P.Pass exd:_) <- P.parseT num li2
    let ex = fromDyn1 $ head exd
+   -}
    --let ex = Value u 0
+   let ex = parseH li2
    putStrLn "doing vars"
    let ex1 = runDoVars ex (map fconstr env)
    putStrLn "print ex"
@@ -106,10 +111,10 @@ repl1 env = do
       Nothing -> putStrLn "unparsing failed"
    putStrLn ""
    (res, env3) <- case ex1 of
-      Block _ constr exprs -> do
+      Block _ constr exprsP -> do
          fr <- makeFrame constr
          let env2 = fr : env
-         res <- eval2 env2 exprs
+         res <- eval2 env2 exprsP
          return (res, env2)
       _ -> do
          res <- eval env ex1
@@ -138,10 +143,10 @@ eval1 env expr = case expr of
    If _ cases -> evalIf cases
    Case t of1 cases -> do ofres <- eval env of1; evalCase ofres cases
    Else -> return $ toDyn True
-   Apply t exprs -> do
-      res <- mapM (eval env) exprs
+   Apply t exprsP -> do
+      res <- mapM (eval env) exprsP
       if fromDyn1 (head res) == mymem
-         then apply (take 2 res ++ [toDyn (exprs !! 2)])
+         then apply (take 2 res ++ [toDyn (exprsP !! 2)])
          else apply res
       --apply res
    Let t co exps stat -> do
@@ -149,9 +154,9 @@ eval1 env expr = case expr of
       let newenv = newfr : env
       zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
       eval newenv stat
-   Block t co exprs -> do
+   Block t co exprsP -> do
       newfr <- makeFrame co
-      eval2 (newfr : env) exprs
+      eval2 (newfr : env) exprsP
    where
       evalIf [] = return $ toDyn ()
       evalIf ((cond :- then1) : rest) = do
@@ -168,8 +173,8 @@ eval1 env expr = case expr of
             then eval env then1
             else evalCase caseval others
 
-eval2 env exprs = do
-   res <- mapM (eval env) exprs
+eval2 env exprsP = do
+   res <- mapM (eval env) exprsP
    return $ last res
 
 makeFrame co = do
@@ -299,9 +304,9 @@ doVars stat = case stat of
             case blah2 name e of
                Just v -> return v
                Nothing -> VarRef t name 0 <$> pushVar t name
-   Apply t exprs -> do
-      done <- mapM doVars exprs
-      if varname (head exprs) == "@"
+   Apply t exprsP -> do
+      done <- mapM doVars exprsP
+      if varname (head exprsP) == "@"
          then do
             if isUnknown $ etype $ done !! 1
             then return $ Apply u done
@@ -585,8 +590,8 @@ test =
 test2 =
    "if blah1; blah2 -> blah3; blah4 | foo1; foo2 -> foo3; foo4 else snorg1; snorg2"
 
-{-
-parseH t = parseC expr t
+
+parseH t = parseC exprP t
 parseC p t = right $ runParser p (1, 1, False) "" t
 
 schemeDef = haskellStyle
@@ -599,83 +604,112 @@ scheme = T.makeTokenParser schemeDef
 symbol     s  = do checkC; T.symbol        scheme s
 natural       = do checkC; T.natural       scheme
 lexeme     l  = do checkC; T.lexeme        scheme l
-identifier    = do checkC; T.identifier    scheme
+identifierP   = do checkC; T.identifier    scheme
 reserved   r  = do checkC; T.reserved      scheme r
 reservedOp r  = do checkC; T.reservedOp    scheme r
 operator      = do checkC; T.operator      scheme
 stringLiteral = do checkC; T.stringLiteral scheme
 
-stats = do
-   s <- sepEndBy1 expri $ reservedOp ";"
+mynewline (l1, c1) = do
+   (l, c) <- getLineCol
+   guard $ l > l1 && c <= c1
+
+groupOfP p = do
+   (l, c) <- getLineCol
+   r <- p
+   choice [
+      do
+         reservedOp ";"
+         rs <- groupOfP p
+         (l1, c1) <- getLineCol
+         guard $ l1 == l
+         return (r:rs),
+
+      do
+         (l1, c1) <- getLineCol
+         guard $ l1 > l
+         if c1 == c
+            then do
+               rs <- groupOfP p
+               return (r:rs)
+            else
+               return [r]]
+
+expri = begini exprP
+exprP = buildExpressionParser optable termP
+
+exprsP = do
+   s <- groupOfP expri
    return $ case s of
       [s1] -> s1
-      ss   -> Stats ss
+      ss   -> Block u (Co "" [])  ss
 
-expri = begini expr
-expr = buildExpressionParser optable terms
+terms = do
+   t <- many1 termP
+   return $ case t of
+      [t1] -> t1
+      ts -> Apply u ts
 
-terms = do t <- many1 term; return (case t of [t1] -> t1; ts -> Apply ts)
-
-term =     do f <- try forceFloating; return $ Value $ toDyn f
-      <|> do n <- natural; return $ Value $ toDyn n
-      <|> do s <- stringLiteral; return $ Value $ toDyn s
-      <|> do i <- identifier; return $ VarRef1 i
-      <|> do symbol "("; s <- stats; symbol ")"; return s
-      <|> do reservedOp "\\"; is <- many1 identifier; reservedOp "->"; s <- stats; return $ Lambda (Constr "lambda" is) s
-      <|> listP
-      <|> ifP
-      <|> caseP
+termP = choice [do f <- try forceFloating; return $ Value u $ toDyn f,
+                Value u . toDyn <$> natural,
+                Value u . toDyn <$> stringLiteral,
+                VarRef1 u <$> identifierP,
+                do symbol "("; s <- exprP; symbol ")"; return s,
+                do reservedOp "\\"; is <- many1 identifierP; reservedOp "->"; exprsP <&> Lambda u (Co "lambda" []),
+                listP,
+                ifP,
+                caseP]
 
 listP = do
          symbol "["
-         ss <- sepBy stats (symbol ",")
+         ss <- sepBy exprsP (symbol ",")
          symbol "]"
-         return $ foldr (\x y -> Apply [VarRef1 ":",x,y]) (VarRef1 "[]") ss
+         return $ foldr (\x y -> Apply u [VarRef1 u ":",x,y]) (VarRef1 u "[]") ss
 {-
 letP = do
    try $ reserved "let"
    i <- identifier
    symbol "="
-   s <- stats
+   s <- exprsP
 -}
 
 ifP = do
    try $ reserved "if"
    a <- do
-      cond <- stats
+      cond <- exprsP
       reserved "then" <|> reservedOp "->"
-      then1 <- stats
-      return (cond, then1)
+      then1 <- exprsP
+      return $ cond :- then1
    b <- many $ do
       optional $ reservedOp "|" <|> reserved "elif"
-      cond <- stats
+      cond <- exprsP
       reserved "then" <|> reservedOp "->"
-      then1 <- stats
-      return (cond, then1)
+      then1 <- exprsP
+      return $ cond :- then1
    c <- option [] $ do
       reserved "else"
       optional $ reservedOp "->"
-      else1 <- stats
-      return [(Else, else1)]
-   return $ If ((a : b) ++ c)
+      else1 <- exprsP
+      return [Else :- else1]
+   return $ If u (a : b ++ c)
 
 caseP = do
    try $ reserved "case"
-   c <- stats
+   c <- exprsP
    optional $ reserved "of"
    begin $ do
       x <- many1 $ do
          optional $ reservedOp "|" <|> reserved "when"
-         cond <- stats
+         cond <- exprsP
          reserved "then" <|> reservedOp "->"
-         then1 <- stats
-         return (cond, then1)
+         then1 <- exprsP
+         return $ cond :- then1
       y <- option [] $ do
          reserved "else" <|> reserved "otherwise"
          optional $ reservedOp "->"
-         else1 <- stats
-         return [(Else, else1)]
-      return $ Case c (x ++ y)
+         else1 <- exprsP
+         return [Else :- else1]
+      return $ Case u c (x ++ y)
 
 type PState = (Int, Int, Bool)
 
@@ -708,30 +742,30 @@ checkC = do
       then guard (curCol > minCol)
       else guard (curCol >= minCol)
 
-operatorN name = try $ do o <- operator; guard (o == name); return o
-
--- optable :: OperatorTable Char (Bool, [Column]) Dyn
-optable   = [ doinfixr 9 [".", "!!"]
-            , doinfixr 8 ["^", "^^", "**"]
-            , doinfixl 7 ["*", "/"] --, `quot`, `rem`, `div`, `mod`
-            , doinfixl 6 ["+", "-"]
-            , doinfixr 5 [":", "++"]
-            , doinfix  4 ["==", "/=", "<", "<=", ">=", ">"]
-            , doinfixr 3 ["&&"]
-            , doinfixr 2 ["||"]
-            , doinfixl 1 [">>", ">>="]
-            , doinfixr 1 ["=<<"]
-            , doinfixr 0 ["$", "$!"] --, `seq`
-            ]
+optable   = [  doinfixr 9 [".", "!!"],
+               doinfixr 8 ["^", "^^", "**"],
+               doinfixl 7 ["*", "/"],
+               doinfixl 6 ["+", "-"],
+               doinfixr 5 [":", "++"],
+               doinfix  4 ["==", "/=", "<", "<=", ">=", ">"],
+               doinfixr 3 ["&&"],
+               doinfixr 2 ["||"],
+               doinfixl 1 [">>", ">>="],
+               doinfixr 1 ["=<<"],
+               doinfixr 0 ["$", "$!"]]
 
 -- doinfixa assoc p = map (\n -> Infix (do n1 <- operator; guard n == n1; return ) assoc)
-doinfixa assoc p = map (\n -> Infix (do reservedOp n; return (\a1 a2 -> Apply [VarRef1 n, a1, a2])) assoc)
+doinfixa assoc p ops = [Infix (try $ do 
+   op <- operator
+   guard (op `elem` ops)
+   return (\a1 a2 -> Apply u [VarRef1 u op, a1, a2])) assoc]
+
 doinfixl = doinfixa AssocLeft
 doinfixr = doinfixa AssocRight
 doinfix  = doinfixa AssocNone
 
 putf w s = putStrLn $ formatS w s
--}
+
 {-
 formatS w (Value v) = showDyn v
 formatS w (VarRef1 v) = v
@@ -741,7 +775,7 @@ formatS w (If cases) = fit w
    ,"if " ++ (indent1 3 $ intercalate "\n"  $ map (formatCase (w - 3)) cases)
    ]
 
-formatS w (Stats ss) = fit w
+formatS w (exprsP ss) = fit w
    [intercalate "; " $ map (formatS w) ss
    ,intercalate "\n" $ map (formatS w) ss
    ]
@@ -959,8 +993,8 @@ compileConstr c = do
    )
 
 -- compile :: [[String]] -> Expr -> State CData String
-compile env (Apply _ stats) = do
-   r <- mapM (compile env) stats
+compile env (Apply _ exprsP) = do
+   r <- mapM (compile env) exprsP
    return ((head r) ++ ".as<LambdaStr>()(" ++ intercalate "," (tail r) ++ ")")
 
 {-
@@ -1077,7 +1111,7 @@ eval1 (VarRef1 name) = do
    val <- lookup1 name <$> get
    lift $ readIORef val
 -}
-eval1 (Apply exprs) = mapM eval exprs >>= apply
+eval1 (Apply exprsP) = mapM eval exprsP >>= apply
 eval1 (Lambda args stat) = toDyn <$> Closure args stat <$> get
 
 apply x = do
@@ -1100,7 +1134,7 @@ apply1 (f:xs) =
       Just rio -> lift rio
       Nothing  -> return rd
 
--- apply (f:e:exprs) = apply ((fromJust $ dynApply f e):exprs)
+-- apply (f:e:exprsP) = apply ((fromJust $ dynApply f e):exprsP)
 -- apply = apply
 -}
 

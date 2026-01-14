@@ -1354,9 +1354,18 @@ showQuarters3 (xh, yh, a) = let
    in zipWith (++) (nw ++ yh) (transpose xh ++ transpose a)
 
 showQuarters (xn, yn, xh, yh, a) = let
-   nw = replicate (length xn) (zipWith (++) (replicate (length yn) "") xn) ++ [yn ++ [" "]]
+   xl = length xn
+   yl = length yn
+   nw = zipWith (\a b -> a ++ [b]) (replicate (xl - 1) (replicate yl "") ++ [yn]) xn
    
-   in zipWith (++) (nw ++ yh) (transpose xh ++ [replicate (length yh) "£"] ++ transpose a)
+   in --transpose (nw ++ yh)
+      --[replicate (length xh) "£"]
+      --zipWith3 (\a b c -> a ++ b ++ c) (nw ++ yh) [replicate (length xh) "£"] (transpose xh ++ transpose a)
+      --zipWith (++) (nw ++ yh) (transpose (map (["£"]++) xh) ++ transpose a)
+      zipWith (++) (nw ++ yh) (transpose xh ++ map ("£":) (transpose a))
+
+--transpose $ map concat $ transpose [a, b] == zipWith (++) a b
+
 
 showHyper2 xn yn a = let
    xd = select xn $ dims a
@@ -1407,7 +1416,7 @@ stringHyper a = let
 showLabel (DimInt{}) i = show i
 showLabel (DimMap dn _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1
 
-test d = fromAssocs (repeat "dim") $ mapxfx id $ indices $ replicate d $ DimInt "" 0 2 1
+test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt "" 0 2 1
 
 -- printa a = putTableF $ arrayToElemList a
 

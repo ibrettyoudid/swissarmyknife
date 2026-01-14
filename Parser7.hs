@@ -1351,6 +1351,7 @@ print2 (Many  a  ) e = mergeSeq <$> mapM (print2 a) (fromDyn1 e :: [Dynamic])
 print2 (Bind  p (g, h)) b = let a = h b in do t1 <- print2 p a; t2 <- print2 (g a) b; return $ DSeq [t1, t2]
 print2 (Name  a b) e = print2 b e
 print2 (Token t  ) e = ifJust (t == fromDyn1 e) $ DStr [t]
+print2 (Return  a) e = Just $ DStr []
 print2 AnyToken    e = Just $ DStr [fromDyn1 e]
 print2 other       e = error $ show other
 

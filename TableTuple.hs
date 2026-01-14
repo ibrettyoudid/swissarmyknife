@@ -6,6 +6,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use second" #-}
@@ -13,13 +15,13 @@
 {-# HLINT ignore "Eta reduce" #-}
 {-# HLINT ignore "Use first" #-}
 
-module TableT where
+module TableTuple where
 
 import Favs hiding (levenshtein, trim, squash)
 import MHashDynamic3 hiding (toList2, (?))
 import MyPretty2
 import NewTuple
-import ShowTuple
+import ShowTuple hiding (mapT)
 import Show1
 import qualified Tree
 import BString
@@ -235,87 +237,61 @@ moy = do
    return moy1
 
 
-data Table f i r = Table {fields :: M.Map f Int, tgroup :: Group i r} deriving (Generic, NFData)
+newtype Table i r = Table { table :: M.Map i r} deriving (Generic, NFData)
 
-data Group i r = INode (M.Map i (Group i r)) | Recs (Tree.Tree (Group i r)) | Rec (Tree.Tree r) deriving (Eq, Ord, Show, Generic, NFData)
-
-data Field = FieldStr { fname::String, fnum :: Int }
+data Group i r = INode (M.Map i (Group i r)) | Recs (Tree.Tree (Group i r)) | Rec r deriving (Eq, Ord, Show, Generic, NFData)
 
 data Record f r = Record {fieldsr :: M.Map f Int, values :: Tree.Tree r} deriving (Show, Generic, NFData)
 
-class UniqueList a where
-   uniquify :: (Enum b, Num b) => [(a, b)] -> M.Map a b
-   showField :: a -> [String]
-
-instance {-# OVERLAPPING #-} UniqueList String where
-   uniquify = foldl (flip insertWith4) M.empty
-   showField x = [x]
-
-instance {-# OVERLAPPING #-} UniqueList Text where
-   uniquify = foldl (flip insertWith4) M.empty
-   showField x = [show1 x]
-
--- supposedly overlaps the ProperTuple one but both can't ACTUALLY apply to the same type, so I think we're OK
-instance {-# OVERLAPPING #-} UniqueList ByteString where
-   uniquify = foldl (flip insertWith4) M.empty
-   showField x = [show x]
-
--- requires UndecidableInstances
-instance (ProperTuple a, ShowNewTuple a, Ord a) => UniqueList a where
-   uniquify = M.fromList
-   showField = showNewT
--- Tables contain INodes or Recses
--- INodes contain Recses or Recs
--- Recses contain Recs or INodes
-
-empty = Table M.empty $ Rec Tree.Empty
+empty = Table M.empty
 
 unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance {-# OVERLAPPING #-} Show1 Text where
-   show1 = convertString
-
-instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
-   show = showGrid . showTable2
-
-instance (Show i, Show r) => Show (Table String i r) where
-   show = showTable1
-
-instance (ProperTuple a, ShowNewTuple a) => Show (Table a z Dynamic) where
+instance (ProperTuple r, ShowNewTuple r) => Show (Table i r) where
    show = showTableNew
 
+{-
 showTable t =  showGridD colWidths1 width $ 
                zipWith (++) (map (map toDyn . showT) $ fieldsUT t) $ 
                transposez (toDyn (""::Text)) $ 
                ungroupFill (map (\(_, v) -> (v, toDyn (""::Text))) $ M.toList $ fields t) $
-               tgroup t
-
-showTableNew :: (ShowNewTuple f, HasCallStack) => Table f i Dynamic -> String
-showTableNew t =  showGridD colWidths1 width $ 
-                  zipWith (++) (map (map toDyn . showNewT) $ fieldsUT t) $ 
-                  transposez (toDyn (""::Text)) $ 
-                  ungroupFill (map (\(_, v) -> (v, toDyn (""::Text))) $ M.toList $ fields t) $
-                  tgroup t
+               table t
+-}
+showTableNew :: (ShowNewTuple r, HasCallStack) => Table i r -> String
+showTableNew t =  showGrid $ 
+                  zipWith (++) (map showNewT $ fieldsUT t) $ 
+                  transposez (""::String) $ 
+                  map showNewT $
+                  ungroup $
+                  table t
 
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
-showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
-showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ map showColD $ transposez (toDyn (""::Text)) $ ungroup $ tgroup t
+showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ table t
+showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ transposez (""::String) $ map showT $ ungroup $ table t
 
-toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ tgroup t
+toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ table t
 
-showTableMeta (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records) ++ " " ++ show (fieldsU fields)
-showTableMeta (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (Tree.size records) ++ " " ++ show (fieldsU fields)
-showTableMeta (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1 ++ " " ++ show (fieldsU fields)
+showTableMeta t@(Table (INode records)) =                show (length $ fieldsUT t) ++ "x" ++ show (   M.size records) ++ " " ++ show (showTableMeta2 t)
+showTableMeta t@(Table (Recs  records)) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show (Tree.size records) ++ " " ++ show (showTableMeta2 t)
+showTableMeta t@(Table (Rec   record )) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show 1                   ++ " " ++ show (showTableMeta2 t)
 
-showTableMeta1 (Table fields (INode records)) = show (M.size fields) ++ "x" ++ show (M.size records)
-showTableMeta1 (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (Tree.size records)
-showTableMeta1 (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1
+showTableMeta1 t@(Table (INode records)) =                show (length $ fieldsUT t) ++ "x" ++ show (   M.size records)
+showTableMeta1 t@(Table (Recs  records)) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show (Tree.size records)
+showTableMeta1 t@(Table (Rec   record )) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show 1
 
-showTableMeta2 t = GridH $ map showNewT $ fieldsUT t
+showTableMeta2 t = showNewT $ fieldsUT t
 
-showStructure (Table fields group) = foldr (++) "" $ map (++"\n") $ showStructureI 0 group
+fieldsUT (Table r) = fieldsUG r
+
+--fieldsUG :: (Map ((a :- b) :- c -> a) ((a :- b) :- c) a, Map (c -> d) c d) => Group i ((a :- b) :- c) -> a :- d
+fieldsUG :: Map (c -> d) c d => Group i c -> d
+fieldsUG (INode m) = fieldsUG (snd $ fromJust $ M.lookupMin m)
+fieldsUG (Recs rs) = fieldsUG (snd $ fromJust $ Tree.lookupMin rs)
+fieldsUG (Rec   r) = mapT headT r
+
+showStructure (Table group) = foldr (++) "" $ map (++"\n") $ showStructureI 0 group
 
 showStructureI i (INode records) = (sp i ++ "INode") : concatMap (showStructureG (i+5)) (M.toList records)
 
@@ -326,63 +302,26 @@ showStructureR i (k, Rec   records) = [sp i ++ "Rec"   ++ showt k ++ "=" ++ show
 sp :: Int -> Text
 sp n = convertString $ replicate n ' '
 
-setFields newnames (Table fields group) = let
-   (names, numbers) = unzip $ sortOn snd $ M.toList fields
-   names1 = newnames ++ drop (length newnames) names
-
-   in Table (M.fromList $ zip names1 numbers) group
-
-setFieldsD newnames = setFields (map toDyn newnames)
-
-filterFields pred t = let
-   fieldsList = M.toList $ fields t
-   fieldsChosen = filter (pred . fst) fieldsList
-   fieldsNameToNumMap = M.fromList fieldsChosen
-   fieldsNumSet = S.fromList $ map snd fieldsChosen
-   func record = Record fieldsNameToNumMap $ Tree.fromList $ filter (\(k, v) -> S.member k fieldsNumSet) $ Tree.toList $ values record
-      
-   in mapTable func t
-
-size t = length $ ungroup $ tgroup t
+size t = length $ ungroup $ table t
 
 ungroup (INode m) = concatMap (ungroup . snd) $ M.toList m
 ungroup (Recs r) = map (ungroup2 . snd) $ Tree.toList r
-ungroup (Rec r) = [ungroup2 (Rec r)]
+ungroup (Rec r) = [r]
 
-ungroup2 (Rec r) = map snd $ Tree.toList r
+ungroup2 (Rec r) = r
 
-ungroupFill f (INode m) = concatMap (ungroup . snd) $ M.toList m
-ungroupFill f (Recs r) = map (ungroup2 . snd) $ Tree.toList r
-ungroupFill f (Rec r) = [ungroupFill2 f (Rec r)]
-
-ungroupFill2 f (Rec r) = map snd $ Tree.toList $ Tree.fromAscList $ Tree.merge (Tree.toList r) f
-
-
-applygroup f (Table fs g) = Table fs $ f g
+applygroup f (Table g) = Table $ f g
 
 fieldsU x = map fst $ sortOn snd $ M.toList x
-fieldsUT = fieldsU . fields
-fieldsUR = fieldsU . fieldsr
 
 inversePerm indices = map snd $ sort $ zip indices [0 ..]
 
 fromGrid g = fromGridH $ transpose g
 fromGridD = fromGridHD . transpose
-fromGrid1 f = fromGridH1 f . transpose
+fromGrid1 = fromGridH1 . transpose
 
-fromGridH  (fs : rs) = fromGridH1 fs rs
 fromGridHD []        = TableT.empty
-fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map2 (dynCell . clean) rs
-
-fromGridHD4 u n (fs : rs) = fromGridH1 (zipWith (\x y -> (u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
-
-fromGridHD5 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
-
-fromGridHD9 c u n fs [] = TableT.empty
-fromGridHD9 c u n fs rs = fromGridH1 (zipWith (\fnum fnames -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, fnum, map clean fnames)) [1..] fs) $ map2 (dynCell . clean) rs
-
-fromGridHD10 c u n [] = TableT.empty
-fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
+fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map readNewT rs
 
 fromGridHBF (c, hs, bs, fs) = unsafePerformIO $ do
    print c
@@ -391,8 +330,7 @@ fromGridHBF (c, hs, bs, fs) = unsafePerformIO $ do
    print fs
    return $ fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1::Int ..]) $ map2 (dynCell . clean) bs
 
-fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
-fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ Tree.fromElems $ map (Rec . Tree.fromElems) recordl
+fromGridH1 recordl = Table $ Recs $ Tree.fromElems $ map (Rec . readNewT) recordl
 
 tz :: (Show a) => [a] -> Tree.Tree a
 tz = Tree.fromList . zip [0..]
@@ -443,93 +381,51 @@ byyn (f : fs) = INode . M.map (byyn fs) . byz f
 
 byscrub f = by (trim . squash . scrub . convertString . show . f)
 
-by f (Table fields tgroup) = Table fields $ byy1 (f . Record fields) $ toList2 tgroup
+by f (Table table) = Table $ byy1 f $ toList2 table
 
-by2 f g (Table fields tgroup) = Table fields $ byy2 (f . Record fields) (g . Record fields) $ toList2 tgroup
+by2 f g (Table table) = Table $ byy2 f g $ toList2 table
 
-thenby f (Table flds tgroup) = Table flds $ mapRecs f flds tgroup
+thenby f (Table table) = Table $ mapRecs f flds table
 
 mapRecs f flds (INode m) = INode $ M.map (mapRecs f flds) m
 
 -- mapRecs f flds g@(Recs r) = byy1 (f . Record flds) $ toList g
 
-byl fs (Table flds tgroup) = Table flds $ byyn (map (. Record flds) fs) $ toList2 tgroup
+byl fs (Table table) = Table $ byyn fs $ toList2 table
 
 -- byw f tab = byx ()
 
 putTable x = putStr $ showTable x
 
--- join f l r = Table (M.fromList $ zip (fieldsUT l ++ fieldsUT r) [0..]) $ M.map (\v -> (v ++) $ values $ lookupt (f $ Record (fields l) v) r) $ records l
+join (i, l, r) = M.unions [i, l, r]
 
--- joinMulti f l r = Table (M.fromList $ zip (fieldsUT l ++ fieldsUT r) [0..]) $ M.map (\v -> (v ++) $ singleton $ Table1 $ map (r !) (f $ Record (fields l) v)) $ records l
-jInner = (True , False, False)
-jLeft  = (True , True , False)
-jRight = (True , False, True )
-jOuter = (True , True , True )
+joinInner l r = (M.intersectionWith appendT l r, M.empty , M.empty )
+joinLeft  l r = (M.intersectionWith appendT l r, l M.\\ r, M.empty )
+joinRight l r = (M.intersectionWith appendT l r, M.empty , r M.\\ l)
+joinOuter l r = (M.intersectionWith appendT l r, l M.\\ r, r M.\\ l)
 
-join include empty l r = let
-   (flr, j1) = joinClear empty l r
+applyLeft  f (i, l, r) = (i, f l, r)
+applyRight f (i, l, r) = (i, l, f r)
+applyBoth  f 
 
-   in Table flr $ INode $ joinInclude include j1
+joinGroups (fi, fl, fr) l r = M.unions [fi l r, fl l r, fr l r]
+--joinGroups (fi, fl, fr) (Rec   l) (Rec   r) = M.unions [fi l r, fl l r, fr l r]
+--joinGroups (fi, fl, fr) (Recs  l) (Recs  r) = M.unions [fi l r, fl l r, fr l r]
 
 foldlj f xs = foldl f (head xs, []) (tail xs)
 
 miss x = (x, [])
 
-joinCollectMisses include empty (l, ml) (r, mr) = let
-   (flr, j1@(i, l1, r1)) = joinClear empty l r
-   
-   in (Table flr $ INode $ joinInclude include j1, Table (fields r) (INode r1):(ml++mr))
-
-joinFuzzy include maxDist empty l r = let
-   (flr, j1) = joinFuzzy1 maxDist empty l r
-
-   in Table flr $ INode $ joinInclude include j1
-
 joinAux1 a b = {-trace (show il ++ " " ++ show ir) -}res
    where
-      Table fieldsl il = a
-      Table fieldsr ir = b
+      Table il = a
+      Table ir = b
 
-      INode rl = il
-      INode rr = ir
+      res = M.union il ir
 
-      res = M.union rl rr
-
-joinAux empty a b = {-trace (show il ++ " " ++ show ir) -}res
-   where
-      Table fieldsl il = a
-      Table fieldsr ir = b
-
-      INode rl = il
-      INode rr = ir
-
-      fieldnumsl = map snd $ M.toList fieldsl
-      fieldnumsr = map snd $ M.toList fieldsr
-      minl = minimum fieldnumsl
-      maxl = maximum fieldnumsl
-      minr = minimum fieldnumsr
-      maxr = maximum fieldnumsr
-      shift = maxl - minr + 1
-      fieldsr1 = M.map (+shift) fieldsr
-      fieldslr = appendFields fieldsl fieldsr1
-      fl = joinL   shift empty fieldsr1
-      fi = joinRec shift
-      fr = joinR   shift empty fieldsl
-      l1 = rl M.\\ rr
-      r1 = rr M.\\ rl
-      i = M.intersectionWith fi rl rr
-
-      res = (fieldslr, i, l1, r1, fi, fl, fr)
-
-
---index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Rec $ Tree.fromElems [toDyn ""]) xs
-index xs = Table (M.fromList [("empty", 0)]) $ INode $ M.fromList $ map (, Recs $ tz [Rec $ Tree.fromElems [toDyn (""::Text)]]) xs
-
-appendFields fieldsl fieldsr = uniquify $ M.toList fieldsl ++ M.toList fieldsr
-
-joinRec :: (Show i1, Show r, HasCallStack) => Int -> Group i2 r -> Group i3 r -> Group i1 r
-joinRec shift (Rec  l) (Rec  r) = Rec $ Tree.append shift l r
+joinRec :: (Show i, Show rc, HasCallStack, Append ra rb rc) => Group i ra -> Group i rb -> Group i rc
+joinRec (Rec  l) (Rec  r) = Rec $ appendT l r
+{-}
 joinRec shift (Recs l) (Recs r) = let
    ls = Tree.size l
    rs = Tree.size r
@@ -538,12 +434,12 @@ joinRec shift (Recs l) (Recs r) = let
       else error $ "too many Recs l="++show ls++" r="++show rs
 -- joinRec shift (Recs l) (Recs r) = Recs $ tz $ concat $ crossWith (\(Rec l1) (Rec r1) -> Rec $ Tree.append shift l1 r1) (Tree.toElems l) (Tree.toElems r)
 -- joinRec shift l r = error $ "joinRec called with "++show (ungroup l)++" and "++show (ungroup r)
+-}
+joinL zr (Rec  rl) = Rec  $ appendT rl zr
+joinL zr (Recs rl) = Recs $ Tree.map (joinL zr) rl
 
-joinL shift z fr (Rec  rl) = Rec  $ Tree.append shift rl (blankRec z fr)
-joinL shift z fr (Recs rl) = Recs $ Tree.map (joinL shift z fr) rl
-
-joinR shift z fl (Rec  rr) = Rec  $ Tree.append shift (blankRec z fl) rr
-joinR shift z fl (Recs rr) = Recs $ Tree.map (joinR shift z fl) rr
+joinR zl (Rec  rr) = Rec  $ appendT zl rr
+joinR zl (Recs rr) = Recs $ Tree.map (joinR zl) rr
 
 showKey (k, v) = (k, show k, v)
 
@@ -555,42 +451,27 @@ instance (Eq dist) => Eq (Fuzzy dist lk rk v) where
 instance (Ord dist) => Ord (Fuzzy dist lk rk v) where
    compare (Fuzzy a _ _ _) (Fuzzy b _ _ _) = compare a b
 
-joinClear empty l r =
-   let
-      (flr, i, l1, r1, fi, fl, fr) = joinAux empty l r
-   
-   in (flr, (i, M.map fl l1, M.map fr r1))
-
-joinFuzzy1 maxDist empty l r = let
-   (flr, i, l1, r1, fi, fl, fr) = joinAux empty l r
-   (a, b) = unzip $ fuzzyJoin1 maxDist (map showKey $ M.toList l1) (map showKey $ M.toList r1)
+joinFuzzy maxDist fi (i, l, r) = let
+   (a, b) = unzip $ fuzzyJoin1 maxDist (map showKey $ M.toList l) (map showKey $ M.toList r)
    (lks, rks) = unzip a
    --levs = sort $ concat $ crossWith (\(lk, ls, lv) (rk, rs, rv) -> Fuzzy (fuzzyMatch maxDist ls rs) lk rk (lv `fi` rv)) (map showKey $ M.toList l1) (map showKey $ M.toList r1)
    --(l2, i2, r2) = foldr (joinFuzzyAux maxDist) (l1, i, r1) levs
    
-   l2 = l1 M.\\ (M.fromList $ map (, 0) lks)
-   r2 = r1 M.\\ (M.fromList $ map (, 0) rks)
+   l2 = l M.\\ (M.fromList $ map (, 0) lks)
+   r2 = r M.\\ (M.fromList $ map (, 0) rks)
    i2 = M.fromList $ zipWith joinFuzzyAux lks rks
 
    joinFuzzyAux lk rk = let
-      Just lv = M.lookup lk l1
-      Just rv = M.lookup rk r1
+      Just lv = M.lookup lk l
+      Just rv = M.lookup rk r
       in (lk, lv `fi` rv)
 
-   in trace (show (M.size i) ++ " " ++ show (M.size l1) ++ " " ++ show (M.size r1)) (flr, (i2, M.map fl l2, M.map fr r2))
+   in trace (show (M.size i) ++ " " ++ show (M.size l) ++ " " ++ show (M.size r)) (i2, l2, r2)
 
-joinInclude (ii, il, ir) (ri, rl, rr) =
-   (if ii then M.union ri else id) $
-   (if il then M.union rl else id) $
-   (if ir then rr else M.empty)
-
-addCalcField name func table = let
-   i = (maximum $ map snd $ M.toList $ fields table) + 1
-
-   in mapTable (\r@(Record fields rt) -> Record (M.insert name i fields) $ Tree.insert i (func r) rt) table
+addCalcField name func table = mapTable (\r -> (name :- func r) :- r) table
 
 blankRec z f = Tree.fromList $ map (\(_, n) -> (n, z)) $ M.toList f
-
+{-}
 appendTable joinType func (Table tfs tr) (Table bfs br) = let
    (tftobf2, fieldsj) = joinFields joinType func tfs bfs
    in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br
@@ -688,19 +569,19 @@ translateTableG tftobf2 (Rec   bs) = Rec   $ Tree.fromList $ M.toList $ M.compos
 mapFieldsG func fs3 (INode rs) = INode $ M.map (mapFieldsG func fs3) rs
 mapFieldsG func fs3 (Recs  rs) = Recs  $ Tree.map (mapFieldsG func fs3) rs
 mapFieldsG func fs3 (Rec   rs) = Rec   $ Tree.fromList $ M.toList $ M.compose (M.fromList $ Tree.toList rs) fs3
-
+-}
 -- foldTable f z n t =
-foldSubTable fs (Table flds g) = applyL fs $ Record flds $ foldSubTableG g
+foldSubTable fs (Table g) = applyL fs $ Record flds $ foldSubTableG g
 
 foldSubTableG g = Tree.untree $ toList2 g
 
 -- foldSubTable1 fs (Table flds g) = applyL fs $ Record flds $ foldSubTable1G (Tree.fromElems fs) g
-addTotals t = Table (fields t) $ INode $ M.insert (toDyn ("ZZZZ"::Text)) (Rec $ foldSubTable2 sum t) g where INode g = tgroup t
-foldSubTable2 f t = foldSubTable2G f $ tgroup t
+addTotals t = Table (fields t) $ INode $ M.insert (toDyn ("ZZZZ"::Text)) (Rec $ foldSubTable2 sum t) g where INode g = table t
+foldSubTable2 f t = foldSubTable2G f $ table t
 foldSubTable2G f g = Tree.map f $ Tree.untree $ toList2 g
 
---addTotals3 t = Table (fields t) $ foldSubTable3G sum $ tgroup t
-foldSubTable3 f t = Table (fields t) $ snd $ foldSubTable3G (foldSubTable3R f) $ tgroup t
+--addTotals3 t = Table (fields t) $ foldSubTable3G sum $ table t
+foldSubTable3 f t = Table (fields t) $ snd $ foldSubTable3G (foldSubTable3R f) $ table t
 
 foldSubTable3G f (INode rs) = let
    (keys, vals) = unzip $ M.toList $ M.map (foldSubTable3G f) rs
@@ -722,7 +603,7 @@ foldSubTable3R f rs = Tree.map f $ Tree.untree rs
 
 p = unzip
 
-mapSubTable f n (Table flds g) = Table (mapSubTableGF (fields . f . Table flds) n g) $ mapSubTableG (tgroup . f . Table flds) n g
+mapSubTable f n (Table g) = Table (mapSubTableGF (fields . f . Table) n g) $ mapSubTableG (table . f . Table) n g
 
 mapSubTableG f 0 g = f g
 mapSubTableG f n (INode m) = INode $ M.map (mapSubTableG f (n - 1)) m
@@ -750,18 +631,12 @@ insertWith4 (k, v) m =
          in M.insert k2 v m
       Nothing -> M.insert k v m
 
-rebalance t = mapTable (\(Record f r) -> Record f $ Tree.rebalance r) 
+mapTable f (Table g) = Table $ mapTableG f g
 
-mapTable f (Table fields g) = Table (mapTableF f fields g) $ mapTableG f fields g
-
-mapTableG f fields (INode m) = INode $ fmap (mapTableG f fields) m
-mapTableG f fields (Recs t) = Recs $ fmap (mapTableG f fields) t
-mapTableG f fields (Rec r) = Rec $ values $ f $ Record fields r
+mapTableG f (INode m) = INode $ fmap (mapTableG f) m
+mapTableG f (Recs  t) = Recs  $ fmap (mapTableG f) t
+mapTableG f (Rec   r) = Rec   $ f r
 mapTableR f fields r = values $ f $ Record fields r
-
-mapTableF f fields (INode m) = mapTableF f fields $ snd $ fromMaybe (error "INode empty") $ M.lookupMin m
-mapTableF f fields (Recs r) = mapTableF f fields $ snd $ fromMaybe (error "Recs empty") $ Tree.lookupMin r
-mapTableF f fields (Rec r) = fieldsr $ f $ Record fields r
 
 mapFieldsR f flds r = fieldsr $ f $ Record flds r
 
@@ -772,42 +647,9 @@ delField fieldName t = if head (fields t) == fieldName
       Just fieldN = elemIndex fieldName $ fields t
       in Table (deleteIndex fieldN $ fields t) $ M.fromList $ map (\(k, v) -> (k, deleteIndex (fieldN-1) v)) $ M.toList $ records t
 -}
-class LookupR a b c | a b -> c, c -> a where
-   lookup :: a -> b -> c
-
-instance LookupR Dynamic (Table f Dynamic r) (Table f Dynamic r) where
-   lookup = lookupgk
-
-instance LookupR Int (Table f i r) (Record f r) where
-   lookup = lookupg2
-
-t ! k = fromMaybe (error "Table lookup failed") $ Tree.lookup k t
-
-lookupgk k (Table f (INode m)) = Table f $ fromJust $ M.lookup k m
-
-lookupg2 k (Table f (Recs m)) = Record f $ unrec $ fromJust $ Tree.lookup k m
-lookupg2 k (Table f (Rec r)) = Record f r
-
--- lookupgf k (Table f (Rec r)) = fromJust $ Tree.lookup (fromJust (M.lookup k f)) r
-
--- unrec (Rec r) = r
-lookupr :: (HasCallStack, Ord f, Show f, Show t) => f -> Record f t -> t
-lookupr k r =
-   case M.lookup k $ fieldsr r of
-      Nothing -> error $ "failed to find field name "++show k++" in record "++show (fieldsr r)
-      Just n ->
-         case Tree.lookup n $ values r of
-            Just j  -> j
-            Nothing -> error $ let
-               s = unlines $ Tree.showTree1 $ values r
-               i = unsafePerformIO $ putStr s
-      
-               in if i == () then "failed to find field "++show k++" number "++show n++" in record "++show r else "UH OH"
-
--- lookupr k r = toDyn k
 
 (?) :: (Ord f, Show f, Show t, HasCallStack) => Record f t -> f -> t
-(?) = flip lookupr
+(?) = flip NewTuple.lookup
 
 --(??) :: (Ord [f]) => Record [f] t -> [f] -> t
 --r ?? k = fromJust $ (values r Tree.!) $ snd $ fromJust $ find (isInfixOf k . map toLower . fst) $ M.toList $ fieldsr r

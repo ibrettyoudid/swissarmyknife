@@ -185,6 +185,7 @@ library
         Table,
         TableB,
         TableT,
+        TableTuple,
         TestBoomerang,
         Tree, 
         Wiki,
