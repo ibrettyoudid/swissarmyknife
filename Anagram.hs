@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# LANGUAGE TupleSections #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
+{- HLINT ignore "Use map once" -}
 
 module Anagram where
 
@@ -20,11 +21,39 @@ import Data.Char
 import Data.List
 import Data.Maybe
 
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Lazy
 
---path = "d:/code/bcb/anagram/words/"
-path = "/home/brett/haskell/swissarmyknife/"
+{-
+
+USAGE: 
+
+go "letterstostartwith" "letterstoremove"
+
+"letterstoremove" can be ""
+
+it will tell you what letters are left, and list words that can be made with them
+
+the idea is that you then use the history to call go again, with a chosen subgram
+added to the letters to remove
+
+-}
+
+go letterstostartwith letterstoremove = let
+   letters = letterstostartwith \\ letterstoremove
+   checknull = letterstoremove \\ letterstostartwith
+   subgrams = subgramsL letters
+   in do
+      putStrLn $ "letters left: "++letters
+      unless (null checknull) $
+         putStrLn $ "letters attempted to remove that weren't there:"++checknull
+      putStrLn "subgrams:"
+      print subgrams
+
+anagrams letters = anagramsmwd letters
+
+path = "/home/brett/swissarmyknife/words/" -- path to words directory
 
 vocab = vocab0
 
@@ -42,16 +71,16 @@ vocab2 = words $ map toLower $ readFileU (path ++ "scrabble.35")
 vocab3 = words $ map toLower $ readFileU "/home/brett/code/haskell/swissarmyknife/scrabble.txt"
 
 -- list english words up to a particular number
-voc n = nubSet $ (["a","i","o"]++) $ concatMap vocf $ filter (vf n) $ names path
+voc n = nubSet $ (["a","i","o"]++) $ concatMap readf $ filter (vfilt n) $ names path
 
-vf n f = let lst = split "." f in case lst of
+readf fi = nubSet $ filter (\w -> length w > 1 && notElem '-' w) $ words $ map toLower $ readFileU (path++fi)
+
+vfilt n f = let lst = split "." f in case lst of
                                           -- [a, b]    -> readInt b <= n
                                           -- [a, b]    -> "english" `isPrefixOf` a && readInt b <= n
                                           -- [a, b]    -> "words" `isInfixOf` a && readInt b <= n
                                           [a, b]    -> a == "english-words" && readInt b <= n
                                           _         -> False
-
-vocf fi = nubSet $ filter (\w -> length w > 1 && notElem '-' w) $ words $ map toLower $ readFileU (path++fi)
 
 readFiles dir filt = concatMap (\f -> readFileU (dir++f))
                   $ filter filt $ filter (\a -> a /= "." && a /= "..")
@@ -88,6 +117,7 @@ svocab = S.fromList mvocab
 
 msv = M.fromList mvocab1
 
+-- a map from letter frequencies to words with those letter frequencies
 smv = mapFromList (:) [] $ map tflip mvocab1
 
 filterRepeats l = filterRepeats1 l S.empty
@@ -113,8 +143,6 @@ anagramsmwa1 s m w
 
       in concatMap (\m1 -> anagramsmw1 (S.fromList m1) (fromJust $ subtract1 m (head m1)) (unmm (head m1) : w)) $ init $ tails $ S.toList s1
 
-anagramsmwd l = anagramsmwd1 svocab (mm l) []
-
 anagramsmwb le = let
    lm = mm le
    sl = subletters lm
@@ -129,19 +157,30 @@ anagramsmwb1 ma mi ml w
 
       in concatMap (\m1 -> anagramsmwb1 ma m1 (fromJust $ subtract1 ml m1) (unmm m1 : w)) $ S.toList s1
 
-newtype Tree = Tree (M.Map (M.Map Char Int) Tree)
+data Tree = Tree (M.Map (M.Map Char Int) Tree) | Null deriving (Eq, Ord, Show)
 
 untree (Tree t) = t
 
-anagrams le = 1
+showDepth d w i (Tree t) = unlines $ 
+                           map (replicate i ' '++) $ 
+                           map (\(k, v) -> (head $ unmm k) ++ "=" ++ showDepth (d-1) w (i+3) v) $
+                           take w $
+                           M.toList t
 
 anagramsmwc le = let
    lm = mm le
-   ma = M.fromList 
+    -- ma is a self referential Tree containing all the vocab along with links to the words still able to
+    -- be made after the particular word has been done
+   ma = M.fromList -- presumably the Map can have its structure defined from the keys alone, without evaluating the (\m -> Tree part)
       $ mapxfx 
          (\m -> Tree 
             $ M.fromList 
-            $ mapxfx (fromJust . (`M.lookup` ma) . fromJust . subtract1 m) 
+            $ mapxfx ((\x -> fromMaybe 
+                  --(error $ "M.lookup returned Nothing in Map "++showDepth 2 10 0 (Tree ma)) $
+                  Null $
+                  M.lookup x ma) . 
+                  fromMaybe (error "subtract1 returned Nothing") . 
+                  subtract1 m) 
             $ S.toList 
             $ subgrams1 m)
       $ S.toList
@@ -153,31 +192,41 @@ anagramsmwc1 (Tree branch) split left done
    | otherwise = concatMap (\(next, newtree) -> anagramsmwc1 
                                              newtree
                                              next
-                                             (fromJust $ subtract1 left next)
+                                             (fromMaybe (error "subtract1 returned Nothing") $ subtract1 left next)
                                              (unmm next : done)) 
       $ M.toList 
       $ snd 
       $ M.split split branch
+anagramsmwc1 Null _ _ _ = []
+
+anagramsmwd l = sortOn length <$> anagramsmwd1 svocab (mm l) []
 
 anagramsmwd1 s m w
-   | M.size m == 0 = return [w]
+   | empty2 m = return [w]
    | otherwise = do
-      print w
+      --print w
       let s1 = S.intersection s $ subletters m
 
       concat <$> (mapM (\m1 -> anagramsmwd1 s1 (fromJust $ subtract1 m m1) (w ++ [unmm m1])) $ {- rsortBy length $ -} S.toList s1)
 
-subletters l = let
-   l1 = M.toList l
-   cs = map fst l1
-   ns = map snd l1
-   ss = crossList $ map (\x -> [0..x]) ns
-   rs = map (zipWith (-) ns) ss
-   f  = map (M.fromList . filter ((>0) . snd) . zip cs)
-   in S.fromList $ f ss
+empty2 m = (==0) $ sum $ map snd $ M.toList m
+
+anagramsmwe le = reverse $ sortOn length $ subgrams le 
+
+subletters l = let -- take a map of letter frequencies
+   l1 = M.toList l -- turn it into a list
+   cs = map fst l1 -- the letters
+   ns = map snd l1 -- the frequencies
+   ss = crossList $ map (\x -> [0..x]) ns -- all the combinations of frequencies from 0 to x
+   rs = map (zipWith (-) ns) ss           -- the remainders when these are subtracted (not used)
+   f  = map (M.fromList . filter ((>0) . snd) . zip cs) -- add the letters back and create Maps
+   in S.fromList $ f ss -- a set of Maps of all frequencies from 0 up to and including the original
+
+subgramsL l = sortOn length $ sort $ subgrams l 
 
 subgrams l = concatMap unmm $ S.toList $ subgrams1 $ mm l
 
+-- this is subgram words in set of maps form, the func subgrams turns it back into strings using unmm
 subgrams1 m = S.intersection svocab $ subletters m
 {-
 subgrams1a m = let

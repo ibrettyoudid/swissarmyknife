@@ -53,7 +53,7 @@ import GHC.Generics
 import GHC.Stack
 
 import Debug.Trace
-
+{-
 data Type = M | To
 
 type Amount = Int
@@ -237,13 +237,13 @@ moy = do
    return moy1
 
 
-newtype Table i r = Table { table :: M.Map i r} deriving (Generic, NFData)
+newtype Table i r = Table { table :: Group i r} deriving (Generic, NFData)
 
 data Group i r = INode (M.Map i (Group i r)) | Recs (Tree.Tree (Group i r)) | Rec r deriving (Eq, Ord, Show, Generic, NFData)
 
 data Record f r = Record {fieldsr :: M.Map f Int, values :: Tree.Tree r} deriving (Show, Generic, NFData)
 
-empty = Table M.empty
+empty = Table $ Recs Tree.empty
 
 unmap (INode m) = m
 unrecs (Recs r) = r
@@ -397,18 +397,22 @@ byl fs (Table table) = Table $ byyn fs $ toList2 table
 
 putTable x = putStr $ showTable x
 
-join (i, l, r) = M.unions [i, l, r]
+join f (l, r) = let
+   (i, l1, r1) = joinT f (l, r)
+   in M.unions [i, l1, r1]
 
-joinInner l r = (M.intersectionWith appendT l r, M.empty , M.empty )
-joinLeft  l r = (M.intersectionWith appendT l r, l M.\\ r, M.empty )
-joinRight l r = (M.intersectionWith appendT l r, M.empty , r M.\\ l)
-joinOuter l r = (M.intersectionWith appendT l r, l M.\\ r, r M.\\ l)
+joinInner (l, r) = (M.intersectionWith joinRec l r, M.empty , M.empty )
+joinLeft  (l, r) = (M.intersectionWith joinRec l r, l M.\\ r, M.empty )
+joinRight (l, r) = (M.intersectionWith joinRec l r, M.empty , r M.\\ l)
+joinOuter (l, r) = (M.intersectionWith joinRec l r, l M.\\ r, r M.\\ l)
 
 applyLeft  f (i, l, r) = (i, f l, r)
 applyRight f (i, l, r) = (i, l, f r)
-applyBoth  f 
+applyBoth  fl fr (i, l, r) = (i, fl l, fr r) 
 
-joinGroups (fi, fl, fr) l r = M.unions [fi l r, fl l r, fr l r]
+joinT f (Table l, Table r) = joinG f (l, r)
+
+joinG f (INode l, INode r) = f (l, r)
 --joinGroups (fi, fl, fr) (Rec   l) (Rec   r) = M.unions [fi l r, fl l r, fr l r]
 --joinGroups (fi, fl, fr) (Recs  l) (Recs  r) = M.unions [fi l r, fl l r, fr l r]
 
@@ -653,3 +657,4 @@ delField fieldName t = if head (fields t) == fieldName
 
 --(??) :: (Ord [f]) => Record [f] t -> [f] -> t
 --r ?? k = fromJust $ (values r Tree.!) $ snd $ fromJust $ find (isInfixOf k . map toLower . fst) $ M.toList $ fieldsr r
+-}
