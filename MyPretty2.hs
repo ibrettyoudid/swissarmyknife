@@ -428,10 +428,30 @@ minIncWidthToDecHeight2 currWidths newWidths = do
 cellChangeLimit colWidthW colWidthN cellLengthW cellLengthN rowHeight = let 
    colWidthChangeW = cellLengthW // rowHeight - colWidthW
    colWidthChangeN = colWidthN - cellLengthN // rowHeight
+{-
+cellHeights will be equal when
 
-   in min colWidthChangeW colWidthChangeN
+colWidthW + change   cellLengthW
+------------------ = -----------
+colWidthN - change   cellLengthN
 
-cellFullLimit rowHeight cellLength = cellLength // rowHeight
+cellLengthN * (colWidthW + change) = cellLengthW * (colWidthN - change)
+cellLengthN * colWidthW + cellLengthN * change = cellLengthW * colWidthN - cellLengthW * change
+cellLengthN * change + cellLengthW * change = cellLengthW * colWidthN - cellLengthN * colWidthW
+(cellLengthN + cellLengthW) * change = cellLengthW * colWidthN - cellLengthN * colWidthW
+
+         cellLengthW * colWidthN - cellLengthN * colWidthW
+change = -------------------------------------------------
+                      cellLengthN + cellLengthW
+-}
+   colWidthChange2 = cellLengthW * colWidthN - cellLengthN * colWidthW // (cellLengthN + cellLengthW)
+   cellHeightChange2 = cellLengthW // (colWidthW + colWidthChange2)
+
+   in if cellHeightChange2 > rowHeight -- when the changing cells are equal, will they be higher than the height caused by other cells in the row?
+         then [colWidthChange2]
+         else [colWidthChangeW, colWidthChangeN]
+
+cellFullAtWidth rowHeight cellLength = cellLength // rowHeight
 
 cellWideningPressure rowHeight colWidth cellHeight = let
    advantage   = cellHeight // colWidth
@@ -546,12 +566,13 @@ h|2| |2| |
 
 OK, but how do we handle the changing of which ones are full?
 -}
-colFullLimit rowHeights cellLengthsCol = zipWith cellFullLimit rowHeights cellLengthsCol
+--patternChangeAtWidth rowHeights cellLengthsColW cellLengthsColN =
+cellFullAtWidthCol rowHeights cellLengthsCol = zipWith cellFullAtWidth rowHeights cellLengthsCol
 
 -- when column W is widening and column N is narrowing,
--- how much do we have to take off one and put on the other before the
+-- how much do we have to take off N and put on W before the
 -- pattern of full cells changes?
-colChangeLimit colWidthW colWidthN cellLengthsColW cellLengthsColN rowHeights = minimum $ zipWith3 (cellChangeLimit colWidthW colWidthN) cellLengthsColW cellLengthsColN rowHeights
+colChangeLimit colWidthW colWidthN cellLengthsColW cellLengthsColN rowHeights = zipWith3 (cellChangeLimit colWidthW colWidthN) cellLengthsColW cellLengthsColN rowHeights
 
 colWidths3 width tab =
    let
@@ -695,6 +716,8 @@ t - u = widenWidth + change
 t - u = s * u
 t = s * u + u
 t = (s + 1) * u
+u = t / (s + 1)
+change = narrowWidth - u
 -}
       s = colWideningAdvantage2 rowHeights2 widenWidth narrowWidth (cellLengthCols !! widenCol) (cellLengthCols !! narrowCol)
       t = widenWidth + narrowWidth
@@ -783,13 +806,10 @@ colWidths5M width tab cellLengthRows cellLengthCols widenCol narrowCol colWidths
                s      = sqrt (sumw // sumn)
                t      = widenWidth6 + narrowWidth6
                u      = t / (s + 1)
-               us     = S.fromList $ colFullLimit rowHeights6 (cellLengthCols !! narrowCol6)
-               u1     = max u $ fromMaybe 0.01 $ S.lookupLT narrowWidth6 us
-               uc     = narrowWidth6 - u1
-               vs     = S.fromList $ colFullLimit rowHeights6 (cellLengthCols !!  widenCol6)
-               v1     = min (t - u) $ fromMaybe 1e10 $ S.lookupGT  widenWidth6 vs 
-               vc     = v1 - widenWidth6
-               change = min uc vc
+               v      = t - u
+               uc     = narrowWidth6 - u
+               cs     = colChangeLimit widenWidth6 narrowWidth6 (cellLengthCols !! widenCol6) (cellLengthCols !! narrowCol6) rowHeights6
+               change = minimum (uc : filter (>0) (concat cs))
 
                in do
                   putGrid $ transpose [
@@ -802,14 +822,10 @@ colWidths5M width tab cellLengthRows cellLengthCols widenCol narrowCol colWidths
                      ["rowHeights2"       , show rowHeights2      ],
                      ["t"                 , show t                ],
                      ["u"                 , show u                ],
-                     ["v"                 , show $ t - u          ],
-                     ["us"                , show us               ],
-                     ["u1"                , show u1               ],
+                     ["v"                 , show v                ],
                      ["uc"                , show uc               ],
-                     ["vs"                , show vs               ],
-                     ["v1"                , show v1               ],
-                     ["vc"                , show vc               ],
-                     ["change"            , show c                ]]
+                     ["cs"                , show cs               ],
+                     ["change"            , show change           ]]
                   return $ replaceIndices [widenCol, narrowCol] [widenWidth6 + change, narrowWidth6 - change] colWidths3
 
             _   -> return colWidths3
