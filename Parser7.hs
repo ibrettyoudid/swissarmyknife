@@ -577,11 +577,15 @@ data State tok = Predict  { item :: Item tok, from :: SL.SetList (State tok) }
                | From     { item :: Item tok, from :: SL.SetList (State tok), prev :: SL.SetList (State tok) }
                | Scanned  { item :: Item tok,                                 prev :: SL.SetList (State tok) }
                | Early    { item :: Item tok,                                 prev :: SL.SetList (State tok) }
-               deriving (Eq, Ord, Show)
-{-
+               deriving (Eq, Ord)
+
 instance Show z => Show (State z) where
-   show s = show (item s)
--}
+   show s@(Predict  {}) = "Predict "  ++ show (item s)
+   show s@(Complete {}) = "Complete " ++ show (item s)
+   show s@(From     {}) = "From "     ++ show (item s)
+   show s@(Scanned  {}) = "Scanned "  ++ show (item s)
+   show s@(Early    {}) = "Early "    ++ show (item s)
+
 data Result = Running | Fail | Pass { asts :: [Dynamic] } deriving (Eq, Ord, Show)
 
 data Item tok  = Item (Rule tok) Result (Item2 tok) 
@@ -745,17 +749,21 @@ parseE r t = do
    return $ map result $ filter ((r ==) . rule) $ map (item . snd) $ M.toList res
 
 parseE1 map1 (n, t) = do
-   putStrLn "END OF TOKEN"
-   mapM_ (print . fst) $ M.toList map1
-   putStrLn "SCANNING"
    putStrLn $ take 80 $ cycle "/\\"
-   let state = scan t map1
+   putStrLn "SCANNING"
+   state <- scan t map1
    putStrLn "SCANNED!!!!"
    print state
 
    let map2 = M.fromList [(item state, state)]
 
-   parseE2 map2 (n, t)
+   res <- parseE2 map2 (n, t)
+   
+   putStrLn $ "END OF TOKEN SUMMARY FOR TOKEN "++show n++ "="++show t
+   mapM_ print $ M.toList map1
+   putStrLn $ take 80 $ cycle "/\\"
+   
+   return res
 
 parseE2 map2 (n, t) = do
    (_, done, _) <- parseE3 complete predict n t (True, map2, SL.fromList $ map snd $ M.toList map2)
@@ -825,10 +833,10 @@ process f s args@(changed, mapd, sln) items = do
                                     putStrLn $ "***** NEW STATE "++show s++" ALSO LEADS TO ITEM "++show i
                                     return (changed, M.insert i z mapd, SL.insert z sln))) args items
 
-predict n t args@(changed, mapd, sln) sla = do
+predict n t args@(changed, mapdone, slnew) slactive = do
    putStrLn "PREDICT ----------------------------"
-   res <- foldM (predict1 n t) (changed, mapd, sln) sla
-   foldM (completeEarly n t) res sla
+   res <- foldM (predict1 n t) (changed, mapdone, slnew) slactive
+   foldM (completeEarly n t) res slactive
 
 predict1 n t args s = do
    --print s
@@ -853,25 +861,34 @@ complete n t args@(changed, mapd, sln) sla = do
    foldM (complete1 n t) (changed, mapd, sln) sla
 
 complete1 n t args sub = do
-   putStrLn $ "sub="++showSequences sub
+   putStrLn $ "sub="++show sub
 
-   let p1 = makeFrom n sub
-   putStrLn $ "from="++showSequences p1
+   if result (item sub) /= Running then do
+      let p1 = makeFrom n sub
+      putStrLn $ "from="++show p1
 
-   let items = concatMap (complete3 $ item sub) (SL.map item $ prev p1)
-   putStrLn "new main items"
-   mapM_ print items
+      let items = concatMap (complete3 $ item sub) (SL.map item $ prev p1)
+      putStrLn "main items"
+      mapM_ print items
 
-   if passi $ item sub then do
-      res <- process Complete p1 args items
-      putStrLn "result"
-      print res
-      return res
+      if passi $ item sub then do
+         res <- process Complete p1 args items
+         putStrLn "result"
+         print res
+         return res
+      else
+         return args
    else
       return args
 
-scan ch soi = Scanned (Item (Token ch) (Pass [toDyn ch]) Item2) $ SL.fromList $
-   mapMaybe (\(it, state) -> ifJust (saux ch (rule it)) state) $ M.toList soi
+scan ch soi = do
+   putStrLn "SOI for SCAN"
+   mapM_ print $ M.toList soi
+   return $ 
+      Scanned (Item (Token ch) (Pass [toDyn ch]) Item2) $ 
+      SL.fromList $
+      mapMaybe (\(it, state) -> ifJust (saux ch (rule it)) state) $ 
+      M.toList soi
 
 
 
@@ -979,7 +996,7 @@ completeEarly2 n (Item {}) = []
 
 complete3 sub main@(Item r@(Seq as) s (ISeq seqs))
    | result sub == Fail = [Item r Fail      (ISeq  seqs   )]
-   | otherwise          = let
+   | pass (result sub) = let
       seqsNew = [seq ++ [ast] | seq <- seqs, ast <- asts $ result sub]
       in trace ("seqsNew = "++show seqsNew++" asts = "++show (asts (result sub))) $ if ilength seqsNew == length as 
             then [Item r (Pass $ map toDyn seqsNew) (ISeq  seqsNew)]

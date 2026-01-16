@@ -709,17 +709,16 @@ colWidths5AM width tab =
       cellLengthRows  = transposez 0 cellLengthCols
       colWidths       = colWidthsFloating (fromIntegral width) cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
-   in colWidths5M tab cellLengthRows cellLengthCols (0, 1, colWidths)
+   in colWidths5M (fromIntegral width) tab cellLengthRows cellLengthCols 0 1 colWidths
 
-colWidths5M :: [[String]] -> [[Double]] -> [[Double]] -> (Int, Int, [Double]) -> IO [Double]
-colWidths5M tab cellLengthRows cellLengthCols (widenCol, narrowCol, colWidths) = let
+colWidths5M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> Int -> Int -> [Double] -> IO [Double]
+colWidths5M width tab cellLengthRows cellLengthCols widenCol narrowCol colWidths = let
    rowHeights        = map (rowHeight colWidths) cellLengthRows
    cellHeightRows1   = cellHeightRows colWidths cellLengthRows
    colAdvantages     = zipWith (colFullLength1 rowHeights) colWidths cellLengthCols
-   --widenCol          = fromJust $ elemIndex (maximum colAdvantages) colAdvantages
-   --narrowCol         = fromJust $ elemIndex (minimum colAdvantages) colAdvantages
    widenWidth        = colWidths !! widenCol
    narrowWidth       = colWidths !! narrowCol
+   t                 = widenWidth + narrowWidth
    deleteFunc        = deleteIndices [widenCol, narrowCol]
    colWidths2        = deleteFunc colWidths
    cellLengthRows2   = map deleteFunc cellLengthRows
@@ -729,19 +728,8 @@ colWidths5M tab cellLengthRows cellLengthCols (widenCol, narrowCol, colWidths) =
                         in sum $ 
                            rowHeightsRaise narrowWidth (cellLengthCols !! narrowCol) $ 
                            rowHeightsRaise  widenWidth (cellLengthCols !!  widenCol) rowHeights2
-   graph             = transpose $ map ((\x -> replicate (min x 200) '*' ++ replicate (200 - x) ' ') . round . gridHeight) [1..t-1]
+   graph             = map ((\x -> replicate (min x 200) '*' ++ replicate (200 - x) ' ') . round . gridHeight) [1..t-1]
 
-   sumw = colFullLength1 rowHeights2  widenWidth (cellLengthCols !!  widenCol)
-   sumn = colFullLength1 rowHeights2 narrowWidth (cellLengthCols !! narrowCol)
-   s    = sqrt (sumw // sumn)
-   t    = widenWidth + narrowWidth
-   u    = t / (s + 1)
-   us   = S.fromList $ colFullLimit rowHeights2 (cellLengthCols !! narrowCol)
-   vs   = S.fromList $ colFullLimit rowHeights2 (cellLengthCols !!  widenCol)
-   maxv = fromMaybe (t - u) $ S.lookupGT  widenWidth vs 
-   v    = max  widenWidth $ min (t - u) maxv
-   minu = fromMaybe (t - v) $ S.lookupLT narrowWidth us
-   u1   = min narrowWidth $ max (t - v) minu
    in do
       putGrid $ transpose [
          ["colWidths"         , show colWidths        ],
@@ -755,21 +743,10 @@ colWidths5M tab cellLengthRows cellLengthCols (widenCol, narrowCol, colWidths) =
          ["widenWidth"        , show widenWidth       ],
          ["narrowWidth"       , show narrowWidth      ],
          ["colWidths2"        , show colWidths2       ],
-         ["cellLengthRows2"   , show cellLengthRows2  ],
-         ["sum w"             , show sumw             ],
-         ["sum n"             , show sumn             ],
-         ["s"                 , show s                ],
-         ["rowHeights2"       , show rowHeights2      ],
-         ["t"                 , show t                ],
-         ["u"                 , show u                ],
-         ["us"                , show us               ],
-         ["vs"                , show vs               ],
-         ["max v"             , show maxv             ],
-         ["v"                 , show v                ],
-         ["min u"             , show minu             ],
-         ["u"                 , show u1               ]]
-      putStrLn $ showGridColour (map round colWidths) (map2 round cellLengthCols) tab
-      putStrLn $ unlines graph
+         ["cellLengthRows2"   , show cellLengthRows2  ]]
+      putStrLn $ showGridColour1 (map round colWidths) (transpose $ map (map (\x -> if x then 1 else 0) . zipWith (<=) rowHeights2) cellHeightRows1) (map2 round cellLengthCols) tab 
+      --putStrLn $ showGridColour (map round colWidths) (map2 round cellLengthCols) tab
+      --putStrLn $ unlines graph
       c <- getChar
       (widenCol1, narrowCol1, widenWidth1) <- case c of
          '\27' -> do
@@ -782,8 +759,63 @@ colWidths5M tab cellLengthRows cellLengthCols (widenCol, narrowCol, colWidths) =
          '.' -> return (widenCol, narrowCol + 1, widenWidth)
          '+' -> return (widenCol, narrowCol, widenWidth + 1)
          '-' -> return (widenCol, narrowCol, widenWidth - 1)
+         _   -> return (widenCol, narrowCol, widenWidth)
+      let colWidths3 = replaceIndices [widenCol, narrowCol] [widenWidth1, t - widenWidth1] colWidths
+      let n = length colWidths
+      colWidths4 <- case c of
+            'e' -> return $ replicate n (width // fromIntegral n)
+            'r' -> do
+               gen <- initStdGen
+               let cols = runStateGen_ gen (replicateM n . uniformRM (1::Double, 1000))
+               return $ map fromIntegral $ forceLess (round width) (map round cols)
 
-      colWidths5M tab cellLengthRows cellLengthCols (widenCol1, narrowCol1, replaceIndices [widenCol, narrowCol] [widenWidth1, t - widenWidth1] colWidths)
+            ' ' -> let
+               widenCol6         = fromJust $ elemIndex (maximum colAdvantages) colAdvantages
+               narrowCol6        = fromJust $ elemIndex (minimum colAdvantages) colAdvantages
+               widenWidth6       = colWidths3 !!  widenCol6
+               narrowWidth6      = colWidths3 !! narrowCol6
+               deleteFunc        = deleteIndices [widenCol6, narrowCol6]
+               colWidths6        = deleteFunc colWidths3
+               cellLengthRows6   = map deleteFunc cellLengthRows
+               rowHeights6       = map (rowHeight colWidths6) cellLengthRows6
+               sumw   = colFullLength1 rowHeights6  widenWidth6 (cellLengthCols !!  widenCol6)
+               sumn   = colFullLength1 rowHeights6 narrowWidth6 (cellLengthCols !! narrowCol6)
+               s      = sqrt (sumw // sumn)
+               t      = widenWidth6 + narrowWidth6
+               u      = t / (s + 1)
+               us     = S.fromList $ colFullLimit rowHeights6 (cellLengthCols !! narrowCol6)
+               u1     = max u $ fromMaybe 0.01 $ S.lookupLT narrowWidth6 us
+               uc     = narrowWidth6 - u1
+               vs     = S.fromList $ colFullLimit rowHeights6 (cellLengthCols !!  widenCol6)
+               v1     = min (t - u) $ fromMaybe 1e10 $ S.lookupGT  widenWidth6 vs 
+               vc     = v1 - widenWidth6
+               change = min uc vc
+
+               in do
+                  putGrid $ transpose [
+                     ["colAdvantages"     , show colAdvantages    ],
+                     ["widenCol"          , show widenCol6        ],
+                     ["narrowCol"         , show narrowCol6       ],
+                     ["sum w"             , show sumw             ],
+                     ["sum n"             , show sumn             ],
+                     ["s"                 , show s                ],
+                     ["rowHeights2"       , show rowHeights2      ],
+                     ["t"                 , show t                ],
+                     ["u"                 , show u                ],
+                     ["v"                 , show $ t - u          ],
+                     ["us"                , show us               ],
+                     ["u1"                , show u1               ],
+                     ["uc"                , show uc               ],
+                     ["vs"                , show vs               ],
+                     ["v1"                , show v1               ],
+                     ["vc"                , show vc               ],
+                     ["change"            , show c                ]]
+                  return $ replaceIndices [widenCol, narrowCol] [widenWidth6 + change, narrowWidth6 - change] colWidths3
+
+            _   -> return colWidths3
+
+      colWidths5M width tab cellLengthRows cellLengthCols widenCol1 narrowCol1 colWidths4
+
 
 colWidths5C width tab celllrows colWidths = do
    let t = transpose $ map (rowWideningPressure colWidths) celllrows
