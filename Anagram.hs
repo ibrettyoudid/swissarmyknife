@@ -177,10 +177,9 @@ anagramsmwc le = let
       $ mapxfx 
          (\m -> Tree 
             $ M.fromList 
-            $ mapxfx ((\x -> fromMaybe 
-                  --(error $ "M.lookup returned Nothing in Map "++showDepth 2 10 0 (Tree ma)) $
-                  Null $
-                  M.lookup x ma) . 
+            $ mapxfx (
+                  fromMaybe Null .
+                  (`M.lookup` ma) . 
                   fromMaybe (error "subtract1 returned Nothing") . 
                   subtract1 m) 
             $ S.toList 
@@ -192,10 +191,10 @@ anagramsmwc le = let
 anagramsmwc1 (Tree branch) split left done
    | M.size left == 0 = done
    | otherwise = concatMap (\(next, newtree) -> anagramsmwc1 
-                                             newtree
-                                             next
-                                             (fromMaybe (error "subtract1 returned Nothing") $ subtract1 left next)
-                                             (unmm next : done)) 
+                                                newtree
+                                                next
+                                                (fromMaybe (error "subtract1 returned Nothing") $ subtract1 left next)
+                                                (unmm next : done)) 
       $ M.toList 
       $ snd 
       $ M.split split branch
@@ -219,7 +218,7 @@ subletters l = let -- take a map of letter frequencies
    l1 = M.toList l -- turn it into a list
    cs = map fst l1 -- the letters
    ns = map snd l1 -- the frequencies
-   ss = crossList $ map (\x -> [0..x]) ns -- all the combinations of frequencies from 0 to x
+   ss = crossList $ map (\x -> [0..x]) ns -- all the combinations of frequencies from 0 to the original
    rs = map (zipWith (-) ns) ss           -- the remainders when these are subtracted (not used)
    f  = map (M.fromList . filter ((>0) . snd) . zip cs) -- add the letters back and create Maps
    in S.fromList $ f ss -- a set of Maps of all frequencies from 0 up to and including the original

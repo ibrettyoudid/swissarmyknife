@@ -34,9 +34,7 @@ import Data.Typeable
 
 import Debug.Trace
 
-import Data.IORef
-import Graphics.Rendering.Cairo (RectangleInt(x))
-import System.IO.Unsafe
+import GHC.Stack
 
 data Rule tok =
    Seq [Rule tok]
@@ -516,15 +514,18 @@ data Item2     = Item2
                | IGet
                | ISet
                | IApply
-               deriving (Eq, Ord)
+               deriving (Eq, Ord, Show)
 
 result (Item r re i) = re
 rule   (Item r re i) = r
 item2  (Item r re i) = i
 
+pos2 :: HasCallStack => Item2 -> Int
 pos2 (ISeq n) = n
 pos2 (IAlt n) = n
+pos2 x = error $ show x
 
+pos :: HasCallStack => Item tok -> Int
 pos (Item r s i) = pos2 i
 
 pass (Pass _) = True
@@ -628,9 +629,10 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 --ident = Name "ident" $ cons (Alt [alpha, under]) ident1
 --ident1 = Many (Alt [alpha, under, digit])
 
---expr = Name "expr" $ Alt [expr `Then` Token '+' `Then` expr], Token 'a']
+sexpr = Name "sexpr" $ Alt [Seq [sexpr, Token '+', sexpr], Token 'a']
 
-test = parseED (Seq [Not (Token 'b'), Token 'a']) "a"
+
+test = parseED sexpr "a+a+a"
 
 linePos = M.fromList . zip [(0::Int)..] . (0:) . map (+1) . findIndices (=='\n')
 
@@ -916,6 +918,7 @@ retrieve1 states mainseq n sub = let
    prev  = only $ S.toList prev1
    in ast (result $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) prev else []
 -}
+retrieve2 :: (HasCallStack, Eq tok) => [SL.SetList (State tok)] -> State tok -> [Dynamic]
 retrieve2 states state = do
    seq <- children states state
    let seqf = reverse seq
@@ -1037,6 +1040,7 @@ children states (State f t i) = do
 
 -}
 
+children :: (HasCallStack, Eq tok) => [SL.SetList (State tok)] -> State tok -> [[State tok]]
 children states (State f t i) = do
    s1@(State f1 t1 i1) <- SL.list $ states !! t
    if subitem i i1 && pass (result i1)
