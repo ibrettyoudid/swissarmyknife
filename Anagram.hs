@@ -53,6 +53,8 @@ go letterstostartwith letterstoremove = let
 
 anagrams letters = anagramsmwd letters
 
+-- #;0~gZb711m3Pe
+
 path = "/home/brett/swissarmyknife/words/" -- path to words directory
 
 vocab = vocab0
