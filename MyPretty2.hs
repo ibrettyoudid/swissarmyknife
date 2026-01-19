@@ -522,6 +522,8 @@ I think we need to consider a moving grid over a time span or differentiate over
 
 dw/dh = - area / height^2
 
+dw = - dh * area / height^2
+
 w = startwidth + area / height - area / startheight
 
 say startwidth = 10, startheight = 10, so area = 100
@@ -533,6 +535,10 @@ w = 10 + 100 / 5 - 100 / 10
 the next thing is to work out at what height the full pattern changes
 
 for all nonfull cells, they become full when height = area / width where the height and width is from the full cells
+
+can't really work out row heights from grid height, the best you can do is change their height in proportion to the grid height change
+
+rowheight =  
 
 imagine a grid with these lengths, the blank ones are zero
 if you widen A, that lowers h, which widens d, which lowers e, which widens b, which lowers g
@@ -849,10 +855,10 @@ colWidths4AM width tab =
       cellLengthRows  = transposez 0 cellLengthCols
       colWidths       = colWidthsFloating (fromIntegral width) cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
-   in colWidths4M (fromIntegral width) tab cellLengthRows cellLengthCols 0 1 colWidths True True
+   in colWidths4M (fromIntegral width) tab cellLengthRows cellLengthCols colWidths 0 1 True True
 
-colWidths4M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> Int -> Double -> [Double] -> Bool -> Bool -> IO [Double]
-colWidths4M width tab cellLengthRows cellLengthCols changeCol stepWidth colWidths chooseColMode chooseStepMode = let
+colWidths4M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> Int -> Double -> Bool -> Bool -> IO [Double]
+colWidths4M width tab cellLengthRows cellLengthCols colWidths changeCol stepWidth chooseColMode chooseStepMode = let
    cellHeightRows1   = cellHeightRows colWidths cellLengthRows
    rowHeights        = map maximum cellHeightRows1
    cellPatternRows1  = cellPatternRows rowHeights cellHeightRows1
@@ -907,7 +913,7 @@ colWidths4M width tab cellLengthRows cellLengthCols changeCol stepWidth colWidth
       let chooseColMode1  = if c == 'c' then not chooseColMode  else chooseColMode
       let chooseStepMode1 = if c == 's' then not chooseStepMode else chooseStepMode
 
-      colWidths4M width tab cellLengthRows cellLengthCols changeCol1 stepWidth1 colWidths1 chooseColMode1 chooseStepMode1
+      colWidths4M width tab cellLengthRows cellLengthCols colWidths changeCol1 stepWidth1 chooseColMode1 chooseStepMode1
 
 unionWith3 :: Ord k => (a -> b -> c) -> (a -> c) -> (b -> c) -> M.Map k a -> M.Map k b -> M.Map k c
 unionWith3 f fl fr l r =
@@ -1711,13 +1717,13 @@ gridTesterM width (f1, s, f2) tab = do
 
 roundList width colWidthsD = let
    total       =  sum colWidthsD
-   mult        =  fromIntegral width / total
+   mult        =  width / total
    colWidths2  =  map (mult *) colWidthsD
    colWidthsI  =  map floor colWidths2
    colWidthsZ  =  sort $ zipWith (\w n -> (snd $ properFraction w, w, n)) colWidths2 [0..]
-   slack       =  width - sum colWidthsI
+   slack       =  round width - sum colWidthsI
    (colWidthsB, colWidthsA)
-               =  splitAt (length colWidths - slack) colWidthsZ
+               =  splitAt (length colWidthsD - slack) colWidthsZ
    colWidthsC  =  map (\(f, w, n) -> (n, floor   w)) colWidthsB ++
                   map (\(f, w, n) -> (n, ceiling w)) colWidthsA
 
@@ -1726,7 +1732,7 @@ roundList width colWidthsD = let
 forceLess width colWidths = let
    colWidthsD  =  map fromIntegral colWidths
 
-   in if sum colWidths > width then roundList width colWidthsD else colWidths
+   in if sum colWidths > width then roundList (fromIntegral width) colWidthsD else colWidths
 
 
 tryGridF f width tab = gridTester $ f (width - length tab) tab
