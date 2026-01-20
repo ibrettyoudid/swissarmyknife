@@ -14,6 +14,7 @@ data Doc char str = DStr                 str
                   | VStretch             str
                   | CharStr         char
                   deriving (Eq, Ord, Show)
+{-
 
 data Doc2 str = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [str]} deriving (Eq, Ord)
 
@@ -107,3 +108,4 @@ vapp a b = vcat [a, b]
 
 iapp a b = vapp a $ indent1 3 b
 
+-}
