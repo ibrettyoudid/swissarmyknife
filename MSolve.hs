@@ -62,7 +62,7 @@ msolve mpolys = do
       intercalate "," (vars $ head mpolys) ++ "\n" ++
       "0\n" ++
       intercalate ",\n" (map show mpolys) ++ "\n"
-   callProcess "/usr/local/bin/msolve" ["-f", "/tmp/msolve_input.ms", "-o", "/tmp/msolve_output"]
+   callCommand "msolve -f /tmp/msolve_input.ms -o /tmp/msolve_output"
    output <- parseFromFile msolveOutput "/tmp/msolve_output"
    case output of
       Left l -> error $ show l
