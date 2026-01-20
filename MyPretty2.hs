@@ -492,7 +492,10 @@ colWidths10 width cellLengthCols = let
    cellLengthRows = transpose cellLengthCols
    colWidths1 = colWidthsFloating width cellLengthCols :: [Double]
    rowHeights1 = rowHeights colWidths1 cellLengthRows
-   cellsFullCols = map (zipWith (<=) rowHeights1) $ zipWith (\cw -> map (// cw)) colWidths1 cellLengthCols 
+   cellsFullCols = map (zipWith (<=) rowHeights1) $ zipWith (\cw -> map (// cw)) colWidths1 cellLengthCols
+   rowVars = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
+   colVars = map (\n -> "col" ++ show n) [0..length colWidths1  - 1]
+   mpolys = zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv ++ "*" ++ rv ++ "-" ++ show clc else Nothing) rowVars) colVars cellsFullCols cellLengthCols
    colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellsFullCols cellLengthCols
    in 0
 {-
@@ -524,6 +527,8 @@ dw/dh = - area / height^2
 
 dw = - dh * area / height^2
 
+dh = - dw * height^2 / area
+
 w = startwidth + area / height - area / startheight
 
 say startwidth = 10, startheight = 10, so area = 100
@@ -538,20 +543,95 @@ for all nonfull cells, they become full when height = area / width where the hei
 
 can't really work out row heights from grid height, the best you can do is change their height in proportion to the grid height change
 
-rowheight =  
+so we know how h and w are linked for each   full cell: hw = area
+so we know how h and w are linked for each unfull cell: hw > area <=> h > area/w <=> w > area / h
+sadly, knowing that two numbers eg. be and bf are both greater than a third doesn't really link the first two
+they are also linked by the fact that all the cells in the same row have the same h
+and all the cells in the same column have the same w
+
+for the grid below,
+
+ah = 1
+dh = 2
+de = 2
+be > 2
+bg = 7
+bf > 1
+cf = 4
+
+ah = 1 & dh = 2 => d = 2a
+dh = 2 & de = 2 => e = h
+be > 2 & bf > 1 => nothing
+be > 2 & bg = 7 => b = 7/g => 7e/g > 2 => e > 2g/7
+bf > 1 & bg = 7 => b = 7/g => 7f/g > 1 => f >  g/7
+bf > 1 & cf = 4 => f = 4/c => 4b/c > 1 => b > c/4
+
+a+b+c+d = x
+e+f+g+h = y
+
+e = h & e+f+g+h = y => e+f+g+e = y
+3a+b+c = x
+
+ae = 1 => a = 1/e
+be > 2
+bg = 7 => b = 7/g
+bf > 1
+cf = 4 => c = 4/f
+
+b > 2/e
+b > 1/f
+7/g > 2/e
+7/g > 1/f
+7e>2g
+7f>g
+
+A = xy = (3a+b+c)(2e+f+g) 
+A = 6 + 3af + 3ag + 2be + bf + 7 + 2ce + 4 + cg
+A = (f+g)3a  + b(2e+f) + c(2e+g) + 17
+A = (2b+2c)e + (3a+b)f + (3a+c)g + 17
+A = 3(f+g)/e + 4(2e+g)/f + 7(2e+f)/g + 17
+-(3f+3g)/e^2 + 8/f + 14/g = 0
+3/e - (8e+4g)/f^2 + 7/g = 0
+3/e + 4/f - (14e+7f)/g^2 = 0
+
+hmm, do all the differentials have to = 0 or just the sum of them? try both I guess
+I think all
 
 imagine a grid with these lengths, the blank ones are zero
 if you widen A, that lowers h, which widens d, which lowers e, which widens b, which lowers g
 
   a b c d 
 e| |2| |2|1
-f| | |1| |1
+f| |1|4| |2
 g| |7| | |2.33
 h|1| | |2|1
 
-  1 3 1 2 = widths
-  width = 7
-  height = 5.33
+  1 3 2 2 = widths
+  width = 8
+  height = 6.33
+  
+  a b c d 
+e| |2| |2|0.66
+f| |1|4| |2
+g| |7| | |2.33
+h|1| | |2|0.66
+
+  1 3 2 3 = widths
+  .
+  3
+  3
+  width = 9
+  height = 5.66
+  
+  a b c d 
+e| |2| |2|2
+f| |1|4| |1
+g| |7| | |7
+h|1| | |2|2
+
+  1 2 8 2 = widths
+  width = 8
+  height = 6*13/8 = 78/8 = 9.75
   
   a b c d 
 e| |2| |2|1
