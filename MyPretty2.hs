@@ -55,6 +55,8 @@ import Favs
 import Numeric
 import Show1
 import {-# SOURCE #-} MHashDynamic3
+import MSolve
+import MPoly
 
 import Data.Functor
 import Prelude hiding (maximum)
@@ -493,9 +495,13 @@ colWidths10 width cellLengthCols = let
    colWidths1 = colWidthsFloating width cellLengthCols :: [Double]
    rowHeights1 = rowHeights colWidths1 cellLengthRows
    cellsFullCols = map (zipWith (<=) rowHeights1) $ zipWith (\cw -> map (// cw)) colWidths1 cellLengthCols
-   rowVars = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
-   colVars = map (\n -> "col" ++ show n) [0..length colWidths1  - 1]
-   mpolys = zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv ++ "*" ++ rv ++ "-" ++ show clc else Nothing) rowVars) colVars cellsFullCols cellLengthCols
+   rowVarNames = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
+   colVarNames = map (\n -> "col" ++ show n) [0..length colWidths1  - 1]
+   varNames = rowVarNames ++ colVarNames
+   rowVars = [0..length rowHeights - 1]
+   colVars = [length rowHeights1 .. length rowHeights1 + length colWidths1 - 1]
+   mpolys = zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ MPoly varNames [mono [(cv, 1), (rv, 1)], ([], clc)] else Nothing) rowVars) colVars cellsFullCols cellLengthCols
+   area = MPoly varNames [concat $ crossWith (\cv rv -> mono [(cv, 1), (rv,1)]) colVars rowVars]
    colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellsFullCols cellLengthCols
    in 0
 {-
@@ -572,7 +578,7 @@ e+f+g+h = y
 e = h & e+f+g+h = y => e+f+g+e = y
 3a+b+c = x
 
-ae = 1 => a = 1/e
+ae = 1 => a = 1/e & e = 1/a
 be > 2
 bg = 7 => b = 7/g
 bf > 1
@@ -593,6 +599,12 @@ A = 3(f+g)/e + 4(2e+g)/f + 7(2e+f)/g + 17
 -(3f+3g)/e^2 + 8/f + 14/g = 0
 3/e - (8e+4g)/f^2 + 7/g = 0
 3/e + 4/f - (14e+7f)/g^2 = 0
+
+-(3f+3g)fg + 8e^2g + 14e^2f
+
+A = a(e + f + g + h) + b(e + f + g + h) + c(e + f + g + h) + d(e + f + g + h)
+A = sum $ concat $ crossWith rows cols
+dA/da = filter dependent on a
 
 hmm, do all the differentials have to = 0 or just the sum of them? try both I guess
 I think all

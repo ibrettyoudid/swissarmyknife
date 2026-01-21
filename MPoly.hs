@@ -39,6 +39,15 @@ pow2a = paramsOfWave2a
 
 wopn ps = map sum $ transpose $ map wop ps
 
+replaceIndices vp list = let
+   indicesSorted = sort vp
+
+   in foldr (uncurry replaceIndex) list indicesSorted
+
+
+mono :: coeff -> [(Int, Int)] -> Int -> ([Int], coeff)
+mono c vp nv = (replaceIndices vp $ replicate nv 0, c)
+
 type Mono coeff = ([Int], coeff)
 
 data MPoly coeff = MPoly { vars :: [String], terms :: [Mono coeff] }
@@ -84,6 +93,8 @@ mulpp p (MPoly z xs) = foldr addpp (MPoly z []) $ map (mulpm p) xs
 addpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
 
 subpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
+
+diffpv (MPoly v ms) vn = MPoly 
 
 sortp order (MPoly z p) = MPoly z $ sortBy order p
 
