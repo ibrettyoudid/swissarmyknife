@@ -13,6 +13,7 @@ import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Ratio
 import Debug.Trace
+import Text.ParserCombinators.ReadPrec (readP_to_Prec)
 
 -- frequency of a sine wave (in a list) in radians/sample
 freq (x0:x1:x2:_) = acos ((x2+x0)/(2*x1))
@@ -94,7 +95,14 @@ addpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (+) (
 
 subpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
 
-diffpv (MPoly v ms) vn = MPoly 
+redpp fi fj = let
+   mj = negm $ divm gi gj
+   in sortp order $ addpp fi (mulpm fj mj)
+
+
+--substitutePinP v (MPoly vs ms) (MPoly vs1 ns) = 
+
+--differentiatePV (MPoly v ms) vn = MPoly 
 
 sortp order (MPoly z p) = MPoly z $ sortBy order p
 

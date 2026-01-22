@@ -55,8 +55,8 @@ import Favs
 import Numeric
 import Show1
 import {-# SOURCE #-} MHashDynamic3
-import MSolve
-import MPoly
+import MSolve hiding (list, number)
+import MPoly hiding (replaceIndices, showm)
 
 import Data.Functor
 import Prelude hiding (maximum)
@@ -498,12 +498,13 @@ colWidths10 width cellLengthCols = let
    rowVarNames = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
    colVarNames = map (\n -> "col" ++ show n) [0..length colWidths1  - 1]
    varNames = rowVarNames ++ colVarNames
-   rowVars = [0..length rowHeights - 1]
-   colVars = [length rowHeights1 .. length rowHeights1 + length colWidths1 - 1]
-   mpolys = zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ MPoly varNames [mono [(cv, 1), (rv, 1)], ([], clc)] else Nothing) rowVars) colVars cellsFullCols cellLengthCols
-   area = MPoly varNames [concat $ crossWith (\cv rv -> mono [(cv, 1), (rv,1)]) colVars rowVars]
+   rowVars = [0..length rowHeights1 - 1]
+   colVars = [length rowHeights1 .. nVars - 1]
+   nVars = length rowHeights1 + length colWidths1
+   mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ MPoly varNames [mono 1 [(cv, 1), (rv, 1)] nVars, ([], clc)] else Nothing) rowVars) colVars cellsFullCols cellLengthCols
+   area = MPoly varNames $ concat $ crossWith (\cv rv -> mono 1 [(cv, 1), (rv, 1)] nVars) colVars rowVars
    colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellsFullCols cellLengthCols
-   in 0
+   in colWidths
 {-
 
 can't we just choose the column widths such that the advantage is equal across the whole table?
