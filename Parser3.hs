@@ -835,46 +835,47 @@ completeD states state = do putStrLn $ "COMPLETE "++take 71 (cycle "\\/"); closu
 complete1A states state =
    concatMap (complete2 states state) $ SL.list $ states !! from state
 
-complete2 states substate@(State b c subitem1) (State a b1 main) =
+complete2 states substate@(State b c subitem1) mainstate@(State a b1 main) =
    if result subitem1 /= Running && result main == Running && subitem main subitem1
-      then map (State a c) $ complete3 states main substate
+      then map (State a c) $ complete3 states mainstate substate
       else []
 
+complete1D :: (Show tok, Eq tok, Typeable tok) => [SL.SetList (State tok)] -> State tok -> IO [State tok]
 complete1D states state = do
    res <- mapM (complete2D states state) $ SL.list $ states !! from state
    return $ concat res
 
 complete2D :: (Show tok, Eq tok, Typeable tok) => [SL.SetList (State tok)] -> State tok -> State tok -> IO [State tok]
-complete2D states sub@(State b c subitem1) (State a b1 main) = do
+complete2D states sub@(State b c subitem1) mainstate@(State a b1 main) = do
    --print (sub, main, subitem main subitem1)
    if result subitem1 /= Running && result main == Running && subitem main subitem1
       then do
-         let r = map (State a c) $ complete3 states main sub
+         let r = map (State a c) $ complete3 states mainstate sub
          --print (sub, main, r)
          return r
       else return []
 
-complete3 states main@(Item r@(Seq as) s (ISeq n)) substate
+complete3 states mainstate@(State a b1 main@(Item r@(Seq as) s (ISeq n))) substate
    | result sub == Fail = [Item r Fail    (ISeq  n     )]
    | n + 1 == length as = [Item r res1    (ISeq (n + 1))]
    | otherwise          = [Item r Running (ISeq (n + 1))]
       where
          sub = item substate
          --res1 = if passi sub then states !! from substate
-         res1 = if passi sub then Pass $ retrieve2 states substate else Fail
+         res1 = if passi sub then Pass $ retrieve2 states mainstate else Fail
 
-complete3 states main@(Item x@(Alt as) q (IAlt n)) substate
+complete3 states mainstate@(State a b1 main@(Item x@(Alt as) q (IAlt n))) substate
    | passi sub     = [Item x (result sub) (IAlt  n     )]
    | n < length as = [Item x Running      (IAlt (n + 1))]
    | otherwise     = [Item x (result sub) (IAlt  n     )]
       where
          sub = item substate
 
-complete3 states main@(Item x@(Name d e) q i2) substate = [Item x (result sub) i2]
-      where
-         sub = item substate
+complete3 states mainstate@(State a b1 main@(Item x@(Name d e) q i2)) substate = [Item x (result sub) i2]
+   where
+      sub = item substate
 
-complete3 states main@(Item x@(Apply d e) q _) substate =
+complete3 states mainstate@(State a b1 main@(Item x@(Apply d e) q _)) substate =
    case result sub of
       Pass reslist -> do
          res <- reslist
@@ -887,21 +888,21 @@ complete3 states main@(Item x@(Apply d e) q _) substate =
    where
       sub = item substate
 
-complete3 states main@(Item x@(Not d) q i2) substate = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } ) Item2]
+complete3 states mainstate@(State a b1 main@(Item x@(Not d) q i2)) substate = [Item x (case result sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } ) Item2]
    where
       sub = item substate
 
-complete3 states main@(Item x@(Bind a (b, c)) q _) substate =
+complete3 states mainstate@(State a b1 main@(Item x@(Bind i (j, k)) q _)) substate =
    case result sub of
       Pass reslist -> do
          res <- reslist
-         case b res of
+         case j res of
             r2 -> [start r2]
       Fail -> [Item x Fail Item2]
    where
       sub = item substate
 
-complete3 states main@(Item x@(Many a) q (IMany done)) substate =
+complete3 states mainstate@(State a b1 main@(Item x@(Many m) q (IMany done))) substate =
 --   Item x (Pass $ toDyn done) Item2 :
    case result sub of
       Pass reslist -> do

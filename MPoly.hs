@@ -89,16 +89,17 @@ negm (pi, ci) = (pi, negate ci)
 
 mulpm (MPoly z xs) m = MPoly z $ map (mulm m) xs
 
+mulpp :: (Eq coeff, Num coeff) => MPoly coeff -> MPoly coeff -> MPoly coeff
 mulpp p (MPoly z xs) = foldr addpp (MPoly z []) $ map (mulpm p) xs
 
 addpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
 
 subpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
-
+{-}
 redpp fi fj = let
    mj = negm $ divm gi gj
    in sortp order $ addpp fi (mulpm fj mj)
-
+-}
 
 --substitutePinP v (MPoly vs ms) (MPoly vs1 ns) = 
 
