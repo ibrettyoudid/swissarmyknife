@@ -163,6 +163,7 @@ library
         NumberParsersT,
         Parser, 
         Parser3,
+        Parser3Types,
         Parser4,
         Parser6,
         Parser6Types,
