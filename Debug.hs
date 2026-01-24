@@ -5,7 +5,9 @@
 module Debug where
 
 import Prelude hiding (pure)
+import Debug.Trace
 import System.IO.Unsafe
+{-
 
 data Debug a = Debug { debug :: IO a }
 
@@ -60,7 +62,6 @@ instance {-# OVERLAPPING #-} Show (a -> b -> c -> d -> e) where
 pure x = Named "pure" x
 
 
-
 (Named fn fo) <*> (Named xn xo) = do
    putStrLn $ "-> " ++ fn ++ " " ++ xn ++ "=" ++ show xo
    let fxo = fo xo
@@ -93,4 +94,5 @@ add5 = Named "(+5)" (+5)
 return r = Debug $ do
    putStrLn $ "return "++show r
    Prelude.return r
-
+-}
+mytrace m x = trace (m ++ show x) x

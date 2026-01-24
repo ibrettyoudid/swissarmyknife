@@ -5,16 +5,10 @@ import Parser3Types
 import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.IntMap as I
 
 --data states  a = states  { set :: S.Set a, list :: [a]}
-newtype StateSeq tok = StateSeq (M.Map int (States tok)) 
-
-data State tok = Scan     { item :: Item tok, from :: [State tok] }
-               | Predict  { item :: Item tok, from :: [State tok] } 
-               | Scanned  { tk   ::      tok, prev :: [State tok] }
-               | Complete { item :: Item tok, from :: [State tok], ast :: Dynamic }
-               | Previous { item :: Item tok, prev :: [State tok] }
-               deriving (Eq, Ord)
+newtype StateSeq tok = StateSeq (I.IntMap (States tok)) 
 
 {-
 prediction: need to be able to check if we already have predicted something

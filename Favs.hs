@@ -1154,10 +1154,3 @@ bsofs = B.pack . map (fromIntegral . ord)
 filename list = drop (length list - 1 - fromMaybe (length list - 1) (elemIndex '/' (reverse list))) list
 
 ext list = drop (length list - 1 - fromMaybe (negate 1) (elemIndex '.' (reverse list))) list
-
-mytrace = unsafePerformIO . mytrace1
-
-mytrace1 x = do
-   print x
-   return x
-

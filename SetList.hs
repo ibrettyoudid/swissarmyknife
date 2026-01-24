@@ -56,7 +56,7 @@ instance Foldable SetList where
    foldl f z xs = foldl f z $ list xs
    foldr f z xs = foldr f z $ list xs
 
-{- cant do functor as requires an Ord instance
+{- cant do functor as our map requires an Ord instance, and it would need to be ANY type, because Functor is not parametrised by the 'element' type of fmap
 instance Functor SetList where
    fmap f xs = SetList.map f xs
    -}
