@@ -518,24 +518,24 @@ predict1 n st = let c = to st in map (maket c c) $ predict2 n (item st)
 
 predict2 n (Item (Seq    as   ) (ISeq j)) = [start (as !! j)]
 predict2 n (Item (Alt    as   ) (IAlt 0)) = [start a | a <- as]
-predict2 n (Item (Many   a    ) Running ) = [start a, Item (Many a) (Pass [toDyn ([]::[Dynamic])]) (IMany [])]
+predict2 n (Item (Many   a    ) Running ) = [start a, Item (Many a) (Pass [toDyn ([]::[Dynamic])])]
 predict2 n (Item (Name   a b  ) Running ) = [start b]
 predict2 n (Item (Apply  a b  ) Running ) = [start b]
 predict2 n (Item (Set    a b  ) Running ) = [start b]
-predict2 n (Item (Not    a    ) Running ) = [start a, Item (Not a) (Pass [toDyn ()]) Item2]
+predict2 n (Item (Not    a    ) Running ) = [start a, Item (Not a) (Pass [toDyn ()])]
 predict2 n (Item (Bind   a b  ) Running ) = [start a]
-predict2 n (Item (Return a    ) Running ) = [Item (Return a) (Pass [a]) Item2]
-predict2 n (Item  Pos           Running ) = [Item Pos (Pass [toDyn n]) Item2]
+predict2 n (Item (Return a    ) Running ) = [Item (Return a) (Pass [a])]
+predict2 n (Item  Pos           Running ) = [Item Pos (Pass [toDyn n])]
 --predict2 (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
 predict2 n (Item {}) = []
 
 --start r@(Not a) = Item r (Pass $ toDyn ()) Item2
-start r = Item r Running $ start1 r
+start r = Item r $ start1 r
 
 start1 (Seq  a) = ISeq 0
 start1 (Alt  a) = IAlt 0
 start1 (Many a) = IMany []
-start1 _ = Item2
+start1 _ = Running
 
 scan c t items = mapMaybe (scan1 c (t !! (c - 1))) $ S.toList items
 
@@ -543,7 +543,7 @@ scanA c t items = mapMaybe (scan1 c (t !! (c - 1))) $ SL.list items
 
 scan1 c ch st = scan2 c ch (from st) c (item st)
 
-scan2 c ch j _ (Item r Running) = do sc <- saux ch r; return $ maket j c $ Item r (if sc then Pass else Fail)
+scan2 c ch j _ (Item r Running) = do sc <- saux ch r; return $ maket j c $ Item r (if sc then Pass [toDyn ch] else Fail)
 scan2 c ch _ _ _ = Nothing
 
 saux ch (Token c  ) = Just $ ch == c
@@ -575,65 +575,64 @@ complete2D states substate mainstate = do
    let main = item mainstate
    if istate subitem1 /= Running && istate main == Running && subitem main subitem1
       then do
-         let r = map (maket (from mainstate) (to substate)) $ complete3 states mainstate sub
+         let r = map (maket (from mainstate) (to substate)) $ complete3 states (rule main) (istate main) mainstate substate
          --print (sub, main, r)
          return r
       else return []
 
-complete3 states mainstate substate
+complete3 states (Seq as) (ISeq n) mainstate substate
    | istate sub == Fail = [Item r Fail]
-   | n + 1 == length as = [Item r Pass]
+   | n + 1 == length as = [Item r res1]
    | otherwise          = [Item r (ISeq (n + 1))]
       where
          sub = item substate
-         main@(Item r@(Seq as) (ISeq n)) = item mainstate
          --res1 = if passi sub then states !! from substate
          res1 = if passi sub then Pass $ retrieve2 states mainstate substate else Fail
 
-complete3 states mainstate substate 
-   | passi sub     = [Item x (istate sub) (IAlt  n     )]
-   | n < length as = [Item x Running      (IAlt (n + 1))]
-   | otherwise     = [Item x (istate sub) (IAlt  n     )]
+complete3 states (Alt as) (IAlt n) mainstate substate 
+   | passi sub     = [Item r (istate   sub)]
+   | n < length as = [Item r (IAlt (n + 1))]
+   | otherwise     = [Item r Fail          ]
       where
          sub = item substate
-         main@(Item r@(Seq as) (ISeq n)) = item mainstate
+         main@(Item r@(Alt as) (IAlt n)) = item mainstate
 
-complete3 states mainstate substate = [Item x (istate sub) i2]
+complete3 states (Name n r) Running mainstate substate = [Item r (istate sub)]
    where
       sub = item substate
-      main@(Item r@(Seq as) Running) = item mainstate
+      main@(Item r@Name {} Running) = item mainstate
 
-complete3 states mainstate substate =
+complete3 states (Apply iso r) Running mainstate substate =
    case istate sub of
       Pass reslist -> do
          res <- reslist
-         case x of
+         case r of
             Apply iso _ ->
                case apply iso res of
-                  Just j  -> [Item x (Pass [j]) Item2]
-                  Nothing -> [Item x  Fail      Item2]
-      Fail -> [Item x Fail Item2]
+                  Just j  -> [Item r (Pass [j])]
+                  Nothing -> [Item r  Fail     ]
+      Fail -> [Item r Fail]
    where
       sub = item substate
-      main@(Item r@(Seq as) Running) = item mainstate
+      main = item mainstate
 
-complete3 states mainstate substate = [Item x (case istate sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } ) Item2]
+complete3 states (Not r) Running mainstate substate = [Item r (case istate sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } )]
    where
       sub = item substate
-      main@(Item r@(Seq as) Running) = item mainstate
+      main = item mainstate
 
-complete3 states mainstate substate =
+complete3 states (Bind i (j,k)) Running mainstate substate =
    case istate sub of
       Pass reslist -> do
          res <- reslist
          case j res of
             r2 -> [start r2]
-      Fail -> [Item x Fail Item2]
+      Fail -> [Item r Fail]
    where
       sub = item substate
-      main@(Item r@(Seq as) Running) = item mainstate
+      main@(Item r Running) = item mainstate
 
-complete3 states mainstate substate =
+complete3 states (Many r) Running mainstate substate =
 --   Item x (Pass $ toDyn done) Item2 :
    case istate sub of
       Pass reslist -> do
@@ -642,7 +641,7 @@ complete3 states mainstate substate =
       Fail     -> []
    where
       sub = item substate
-      main@(Item r@(Seq as) Running) = item mainstate
+      main@(Item r Running) = item mainstate
 {-
 retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
 

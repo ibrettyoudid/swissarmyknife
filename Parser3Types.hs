@@ -214,7 +214,7 @@ data Item tok  = Item { rule :: Rule tok, istate :: IState } deriving (Eq)
 instance Ord tok => Ord (Item tok) where
    compare a b = compare (rule a, istate a) (rule b, istate b)
 
-data IState    = Pass
+data IState    = Pass [Dynamic]
                | Fail
                | Running 
                | ISeq  Int
@@ -237,12 +237,12 @@ pos2 x = error $ show x
 pos :: HasCallStack => Item tok -> Int
 pos (Item r i) = pos2 i
 
-pass Pass = True
-pass _    = False
+pass (Pass _) = True
+pass _        = False
 
-finished Pass = True
-finished Fail = True
-finished _    = False
+finished (Pass _) = True
+finished Fail     = True
+finished _        = False
 
 passi = pass . istate
 
@@ -255,6 +255,7 @@ puts a rest = a ++ rest
 instance Show tok => Show (Rule tok) where
    --show = outershow Nothing
    --showsPrec p r = 
+   showsPrec :: Show tok => Int -> Rule tok -> ShowS
    showsPrec p r = showRule r p
    {-
    showsPrec p (Seq   as ) = unwords $ map show as
