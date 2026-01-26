@@ -1,9 +1,9 @@
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Redundant multi-way if" #-}
@@ -13,40 +13,40 @@
 
 module Parser3 where
 
-import Parser3Types
-import {-# SOURCE #-} MHashDynamic3 hiding (Apply, expr)
-import Iso2 hiding (foldl, (!!))
-import NewTuple hiding (apply)
-
-import Favs hiding (indent1, indent2)
-import qualified MyPretty2
-import qualified SetList as SL
-import qualified Iso2
---import Rule
---import Syntax3 hiding (foldl, foldr)
---import Shell (ch)
-import Debug
+-- import Rule
+-- import Syntax3 hiding (foldl, foldr)
+-- import Shell (ch)
 
 import Control.Monad
 import Control.Monad.State qualified as St
+import Data.IntMap qualified as I
 import Data.List
 import Data.Map qualified as M
 import Data.Set qualified as S
-import Data.IntMap qualified as I
 import Data.Typeable
-
+import Debug
 import Debug.Trace
-
+import Favs hiding (indent1, indent2)
 import GHC.Stack
-
+import Iso2 hiding (foldl, (!!))
+import Iso2 qualified
+import {-# SOURCE #-} MHashDynamic3 hiding (Apply, expr)
+import MyPretty2 qualified
+import NewTuple hiding (apply)
+import Parser3Types
+import SetList qualified as SL
 
 infix 2 <=>
+
 infixl 3 <|>
 
 -- infixl 4 <+>
 infixr 5 >$<
+
 infixr 6 >*<
+
 infixr 6 >*
+
 infixr 6 *<
 
 (>>==) :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> a) -> RuleR t b
@@ -63,20 +63,20 @@ infixr 6 *<
 
 {-
 SeqR a >*< SeqR b = SeqR (a ++ b)
-SeqR a >*<      b = SeqR (a ++ [b])
-a      >*< SeqR b = SeqR (a:b)
-a      >*<      b = SeqR [a, b]
+SeqR a >*<         b = SeqR (a ++ [b])
+a         >*< SeqR b = SeqR (a:b)
+a         >*<         b = SeqR [a, b]
 -}
 
 AltR a <|> AltR b = AltR (a ++ b)
-AltR a <|>      b = AltR (a ++ [b])
-a      <|> AltR b = AltR (a:b)
-a      <|>      b = AltR [a, b]
+AltR a <|> b = AltR (a ++ [b])
+a <|> AltR b = AltR (a : b)
+a <|> b = AltR [a, b]
 
 (>$<) :: (Typeable a, Typeable b) => Iso a b -> RuleR t a -> RuleR t b
 (>$<) = ApplyR
 
-(<=>):: Typeable a => String -> RuleR t a -> RuleR t a
+(<=>) :: (Typeable a) => String -> RuleR t a -> RuleR t a
 (<=>) = NameR
 
 token :: (Typeable t, Eq t) => t -> RuleR t t
@@ -84,20 +84,23 @@ token = TokenR
 
 text xs = SeqR $ map token xs
 
-anytoken :: Typeable t => RuleR t t
+anytoken :: (Typeable t) => RuleR t t
 anytoken = AnyTokenR
 
-pure :: Typeable a => a -> RuleR t a
+pure :: (Typeable a) => a -> RuleR t a
 pure = PureR
 
-many :: Typeable a => RuleR t a -> RuleR t [a]
+many :: (Typeable a) => RuleR t a -> RuleR t [a]
 many = ManyR
 
-many1 :: Typeable a => RuleR t a -> RuleR t [a]
+many1 :: (Typeable a) => RuleR t a -> RuleR t [a]
 many1 p = icons >$< p >*< many p
 
-sepBy x sep = Parser3.pure []
-         <|> icons >$< x >*< many (sep *< x)
+sepBy x sep =
+   Parser3.pure []
+      <|> icons
+      >$< x
+      >*< many (sep *< x)
 
 lc = PosR
 
@@ -108,9 +111,8 @@ aligned i = ialign >$< many1 (whiteSpace *< PosR >*< i)
 ialign :: Iso [(Int, Int) :- c] [(Int, Int) :- c]
 ialign = Iso "ialign" f g
    where
-      f ((p :- i):is) = ifJust (all (\(p1 :- i1) -> snd p == snd p1) is) ((p :- i):is)
+      f ((p :- i) : is) = ifJust (all (\(p1 :- i1) -> snd p == snd p1) is) ((p :- i) : is)
       g x = Just x
-
 
 whiteSpace = token ' ' <|> token '\n'
 
@@ -120,17 +122,17 @@ chainr1 arg op f = f >$< arg >*< (op >*< chainr1 arg op f) <|> arg
 
 {-
 aligned (ParserIO i) = do
-   ((_, l, c):_) <- ParserIO $ lift get
-   many $ ParserIO $ do
-   ((_::String, l1::Int, c1::Int):_) <- lift get
-   guard $ l1 > l && c == c1
-   i
+    ((_, l, c):_) <- ParserIO $ lift get
+    many $ ParserIO $ do
+    ((_::String, l1::Int, c1::Int):_) <- lift get
+    guard $ l1 > l && c == c1
+    i
 -}
-translate :: Typeable a => RuleR t a -> Rule t
+translate :: (Typeable a) => RuleR t a -> Rule t
 translate (AltR as) = Alt $ map translate as
 translate (SeqR as) = Seq $ map translate as
 translate (ThenR a b) = Seq [translate a, translate b]
-translate (a :/  b) = Apply ifst $ Seq [translate a, translate b]
+translate (a :/ b) = Apply ifst $ Seq [translate a, translate b]
 translate (a :// b) = Apply isnd $ Seq [translate a, translate b]
 translate (ApplyR a b) = Apply (isod a) $ translate b
 translate (NameR a b) = Name a $ translate b
@@ -142,34 +144,35 @@ translate (RangeR a b) = Range a b
 translate (ManyR a) = Many $ translate a
 translate (PureR a) = Return $ toDyn a
 translate PosR = Pos
---translate (OptionR a) = Option $ translate a
---translate (EithR a b) = Eith (translate a) (translate b)
---translate (CountR n a) = Count (translate n) (translate a)
+-- translate (OptionR a) = Option $ translate a
+-- translate (EithR a b) = Eith (translate a) (translate b)
+-- translate (CountR n a) = Count (translate n) (translate a)
 translate (ManyTillR a b) = ManyTill (translate a) (translate b)
-translate (AndR a b) = error "AND" --And (translate a) (translate b)
+translate (AndR a b) = error "AND" -- And (translate a) (translate b)
 translate (NotR a) = Not (translate a)
 translate (IgnoreR a) = Ignore (translate a)
---translate other = error $ show $ (unsafeCoerce other :: RuleR
+-- translate other = error $ show $ (unsafeCoerce other :: RuleR
 translate (AnyTillR a) = error "ANYTILL"
 translate (TryR a) = error "TRY"
 translate (StringR a) = Return $ toDyn a
 translate RestR = error "REST"
 translate other = error "BAD"
+
 {-
-   EithR     :: (Typeable a, Typeable b, Typeable (Either a b)) =>  RuleR t a   -> RuleR t b  -> RuleR t (Either a s)
-   CountR    :: Typeable b                                      =>  RuleR t Int -> RuleR t b  -> RuleR t [b]
-   ManyTillR :: Typeable a                                      =>  RuleR t a   -> RuleR t b  -> RuleR t [a]
-   AndR      :: Typeable a                                      => [RuleR t a]                -> RuleR t a
-   NotR      :: Typeable a                                      =>  RuleR t a                 -> RuleR t a
-   IgnoreR   :: Typeable a                                      =>  RuleR t a                 -> RuleR t (IgnoreMe a)
-   AnyTillR  :: Typeable a                                      =>  RuleR t a                 -> RuleR t [t]
-   TryR      :: Typeable a                                      =>  RuleR t a                 -> RuleR t a
-   BuildR    :: Typeable a                      =>  f           ->  RuleR t a                 -> RuleR t f
-   LambdaR   :: Typeable a                      =>  f           ->  RuleR t a                 -> RuleR t a
-   CallR     :: Typeable a                      =>  f           ->  RuleR t a                 -> RuleR t a
-   NameStubR :: Typeable a                      =>  String      ->  RuleR t a
-   StringR   :: Typeable t                      =>  [t]         ->  RuleR t [t]
-   RestR     :: Typeable [t]                                    =>  RuleR t [t]
+    EithR       :: (Typeable a, Typeable b, Typeable (Either a b)) =>   RuleR t a     -> RuleR t b     -> RuleR t (Either a s)
+    CountR      :: Typeable b                                                         =>   RuleR t Int -> RuleR t b   -> RuleR t [b]
+    ManyTillR   :: Typeable a                                                         =>   RuleR t a   -> RuleR t b   -> RuleR t [a]
+    AndR        :: Typeable a                                                         =>  [RuleR t a]                        -> RuleR t a
+    NotR        :: Typeable a                                                         =>   RuleR t a                         -> RuleR t a
+    IgnoreR     :: Typeable a                                                         =>   RuleR t a                         -> RuleR t (IgnoreMe a)
+    AnyTillR    :: Typeable a                                                         =>   RuleR t a                         -> RuleR t [t]
+    TryR        :: Typeable a                                                         =>   RuleR t a                         -> RuleR t a
+    BuildR      :: Typeable a                                 =>   f                  ->    RuleR t a                         -> RuleR t f
+    LambdaR     :: Typeable a                                 =>   f                  ->    RuleR t a                         -> RuleR t a
+    CallR       :: Typeable a                                 =>   f                  ->    RuleR t a                         -> RuleR t a
+    NameStubR   :: Typeable a                                 =>   String             ->    RuleR t a
+    StringR     :: Typeable t                                 =>   [t]                ->    RuleR t [t]
+    RestR       :: Typeable [t]                                                       =>    RuleR t [t]
 -}
 {-
 translate :: Typeable a => RuleR t a -> Rule t
@@ -180,17 +183,17 @@ translate (NameR a b) = Name a $ translate b
 translate (BindR a (b, c)) = Bind (translate a) (\a -> translate (b $ fromDyn1 a), \b -> toDyn $ c $ fromDyn1 b)
 
 translate1 :: Typeable a => M.Map String (IORef (RuleR t a)) -> RuleR t a -> IO (Rule t)
-translate1 e (AltR   as)       = Alt $ mapM (translate e) as
-translate1 e (ThenR  a b)      = do 
-                        ra <- translate e a
-                        rb <- translate e b
-                        return $ Seq [ra, rb]
-translate1 e (ApplyR a b)      = Apply (isod a) <$> translate e b
-translate1 e (NameR  a b)      = Name a <$> translate e b
-translate1 e (BindR  a (b, c)) = do
-   ra <- translate e a
-   
-   return $ Bind (translate e a) (\a -> translate (b $ fromDyn1 a), \b -> toDyn $ c $ fromDyn1 b)
+translate1 e (AltR    as)          = Alt $ mapM (translate e) as
+translate1 e (ThenR   a b)         = do
+                                    ra <- translate e a
+                                    rb <- translate e b
+                                    return $ Seq [ra, rb]
+translate1 e (ApplyR a b)         = Apply (isod a) <$> translate e b
+translate1 e (NameR   a b)         = Name a <$> translate e b
+translate1 e (BindR   a (b, c)) = do
+    ra <- translate e a
+
+    return $ Bind (translate e a) (\a -> translate (b $ fromDyn1 a), \b -> toDyn $ c $ fromDyn1 b)
 -}
 
 doLookups env start = St.evalState (doLookups2 start) (M.map doLookups1 env)
@@ -211,50 +214,51 @@ doLookups2 (NameStub a) = do
          St.put e2
          return $ Name a r
       Just (s, 1, r) -> return r
-doLookups2 (Apply iso  x  ) = Apply iso  <$> doLookups2 x
-doLookups2 (Alt        xs ) = Alt        <$> mapM doLookups2 xs
-doLookups2 (Seq        xs ) = Seq        <$> mapM doLookups2 xs
-doLookups2 (Many       x  ) = Many       <$> doLookups2 x
---doLookups2 (SetR  name  x  ) = SetR name   $ doLookups2 f x
---doLookups2 (SetM names x  ) = SetM names $ doLookups2 f x
-doLookups2 (And        xs ) = And        <$> mapM doLookups2 xs
-doLookups2 (Not        x  ) = Not        <$> doLookups2 x
---doLookups2 (        x :+ y) = doLookups2 f x :+ doLookups2 f y
---doLookups2 (Count      x y) = Count        x (doLookups2 f y)
-doLookups2 (Name name  x  ) = Name name  <$> doLookups2 x
---doLookups2 (Ignore     x  ) = Ignore     $ doLookups2 f x
---doLookups2 (Try        x  ) = Try        $ doLookups2 f x
-doLookups2 (ManyTill   x y) = do
+doLookups2 (Apply iso x) = Apply iso <$> doLookups2 x
+doLookups2 (Alt xs) = Alt <$> mapM doLookups2 xs
+doLookups2 (Seq xs) = Seq <$> mapM doLookups2 xs
+doLookups2 (Many x) = Many <$> doLookups2 x
+-- doLookups2 (SetR   name   x   ) = SetR name    $ doLookups2 f x
+-- doLookups2 (SetM names x   ) = SetM names $ doLookups2 f x
+doLookups2 (And xs) = And <$> mapM doLookups2 xs
+doLookups2 (Not x) = Not <$> doLookups2 x
+-- doLookups2 (            x :+ y) = doLookups2 f x :+ doLookups2 f y
+-- doLookups2 (Count         x y) = Count            x (doLookups2 f y)
+doLookups2 (Name name x) = Name name <$> doLookups2 x
+-- doLookups2 (Ignore       x   ) = Ignore       $ doLookups2 f x
+-- doLookups2 (Try            x   ) = Try            $ doLookups2 f x
+doLookups2 (ManyTill x y) = do
    xr <- doLookups2 x
    yr <- doLookups2 y
    return $ ManyTill xr yr
-doLookups2 (Bind   a (b,c)) = do
+doLookups2 (Bind a (b, c)) = do
    ar <- doLookups2 a
    return $ Bind ar (b, c)
-doLookups2 other            = return other
+doLookups2 other = return other
 
---doLookups2 
+-- doLookups2
 
 {-
 state
-0     initial state, no expanded rules
-1     we have started expanding this rule
-2     we have finished expanding this rule, 3rd part is the istate
-3..   only triggered if we try to lookup a rule while currently expanding it
+0       initial state, no expanded rules
+1       we have started expanding this rule
+2       we have finished expanding this rule, 3rd part is the istate
+3..    only triggered if we try to lookup a rule while currently expanding it
 -}
 
 parseT r t = parseED (translate r) t
 
 parseEnv env r t = parseE (doLookups env r) t
-{-   
+
+{-
 parse (Token a) = a
-parse (Ignore a) = 
+parse (Ignore a) =
 format (Token a) = a
 -}
---    EIso    :: Iso alpha beta -> Rule alpha -> Rule beta
+--      EIso      :: Iso alpha beta -> Rule alpha -> Rule beta
 fd f x = do d <- fromDynamic x; r <- f d; return $ toDyn r
 
-isod (Iso n f g) = Iso (n++"d") (fd f) (fd g)
+isod (Iso n f g) = Iso (n ++ "d") (fd f) (fd g)
 
 totald n f g = isod (total n f g)
 
@@ -272,7 +276,7 @@ isnd = Iso "isnd" f g
          return $ l !! 1
       g d = Just $ toDyn [undefined, d]
 
---iconsd = isod icons
+-- iconsd = isod icons
 
 strOfChars :: [Dynamic] -> String
 strOfChars = map fromDyn1
@@ -282,7 +286,7 @@ charsOfStr = map toDyn
 
 chars = totald "strOfChars" strOfChars charsOfStr
 
---repl1 r = do n <- St.get; return $ Seq $ replicate (fromDyn n 0 :: Int) r
+-- repl1 r = do n <- St.get; return $ Seq $ replicate (fromDyn n 0 :: Int) r
 
 replParse rule n = SeqR $ replicate n rule
 
@@ -300,15 +304,14 @@ int1 = ApplyR intiso $ SeqR [RangeR '0' '9']
 
 intn n = ApplyR intiso $ SeqR $ replicate n $ RangeR '0' '9'
 
-
---test = int1 >>== repl (RangeR 'a' 'z')
---icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
+-- test = int1 >>== repl (RangeR 'a' 'z')
+-- icons = isod (\(x, xs) -> Just (x:xs)) (\(x:xs) -> Just (x, xs))
 
 {-
 simulate this:
 do
-   n <- int
-   rep n anychar
+    n <- int
+    rep n anychar
 
 which is
 
@@ -316,80 +319,85 @@ int >>= (\n -> rep n anychar)
 
 -}
 
---innershow d (Seqd  a b) = unwords $ ii d [innershow Nothing a, innershow Nothing b]
-innershow :: Show tok => Maybe Int -> Rule tok -> [Char]
-innershow d (Seq   as ) = unwords $ ii d $ map (innershow Nothing) as
-innershow d (Alt   as ) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
-innershow d (Name  a _) = unwords $ ii d [a]
-innershow d (Token a  ) = unwords $ ii d [show a]
+-- innershow d (Seqd   a b) = unwords $ ii d [innershow Nothing a, innershow Nothing b]
+innershow :: (Show tok) => Maybe Int -> Rule tok -> [Char]
+innershow d (Seq as) = unwords $ ii d $ map (innershow Nothing) as
+innershow d (Alt as) = unwords $ ii d [intercalate " | " $ map (innershow Nothing) as]
+innershow d (Name a _) = unwords $ ii d [a]
+innershow d (Token a) = unwords $ ii d [show a]
 innershow d (Range a b) = unwords $ ii d ["[" ++ show a ++ ".." ++ show b ++ "]"]
-innershow d (Not     a) = "Not " ++ innershow Nothing a
+innershow d (Not a) = "Not " ++ innershow Nothing a
 
---outershow d r@(Seqd  a b) = "Seqd " ++ innershow d r
-outershow d r@(Seq   as ) = "Seq " ++ innershow d r
-outershow d r@(Alt   as ) = "Alt " ++ innershow d r
-outershow d r@(Name  a b) = unwords $ ii d [a ++ " -> " ++ innershow Nothing b]
-outershow d r@(Token a  ) = show a
+-- outershow d r@(Seqd   a b) = "Seqd " ++ innershow d r
+outershow d r@(Seq as) = "Seq " ++ innershow d r
+outershow d r@(Alt as) = "Alt " ++ innershow d r
+outershow d r@(Name a b) = unwords $ ii d [a ++ " -> " ++ innershow Nothing b]
+outershow d r@(Token a) = show a
 outershow d r@(Range a b) = "[" ++ show a ++ ".." ++ show b ++ "]"
-outershow d r@(Not     a) = innershow Nothing r
+outershow d r@(Not a) = innershow Nothing r
 
 ii (Just d) = insertIndex d "*"
 ii Nothing = id
 
 {-
 instance Ord z => Ord (State z) where
-   compare (State b1 k1 e1) (State j2 k2 e2) = compare (b1, k1, e1) (j2, k2, e2)
+    compare (State b1 k1 e1) (State j2 k2 e2) = compare (b1, k1, e1) (j2, k2, e2)
 -}
 digit = Range '0' '9'
+
 lower = Range 'a' 'z'
+
 upper = Range 'A' 'Z'
+
 under = Token '_'
+
 alpha = Alt [upper, lower]
---num = Many digit
---alnum = Alt [alpha, digit]
+
+-- num = Many digit
+-- alnum = Alt [alpha, digit]
 op = Alt [Token '+', Token '-', Token '*', Token '/']
 
---ident = Name "ident" $ cons (Alt [alpha, under]) ident1
---ident1 = Many (Alt [alpha, under, digit])
+-- ident = Name "ident" $ cons (Alt [alpha, under]) ident1
+-- ident1 = Many (Alt [alpha, under, digit])
 
 sexpr = Name "sexpr" $ Alt [Seq [sexpr, Token '+', sexpr], Token 'a']
 
-
 test = parseED sexpr "a+a+a"
 
-linePos = M.fromList . zip [(0::Int)..] . (0:) . map (+1) . findIndices (=='\n')
+linePos = M.fromList . zip [(0 :: Int) ..] . (0 :) . map (+ 1) . findIndices (== '\n')
 
---p s t = tree s $ parseE s t
+-- p s t = tree s $ parseE s t
 
 getLC x lps = let Just (n, s) = M.lookupLE x lps in (n, x - s)
+
 {-
 pD s t = do
-   states <- parseED s t
-   tableZ t $ concatMap S.toList states
-   tableZ t $ filter isCompleteZ $ concatMap S.toList states
-   return $ tree s states
+    states <- parseED s t
+    tableZ t $ concatMap S.toList states
+    tableZ t $ filter isCompleteZ $ concatMap S.toList states
+    return $ tree s states
 -}
 parseE r t =
    let
       lps = linePos t
-      items  = predictA (0, 0) (SL.singleton $ maket 0 0 (start r))
-      states = parseE0 lps [items] t items [1 .. length t]
-      done   = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last states)
+      items = predictA (0 :: Int, 0 :: Int) (SL.singleton $ maket 0 0 (start r))
+      states = parseE0 lps [items] t items [1 .. length t] :: [SL.SetList (StateFT _)]
+      done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last states)
    in if length states == length t && done /= []
-         then done
-         else trace (tableZ t $ concatMap SL.list states) []
+            then done
+            else trace (tableZ t $ concatMap SL.list states) []
 
 parseED r t = do
    let lps = linePos t
    items <- comppredD lps [SL.singleton $ maket 0 0 (start r)] (SL.singleton $ maket 0 0 (start r))
-   states <- parseE0D lps [items] t items [1 .. length t]
-   let done   = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last states)
+   states <- parseE0D lps [items] t items [1 .. length t] :: IO [SL.SetList (StateFT _)]
+   let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last states)
    putStrLn (tableZ t $ concatMap SL.list states)
    return done
 
 parseE0 lps states _ items [] = states
-parseE0 lps states t items (c : ks) = let
-   itemsnew = parseE1A lps states t c items
+parseE0 lps states t items (c : ks) =
+   let itemsnew = parseE1A lps states t c items
    in parseE0 lps (states ++ [itemsnew]) t itemsnew ks
 
 parseE0D lps states _ items [] = return states
@@ -400,27 +408,27 @@ parseE0D lps states t items (c : ks) = do
 -- scanM :: Monad m => (m [a] -> b -> m a) -> m [a] -> [b] -> m [a]
 scanM f z = foldl (\a b -> do ra <- a; rr <- f (last ra) b; return $ ra ++ [rr]) (return [z])
 
---data States t = States [State t] (I.IntMap (S.Set (State t)))
+-- data States t = States [State t] (I.IntMap (S.Set (State t)))
 {-
 putss newlist = do
-   States all bytok <- St.get
-   St.put $ States (all ++ newlist) (foldr fu bytok newlist)
+    States all bytok <- St.get
+    St.put $ States (all ++ newlist) (foldr fu bytok newlist)
 -}
 fu s m = I.insert (to s) (S.insert s (fromMaybe S.empty (I.lookup (to s) m))) m
 
-parseE1A lps states t c items = let
-   scan1 = scanA c t items
-   comp1 = completeA states $ SL.fromList scan1
+parseE1A lps states t c items =
+   let scan1 = scanA c t items
+       comp1 = completeA states $ SL.fromList scan1
    in if c < length t
-      then predictA (getLC c lps) comp1
-      else comp1
+            then predictA (getLC c lps) comp1
+            else comp1
 
 parseE1D lps states t c items = do
    putStrLn $ "SCAN " ++ take 75 (cycle "/\\")
    let scan1 = scanA c t items
    putStrLn $ "scan1=" ++ show scan1
    comp1 <- comppredD (getLC c lps) states $ SL.fromList scan1
-   --putStrLn $ "comp1=" ++ show comp1
+   -- putStrLn $ "comp1=" ++ show comp1
    return comp1
 
 conseq (a : b : cs)
@@ -429,22 +437,20 @@ conseq (a : b : cs)
 
 closure f items = closure1 f items items
 
-closure1 f done current =
-   let
-      new = f done current
-      newdone = S.union done new
-      newnew = new S.\\ done
-   in
-      if S.null new then done else closure1 f newdone newnew
+closure1 f done current = let
+   new = f done current
+   newdone = S.union done new
+   newnew = new S.\\ done
+
+   in if S.null new then done else closure1 f newdone newnew
 
 closureA f items = closureA1 f items items
 
-closureA1 f done current =
-   let
-      (a, newdone) = f done current
-      newnew  = SL.fromList $ catMaybes a
-   in
-      if SL.null newnew then done else closureA1 f newdone newnew
+closureA1 f done current = let
+   (a, newdone) = f done current
+   newnew = SL.fromList $ catMaybes a
+
+   in if SL.null newnew then done else closureA1 f newdone newnew
 
 closureD f items = closureD1 f items items
 
@@ -459,12 +465,12 @@ closureDD f g items = closureDD1 f g items items
 
 closureDD1 f g done1 active1 = do
    putStrLn $ "COMPLETE " ++ replicate 71 '='
-   --print active1
+   -- print active1
    (a, done2) <- f done1 active1
    let active2 = SL.fromList $ catMaybes a
    let active3 = SL.union active1 active2
    putStrLn $ "PREDICT " ++ replicate 72 '='
-   --print active3
+   -- print active3
    (b, done3) <- g done2 active3
    let active4 = SL.fromList $ catMaybes b
    let active5 = SL.union active2 active4
@@ -476,7 +482,7 @@ processD f old current = St.runStateT (mapM insertD $ concatMap (\x -> map (x,) 
 
 processDD f old current = St.runStateT (do fxs <- mapM (\x -> do fx <- St.liftIO $ f x; return $ map (x,) fx) $ SL.list current; mapM insertD $ concat fxs) old
 
---refoldD f z xs = do (rs, zs) <- unzip <$> zipWithM f (z : zs) xs; return (rs, zs)
+-- refoldD f z xs = do (rs, zs) <- unzip <$> zipWithM f (z : zs) xs; return (rs, zs)
 refoldD f z [] = return []
 refoldD f z (x : xs) = do (a, b) <- f z x; c <- refoldD f b xs; return $ a : c
 
@@ -493,47 +499,47 @@ insertD (v, fv) = do
    old <- St.get
    if SL.member fv old
       then do
-         St.liftIO $ putStrLn $ show v ++ "  ==>  " ++ show fv
+         St.liftIO $ putStrLn $ show v ++ "   ==>   " ++ show fv
          return Nothing
       else do
-         St.liftIO $ putStrLn $ show v ++ "  ==>  " ++ show fv ++ " *** NEW ***"
+         St.liftIO $ putStrLn $ show v ++ "   ==>   " ++ show fv ++ " *** NEW ***"
          St.modify (SL.insert fv)
          return $ Just fv
 
 predictA n items = closureA (processA (predict1 n)) items
 
-predictD n items = do putStrLn $ "PREDICT "++take 72 (cycle "\\/"); closureD (processD (predict1 n)) items
+predictD n items = do putStrLn $ "PREDICT " ++ take 72 (cycle "\\/"); closureD (processD (predict1 n)) items
 
 comppredD n states items = closureDD (\old -> processDD (complete1D (states ++ [old])) old) (processD (predict1 n)) items
 
---completeD states state = closureD (\old -> processD (complete1A (states ++ [old])) old) state
+-- completeD states state = closureD (\old -> processD (complete1A (states ++ [old])) old) state
 
---paux (Seq  as ) q = [as !! q | q < length as]
-paux (Alt  as ) 0 = as
+-- paux (Seq   as ) q = [as !! q | q < length as]
+paux (Alt as) 0 = as
 paux (Name a b) 0 = [b]
---paux (ManyTill a b) 0 = [a, b]
+-- paux (ManyTill a b) 0 = [a, b]
 paux _ _ = []
 
 predict1 n st = let c = to st in map (maket c c) $ predict2 n (item st)
 
-predict2 n (Item (Seq    as   ) (ISeq j)) = [start (as !! j)]
-predict2 n (Item (Alt    as   ) (IAlt 0)) = [start a | a <- as]
-predict2 n (Item (Many   a    ) Running ) = [start a, Item (Many a) (Pass [toDyn ([]::[Dynamic])])]
-predict2 n (Item (Name   a b  ) Running ) = [start b]
-predict2 n (Item (Apply  a b  ) Running ) = [start b]
-predict2 n (Item (Set    a b  ) Running ) = [start b]
-predict2 n (Item (Not    a    ) Running ) = [start a, Item (Not a) (Pass [toDyn ()])]
-predict2 n (Item (Bind   a b  ) Running ) = [start a]
-predict2 n (Item (Return a    ) Running ) = [Item (Return a) (Pass [a])]
-predict2 n (Item  Pos           Running ) = [Item Pos (Pass [toDyn n])]
---predict2 (Item (Get   a  ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
+predict2 n (Item (Seq as)    (ISeq j)) = [start (as !! j)]
+predict2 n (Item (Alt as)    (IAlt 0)) = [start a | a <- as]
+predict2 n (Item (Many a)     Running) = [start a, Item (Many a) (Pass [toDyn ([] :: [Dynamic])])]
+predict2 n (Item (Name a b)   Running) = [start b]
+predict2 n (Item (Apply a b)  Running) = [start b]
+predict2 n (Item (Set a b)    Running) = [start b]
+predict2 n (Item (Not a)      Running) = [start a, Item (Not a) (Pass [toDyn ()])]
+predict2 n (Item (Bind a b)   Running) = [start a]
+predict2 n (Item (Return a)   Running) = [Item (Return a) (Pass [a])]
+predict2 n (Item Pos Running) = [Item Pos (Pass [toDyn n])]
+-- predict2 (Item (Get    a   ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
 predict2 n (Item {}) = []
 
---start r@(Not a) = Item r (Pass $ toDyn ()) Item2
+-- start r@(Not a) = Item r (Pass $ toDyn ()) Item2
 start r = Item r $ start1 r
 
-start1 (Seq  a) = ISeq 0
-start1 (Alt  a) = IAlt 0
+start1 (Seq a) = ISeq 0
+start1 (Alt a) = IAlt 0
 start1 (Many a) = IMany []
 start1 _ = Running
 
@@ -546,13 +552,13 @@ scan1 c ch st = scan2 c ch (from st) c (item st)
 scan2 c ch j _ (Item r Running) = do sc <- saux ch r; return $ maket j c $ Item r (if sc then Pass [toDyn ch] else Fail)
 scan2 c ch _ _ _ = Nothing
 
-saux ch (Token c  ) = Just $ ch == c
+saux ch (Token c) = Just $ ch == c
 saux ch (Range c d) = Just $ ch >= c && ch <= d
 saux _ _ = Nothing
 
 completeA states = closureA (\old -> processA (complete1A (states ++ [old])) old)
 
-completeD states state = do putStrLn $ "COMPLETE "++take 71 (cycle "\\/"); closureD (\old -> processDD (complete1D (states ++ [old])) old) state
+completeD states state = do putStrLn $ "COMPLETE " ++ take 71 (cycle "\\/"); closureD (\old -> processDD (complete1D (states ++ [old])) old) state
 
 complete1A states state =
    concatMap (complete2 states state) $ SL.list $ states !! from state
@@ -560,49 +566,46 @@ complete1A states state =
 complete2 states substate mainstate = let
    subitem1 = item substate
    main = item mainstate
-   in if istate subitem1 /= Running && istate main == Running && subitem main subitem1
-      then map (maket (from mainstate) (to substate)) $ complete3 states mainstate substate
-      else []
 
-complete1D :: (State state, Show tok, Eq tok, Typeable tok) => [SL.SetList (state tok)] -> state tok -> IO [state tok]
+   in if istate subitem1 /= Running && istate main == Running && subitem main subitem1
+            then map (maket (from mainstate) (to substate)) $ complete3 states (rule main) (istate main) mainstate substate
+            else []
+
 complete1D states state = do
    res <- mapM (complete2D states state) $ SL.list $ states !! from state
    return $ concat res
 
 complete2D states substate mainstate = do
-   --print (sub, main, subitem main subitem1)
+   -- print (sub, main, subitem main subitem1)
    let subitem1 = item substate
    let main = item mainstate
    if istate subitem1 /= Running && istate main == Running && subitem main subitem1
       then do
          let r = map (maket (from mainstate) (to substate)) $ complete3 states (rule main) (istate main) mainstate substate
-         --print (sub, main, r)
+         -- print (sub, main, r)
          return r
       else return []
 
-complete3 states (Seq as) (ISeq n) mainstate substate
+complete3 states r@(Seq as) (ISeq n) mainstate substate
    | istate sub == Fail = [Item r Fail]
    | n + 1 == length as = [Item r res1]
    | otherwise          = [Item r (ISeq (n + 1))]
-      where
-         sub = item substate
-         --res1 = if passi sub then states !! from substate
-         res1 = if passi sub then Pass $ retrieve2 states mainstate substate else Fail
-
-complete3 states (Alt as) (IAlt n) mainstate substate 
-   | passi sub     = [Item r (istate   sub)]
-   | n < length as = [Item r (IAlt (n + 1))]
-   | otherwise     = [Item r Fail          ]
-      where
-         sub = item substate
-         main@(Item r@(Alt as) (IAlt n)) = item mainstate
-
-complete3 states (Name n r) Running mainstate substate = [Item r (istate sub)]
    where
       sub = item substate
-      main@(Item r@Name {} Running) = item mainstate
-
-complete3 states (Apply iso r) Running mainstate substate =
+      -- res1 = if passi sub then states !! from substate
+      res1 = if passi sub then Pass $ retrieve2 states mainstate substate else Fail
+complete3 states r@(Alt as) (IAlt n) mainstate substate
+   | passi sub     = [Item r (istate sub)]
+   | n < length as = [Item r (IAlt (n + 1))]
+   | otherwise     = [Item r Fail]
+   where
+      sub  = item substate
+      main = item mainstate
+complete3 states r@(Name {}) Running mainstate substate = [Item r (istate sub)]
+   where
+      sub  = item substate
+      main = item mainstate
+complete3 states r@(Apply {}) Running mainstate substate =
    case istate sub of
       Pass reslist -> do
          res <- reslist
@@ -610,47 +613,47 @@ complete3 states (Apply iso r) Running mainstate substate =
             Apply iso _ ->
                case apply iso res of
                   Just j  -> [Item r (Pass [j])]
-                  Nothing -> [Item r  Fail     ]
+                  Nothing -> [Item r Fail]
       Fail -> [Item r Fail]
    where
-      sub = item substate
+      sub  = item substate
       main = item mainstate
-
-complete3 states (Not r) Running mainstate substate = [Item r (case istate sub of { Pass p -> Fail; Fail -> Pass [toDyn ()] } )]
-   where
-      sub = item substate
-      main = item mainstate
-
-complete3 states (Bind i (j,k)) Running mainstate substate =
+complete3 states r@(Not {}) Running mainstate substate = 
+   [Item r (case istate sub of 
+               Pass p -> Fail
+               Fail   -> Pass [toDyn ()])]
+      where
+         sub  = item substate
+         main = item mainstate
+complete3 states r@(Bind i (j, k)) Running mainstate substate =
    case istate sub of
       Pass reslist -> do
          res <- reslist
          case j res of
             r2 -> [start r2]
       Fail -> [Item r Fail]
-   where
-      sub = item substate
-      main@(Item r Running) = item mainstate
-
-complete3 states (Many r) Running mainstate substate =
---   Item x (Pass $ toDyn done) Item2 :
+      where
+         sub = item substate
+         main = item mainstate
+complete3 states r@(Many sr) Running mainstate substate =
+   --    Item x (Pass $ toDyn done) Item2 :
    case istate sub of
       Pass reslist -> do
          res <- reslist
-         [Item x Running (IMany $ done ++ [res])]
-      Fail     -> []
+         [Item r Running]
+      Fail -> []
    where
-      sub = item substate
-      main@(Item r Running) = item mainstate
+      sub  = item substate
+      main = item mainstate
+
 {-
 retrieve states mainseq n sub = reverse $ retrieve1 states mainseq n sub
 
 retrieve1 states mainseq n sub = let
-   prev1 = S.filter (\prevst -> pass (istate $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (states !! from sub)
-   prev  = only $ S.toList prev1
+    prev1 = S.filter (\prevst -> pass (istate $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (states !! from sub)
+    prev   = only $ S.toList prev1
    in ast (istate $ item sub) : if n > 0 then retrieve1 states mainseq (n-1) prev else []
 -}
-retrieve2 :: (HasCallStack, State state, Eq tok, Show tok) => [SL.SetList (state tok)] -> state tok -> state tok -> [Dynamic]
 retrieve2 states mainstate substate = do
    seq <- siblings states mainstate substate
    let seqf = reverse seq
@@ -660,73 +663,74 @@ retrieve2 states mainstate substate = do
 caux (Seq as) q y = as !! q == y
 caux (Alt as) q y = y `elem` as
 caux (Name a b) q y = b == y
---caux (ManyTill a b) q y = a == y
+-- caux (ManyTill a b) q y = a == y
 caux _ _ _ = False
 
 -- subItem parent child -> Bool
-subitem (Item (Seq   as ) (ISeq n)) sub = n < length as && as !! n == rule sub
-subitem (Item (Then  a b) (ISeq n)) sub = case n of { 0 -> a == rule sub; 1 -> b == rule sub }
-subitem (Item (Alt   as ) _       ) sub = rule sub `elem` as
-subitem (Item (Name  a b) _       ) sub = b == rule sub
-subitem (Item (Apply a b) _       ) sub = b == rule sub
-subitem (Item (Not   a  ) _       ) sub = a == rule sub
-subitem (Item (Many  a  ) _       ) sub = a == rule sub
-subitem (Item {                    }) sub = False
+subitem (Item (Seq as) (ISeq n)) sub = n < length as && as !! n == rule sub
+subitem (Item (Then a b) (ISeq n)) sub = case n of 0 -> a == rule sub; 1 -> b == rule sub
+subitem (Item (Alt as) _) sub = rule sub `elem` as
+subitem (Item (Name a b) _) sub = b == rule sub
+subitem (Item (Apply a b) _) sub = b == rule sub
+subitem (Item (Not a) _) sub = a == rule sub
+subitem (Item (Many a) _) sub = a == rule sub
+subitem (Item {}) sub = False
 
 slength (Seq as) = length as
 slength _ = 1
 
 isCompleteZ state = istate (item state) /= Running
+
 {-
-predict3 c (Item (Alt  as  ) 0) = [Item a 0 | a <- as]
-predict3 c (Item (Seq  as  ) d) = [Item (as !! d) 0 | d < length as]
-predict3 c (Item (Name a  b) 0) = [Item b 0]
+predict3 c (Item (Alt   as   ) 0) = [Item a 0 | a <- as]
+predict3 c (Item (Seq   as   ) d) = [Item (as !! d) 0 | d < length as]
+predict3 c (Item (Name a   b) 0) = [Item b 0]
 predict3 c t = []
 -}
 {-
 makeLR e = let
-   items = predict (S.singleton $ State e 0 0 0)
+    items = predict (S.singleton $ State e 0 0 0)
    in makeLRa [items] [items]
 
 makeLRa old [] = old
 makeLRa old current = let
-   c = 0
-   new = concatMap (makeLRb old) current
-   oldcore = S.fromList $ map core old
-   newnew = filter (\x -> not $ S.member (core x) oldcore) new
-   in
-   makeLRa (old ++ new) newnew
+    c = 0
+    new = concatMap (makeLRb old) current
+    oldcore = S.fromList $ map core old
+    newnew = filter (\x -> not $ S.member (core x) oldcore) new
+    in
+    makeLRa (old ++ new) newnew
 
 core = S.map core1
 
 core1 (State r b c d) = Item r d
 
 makeLRb states items = let
-   states1 = scan2 (length states) items
-   states2 = map (complete states) states1
+    states1 = scan2 (length states) items
+    states2 = map (complete states) states1
    in if True --c < length t
-      then map predict states2
-      else states2
+         then map predict states2
+         else states2
 
 scan2 c items = map (S.fromList . catMaybes) $ crossWith
-   (uncurry scan1)
-   (zip [c..] $ S.toList $ S.fromList $ mapMaybe scan3 $ S.toList items)
-   (S.toList items)
+    (uncurry scan1)
+    (zip [c..] $ S.toList $ S.fromList $ mapMaybe scan3 $ S.toList items)
+    (S.toList items)
 
 makeLRc states items = let
-   tokens = scan5 items
-   oldcore = S.fromList $ map core states
+    tokens = scan5 items
+    oldcore = S.fromList $ map core states
    in foldl (makeLRd items) states tokens
 
 makeLRd items states token = let
-   c = length states
-   statescore = S.fromList $ map core states
-   newstate = S.fromList $ mapMaybe (scan1 c token) $ S.toList items
-   {-
-   newstates = if S.member (core newstate) statescore
-      then states
-      else states ++ [newstate]
-   -}
+    c = length states
+    statescore = S.fromList $ map core states
+    newstate = S.fromList $ mapMaybe (scan1 c token) $ S.toList items
+    {-
+    newstates = if S.member (core newstate) statescore
+         then states
+         else states ++ [newstate]
+    -}
    in (states ++) $ map predict $ complete3 states newstate
 
 data NumSet a b = NumSet (I.IntMap a) (S.Set b) (a -> b)
@@ -734,15 +738,15 @@ data NumSet a b = NumSet (I.IntMap a) (S.Set b) (a -> b)
 size (NumSet a b f) = fst $ fromJust $ I.lookupMax a
 
 add a ns@(NumSet sa sb sf) = let
-   b = sf a
-   there = S.member b sb
-   s = size ns
+    b = sf a
+    there = S.member b sb
+    s = size ns
    in (not there, if not there
-                     then NumSet (I.insert s a sa) (S.insert b sb) sf
-                     else ns)
+                               then NumSet (I.insert s a sa) (S.insert b sb) sf
+                               else ns)
 {-
 add1 a (ns, collect) = let
-   (nt, ns1) = add a ns
+    (nt, ns1) = add a ns
 -}
 --addList as ns = foldr add ns as
 
@@ -750,65 +754,69 @@ scan5 items = S.toList $ S.fromList $ mapMaybe scan3 $ S.toList items
 
 {-
 scan2a c items = let
-   toks = S.toList $ M.fromList $ mapMaybe (uncurry scan4) $ zip [c..] $ S.toList items
-   map 
+    toks = S.toList $ M.fromList $ mapMaybe (uncurry scan4) $ zip [c..] $ S.toList items
+    map
 -}
-scan3 (State r@(Token c   ) b _ 0) = Just c
+scan3 (State r@(Token c    ) b _ 0) = Just c
 --scan3 c (State r@(Range c d) b _ 0) = ifJust (ch >= c && ch <= d) (State r b c 1)
 scan3 t = Nothing
 
-scan4 c (State r@(Token ch   ) b _ 0) = Just (ch, State r b c 1)
+scan4 c (State r@(Token ch    ) b _ 0) = Just (ch, State r b c 1)
 --scan3 c (State r@(Range c d) b _ 0) = ifJust (ch >= c && ch <= d) (State r b c 1)
 scan4 c t = Nothing
 
 children states (State f t i) = do
-   s1@(State f1 t1 i1) <- S.toList $ states !! t
-   if subitem i i1 && pass (istate i1)
-         then do
-            s2@(State f2 t2 i2) <- S.toList $ states !! f1
-            if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
-                  then if pos i2 > 0 then map (s1:) $ children states s2 else [[s1]]
-            else []
-         else []
+    s1@(State f1 t1 i1) <- S.toList $ states !! t
+    if subitem i i1 && pass (istate i1)
+             then do
+                  s2@(State f2 t2 i2) <- S.toList $ states !! f1
+                  if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
+                           then if pos i2 > 0 then map (s1:) $ children states s2 else [[s1]]
+                  else []
+             else []
 
 -}
 
 -- returns all children from the state you give it, back
 children states parent = do
    s1 <- SL.list $ states !! to parent
-   if subitem i i1 && pass (istate i1)
-         then siblings parent s1
-         else []
+   if subitem (item parent) (item s1) && pass (istate $ item s1)
+      then siblings states parent s1
+      else []
 
 siblings states parent s1 = do
    s2 <- SL.list $ states !! from s1
    if rule (item s2) == rule (item parent) && from s2 == from parent && pos (item s2) == pos (item parent) - 1
-      then map (s1:) $ if pos (item s2) > 0 then children states s2 else [[]]
+      then
+         if pos (item s2) > 0
+            then do
+               more <- children states s2
+               return $ s1 : more
+            else
+               [[]]
       else []
 
---parents
+-- parents
 
 data Tree z = Tree z [Tree z] | Trees [Tree z] deriving (Eq, Ord)
 
 tree start states =
-   let
-      [end] = filter ((0 ==) . from) $ SL.list $ last states
-   in
-      tree1 states end
+   let [end] = filter ((0 ==) . from) $ SL.list $ last states
+   in tree1 states end
 
 tree1 states end = Tree end $ tree2 $ reverse $ map reverse $ map2 (tree1 states) $ children states end
 
 tree2 [x] = x
-
 tree2 xs = map Trees xs
 
 only [x] = x
 
-instance Show z => Show (Tree z) where
+instance (Show z) => Show (Tree z) where
    show tree = MyPretty2.format1 1 $ convTree tree
 
 convTree (Tree a b) = MyPretty2.Data (show a) $ map convTree b
 convTree (Trees b) = MyPretty2.Data "TREES" $ map convTree b
+
 {-
 transeq :: Foldable t => S.Set ETrans -> t a -> (Rule tok) -> [[ETrans]]
 >>> p expr "a+a+a"
@@ -816,10 +824,9 @@ transeq :: Foldable t => S.Set ETrans -> t a -> (Rule tok) -> [[ETrans]]
 
 mergeStrs a b = zipWith (\x y -> if x == ' ' then y else x) a b ++ if length a > length b then drop (length b) a else drop (length a) b
 
-
 {-
 scanlr c t states = S.fromList $ mapMaybe (scan1 c (t !! (c - 1))) $ S.toList states
-scanlr c ch (State r@(Token c   ) b _ 0) = ifJust (ch == c) (State r b c 1)
+scanlr c ch (State r@(Token c    ) b _ 0) = ifJust (ch == c) (State r b c 1)
 scanlr c ch (State r@(Range c d) b _ 0) = ifJust (ch >= c && ch <= d) (State r b c 1)
 -}
 combinescans c@(Token cr, cs) d@(Token dr, ds) =
@@ -831,15 +838,17 @@ combinescans c@(Token cr, cs) d@(Range d1 d2, ds) =
       then [(Range d1 (pred cr), ds), (Token cr, cs ++ ds), (Range (succ cr) d2, ds)]
       else [c, d]
 combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
-   if c2 >= d1 && c1 <= d2 then
-      let
+   if c2 >= d1 && c1 <= d2
+      then let
          o1 = max c1 d1
          o2 = min c2 d2
-      in if c1 < d1
-               then [(Range c1 (pred o1), cs), (Range o1 o2, cs ++ ds), (Range (succ o2) d2, ds)]
-               else [(Range d1 (pred o1), ds), (Range o1 o2, cs ++ ds), (Range (succ o2) c2, cs)]
-   else
-      [c, d]
+
+         in if c1 < d1
+            then [(Range c1 (pred o1), cs), (Range o1 o2, cs ++ ds), (Range (succ o2) d2, ds)]
+            else [(Range d1 (pred o1), ds), (Range o1 o2, cs ++ ds), (Range (succ o2) c2, cs)]
+      else
+         [c, d]
+
 -- start from start rule
 -- thats your first kernel
 -- closure i with predictions (if you have completions there's a problem)
@@ -847,41 +856,45 @@ combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
 -- same token may have multiple meanings, combine them into one state
 -- those are your new kernels
 -- closure them with completions and predictions
--- 
+--
 -- how kernels are compared for equality defines what sort of parser it is
 -- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
 
 tableZ str states =
    let
-      shown = map show states
-      range = [0..length str]
-      nums  = map show [0..length str]
-      numls = 0 : map length nums
-      ends  = 0 : map (\a -> maximum $ zipWith (taux1D ends numls a) shown states) [0..length str]
-      show1 = zipWith (taux2D ends numls) shown states
-      nums1 = map (taux3D ends nums ) [0..length str]
-      toks  = map (taux4D ends str  ) [0..length str-1]
-      axis  = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
-   in
-      unlines $ axis : show1 ++ [axis]
-{- 
+   shown = map show states
+   range = [0 .. length str]
+   nums = map show [0 .. length str]
+   numls = 0 : map length nums
+   ends = 0 : map (\a -> maximum $ zipWith (taux1D ends numls a) shown states) [0 .. length str]
+   show1 = zipWith (taux2D ends numls) shown states
+   nums1 = map (taux3D ends nums) [0 .. length str]
+   toks = map (taux4D ends str) [0 .. length str - 1]
+   axis = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
+
+   in unlines $ axis : show1 ++ [axis]
+
+{-
 ends !! 0 = 0
-ends !! 1 = 
+ends !! 1 =
 -}
-taux1D ends numls a sh st = numls !! a +
-   let 
+taux1D ends numls a sh st =
+   numls !! a + let
       f = from st
-      t = to   st
-   in if from st == to st
-      then let
-         l = length sh + 2
-         in if | t     == a -> ends !!  f      +      div l 2
-               | t + 1 == a -> ends !! (f + 1) + (l - div l 2)
-               | True       -> 0
-      else let
-         l = length sh + 4
-         in if | t     == a -> ends !! (f + 1) + l
-               | True       -> 0
+      t = to st
+
+      in if from st == to st
+            then
+               let l = length sh + 2
+               in if
+                        | t == a -> ends !! f + div l 2
+                        | t + 1 == a -> ends !! (f + 1) + (l - div l 2)
+                        | True -> 0
+            else
+               let l = length sh + 4
+               in if
+                        | t == a -> ends !! (f + 1) + l
+                        | True -> 0
 
 taux2D ends numls sh st = let
    l = length sh
@@ -894,16 +907,16 @@ taux2D ends numls sh st = let
                l3 = l2 - l
                l4 = div l3 2
                l5 = l3 - l4
+
                in replicate (ends !! (f + 1) + numls !! (f + 1)) ' ' ++ replicate l4 '-' ++ sh ++ replicate l5 '-'
 
 taux3D ends nums a = replicate (ends !! (a + 1) + 1) ' ' ++ nums !! a
 
 taux4D ends str a = let
    sh = show $ str !! a
-   l  = length sh
+   l = length sh
+
    in replicate (div (ends !! (a + 1) + ends !! (a + 2) - l) 2) ' ' ++ sh
-
-
 
 data Doc str = DStr str | DGroup [Doc str] | DSeq [Doc str] deriving (Eq, Ord, Show)
 
@@ -914,26 +927,27 @@ fp p e = format <$> print1 p e
 fp2 p e = format <$> print2 (translate p) e
 
 print1 :: RuleR t a -> a -> Maybe (Doc [t])
-print1 (SeqR   as ) e = mergeSeq <$> zipWithM print1 as e
-print1 (AltR   as ) e = firstJust1 $ map (\a -> print1 a e) as
+print1 (SeqR as) e = mergeSeq <$> zipWithM print1 as e
+print1 (AltR as) e = firstJust1 $ map (\a -> print1 a e) as
 print1 (ApplyR a b) e = unapply a e >>= print1 b
-print1 (ManyR  a  ) e = mergeSeq <$> mapM (print1 a) e
-print1 (BindR  p (g, h)) b = let a = h b in do t1 <- print1 p a; t2 <- print1 (g a) b; return $ DSeq [t1, t2]
-print1 (NameR  a b) e = print1 b e
-print1 (TokenR t  ) e = ifJust (t == e) $ DStr [t]
-print1 AnyTokenR    e = Just $ DStr [e]
---print1 other        e = error $ show other
+print1 (ManyR a) e = mergeSeq <$> mapM (print1 a) e
+print1 (BindR p (g, h)) b = let a = h b in do t1 <- print1 p a; t2 <- print1 (g a) b; return $ DSeq [t1, t2]
+print1 (NameR a b) e = print1 b e
+print1 (TokenR t) e = ifJust (t == e) $ DStr [t]
+print1 AnyTokenR e = Just $ DStr [e]
+
+-- print1 other            e = error $ show other
 
 print2 :: Rule Char -> Dynamic -> Maybe (Doc [Char])
-print2 (Seq   as ) e = do m <- zipWithM print2 as (fromDyn1 e :: [Dynamic]); return $ mergeSeq m
-print2 (Alt   as ) e = firstJust1 $ map (\a -> print2 a e) as
+print2 (Seq as) e = do m <- zipWithM print2 as (fromDyn1 e :: [Dynamic]); return $ mergeSeq m
+print2 (Alt as) e = firstJust1 $ map (\a -> print2 a e) as
 print2 (Apply a b) e = unapply a e >>= print2 b
-print2 (Many  a  ) e = mergeSeq <$> mapM (print2 a) (fromDyn1 e :: [Dynamic])
-print2 (Bind  p (g, h)) b = let a = h b in do t1 <- print2 p a; t2 <- print2 (g a) b; return $ DSeq [t1, t2]
-print2 (Name  a b) e = print2 b e
-print2 (Token t  ) e = ifJust (t == fromDyn1 e) $ DStr [t]
-print2 AnyToken    e = Just $ DStr [fromDyn1 e]
-print2 other       e = error $ show other
+print2 (Many a) e = mergeSeq <$> mapM (print2 a) (fromDyn1 e :: [Dynamic])
+print2 (Bind p (g, h)) b = let a = h b in do t1 <- print2 p a; t2 <- print2 (g a) b; return $ DSeq [t1, t2]
+print2 (Name a b) e = print2 b e
+print2 (Token t) e = ifJust (t == fromDyn1 e) $ DStr [t]
+print2 AnyToken e = Just $ DStr [fromDyn1 e]
+print2 other e = error $ show other
 
 format = format1 0
 
@@ -955,40 +969,45 @@ mergeSeq1 (a : as) = a : mergeSeq1 as
 
 mergeSeq s = case mergeSeq1 $ mergeStrs1 s of
    [a] -> a
-   b   -> DSeq b
+   b -> DSeq b
 
 wrap w d = d
 
 t s = Doc2 (length s) 1 [s]
+
 ts ss = Doc2 (maximum $ map length ss) (length ss) ss
 
 toString (Doc2 _ _ ss) = unlines $ padcoll0 ss
 
 minWidthDoc = minimumBy (compare `on` docWidth)
+
 minHeightDoc ds = minimumBy (compare `on` docHeight) ds
 
 minWidth ds = minimum $ map docWidth ds
+
 minHeight ds = minimum $ map docHeight ds
 
 maxWidth ds = maximum $ map docWidth ds
+
 maxHeight ds = maximum $ map docHeight ds
 
 sumHeight ds = sum $ map docHeight ds
+
 sumWidth ds = sum $ map docWidth ds
 
 fit :: Int -> [Doc2 a] -> Doc2 a
 fit w opts = let f = filter ((<= w) . docWidth) opts in if null f then minWidthDoc opts else head f
 
 indent1 n (Doc2 w h t) = Doc2 (w + n) h $ indent2 n t
+
 indent2 n = map (replicate n ' ' ++)
 
 -- sequential append
-sapp (Doc2 aw ah at) (Doc2 bw bh (bth : btt)) =
-   let
+sapp (Doc2 aw ah at) (Doc2 bw bh (bth : btt)) = let
    ati = init at
    atl = last at
-   in
-   ts $ ati ++ ((atl ++ bth) : indent2 (length atl) btt)
+
+   in ts $ ati ++ ((atl ++ bth) : indent2 (length atl) btt)
 
 (<\>) = sapp
 
@@ -996,9 +1015,9 @@ scat ds = Prelude.foldl1 sapp ds
 
 vcat ds =
    Doc2
-   (maximum $ map docWidth ds)
-   (sum $ map docHeight ds)
-   (concat $ map docText ds)
+      (maximum $ map docWidth ds)
+      (sum $ map docHeight ds)
+      (concat $ map docText ds)
 
 vapp a b = vcat [a, b]
 
@@ -1011,22 +1030,22 @@ visitPre :: (forall a. Rule a -> Rule a) -> Rule a -> Rule a
 visitPre f x = visit (visitPre f) (f x)
 
 visit :: (forall a. Rule a -> Rule a) -> Rule a -> Rule a
-visit f (Apply iso  x  ) = Apply iso  $ visit f x
-visit f (Alt        xs ) = Alt        $ map (visit f) xs
-visit f (Seq        xs ) = Seq        $ map (visit f) xs
-visit f (Many       x  ) = Many       $ visit f x
-visit f (ManyTill   x y) = ManyTill    (visit f x) (visit f y)
-visit f (Bind   a (b,c)) = Bind        (visit f a) (\d -> visit f (b d), c)
---visit f (SetR  name  x  ) = SetR name   $ visit f x
---visit f (SetM names x  ) = SetM names $ visit f x
-visit f (And        xs ) = And        $ map (visit f) xs
-visit f (Not        x  ) = Not        $ visit f x
---visit f (        x :+ y) = visit f x :+ visit f y
---visit f (Count      x y) = Count        x (visit f y)
-visit f (Name name  x  ) = Name name  $ visit f x
---visit f (Ignore     x  ) = Ignore     $ visit f x
---visit f (Try        x  ) = Try        $ visit f x
-visit f other            = other
+visit f (Apply iso x) = Apply iso $ visit f x
+visit f (Alt xs) = Alt $ map (visit f) xs
+visit f (Seq xs) = Seq $ map (visit f) xs
+visit f (Many x) = Many $ visit f x
+visit f (ManyTill x y) = ManyTill (visit f x) (visit f y)
+visit f (Bind a (b, c)) = Bind (visit f a) (\d -> visit f (b d), c)
+-- visit f (SetR   name   x   ) = SetR name    $ visit f x
+-- visit f (SetM names x   ) = SetM names $ visit f x
+visit f (And xs) = And $ map (visit f) xs
+visit f (Not x) = Not $ visit f x
+-- visit f (            x :+ y) = visit f x :+ visit f y
+-- visit f (Count         x y) = Count            x (visit f y)
+visit f (Name name x) = Name name $ visit f x
+-- visit f (Ignore       x   ) = Ignore       $ visit f x
+-- visit f (Try            x   ) = Try            $ visit f x
+visit f other = other
 
 visitPostR :: (forall t a. RuleR t a -> RuleR t a) -> RuleR t a -> RuleR t a
 visitPostR f x = f $ visitR (visitPostR f) x
@@ -1035,18 +1054,17 @@ visitPreR :: (forall t a. RuleR t a -> RuleR t a) -> RuleR t a -> RuleR t a
 visitPreR f x = visitR (visitPreR f) (f x)
 
 visitR :: (forall t a. RuleR t a -> RuleR t a) -> RuleR t a -> RuleR t a
-visitR f (ApplyR iso  x  ) = ApplyR iso  $ visitR f x
-visitR f (AltR        xs ) = AltR        $ map (visitR f) xs
-visitR f (ManyR       x  ) = ManyR       $ visitR f x
-visitR f (ManyTillR   x y) = ManyTillR    (visitR f x) (visitR f y)
---visitR f (SetR  name  x  ) = SetR name   $ visitR f x
---visitR f (SetM names x  ) = SetM names $ visitR f x
-visitR f (AndR        x y) = AndR         (visitR f x) (visitR f y)
-visitR f (NotR        x  ) = NotR        $ visitR f x
---visitR f (        x :+ y) = visitR f x :+ visitR f y
---visitR f (Count      x y) = Count        x (visitR f y)
-visitR f (NameR name  x  ) = NameR name  $ visitR f x
---visitR f (Ignore     x  ) = Ignore     $ visitR f x
---visitR f (Try        x  ) = Try        $ visitR f x
-visitR f other            = other
-
+visitR f (ApplyR iso x) = ApplyR iso $ visitR f x
+visitR f (AltR xs) = AltR $ map (visitR f) xs
+visitR f (ManyR x) = ManyR $ visitR f x
+visitR f (ManyTillR x y) = ManyTillR (visitR f x) (visitR f y)
+-- visitR f (SetR   name   x   ) = SetR name    $ visitR f x
+-- visitR f (SetM names x   ) = SetM names $ visitR f x
+visitR f (AndR x y) = AndR (visitR f x) (visitR f y)
+visitR f (NotR x) = NotR $ visitR f x
+-- visitR f (            x :+ y) = visitR f x :+ visitR f y
+-- visitR f (Count         x y) = Count            x (visitR f y)
+visitR f (NameR name x) = NameR name $ visitR f x
+-- visitR f (Ignore       x   ) = Ignore       $ visitR f x
+-- visitR f (Try            x   ) = Try            $ visitR f x
+visitR f other = other
