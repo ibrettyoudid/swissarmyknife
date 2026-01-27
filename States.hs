@@ -1,6 +1,8 @@
+
 module States where
 
 import Parser3Types
+import qualified SetList as SL
 
 import qualified Data.Set as S
 import qualified Data.List as L
@@ -8,75 +10,50 @@ import qualified Data.Map as M
 import qualified Data.IntMap as I
 
 --data states  a = states  { set :: S.Set a, list :: [a]}
-newtype StateSeq tok = StateSeq (I.IntMap (States tok)) 
+newtype StateSeq state tok = StateSeq (I.IntMap (States state tok)) 
 
+data States state tok = States { imap :: M.Map (Item tok) (SL.SetList state), setlist :: SL.SetList state }
 {-
-prediction: need to be able to check if we already have predicted something
-
-scanning: need to be able to find all the scan items for each token
-
-completion: need to be able to find all the running mains from a finished sub
-            and then all the other subs
-            and then to create a finished main,
-               which contains a tree of all possible parses
-            and, to continue
-            need to be able to find all the running supers from that main
-
-            need to be able to tell if we've already completed something
-
-choices:
-            in summary, subs know their mains and previous sub/alternative subs, and mains know their last sub
-               but don't want to have to build a parse tree every time we do an Apply
-            in summary, subs know their mains, and mains know their subs 
-               mains know their subs only through the AST
-
-                                                         parse end
-            start symbol                                 complete
-               ^                                             |
-               |                                             |
-               |                                             v
-            seq start        seq next                    seq end
-            predict          complete <--+                complete
-               []           [A]  |        \                  |
-               ^                 |         \                 |
-               |                 |          \                |
-               |                 v           \               v
-               predict A <----- scanned    predict <----- scanned
-
+want to be able to look up states by end token number and subitem for complete
+states also need to be checked for uniqueness
+by start token number
 -}
 
-data States tok = States { set :: S.Set (State tok), list :: [State tok], byFrom :: M.Map Int (State tok), bySubRule :: M.Map Rule (State tok) }
+{-
+insert st = let
+   n = to st
+   k = item st
+   m1 = case I.lookup n m of
+      Nothing -> empty
+      Just  j -> j
+   m1new = insert k st m1
 
-empty = States S.empty [] M.empty M.empty
+   in insert n m1new m
+-}
+insert st m = let
+   n = to st
+   i = item st
+   m1 = case I.lookup n m of
+            Nothing -> States M.empty SL.empty
+            Just  j -> j
+   m2 = case M.lookup i (imap m1) of
+            Nothing -> SL.empty
+            Just  j -> j
+   m2new = SL.insert st m2
+   m1new = States (M.insert i m2new $ imap m1) (SL.insert st $ setlist m1)
 
-insert v states   | member v states  = states
-                  | otherwise        = states  (S.insert v $ set states) (v:list states)
+   in I.insert n m1new m
 
-insertD states  (v, fv) | member fv states  = ((False, v, fv), states )
-                        | otherwise         = ((True , v, fv), insert fv states )
+lookup n (StateSeq m) = I.lookup n m
 
-fromList l = L.foldr insert empty l
+lookupNI n i (StateSeq m) = do
+   s <- I.lookup n m
+   M.lookup i (imap s)
 
-fromSet s = states  s $ S.toList s
+range from to (StateSeq i) = StateSeq $ I.takeWhileAntitone (<= to) $ I.dropWhileAntitone (< from) i
 
-member v states  = S.member v $ set states 
+toList (StateSeq ss) = L.concatMap (SL.toList . setlist . snd) $ I.toList ss
 
-map f sl = fromList $ L.map f $ list sl
+map f m = L.map f $ toList m
 
-union a b = let
-   s = S.union (set a) (set b)
-   l = list a ++ filter (\x -> not $ S.member x $ set a) (list b)
-   in states  s l
-
-a \\ b = let
-   s = set a S.\\ set b
-   l = L.filter (flip S.member s) (list a)
-   in states  s l
-
-null a = S.null $ set a
-
-singleton a = states  (S.singleton a) (L.singleton a)
-
-instance Show a => Show (states  a) where
-   show a = "fromList "++show (list a)
-
+zipWith f m1 m2 = L.zipWith f (toList m1) (toList m2)
