@@ -363,9 +363,9 @@ state
 3..   only triggered if we try to lookup a rule while currently expanding it
 -}
 
-parseT r t = parseE (translate r) t
+--parseT r t = parseE (translate r) t
 
-parseEnv env r t = parseE (doLookups env r) t
+--parseEnv env r t = parseE (doLookups env r) t
 {-   
 parse (Token a) = a
 parse (Ignore a) = 
@@ -579,6 +579,7 @@ data State tok = Predict  { item :: Item tok }
                | Early    { item :: Item tok , prev :: SL.SetList (State tok) }
                deriving (Eq, Ord)
 -}
+{-
 vert s@(Predict  {}) = up   s
 vert s@(Complete {}) = down s
 vert s@(From     {}) = down s
@@ -1541,3 +1542,39 @@ visitR f (NameR name  x  ) = NameR name  $ visitR f x
 --visitR f (Try        x  ) = Try        $ visitR f x
 visitR f other            = other
 
+{-
+prediction: need to be able to check if we already have predicted something
+
+scanning: need to be able to find all the scan items for each token
+
+completion: need to be able to find all the running mains from a finished sub
+            and then all the other subs
+            and then to create a finished main,
+               which contains a tree of all possible parses
+            and, to continue
+            need to be able to find all the running supers from that main
+
+            need to be able to tell if we've already completed something
+
+choices:
+            in summary, subs know their mains and previous sub/alternative subs, and mains know their last sub
+               but don't want to have to build a parse tree every time we do an Apply
+            in summary, subs know their mains, and mains know their subs 
+               mains know their subs only through the AST
+
+                                                         parse end
+            start symbol       L                          complete
+               ^                                             |
+               |                                             |
+               |                                             v
+            seq start        seq next                    seq end
+            predict          complete <--+                complete
+               []           [A]  |        \                  |
+               ^                 |         \                 |
+               |                 |          \                |
+               |                 v           \               v
+               predict A <----- scanned    predict <----- scanned
+
+-}
+
+-}
