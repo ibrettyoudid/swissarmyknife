@@ -34,7 +34,8 @@ import {-# SOURCE #-} MHashDynamic3 hiding (Apply, expr)
 import MyPretty2 qualified
 import NewTuple hiding (apply)
 import Parser3Types
-import SetList qualified as SL
+import qualified SetList as SL
+import qualified States as SS
 
 infix 2 <=>
 
@@ -385,14 +386,14 @@ parseE r t =
       done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last states)
    in if length states == length t && done /= []
             then done
-            else trace (tableZ t $ concatMap SL.list states) []
+            else trace (table t $ concatMap SL.list states) []
 
 parseED r t = do
    let lps = linePos t
    items <- comppredD lps [SL.singleton $ maket 0 0 (start r)] (SL.singleton $ maket 0 0 (start r))
    states <- parseE0D lps [items] t items [1 .. length t] :: IO [SL.SetList (StateFT _)]
    let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last states)
-   putStrLn (tableZ t $ concatMap SL.list states)
+   putStrLn (table t $ concatMap SL.list states)
    return done
 
 parseE0 lps states _ items [] = states
@@ -571,8 +572,8 @@ complete2 states substate mainstate = let
             then map (maket (from mainstate) (to substate)) $ complete3 states (rule main) (istate main) mainstate substate
             else []
 
-complete1D states state = do
-   res <- mapM (complete2D states state) $ SL.list $ states !! from state
+complete1D states substate = do
+   res <- mapM (complete2D states substate) $ SL.list $ states !! from substate
    return $ concat res
 
 complete2D states substate mainstate = do
@@ -667,14 +668,14 @@ caux (Name a b) q y = b == y
 caux _ _ _ = False
 
 -- subItem parent child -> Bool
-subitem (Item (Seq as) (ISeq n)) sub = n < length as && as !! n == rule sub
-subitem (Item (Then a b) (ISeq n)) sub = case n of 0 -> a == rule sub; 1 -> b == rule sub
-subitem (Item (Alt as) _) sub = rule sub `elem` as
-subitem (Item (Name a b) _) sub = b == rule sub
+subitem (Item (Seq    as) (ISeq n)) sub = n < length as && as !! n == rule sub
+subitem (Item (Then  a b) (ISeq n)) sub = case n of 0 -> a == rule sub; 1 -> b == rule sub
+subitem (Item (Alt    as) _) sub = rule sub `elem` as
+subitem (Item (Name  a b) _) sub = b == rule sub
 subitem (Item (Apply a b) _) sub = b == rule sub
-subitem (Item (Not a) _) sub = a == rule sub
-subitem (Item (Many a) _) sub = a == rule sub
-subitem (Item {}) sub = False
+subitem (Item (Not     a) _) sub = a == rule sub
+subitem (Item (Many    a) _) sub = a == rule sub
+subitem (Item {           }) sub = False
 
 slength (Seq as) = length as
 slength _ = 1
@@ -860,17 +861,22 @@ combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
 -- how kernels are compared for equality defines what sort of parser it is
 -- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
 
-tableZ str states =
-   let
-   shown = map show states
-   range = [0 .. length str]
-   nums = map show [0 .. length str]
+table str states = tableFT str states 0 (length states)
+
+tableFT :: State state => [a] -> SS.StateSeq (state a) a -> Int -> Int -> String
+tableFT str states from to = let
+   range = SS.toList $ SS.range from to states
+   shown = map show range
+   nums  = map show [from .. to]
    numls = 0 : map length nums
-   ends = 0 : map (\a -> maximum $ zipWith (taux1D ends numls a) shown states) [0 .. length str]
-   show1 = zipWith (taux2D ends numls) shown states
-   nums1 = map (taux3D ends nums) [0 .. length str]
-   toks = map (taux4D ends str) [0 .. length str - 1]
-   axis = Data.List.foldr Parser3.mergeStrs "" (nums1 ++ toks)
+
+   -- map over token range with inner zipWith over the states filtering the ones that end at that token
+   ends  = 0 : map (\n -> maximum $ zipWith (taux1D ends numls from n) shown range) [from .. to]
+   --ends  = 0 : map (\n -> maximum $ zipWith (taux1D ends numls from n) shown $ SL.toList $ SS.setlist $ fromJust $ SS.lookup n states) [from .. to]
+   show1 = zipWith (taux2D ends numls from) shown range
+   nums1 = map     (taux3D ends nums  from) [from .. to]
+   toks  = map     (taux4D ends str   from) [from .. to - 1]
+   axis  = foldr Parser3.mergeStrs "" (nums1 ++ toks)
 
    in unlines $ axis : show1 ++ [axis]
 
@@ -878,45 +884,45 @@ tableZ str states =
 ends !! 0 = 0
 ends !! 1 =
 -}
-taux1D ends numls a sh st =
-   numls !! a + let
+taux1D ends numls fromTok tokn sh st =
+   numls !! tokn + let
       f = from st
       t = to st
 
-      in if from st == to st
+      in if f == t
             then
                let l = length sh + 2
                in if
-                        | t == a -> ends !! f + div l 2
-                        | t + 1 == a -> ends !! (f + 1) + (l - div l 2)
-                        | True -> 0
+                     | t     == tokn -> ends !! (f - fromTok    ) +      div l 2
+                     | t + 1 == tokn -> ends !! (f - fromTok + 1) + (l - div l 2)
+                     | True -> 0
             else
                let l = length sh + 4
                in if
-                        | t == a -> ends !! (f + 1) + l
-                        | True -> 0
+                     | t     == tokn -> ends !! (f - fromTok + 1) + l
+                     | True -> 0
 
-taux2D ends numls sh st = let
+taux2D ends numls fromTok sh st = let
    l = length sh
    f = from st
    t = to st
    in if f == t
-            then replicate (ends !! (f + 1) - div l 2) ' ' ++ "(" ++ sh ++ ")"
+            then replicate (ends !! (f - fromTok + 1) - div l 2) ' ' ++ "(" ++ sh ++ ")"
             else let
-               l2 = ends !! (t + 1) - ends !! (f + 1)
+               l2 = ends !! (t - fromTok + 1) - ends !! (f - fromTok + 1)
                l3 = l2 - l
                l4 = div l3 2
                l5 = l3 - l4
 
-               in replicate (ends !! (f + 1) + numls !! (f + 1)) ' ' ++ replicate l4 '-' ++ sh ++ replicate l5 '-'
+               in replicate (ends !! (f - fromTok + 1) + numls !! (f - fromTok + 1)) ' ' ++ replicate l4 '-' ++ sh ++ replicate l5 '-'
 
-taux3D ends nums a = replicate (ends !! (a + 1) + 1) ' ' ++ nums !! a
+taux3D ends nums from a = replicate (ends !! (a - from + 1) + 1) ' ' ++ nums !! (a - from)
 
-taux4D ends str a = let
+taux4D ends str from a = let
    sh = show $ str !! a
    l = length sh
 
-   in replicate (div (ends !! (a + 1) + ends !! (a + 2) - l) 2) ' ' ++ sh
+   in replicate (div (ends !! (a - from + 1) + ends !! (a - from + 2) - l) 2) ' ' ++ sh
 
 data Doc str = DStr str | DGroup [Doc str] | DSeq [Doc str] deriving (Eq, Ord, Show)
 
