@@ -1,6 +1,7 @@
 
 module States where
 
+import Favs
 import Parser3Types
 import qualified SetList as SL
 
@@ -30,30 +31,9 @@ insert st = let
 
    in insert n m1new m
 -}
-insert st m = let
-   n = to st
-   i = item st
-   m1 = case I.lookup n m of
-            Nothing -> States M.empty SL.empty
-            Just  j -> j
-   m2 = case M.lookup i (imap m1) of
-            Nothing -> SL.empty
-            Just  j -> j
-   m2new = SL.insert st m2
-   m1new = States (M.insert i m2new $ imap m1) (SL.insert st $ setlist m1)
 
-   in I.insert n m1new m
+fromList l = States (mapFromList SL.insert SL.empty $ mapfxx item l) (SL.fromList l)
 
-lookup n (StateSeq m) = I.lookup n m
+singleton e = States (M.singleton (item e) (SL.singleton e)) (SL.singleton e)
 
-lookupNI n i (StateSeq m) = do
-   s <- I.lookup n m
-   M.lookup i (imap s)
-
-range from to (StateSeq i) = StateSeq $ I.takeWhileAntitone (<= to) $ I.dropWhileAntitone (< from) i
-
-toList (StateSeq ss) = L.concatMap (SL.toList . setlist . snd) $ I.toList ss
-
-map f m = L.map f $ toList m
-
-zipWith f m1 m2 = L.zipWith f (toList m1) (toList m2)
+empty = States M.empty SL.empty
