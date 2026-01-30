@@ -184,6 +184,7 @@ library
         Show2,
         ShowTuple, 
         Sound,
+        States,
         SyntaxCIPU, 
         SyntaxCIPU2,
         SyntaxTH, 
