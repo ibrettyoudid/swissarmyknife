@@ -183,6 +183,8 @@ library
         Show1, 
         Show2,
         ShowTuple, 
+        States,
+        StateSeq,
         Sound,
         States,
         SyntaxCIPU, 
