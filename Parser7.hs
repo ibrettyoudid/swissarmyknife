@@ -1362,6 +1362,7 @@ children states (State f t i) = do
 
 -}
 
+-}
 
 data Doc char str = DStr                 str 
                   | DGroup     [Doc char str] 
@@ -1379,6 +1380,7 @@ data Doc2 str = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [str]} deriv
 
 fp p e = format <$> print1 p e
 
+fp2 :: (Typeable a, Show (Rule Char)) => RuleR Char a -> Dynamic -> Maybe [Char]
 fp2 p e = format <$> print2 (translate p) e
 
 print1 :: RuleR t a -> a -> Maybe (Doc t [t])
@@ -1392,7 +1394,6 @@ print1 (TokenR t  ) e = ifJust (t == e) $ DStr [t]
 print1 AnyTokenR    e = Just $ DStr [e]
 --print1 other        e = error $ show other
 
-print2 :: Rule Char -> Dynamic -> Maybe (Doc Char [Char])
 print2 (Seq   as ) e = do m <- zipWithM print2 as (fromDyn1 e :: [Dynamic]); return $ mergeSeq m
 print2 (Alt   as ) e = firstJust1 $ map (\a -> print2 a e) as
 print2 (Apply a b) e = unapply a e >>= print2 b
@@ -1574,7 +1575,5 @@ choices:
                |                 |          \                |
                |                 v           \               v
                predict A <----- scanned    predict <----- scanned
-
--}
 
 -}
