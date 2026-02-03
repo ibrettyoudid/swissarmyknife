@@ -6,11 +6,12 @@
 
 {-# HLINT ignore "Use maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
+{- HLINT ignore "Redundant multi-way if" -}
 {- HLINT ignore "Use map once" -}
 
 module Wiki where
 
-import Favs hiding (readNum, split, replace, ($<))
+import Favs hiding (readNum, split, replace, ($<), trim)
 import HTMLT
 import MHashDynamic3 hiding ((?), toList2)
 import MyPretty2
@@ -75,6 +76,8 @@ wikiGridsH m = map cGridH . getWikiTables m
 getWikiTable m = head . getWikiTables m
 getWikiTables m title = filterWikiTables $ readWriteHTML m $ wiki title
 filterWikiTables = findTrees (\t -> tagType t == "table" && classCon "wikitable" t)
+
+getWiki m title = readWriteHTML m $ wiki title
 
 wiki title = "https://en.wikipedia.org/wiki/" ++ spacesToUnders title
 
@@ -861,6 +864,13 @@ putback i = do
    is <- get
    put (i:is)
 
+peek :: MonadState [a] m => m (Maybe a)
+peek = do
+   m <- get
+   return $ case m of
+      []       -> Nothing
+      (i : is) -> Just i
+
 nestHeaders2 htmls = evalState (nestHeaders2A 0) htmls
 
 nestHeaders2A level = do
@@ -908,6 +918,46 @@ nhAux1 html = case findTrees ((>0) . headerNum) html of
                   []       -> Tag "blah" [] []
                   (a : as) -> a
 
+nhAux2 default1 f state = do
+   res <- state
+   case res of
+      Just j -> return $ f j
+      Nothing -> return default1
+
+nestHeaders4 htmls = fromJust $ evalState (nestHeaderAndBody 0) htmls
+
+nestHeaderAndBody level = do
+   blah <- nhAux2 (Tag "blah" [] []) nhAux1 peek
+   let level1 = headerNum blah
+   if | level1 == level -> do
+         input
+         init <- nestBody
+         rest <- nestManyHeaders (level + 1)
+         return $ Just $ addTags (Tag "hi" [] init : rest) blah
+
+      | level1 > level -> do
+         nestHeaderAndBody (level + 1)
+
+      | otherwise -> return Nothing
+
+nestBody = do
+   blah <- nhAux2 (Tag "blah" [] []) nhAux1 peek
+   let level1 = headerNum blah
+   if | level1 == 0 && tagType blah /= "blah" -> do
+            input
+            res <- nestBody
+            return $ blah : res
+            
+      | otherwise -> return []
+
+nestManyHeaders level = do
+   hab <- nestHeaderAndBody level
+   case hab of
+      Just jhab -> do
+         mh <- nestManyHeaders level
+         return $ jhab : mh
+      Nothing ->
+         return []
 
 {-
 nest = nest1 [Tag "DOC" [] []]
@@ -926,3 +976,30 @@ nestHeaders1 context (t : tags)
          in nest1 (insertLastSubTag (convertEmpty t) c : cs) tags
 
 -}
+lab m = let 
+   mps = concatMap (\page -> let
+            mpHtmls = findClasses "card card-member" $ readWriteHTML m $ showt page ++ ".html"
+
+            in map (\mpHtml -> let
+               imgUrl  = convertString $ fromMaybe "NOT FOUND" $ sbetween "url(" ");" $ convertString $ getAttrib "style" $ findClass "image" mpHtml
+               name    = trim $ extractText $ findClass "primary-info" mpHtml
+               const   = trim $ extractText $ findClass "indicator indicator-label" mpHtml
+               --cont    = readWriteHTML m $ getAttrib "href" mpHtml
+               --img2Url = sbetween "url(" ");" $ convertString $ getAttrib "style" $ findClass "image-inner" cont
+               
+               in (imgUrl, name, const)) mpHtmls) [1..21]
+   out = gridH $ groupN 8 $ map (\(imgUrl, name, const) -> [grid [[[img imgUrl], [Text name], [Text const]]]]) mps
+
+   in do
+      writeHTML "lab.html" out
+      return mps
+      
+lfi m = wikiBodyN $ readWriteHTML m $ wiki "Labour Friends of Israel"
+
+wikiHeaders = filterTree ((> 0) . headerNum)
+
+wikiBody = subTags . findClass "mw-content-ltr mw-parser-output"
+
+wikiBodyN = nestHeaders4 . wikiBody
+
+wikiNav = findTrees (\t -> getAttrib "role" t == "navigation" && tagClass t == "navbox")

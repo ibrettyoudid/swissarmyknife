@@ -33,7 +33,8 @@ import qualified HTTPTypes
 import qualified NumberParsers as NP
 import Show1
 
-import Parser7 hiding (Apply)
+import Parser3 hiding (Apply, pure)
+import qualified Parser3 as P
 import Iso2 hiding (foldl, foldr, right, (!!), ignore)
 
 import Data.List
@@ -860,7 +861,7 @@ var = "var" <=> varIso >$< identifier
 
 vardefiso = Iso "vardef" (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n :- t); _ -> Nothing)
 
-vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< Parser7.pure u))
+vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< P.pure u))
 
 identifier = many1 (RangeR 'a' 'z')
 

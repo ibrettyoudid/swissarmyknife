@@ -11,7 +11,11 @@
 {-# HLINT ignore "Avoid lambda using `infix`" #-}
 {- HLINT ignore "Use tuple-section" -}
 
-module Parser3 where
+module Parser3 (
+   module Parser3,
+   module Parser3Types
+)
+where
 
 -- import Rule
 -- import Syntax3 hiding (foldl, foldr)
@@ -953,6 +957,7 @@ data Doc2 str = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [str]} deriv
 
 fp p e = format <$> print1 p e
 
+fp2 :: (Typeable a, Show (Rule Char)) => RuleR Char a -> Dynamic -> Maybe [Char]
 fp2 p e = format <$> print2 (translate p) e
 
 print1 :: RuleR t a -> a -> Maybe (Doc [t])

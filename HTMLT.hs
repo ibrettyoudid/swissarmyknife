@@ -61,7 +61,10 @@ data HTML
    | EmptyTag { tagType_ :: T.Text, tagAttribs :: [(T.Text, T.Text)] }
    | EndTag   { tagType_ :: T.Text }
    | Text     { text     :: T.Text }
-   deriving (Show, Eq, Ord)
+   deriving (Eq, Ord)
+
+instance Show HTML where
+   show html = convertString $ formatHTML html
 
 putLines l = mapM_ putStrLn l
 
@@ -241,7 +244,7 @@ readWriteHTML1 m url = do
          putStrLn $ "read " ++ file
          return h
       else do
-         putStrLn $ "fetching " ++ file
+         putStrLn $ "fetching " ++ url
          str <- getHTTPIO m url
          let html = nestParse url str
          writeFileBinary file str
@@ -666,6 +669,17 @@ commentEnd x = (do
 
 textP = Text <$> charEnts "<&"
 
+charEntList = [("quot", "\""), ("amp", "&"), ("lt", "<"), ("gt", ">"), ("nbsp", " "), ("apos", "'"), ("cent", "c"), ("pound", "£"), ("yen", "Y"), ("euro", "E"), ("copy", "(c)"), ("reg", "reg"), ("trade", "TM"), 
+               ("circ", "^"), ("tilde", "~"), ("ensp", " "), ("emsp", "  "), ("thinsp", " "),
+               ("zwnj", " "), ("zwj", ""), ("lrm", ""), ("rlm", ""), ("ndash", "-"), ("mdash", "--"), ("lsquo", "'"), ("rsquo", "'"), ("sbquo", "'"), ("ldquo", "\""), ("rdquo", "\""), ("bdquo", "\""), ("lsaquo", "<"), ("rsaquo", ">"), 
+               ("bull", "*"), ("hellip", "..."), ("permil", "/000"), ("prime", "'"), ("Prime", "\"")]
+
+charEntMap = M.fromList charEntList
+
+charEntList2 = [("quot", "\""), ("amp", "&"), ("lt", "<"), ("gt", ">"), ("nbsp", " "), ("apos", "'")]
+
+charEntMap2 = M.fromList $ map tflip charEntList2
+
 charEnts endChars = concat <$> many1 (charEnts1 endChars) <?> "charEnts"
 
 charEnts1 endChars = do
@@ -674,19 +688,15 @@ charEnts1 endChars = do
    if | lchar == '&' -> do
          qchar <- option "" $ do
             char '&'
-            choice  [do string "amp;"  ; return "&",
-                     do string "lt;"   ; return "<",
-                     do string "gt;"   ; return ">",
-                     do string "nbsp;" ; return " ",
-                     do string "apos;" ; return "'",
-                     do string "quot;" ; return "\"",
-                     do string "pound;"; return "£",
+            choice  [do ent <- AP.takeWhile (inClass alpha);                        char ';'; return $ fromMaybe "UCE" $ M.lookup ent charEntMap,
                      do string "#" ; i <- fromIntegral <$> integer;                 char ';'; return $ cons (chr i) empty,
                      do string "#x"; i <- fromIntegral <$> baseInteger 16 hexDigit; char ';'; return $ cons (chr i) empty]
          return $ clear ++ qchar
       | null clear -> fail "no text"
       | otherwise  -> return clear
-      
+
+alpha = ['A' .. 'Z'] ++ ['a'..'z']
+
 tagignore = do whiteSpace; char '<'; manyTill anyChar (char '>'); whiteSpace
 
 tag = (do
@@ -740,8 +750,6 @@ quotedValue2 = (do
 rawValue = charEnts " />" <?> "rawVal"
 
 rawVal2 = AP.takeWhile (notInClass " />'\"") <?> "rawVal2"
-
---entityList = [("&quot;", "\""), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&nbsp;", " "), ("&#160;", " "), ("&apos;", "'"), ("&cent;", "c"), ("&pound;", "£"), ("&yen;", "Y"), ("&euro;", "E"), ("&copy;", "(c)"), ("&reg;", "reg"), ("&trade;", "TM")]
 
 escapeValue = do
    list <- many $ do
@@ -1081,7 +1089,10 @@ lego1 = sort $ map (\item -> let
    img = dropBut 11 $ tagAttrib "src" $ findType "img" $ findTree (attribIs "data-test" "pab-item-image") item
    in (title, take 7 img, img)) lego
 
-writeHTML file html = LB.writeFile file $ convertString $ toLazyText $ formatLT 0 html
+writeHTML file html = do
+   h <- openBinaryFile file WriteMode
+   T.hPutStr h $ convertString $ toLazyText $ formatLT 0 html
+   hClose h
 
 writeHTMLT file htmls = LB.writeFile file $ convertString $ toLazyText $ mconcat $ map (formatLT 0) htmls
 

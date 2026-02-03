@@ -7,6 +7,7 @@ module Debug where
 import Prelude hiding (pure)
 import Debug.Trace
 import System.IO.Unsafe
+import Control.Monad.State
 {-
 
 data Debug a = Debug { debug :: IO a }
@@ -96,3 +97,29 @@ return r = Debug $ do
    Prelude.return r
 -}
 mytrace m x = trace (m ++ show x) x
+
+debug x = evalStateT x 0
+
+dprint x = do
+   i <- get
+   lift $ putStrLn $ replicate (i*3) ' ' ++ show x
+
+dinc = modify (+1)
+
+ddec = modify (-1)
+{-
+newtype Debug a = Debug (StateT Int IO a)
+
+instance Applicative Debug where
+   pure f = Debug $ do
+      modify (+1)
+      modify (-1)
+   Debug f <*> Debug x = do
+
+
+
+func fn f = Debug $ do
+   modify (+1)
+   dprint fn
+   modify (subtract 1)
+-}

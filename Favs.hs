@@ -951,7 +951,7 @@ csqrt1 n = until (\x -> x * x >= n) (+ 1) $ csqrt n
 subIndex sub lst = findIndex (isPrefixOf sub) $ tails lst
 subIndices sub lst = findIndices (isPrefixOf sub) $ tails lst
 
-after sub lst = do s <- subIndex sub lst; return $ drop s lst
+after sub lst = do s <- subIndex sub lst; return $ drop (s + length sub) lst
 
 before sub lst = do s <- subIndex sub lst; return $ take s lst
 
