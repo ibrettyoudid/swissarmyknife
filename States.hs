@@ -11,9 +11,8 @@ import qualified Data.Map as M
 import qualified Data.IntMap as I
 
 --data states  a = states  { set :: S.Set a, list :: [a]}
-newtype StateSeq state tok = StateSeq (I.IntMap (States state tok)) 
 
-data States state tok = States { imap :: M.Map (Item tok) (SL.SetList state), setlist :: SL.SetList state }
+data States tok state = States { imap :: M.Map (Item tok) (SL.SetList state), setlist :: SL.SetList state }
 {-
 want to be able to look up states by end token number and subitem for complete
 states also need to be checked for uniqueness
@@ -34,6 +33,13 @@ insert st = let
 
 fromList l = States (mapFromList SL.insert SL.empty $ mapfxx item l) (SL.fromList l)
 
+fromSL sl = States (mapFromList SL.insert SL.empty $ mapfxx item $ SL.toList sl) sl
+
 singleton e = States (M.singleton (item e) (SL.singleton e)) (SL.singleton e)
 
 empty = States M.empty SL.empty
+
+instance Foldable (States tok) where
+   foldl f z xs = foldl f z $ setlist xs
+   foldr f z xs = foldr f z $ setlist xs
+

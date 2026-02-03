@@ -1470,10 +1470,11 @@ colWidths11AM width tab =
       cellLengthRows  = transposez 0 cellLengthCols
       colWidths       = colWidthsFloating (fromIntegral width) cellLengthCols1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
-   in colWidths11M (fromIntegral width) tab cellLengthRows cellLengthCols colWidths (replicate (length colWidths) 0) 1 True True
+   in colWidths11M (fromIntegral width) tab cellLengthRows cellLengthCols colWidths (replicate (length colWidths) 0) 1 True True '\0'
 
-colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> IO [Double]
-colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode = let
+colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> Char -> IO [Double]
+colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
+   changeCol         = 0
    cellHeightRows1   = cellHeightRows colWidths cellLengthRows
    rowHeights        = map maximum cellHeightRows1
    cellPatternRows1  = cellPatternRows rowHeights cellHeightRows1
@@ -1522,13 +1523,17 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
             gen <- initStdGen
             let cols = runStateGen_ gen (replicateM n . uniformRM (1::Double, 1000))
             return (changeCol7, stepWidth7, map fromIntegral $ forceLess (round width) (map round cols))
+         {-
+         ' ' -> let
+            sum1 = if | all (== 0) colRates -> 
 
-         --' ' -> return (widenCol8, narrowCol8, stepWidth8, replaceIndices [widenCol8, narrowCol8] [widenWidth8 + change, narrowWidth8 - change] colWidths)
+            return (widenCol8, narrowCol8, stepWidth8, replaceIndices [widenCol8, narrowCol8] [widenWidth8 + change, narrowWidth8 - change] colWidths)
+         -}
          _   -> return (changeCol7, stepWidth7, colWidths)
       let chooseColMode1  = if c == 'c' then not chooseColMode  else chooseColMode
       let chooseStepMode1 = if c == 's' then not chooseStepMode else chooseStepMode
 
-      colWidths11M width tab cellLengthRows cellLengthCols colWidths changeCol1 stepWidth1 chooseColMode1 chooseStepMode1
+      colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth1 chooseColMode1 chooseStepMode1 c
 
 showTerm1 (String1 s) = (0, 0, length s, s)
 showTerm1 (Int1 i) = (length $ show i, 0, 0, show i)

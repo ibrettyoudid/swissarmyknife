@@ -43,7 +43,7 @@ type LText = LT.Text
 
 class BString s where
    empty :: s
-   tail :: s -> s
+   tail :: HasCallStack => s -> s
    (++) :: s -> s -> s
    take :: Int -> s -> s
    drop :: Int -> s -> s

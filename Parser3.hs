@@ -11,7 +11,11 @@
 {-# HLINT ignore "Avoid lambda using `infix`" #-}
 {- HLINT ignore "Use tuple-section" -}
 
-module Parser3 where
+module Parser3 (
+   module Parser3,
+   module Parser3Types
+)
+where
 
 -- import Rule
 -- import Syntax3 hiding (foldl, foldr)
@@ -384,21 +388,21 @@ parseE r t =
       lps      = linePos t
       init     = SL.singleton $ maket 0 0 $ start r
       items    = predictA (0 :: Int, 0 :: Int) init
-      stateseq = parseE0 lps [items] t items [1 .. length t] :: [SL.SetList (StateFT _)]
+      stateslist = parseE0 lps [items] t items [1 .. length t] :: [SL.SetList (StateFT _)]
       done     = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last stateslist)
-   in if length stateseq == length t && done /= []
+   in if length stateslist == length t && done /= []
             then done
-            else trace (table t stateseq) []
+            else trace (table t $ SS.fromElems $ map States.fromSL stateslist) []
 
 parseED r t = do
    let lps = linePos t
-   let init = SL.singleton $ maket 0 0 $ start r
+   let init = SL.singleton $ maket 0 0 $ start r :: SL.SetList (StateFT _)
    items <- comppredD lps [SL.singleton $ maket 0 0 (start r)] (SL.singleton $ maket 0 0 (start r))
-   stateseq <- parseE0D lps [items] t items [1 .. length t] :: IO [SL.SetList (StateFT _)]
+   stateslist <- parseE0D lps [items] t items [1 .. length t] :: IO [SL.SetList (StateFT _)]
    let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last stateslist)
-   putStrLn (table t stateseq)
+   putStrLn (table t $ SS.fromElems $ map States.fromSL stateslist)
    return done
-
+{-}
 parseEM r t = do
    let lps = linePos t
    let init = SL.singleton $ maket 0 0 $ start r
@@ -409,7 +413,7 @@ parseEM r t = do
    let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last stateslist)
    putStrLn (table t stateseq)
    return done
-
+-}
 parseE0 lps stateslist _ items [] = stateslist
 parseE0 lps stateslist t items (c : ks) =
    let itemsnew = parseE1A lps stateslist t c items
@@ -450,14 +454,20 @@ parseE1D lps stateseq t c states = do
    -- putStrLn $ "comp1=" ++ show comp1
    return comp1
 
+--data Main = Main { lps :: [(Int, Int)], stateseq :: StateSeq state tok }
+
+add states = do
+   flags <- mapM SS.insertM states
+   return $ or flags
+{-}
 parseE1M n t states = do
-   scanA n t states
+   modify (add $ scanA n t states)
    ch1 <- completeM
    ch2 <- predictD
 
 
    when (ch1 || ch2) $ do
-
+-}
 
 untilM pred mf x = if pred x
                         then return x
@@ -501,7 +511,7 @@ scanA n t items = mapMaybe (scan1 n (t !! n)) $ SL.list items
 
 completeA stateslist = closureA (\old -> processA (complete1A (stateslist ++ [old])) old)
 
-completeD stateslist = do putStrLn $ "COMPLETE " ++ take 71 (cycle "\\/"); closureD (\old -> processDD (complete1D (stateslist ++ [old])) old) 
+completeD stateslist states = do putStrLn $ "COMPLETE " ++ take 71 (cycle "\\/"); closureD (\old -> processDD (complete1D (stateslist ++ [old])) old) states
 
 closureA f items = closureA1 f items items
 
@@ -570,10 +580,10 @@ start1 (Alt  a) = IAlt  0
 start1 (Many a) = IMany []
 start1 _ = Running
 
-scan1 c ch st = scan2 c ch (from st) c (item st)
+scan1 n ch st = scan2 n ch (from st) (item st)
 
-scan2 c ch j _ (Item r Running) = do sc <- saux ch r; return $ maket j c $ Item r (if sc then Pass [toDyn ch] else Fail)
-scan2 c ch _ _ _ = Nothing
+scan2 n ch j (Item r Running) = do sc <- saux ch r; return $ maket j n $ Item r (if sc then Pass [toDyn ch] else Fail)
+scan2 n ch _ _ = Nothing
 
 saux ch (Token c) = Just $ ch == c
 saux ch (Range c d) = Just $ ch >= c && ch <= d
@@ -879,11 +889,10 @@ combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
 -- how kernels are compared for equality defines what sort of parser it is
 -- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
 
-table str stateslist = tableFT str stateslist 0 (length stateslist)
+table str stateseq = tableFT str stateseq 0 (SS.size stateseq)
 
-tableFT :: State state => [a] -> SS.StateSeq (state a) a -> Int -> Int -> String
-tableFT str stateslist from to = let
-   range = SS.toList $ SS.range from to stateslist
+tableFT str stateseq from to = let
+   range = SS.toList $ SS.range from to stateseq
    shown = map show range
    nums  = map show [from .. to]
    numls = 0 : map length nums
@@ -948,6 +957,7 @@ data Doc2 str = Doc2 {docWidth :: Int, docHeight :: Int, docText :: [str]} deriv
 
 fp p e = format <$> print1 p e
 
+fp2 :: (Typeable a, Show (Rule Char)) => RuleR Char a -> Dynamic -> Maybe [Char]
 fp2 p e = format <$> print2 (translate p) e
 
 print1 :: RuleR t a -> a -> Maybe (Doc [t])

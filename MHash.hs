@@ -46,7 +46,7 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import Text.ParserCombinators.Parsec.Token qualified as T
 
-import qualified Parser7 as P
+import qualified Parser3 as P
 
 type VarName = String
 
