@@ -1,21 +1,39 @@
 <html>
 <head>
     <style>
-        body      { font-family: Verdana, sans-serif; }
-        h1, h2    { color: grey; }
-        table     { border-collapse: collapse; }
-        table.big { margin:  40px; }
-        td.big    { padding: 40px; vertical-align: top; }
-        td.med    { padding: 0px 20px 0px 0px; }
+        @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400&display=swap');
+        body
+            {
+                font-family: 'Archivo', Verdana, Geneva, Tahoma, sans-serif;
+                font-style: NORMAL;
+                font-weight: 400;
+            }        
+        h1, h2      { color: grey; }
+        h3          { color: darkolivegreen; }
+        table       { border-collapse: collapse; }
+        table.big   { margin:  40px; }
+        td.big      { padding: 40px; vertical-align: top; }
+        td.med      { padding: 0px 20px  0px 0px; }
+        td.mid      { padding: 0px 20px 20px 0px; }
     </style>
 </head>
 <body>
     <table class="big" style="width: 1000;">
         <tbody>
             <tr>
-                <td class="big" style="border-bottom: 1px solid grey;" colspan="2">
+                <td class="big" style="border-bottom: 1px solid grey; text-align: center;" colspan="2">
                     <h1>BRETT<br>CURTIS</h1>
-                    <h2 style="color: black;">Software Developer</h2>
+                    <h2 style="color: darkolivegreen;">Software Developer</h2>
+                    <table style="width: 80%;">
+                        <tr>
+                            <td style="width: 20%; height: 10;"></td>
+                            <td style="width: 20%; background-color: gray;"></td>
+                            <td style="width: 20%; background-color: #004080;"></td>
+                            <td style="width: 20%; background-color: black;"></td>
+                            <td style="width: 20%; background-color: darkolivegreen;"></td>
+                        </tr>
+                    </table>
                 </td>
             </tr>
             <tr>
@@ -33,12 +51,12 @@
                     <h2>LINKS</h2>
                     <table style="width: 100%">
                         <tr>
-                            <td style="width: 30%;">GitHub</td>
-                            <td><a href="https://github.com/ibrettyoudid">https://github.com/ibrettyoudid</a></td>
+                            <td class="mid" style="width: 30%;">GitHub</td>
+                            <td class="mid" ><a href="https://github.com/ibrettyoudid">https://github.com/ibrettyoudid</a></td>
                         </tr>
                         <tr>
-                            <td style="width: 30%;">LinkedIn</td>
-                            <td><a href="https://www.linkedin.com/in/brett-curtis-0a4340216">https://www.linkedin.com/in/brett-curtis-0a4340216</a></td>
+                            <td class="mid">LinkedIn</td>
+                            <td class="mid" ><a href="https://www.linkedin.com/in/brett-curtis-0a4340216">https://www.linkedin.com/in/brett-curtis-0a4340216</a></td>
                         </tr>
                     </table>
                 </td>
@@ -51,10 +69,13 @@
                     <table width="100%">
                         <tr>
                             <td align="left">
-                                <h3>Software Engineer, Steria LLC</h3>
+                                <h3>Software Engineer</h3>
+                            </td>
+                            <td style="text-align: center;">
+                                <h3>Steria LLC</h3>
                             </td>
                             <td style="text-align: right;">
-                                <h4>Hemel Hempstead</h4>
+                                <h3>Hemel Hempstead</h3>
                             </td>
                         </tr>
                     </table>
@@ -67,10 +88,13 @@
                     <table width="100%">
                         <tr>
                             <td align="left">
-                                <h3>Software Engineer, Post Office Ltd</h3>
+                                <h3>Software Engineer</h3>
+                            </td>
+                            <td style="text-align: center;">
+                                <h3>Post Office Ltd</h3>
                             </td>
                             <td style="text-align: right;">
-                                <h4>Hemel Hempstead</h4>
+                                <h3>Hemel Hempstead</h3>
                             </td>
                         </tr>
                     </table>
@@ -82,7 +106,7 @@
                         <li>Excel</li>
                     </ul>
                     <ul>
-                        <li>Worked as part of a team of four each with knowledge of different systems</li>
+                        <li>Worked as part of a team of four each with knowledge of different systems, making communication challenging</li>
                         <li>Designing, coding, maintaining and documenting Access databases (using Access Basic in no small amounts)</li>
                         <li>Designing Access crosstab/group by queries using the query designer and SQL; writing code that creates SQL queries flexibly from specifications input by the user</li>
                         <li>Manipulating Access databases of around 1GB (which was the maximum size back then!) Compressing data, archiving old data, tracking down and removing incorrect data, summarising into graphs, searching for patterns in data</li>
@@ -98,7 +122,16 @@
             <tr>
                 <td class="big">
                     <h2>EDUCATION</h2>
-                    <h3>Computer Science BSc, University of York</h3>
+                    <table width="100%">
+                        <tr>
+                            <td align="left">
+                                <h3>Computer Science BSc</h3>
+                            </td>
+                            <td style="text-align: right;">
+                                <h3>University of York</h3>
+                            </td>
+                        </tr>
+                    </table>
                     <h4>Oct 1993 &mdash; May 1996</h4>
                     <h4>Oct 2001 &mdash; May 2002</h4>
                     Ada, Haskell, Scheme<br>
@@ -111,7 +144,16 @@
                     AIX (self-taught)<br>
                     IRIX (self-taught)<br>
                     <br>
-                    <h3>Cavendish School</h3>
+                    <table width="100%">
+                        <tr>
+                            <td align="left">
+                                <h3>A-levels</h3>
+                            </td>
+                            <td style="text-align: right;">
+                                <h3>Cavendish School</h3>
+                            </td>
+                        </tr>
+                    </table>
                     <h4>Sept 1986 &mdash; Jun 1993</h4>
                     <h4>A-levels</h4>
                     <table>
