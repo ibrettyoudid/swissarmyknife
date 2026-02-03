@@ -549,15 +549,15 @@ paux _ _ = []
 
 predict1 n st = let c = to st in map (maket c c) $ predict2 n (item st)
 
-predict2 n (Item (Seq as)    (ISeq j)) = [start (as !! j)]
-predict2 n (Item (Alt as)    (IAlt 0)) = [start a | a <- as]
-predict2 n (Item (Many a)     Running) = [start a, Item (Many a) (Pass [toDyn ([] :: [Dynamic])])]
-predict2 n (Item (Name a b)   Running) = [start b]
+predict2 n (Item (Seq    as) (ISeq j)) = [start (as !! j)]
+predict2 n (Item (Alt    as) (IAlt 0)) = [start a | a <- as]
+predict2 n (Item (Many    a)  Running) = [start a, Item (Many a) (Pass [toDyn ([] :: [Dynamic])])]
+predict2 n (Item (Name  a b)  Running) = [start b]
 predict2 n (Item (Apply a b)  Running) = [start b]
-predict2 n (Item (Set a b)    Running) = [start b]
-predict2 n (Item (Not a)      Running) = [start a, Item (Not a) (Pass [toDyn ()])]
-predict2 n (Item (Bind a b)   Running) = [start a]
-predict2 n (Item (Return a)   Running) = [Item (Return a) (Pass [a])]
+predict2 n (Item (Set   a b)  Running) = [start b]
+predict2 n (Item (Not     a)  Running) = [start a, Item (Not a) (Pass [toDyn ()])]
+predict2 n (Item (Bind  a b)  Running) = [start a]
+predict2 n (Item (Return  a)  Running) = [Item (Return a) (Pass [a])]
 predict2 n (Item Pos Running) = [Item Pos (Pass [toDyn n])]
 -- predict2 (Item (Get    a   ) t _) = [Item (Get a) (Pass $ lookup a) Item2]
 predict2 n (Item {}) = []
@@ -565,8 +565,8 @@ predict2 n (Item {}) = []
 -- start r@(Not a) = Item r (Pass $ toDyn ()) Item2
 start r = Item r $ start1 r
 
-start1 (Seq a) = ISeq 0
-start1 (Alt a) = IAlt 0
+start1 (Seq  a) = ISeq  0
+start1 (Alt  a) = IAlt  0
 start1 (Many a) = IMany []
 start1 _ = Running
 
