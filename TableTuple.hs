@@ -53,7 +53,7 @@ import GHC.Generics
 import GHC.Stack
 
 import Debug.Trace
-{-
+
 data Type = M | To
 
 type Amount = Int
@@ -237,7 +237,7 @@ moy = do
    return moy1
 
 
-newtype Table i r = Table { table :: Group i r} deriving (Generic, NFData)
+data Table f i r = Table { fields :: f, tgroup :: Group i r} deriving (Generic, NFData)
 
 data Group i r = INode (M.Map i (Group i r)) | Recs (Tree.Tree (Group i r)) | Rec r deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -249,7 +249,7 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance (ProperTuple r, ShowNewTuple r) => Show (Table i r) where
+instance (ProperTuple r, ShowNewTuple r) => Show (Table f i r) where
    show = showTableNew
 
 {-
@@ -259,31 +259,31 @@ showTable t =  showGridD colWidths1 width $
                ungroupFill (map (\(_, v) -> (v, toDyn (""::Text))) $ M.toList $ fields t) $
                table t
 -}
-showTableNew :: (ShowNewTuple r, HasCallStack) => Table i r -> String
+showTableNew :: (ShowNewTuple r, HasCallStack) => Table f i r -> String
 showTableNew t =  showGrid $ 
-                  zipWith (++) (map showNewT $ fieldsUT t) $ 
+                  zipWith (++) (mapT showFields $ fields t) $ 
                   transposez (""::String) $ 
                   map showNewT $
                   ungroup $
-                  table t
+                  tgroup t
 
 showTableC cs cn t = showGrid $ drop cs $ take cn $ showTable2 t
-showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ table t
-showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ transposez (""::String) $ map showT $ ungroup $ table t
+showTable1 t = showGrid $ zipWith (++) (map showField $ fieldsUT t) $ transposez "" $ map2 show $ ungroup $ tgroup t
+showTable2 t = zipWith (++) (map showField $ fieldsUT t) $ transposez (""::String) $ map showT $ ungroup $ tgroup t
 
-toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ table t
+toCsv t = unlines $ map (intercalate ",") $ (transpose (map showField $ fieldsUT t)++) $ map2 show $ ungroup $ tgroup t
 
-showTableMeta t@(Table (INode records)) =                show (length $ fieldsUT t) ++ "x" ++ show (   M.size records) ++ " " ++ show (showTableMeta2 t)
-showTableMeta t@(Table (Recs  records)) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show (Tree.size records) ++ " " ++ show (showTableMeta2 t)
-showTableMeta t@(Table (Rec   record )) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show 1                   ++ " " ++ show (showTableMeta2 t)
+showTableMeta t@(Table f (INode records)) =                show (length $ fieldsUT t) ++ "x" ++ show (   M.size records) ++ " " ++ show (showTableMeta2 t)
+showTableMeta t@(Table f (Recs  records)) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show (Tree.size records) ++ " " ++ show (showTableMeta2 t)
+showTableMeta t@(Table f (Rec   record )) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show 1                   ++ " " ++ show (showTableMeta2 t)
 
-showTableMeta1 t@(Table (INode records)) =                show (length $ fieldsUT t) ++ "x" ++ show (   M.size records)
-showTableMeta1 t@(Table (Recs  records)) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show (Tree.size records)
-showTableMeta1 t@(Table (Rec   record )) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show 1
+showTableMeta1 t@(Table f (INode records)) =                show (length $ fieldsUT t) ++ "x" ++ show (   M.size records)
+showTableMeta1 t@(Table f (Recs  records)) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show (Tree.size records)
+showTableMeta1 t@(Table f (Rec   record )) = "NO INDEX " ++ show (length $ fieldsUT t) ++ "x" ++ show 1
 
 showTableMeta2 t = showNewT $ fieldsUT t
 
-fieldsUT (Table r) = fieldsUG r
+fieldsUT (Table f r) = f
 
 --fieldsUG :: (Map ((a :- b) :- c -> a) ((a :- b) :- c) a, Map (c -> d) c d) => Group i ((a :- b) :- c) -> a :- d
 fieldsUG :: Map (c -> d) c d => Group i c -> d
@@ -291,7 +291,7 @@ fieldsUG (INode m) = fieldsUG (snd $ fromJust $ M.lookupMin m)
 fieldsUG (Recs rs) = fieldsUG (snd $ fromJust $ Tree.lookupMin rs)
 fieldsUG (Rec   r) = mapT headT r
 
-showStructure (Table group) = foldr (++) "" $ map (++"\n") $ showStructureI 0 group
+showStructure (Table f group) = foldr (++) "" $ map (++"\n") $ showStructureI 0 group
 
 showStructureI i (INode records) = (sp i ++ "INode") : concatMap (showStructureG (i+5)) (M.toList records)
 
@@ -302,7 +302,7 @@ showStructureR i (k, Rec   records) = [sp i ++ "Rec"   ++ showt k ++ "=" ++ show
 sp :: Int -> Text
 sp n = convertString $ replicate n ' '
 
-size t = length $ ungroup $ table t
+size t = length $ ungroup $ tgroup t
 
 ungroup (INode m) = concatMap (ungroup . snd) $ M.toList m
 ungroup (Recs r) = map (ungroup2 . snd) $ Tree.toList r
@@ -310,27 +310,24 @@ ungroup (Rec r) = [r]
 
 ungroup2 (Rec r) = r
 
-applygroup f (Table g) = Table $ f g
+applygroup f (Table flds g) = Table flds $ f g
 
 fieldsU x = map fst $ sortOn snd $ M.toList x
 
 inversePerm indices = map snd $ sort $ zip indices [0 ..]
 
-fromGrid g = fromGridH $ transpose g
-fromGridD = fromGridHD . transpose
+--fromGrid g = fromGridH $ transpose g
 fromGrid1 = fromGridH1 . transpose
-
-fromGridHD []        = TableT.empty
-fromGridHD (fs : rs) = fromGridH1 (map clean fs) $ map readNewT rs
 
 fromGridHBF (c, hs, bs, fs) = unsafePerformIO $ do
    print c
    print hs
    print bs
    print fs
-   return $ fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1::Int ..]) $ map2 (dynCell . clean) bs
+   return $ fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [0::Int ..]) $ map2 clean bs
 
-fromGridH1 recordl = Table $ Recs $ Tree.fromElems $ map (Rec . readNewT) recordl
+--fromGridH1 flds []      = TableTuple.empty
+fromGridH1 flds recordl = Table flds $ Recs $ Tree.fromElems $ map (Rec . readNewT) recordl
 
 tz :: (Show a) => [a] -> Tree.Tree a
 tz = Tree.fromList . zip [0..]
@@ -347,7 +344,7 @@ toList r@(Rec _) = [r]
 toList2 = map unrec . toList
 
 scrub = smap (\c -> let x = ord c in if (x >= 65 && x <= 90) || (x >= 97 && x <= 122) then c else ' ')
-
+{-
 --cleanDyn x = read $ clean $ show x
 autoJoin joinType maxDist bzero master tab =
    case findIndexField maxDist bzero master tab of
@@ -381,17 +378,17 @@ byyn (f : fs) = INode . M.map (byyn fs) . byz f
 
 byscrub f = by (trim . squash . scrub . convertString . show . f)
 
-by f (Table table) = Table $ byy1 f $ toList2 table
+by f (Table fd table) = Table fd $ byy1 f $ toList2 table
 
-by2 f g (Table table) = Table $ byy2 f g $ toList2 table
+by2 f g (Table fd table) = Table fd $ byy2 f g $ toList2 table
 
-thenby f (Table table) = Table $ mapRecs f flds table
+thenby f (Table fd table) = Table fd $ mapRecs f flds table
 
 mapRecs f flds (INode m) = INode $ M.map (mapRecs f flds) m
 
 -- mapRecs f flds g@(Recs r) = byy1 (f . Record flds) $ toList g
 
-byl fs (Table table) = Table $ byyn fs $ toList2 table
+byl fs (Table fd table) = Table fd $ byyn fs $ toList2 table
 
 -- byw f tab = byx ()
 
@@ -410,7 +407,7 @@ applyLeft  f (i, l, r) = (i, f l, r)
 applyRight f (i, l, r) = (i, l, f r)
 applyBoth  fl fr (i, l, r) = (i, fl l, fr r) 
 
-joinT f (Table l, Table r) = joinG f (l, r)
+joinT f (Table lf l, Table rf r) = joinG f (l, r)
 
 joinG f (INode l, INode r) = f (l, r)
 --joinGroups (fi, fl, fr) (Rec   l) (Rec   r) = M.unions [fi l r, fl l r, fr l r]
@@ -422,8 +419,8 @@ miss x = (x, [])
 
 joinAux1 a b = {-trace (show il ++ " " ++ show ir) -}res
    where
-      Table il = a
-      Table ir = b
+      Table fl il = a
+      Table fr ir = b
 
       res = M.union il ir
 
@@ -575,7 +572,7 @@ mapFieldsG func fs3 (Recs  rs) = Recs  $ Tree.map (mapFieldsG func fs3) rs
 mapFieldsG func fs3 (Rec   rs) = Rec   $ Tree.fromList $ M.toList $ M.compose (M.fromList $ Tree.toList rs) fs3
 -}
 -- foldTable f z n t =
-foldSubTable fs (Table g) = applyL fs $ Record flds $ foldSubTableG g
+foldSubTable fs (Table f1 g) = applyL fs $ Record flds $ foldSubTableG g
 
 foldSubTableG g = Tree.untree $ toList2 g
 
@@ -607,7 +604,7 @@ foldSubTable3R f rs = Tree.map f $ Tree.untree rs
 
 p = unzip
 
-mapSubTable f n (Table g) = Table (mapSubTableGF (fields . f . Table) n g) $ mapSubTableG (table . f . Table) n g
+mapSubTable f n (Table f1 g) = Table (mapSubTableGF (fields . f . Table) n g) $ mapSubTableG (table . f . Table) n g
 
 mapSubTableG f 0 g = f g
 mapSubTableG f n (INode m) = INode $ M.map (mapSubTableG f (n - 1)) m
@@ -635,7 +632,7 @@ insertWith4 (k, v) m =
          in M.insert k2 v m
       Nothing -> M.insert k v m
 
-mapTable f (Table g) = Table $ mapTableG f g
+mapTable f (Table f1 g) = Table $ mapTableG f g
 
 mapTableG f (INode m) = INode $ fmap (mapTableG f) m
 mapTableG f (Recs  t) = Recs  $ fmap (mapTableG f) t
