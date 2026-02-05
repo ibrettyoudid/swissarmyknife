@@ -161,7 +161,7 @@ readcsvs = concat <$> mapM readCSVFile names
 readCSVFile fn = do
    let fn1 = importdir ++ fn ++ ".csv"
    f <- readFile fn1
-   return $ parse1 csv f
+   return $ parse2 csv f
 
 csv = many csvline
 
@@ -169,7 +169,7 @@ csvline = sepBy csvcell $ char ','
 
 txt = toDyn . bof <$> do char '"'; s <- many anyChar; char '"'; return s
 
-dynCell  = parse1 (choice [try (toDyn <$> dateExcel), try numberDyn, txt])
+dynCell  = parse2 (choice [try (toDyn <$> dateExcel), try numberDyn, txt])
 
 fodscell = choice [try (toDyn <$> dateExcel), try numberDyn, toDyn <$> many anyChar]
 

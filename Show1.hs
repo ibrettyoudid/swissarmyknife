@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Show1 where
@@ -12,3 +11,13 @@ instance {-# OVERLAPPING #-} Show1 String where
 
 instance (Show a) => Show1 a where
    show1 = show
+
+class Read1 a where
+   read1 :: String -> a
+
+instance {-# OVERLAPPING #-} Read1 String where
+   read1 = id
+
+instance (Read a) => Read1 a where
+   read1 = read
+

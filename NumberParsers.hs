@@ -22,13 +22,25 @@ import Data.Char (digitToInt)
 
 --type Blah c = Stream s m c => ParsecT s u m c
 parse1 p filename txt = case parse p filename txt of
-         Left l -> error $ show l
+         Left l -> error $ filename ++ ": " ++ show l
          Right r -> r
 
+parse2 p txt = case parse p "unknown" txt of
+   Left l -> error $ show l
+   Right r -> r
 
 --only succeed if it can't be an integer
 forceFloating :: Stream s m Char => ParsecT s u m Double
 forceFloating = do 
+   s <- sign
+   n <- decimal digit
+   fract <- option Nothing (Just <$> fraction)
+   expo  <- option Nothing (Just <$> exponent')
+   guard (isJust fract || isJust expo)
+   return (s (fromInteger n + fromMaybe 0.0 fract) * fromMaybe 1.0 expo)
+
+forceFloatingC :: Stream s m Char => ParsecT s u m Double
+forceFloatingC = do 
    s <- sign
    n <- decimal digitOrComma
    fract <- option Nothing (Just <$> fraction)

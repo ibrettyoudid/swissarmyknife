@@ -8,12 +8,12 @@ import qualified Data.Attoparsec.ByteString as AP
 
 import qualified Debug.Trace
 
-anyChar = AP.anyWord8
+import Data.Word
 
 char :: Char -> AP.Parser Char
-char x = do
-   c <- AP.word8 $ convertChar x
-   return $ convertChar c
+char c = convertChar <$> AP.word8 (convertChar (c :: Char))
+
+anyChar = AP.anyWord8
 
 anyChar1 = convertChar <$> AP.anyWord8 :: AP.Parser Char
 
@@ -28,8 +28,12 @@ many xs = AP.many' xs
 
 manyTill2 xs = AP.takeWhile (AP.notInClass xs)
 
-parse1 p txt = case AP.parseOnly p txt of
-   Left msg -> error $ "parse1: "++msg
+parse1 p src txt = case AP.parseOnly p txt of
+   Left msg -> error $ "parse1: "++src++": "++msg
+   Right r  -> r
+
+parse2 p txt = case AP.parseOnly p txt of
+   Left msg -> error $ "parse2: "++msg
    Right r  -> r
 
 parseNoFail z p txt = case AP.parseOnly (p <* AP.takeByteString) txt of

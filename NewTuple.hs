@@ -44,6 +44,7 @@ instance NamedTuple a (a :- b) (c :- d) c where
 data A = A deriving (Eq, Ord, Show)
 data B = B deriving (Eq, Ord, Show)
 data C = C deriving (Eq, Ord, Show)
+data D = D deriving (Eq, Ord, Show)
 
 nt = (A :- "hello") :- (B :- "there") :- (C :- "jim") :- ()
 
@@ -63,8 +64,8 @@ class ReadNewTuple a where
 instance ReadNewTuple () where
    readNewT [] = ()
 
-instance (Read a, ProperTuple b, ReadNewTuple b) => ReadNewTuple (a :- b) where
-   readNewT (a : b) = read a :- readNewT b
+instance (Read1 a, ProperTuple b, ReadNewTuple b) => ReadNewTuple (a :- b) where
+   readNewT (a : b) = read1 a :- readNewT b
 
 class (ElemsProperTuple a) => Concat a b where
    concat2 :: a -> b
