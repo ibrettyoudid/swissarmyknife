@@ -57,6 +57,7 @@ import Show1
 import {-# SOURCE #-} MHashDynamic3
 import MSolve hiding (list, number)
 import MPoly hiding (replaceIndices, showm)
+import Colour
 
 import Data.Functor
 import Prelude hiding (maximum)
@@ -85,6 +86,7 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
 import GHC.Stack
+import Colour (bgrecolourStr)
 
 width1 = 412
 
@@ -1711,7 +1713,6 @@ showGridWrap1 colWidths cellLengthCols tab =
 
 doColour cc = "\27["++show (40+cc)++"m"
 
-combineColours :: Int -> Int -> Int
 combineColours a b = if a == 0 then b else a
 
 smudge f xs = head xs : concat (zipWith (\a b -> [a, f a b]) xs (tail xs)) ++ [last xs, last xs]
@@ -1727,18 +1728,43 @@ showGridColour colWidths cellLengthCols tab = let
 showGridColour1 colWidths cellColours cellLengthCols tab = let
    rows = transpose $ zipWith3 (\cw cc c -> zipWith (\cellc celltext -> (cw, cellc, groupN cw celltext)) cc c) colWidths cellColours tab
    rows2 = map (\row -> let
-            lc = maximum $ map (\(cw, cc, cell) -> length cell) row
+            rh = maximum $ map (\(cw, cc, cell) -> length cell) row
             in map (\(cw, cc, cell) -> let
                li = replicate cw '-'
-               in (cw, cc, lc, if cell == ["£"] then replicate lc li else map (padr cw) $ padRWith1 "" lc cell)) row) rows
+               in (cw, cc, rh, if cell == ["£"] then replicate rh li else map (padr cw) $ padRWith1 "" rh cell)) row) rows
    rows3 = smudge2 combineColours $ map2 (\(_, cc, _, _) -> cc) rows2
    rows4 = concatMap (\row -> let
-                              a = concatMap (\(cw, cc, lc, cell) -> [["+"]           , [replicate cw '-']]) row ++ [head a]
-                              b = concatMap (\(cw, cc, lc, cell) -> [replicate lc "|", cell              ]) row ++ [head b]
+                              a = concatMap (\(cw, cc, rh, cell) -> [["+"]           , [replicate cw '-']]) row ++ [head a]
+                              b = concatMap (\(cw, cc, rh, cell) -> [replicate rh "|", cell              ]) row ++ [head b]
                               in [a, b]) rows2 ++ [head rows4]
 
    in unlines $ map (++ doColour 0) $ concat $ map2 concat $ map transpose $ zipWith (zipWith (zipWith (\cc cl -> doColour cc ++ cl))) (map2 repeat rows3) rows4
 --   in unlines $ intercalate [line1] $ map2 (intercalate "|") $ map transpose rows2
+
+showGridColour2 :: (Num a, Eq a) => [Int] -> [[a]] -> p -> [[[(a, a, Char)]]] -> [[[[(a, a, Char)]]]]
+showGridColour2 colWidths cellColours cellLengthCols tab = let
+   rows = transpose $ zipWith3 (\cw cc c -> zipWith (\cellc celltext -> (cw, cellc, groupN cw celltext)) cc c) colWidths cellColours tab
+   rows2 = map (\row -> let
+            rh = maximum $ map (\(cw, cc, cell) -> length cell) row
+            in map (\(cw, cc, cell) -> let
+               li = replicate cw (7, 0, '-')
+               in (cw, cc, rh, if decolourStr (head cell) == "£" then replicate rh li else map (padRWith1 (7, 0, ' ') cw) $ padRWith1 [] rh cell)) row) rows
+   rows3 = smudge2 combineColours $ map2 (\(_, cc, _, _) -> cc) rows2
+   rows4 = concatMap (\row -> let
+                              a = concatMap (\(cw, cc, rh, cell) -> [[[(7, 0, '+')]]           , [replicate cw (7, 0, '-')]]) row ++ [head a]
+                              b = concatMap (\(cw, cc, rh, cell) -> [replicate rh [(7, 0, '|')], cell                      ]) row ++ [head b]
+                              in [a, b]) rows2 ++ [head rows4]
+
+   in map transpose $ zipWith3D (\cc cl -> bgrecolourStr cc cl) (map2 repeat rows3) rows4
+
+zipWith3D f = zipWith (zipWith (zipWith f))
+
+fillLine f x0 x1 l = let
+   (l0, r0) = splitAt x0 l
+   (ce, r1) = splitAt (x1-x0) r0
+   in l0 ++ f ce ++ r1
+
+fillRect f x0 x1 y0 y1 ls = fillLine (fillLine f y0 y1) x0 x1 ls
 
 putGridW w = putStr . showGridW w
 
@@ -1784,6 +1810,31 @@ pages1 xs n = do
    pages1 xs $ case c of
       '+' -> n + 1
       '-' -> n - 1
+
+editGrid width tab = let
+   cellLengthCols = map2 length tab
+   colWidths = colWidthsIntegral width cellLengthCols
+
+   in editGrid1 width colWidths tab cellLengthCols 0 0 0 0 0 0
+
+editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY = let
+   cellColours = fillRect (const 1) cellX (cellX+1) cellY (cellY+1) $ replicate (length tab) $ replicate (length $ head tab) 0
+   grid1 = showGridColour2 colWidths cellColours 0 tab
+   grid2 = unlines $ map ((++ doColour 0) . showColour) $ concat $ map2 concat grid1
+
+   in do
+      putStr grid2
+      ch <- getChar
+      case ch of
+         '\27' -> do
+            getChar
+            ch2 <- getChar
+            case ch2 of
+               'A' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
+               'B' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
+               'C' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
+               'D' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
+
 
 iterateM mf x = do
    mf_x <- mf x

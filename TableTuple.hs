@@ -80,14 +80,27 @@ data NFileMode = NFileMode deriving (Eq, Ord, Show, Read)
 data N         = N         deriving (Eq, Ord, Show, Read)
 data User      = User      deriving (Eq, Ord, Show, Read)
 data UGroup    = UGroup    deriving (Eq, Ord, Show, Read)
-data Size      = Size      deriving (Eq, Ord, Show, Read)
+data Size      = Size      deriving (Eq, Ord, Show, Read) 
 data ModTime   = ModTime   deriving (Eq, Ord, Show, Read)
 data Name      = Name      deriving (Eq, Ord, Show, Read)
 
-ls :: IO (Table (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) Int (String :- Int :- String :- String :- Int :- String :- String :- ()))
+addCommas x = let
+   l = length x
+   il = l `mod` 3
+   (b, a) = L.splitAt il x
+   gs = if il == 0 then groupN 3 a else b : groupN 3 a
+   in intercalate "," gs
+
+j68 [c1, c2, c3, c4, c5, (t6, g6), (t7, g7), (t8, g8), c9] = [c1, c2, c3, c4, c5, (t6+g6+t7+g7+t8, g8), c9]
+--ls :: IO (Table (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) Int (String :- Int :- String :- String :- Int :- String :- String :- ()))
 ls = do
    text <- readProcess "ls" ["-al"] ""
-   return $ fromGridH1 (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) $ map (map trim . slice [(13,1),(5,1),(5,1),(8,1),(12,1),(25,0)]) $ lines text
+   let lines1 = lines text
+   let lines2 = tail lines1
+   let cspec1 = j68 $ cspec lines2
+   --return $ fromGridH1 (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) $ 
+   let x = transposez "" $ map (map trim . slice cspec1) lines2
+   putGrid x
 
 cols lines1 = let
    cspec1 = cspec lines1
@@ -101,7 +114,7 @@ slice1 line1 (text, gap) = let
    in (t, r)
 
 cspec lines1 = let
-   linest    = transpose lines1
+   linest    = transposez ' ' lines1
    le        = length lines1
    allspaces = map (all (== ' ')) linest
    f []        = Nothing
@@ -119,9 +132,9 @@ data Record f r = Record {fieldsr :: f, values :: r} deriving (Show, Generic, NF
 
 empty = Table $ Recs Tree.empty
 
-unmap (INode m) = m
-unrecs (Recs r) = r
-unrec (Rec r) = r
+unmap  (INode m) = m
+unrecs (Recs  r) = r
+unrec  (Rec   r) = r
 
 type TString = String
 
@@ -299,6 +312,8 @@ byyn [] = Recs . tz . map Rec
 byyn (f : fs) = INode . M.map (byyn fs) . byz f
 
 byscrub f = by (scrub . convertString . show . f)
+
+byf f = by (? f)
 
 by f (Table flds table) = Table flds $ byy1 f $ toList2 table
 
@@ -500,7 +515,7 @@ foldSubTable fs (Table flds g) = applyL fs $ Record flds $ foldSubTableG g
 foldSubTableG g = Tree.untree $ toList2 g
 
 -- foldSubTable1 fs (Table flds g) = applyL fs $ Record flds $ foldSubTable1G (Tree.fromElems fs) g
-addTotals t = Table (fields t) $ INode $ M.insert (toDyn ("ZZZZ"::Text)) (Rec $ foldSubTable2 sum t) g where INode g = tgroup t
+addTotals t = Table (fields t) $ INode $ M.insert "ZZZZ" (Rec $ foldSubTable2 sum t) g where INode g = tgroup t
 foldSubTable2 f t = foldSubTable2G f $ tgroup t
 foldSubTable2G f g = Tree.map f $ Tree.untree $ toList2 g
 
