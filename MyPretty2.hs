@@ -17,6 +17,7 @@ module MyPretty2 (
    pp,
    findWidth,
    putGrid,
+   editGrid,
    showGridD,
    showGridF,
    tryGridF,
@@ -86,7 +87,7 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
 import GHC.Stack
-import Colour (bgrecolourStr)
+import Colour (recolourStr)
 
 width1 = 412
 
@@ -1741,21 +1742,21 @@ showGridColour1 colWidths cellColours cellLengthCols tab = let
    in unlines $ map (++ doColour 0) $ concat $ map2 concat $ map transpose $ zipWith (zipWith (zipWith (\cc cl -> doColour cc ++ cl))) (map2 repeat rows3) rows4
 --   in unlines $ intercalate [line1] $ map2 (intercalate "|") $ map transpose rows2
 
-showGridColour2 :: (Num a, Eq a) => [Int] -> [[a]] -> p -> [[[(a, a, Char)]]] -> [[[[(a, a, Char)]]]]
+showGridColour2 :: [Int] -> [[Int]] -> p -> [[[(Colour, Char)]]] -> [[[[(Colour, Char)]]]]
 showGridColour2 colWidths cellColours cellLengthCols tab = let
    rows = transpose $ zipWith3 (\cw cc c -> zipWith (\cellc celltext -> (cw, cellc, groupN cw celltext)) cc c) colWidths cellColours tab
    rows2 = map (\row -> let
             rh = maximum $ map (\(cw, cc, cell) -> length cell) row
             in map (\(cw, cc, cell) -> let
-               li = replicate cw (7, 0, '-')
-               in (cw, cc, rh, if decolourStr (head cell) == "£" then replicate rh li else map (padRWith1 (7, 0, ' ') cw) $ padRWith1 [] rh cell)) row) rows
+               li = replicate cw (normal, '-')
+               in (cw, cc, rh, if decolourStr (head cell) == "£" then replicate rh li else map (padRWith1 (normal, ' ') cw) $ padRWith1 [] rh cell)) row) rows
    rows3 = smudge2 combineColours $ map2 (\(_, cc, _, _) -> cc) rows2
    rows4 = concatMap (\row -> let
-                              a = concatMap (\(cw, cc, rh, cell) -> [[[(7, 0, '+')]]           , [replicate cw (7, 0, '-')]]) row ++ [head a]
-                              b = concatMap (\(cw, cc, rh, cell) -> [replicate rh [(7, 0, '|')], cell                      ]) row ++ [head b]
+                              a = concatMap (\(cw, cc, rh, cell) -> [[[(normal, '+')]]           , [replicate cw (normal, '-')]]) row ++ [head a]
+                              b = concatMap (\(cw, cc, rh, cell) -> [replicate rh [(normal, '|')], cell                        ]) row ++ [head b]
                               in [a, b]) rows2 ++ [head rows4]
 
-   in map transpose $ zipWith3D (\cc cl -> bgrecolourStr cc cl) (map2 repeat rows3) rows4
+   in zipWith3D (\cc cl -> recolourStr (normal { bg = cc }) cl) (map2 repeat rows3) rows4
 
 zipWith3D f = zipWith (zipWith (zipWith f))
 
@@ -1766,6 +1767,10 @@ fillLine f x0 x1 l = let
 
 fillRect f x0 x1 y0 y1 ls = fillLine (fillLine f y0 y1) x0 x1 ls
 
+slice x0 x1 l = take (x1-x0) $ drop x0 l
+
+sliceRect x0 x1 y0 y1 l = map (slice y0 y1) $ slice x0 x1 l
+
 putGridW w = putStr . showGridW w
 
 putGrid grid = putStr $ showGrid grid
@@ -1775,6 +1780,12 @@ getWidth1 = do
    return $ case mwindow of
       Just window -> Term.width window
       Nothing     -> width1
+
+getXY = do
+   mwindow <- Term.size
+   return $ case mwindow of
+      Just window -> (Term.width window, Term.height window)
+      Nothing     -> (80, 25)
 
 takeWhileUnique :: (Ord a) => [a] -> [a]
 takeWhileUnique = takeWhileUnique1 S.empty
@@ -1811,30 +1822,60 @@ pages1 xs n = do
       '+' -> n + 1
       '-' -> n - 1
 
-editGrid width tab = let
+data GridMode = Edit | Select | View
+
+editGrid tab = let
    cellLengthCols = map2 length tab
    colWidths = colWidthsIntegral width cellLengthCols
-
-   in editGrid1 width colWidths tab cellLengthCols 0 0 0 0 0 0
-
-editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY = let
-   cellColours = fillRect (const 1) cellX (cellX+1) cellY (cellY+1) $ replicate (length tab) $ replicate (length $ head tab) 0
-   grid1 = showGridColour2 colWidths cellColours 0 tab
-   grid2 = unlines $ map ((++ doColour 0) . showColour) $ concat $ map2 concat grid1
+   rowHeights1 = rowHeights colWidths cellLengthCols
 
    in do
-      putStr grid2
+      (width, height) <- getXY
+      editGrid1 width height colWidths rowHeights1 tab cellLengthCols 0 0 0 0 0 0 Select
+
+editGridAux colWidths scrX scrCharX scrCharX1 cursX cursX1 = let
+   stepsX = scanl (+) 1 $ map (+1) colWidths
+   scrCharX2 = scrCharX  + 1 + stepsX !! scrX
+   scrCharX3 = scrCharX1 + 1 + stepsX !! scrX
+   scrCharX4 = scrCharX  + 1 + stepsX !! cursX1 - div width 2
+   (scrCharX5, cursX2) = if abs (scrCharX2 - scrCharX3) < abs (scrCharX2 - scrCharX4) then (scrCharX3, cursX) else (scrCharX4, cursX1)
+   scrX2 = max 0 $ length $ takeWhile (<= scrCharX5) $ tail stepsX
+   scrCharX6 = scrCharX5 - 1 - stepsX !! scrX2
+
+   in (scrX2, scrCharX6, cursX2)
+
+editGrid1 width height colWidths rowHeights tab cellLengthCols scrX scrY scrCharX scrCharY cursX cursY gridMode = let
+   --sizeX = max 1 $ length $ takeWhile (< width) $ tail $ scanl (+) 1 $ map (+1) colWidths
+   --sizeY 
+   cellColours = fillRect (map2 (const 1)) cursX (cursX+1) cursY (cursY+1) $ replicate (length tab) $ replicate (length $ head tab) 0
+   grid1 = showGridColour2 colWidths cellColours cellLengthCols tab
+   grid2 = map (drop scrX) $ drop scrY grid1
+
+   --grid2 = sliceRect scrX (scrX+sizeX) scrY (scrY+sizeY) grid1
+   grid3 = map showColour $ concat $ map2 concat $ map transpose grid2
+   grid4 = map (take width) $ take height grid3
+
+   height1 = length grid4
+   in do
+      putStrLn $ unlines (map (++"\27[0m") grid4) ++ "\27[" ++ show height1 ++ "A"
       ch <- getChar
       case ch of
          '\27' -> do
             getChar
             ch2 <- getChar
-            case ch2 of
-               'A' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
-               'B' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
-               'C' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
-               'D' -> editGrid1 width colWidths tab cellLengthCols scrX scrY scrCharX scrCharY cellX cellY
-
+            let (cursX1, cursY1) = case ch2 of
+                     'A' -> (cursX, cursY-1)
+                     'B' -> (cursX, cursY+1)
+                     'C' -> (cursX+1, cursY)
+                     'D' -> (cursX-1, cursY)
+            let (scrCharX1, scrCharY1) = case ch2 of
+                     'A' -> (scrCharX, scrCharY-div height 2)
+                     'B' -> (scrCharX, scrCharY+div height 2)
+                     'C' -> (scrCharX+div width 2, scrCharY)
+                     'D' -> (scrCharX-div width 2, scrCharY)
+            let (scrX2, scrCharX2, cursX2) = editGridAux colWidths  scrX scrCharX scrCharX1 cursX cursX1
+            let (scrY2, scrCharY2, cursY2) = editGridAux rowHeights scrY scrCharY scrCharY1 cursY cursY1
+            editGrid1 width height colWidths rowHeights tab cellLengthCols scrX2 scrY2 scrCharX2 scrCharY2 cursX2 cursY2 gridMode
 
 iterateM mf x = do
    mf_x <- mf x

@@ -27,6 +27,7 @@ import qualified Tree
 import BString
 import HTML
 import FuzzyMatch
+import Colour
 import Text.Parsec 
 import qualified NumberParsers as NP
 
@@ -93,14 +94,43 @@ addCommas x = let
 
 j68 [c1, c2, c3, c4, c5, (t6, g6), (t7, g7), (t8, g8), c9] = [c1, c2, c3, c4, c5, (t6+g6+t7+g7+t8, g8), c9]
 --ls :: IO (Table (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) Int (String :- Int :- String :- String :- Int :- String :- String :- ()))
-ls = do
-   text <- readProcess "ls" ["-al"] ""
-   let lines1 = lines text
+
+lsD = do
+   text <- readProcess "ls" ["-al", "--color=always"] ""
+   let colourText = readColour text
+   let lines1 = linesColour colourText
    let lines2 = tail lines1
-   let cspec1 = j68 $ cspec lines2
+   mapM_ (print . decolourStr) lines2
+   let cspec0 = cspecC lines2
+   print cspec0
+   let cspec1 = j68 $ cspecC lines2
    --return $ fromGridH1 (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) $ 
-   let x = transposez "" $ map (map trim . slice cspec1) lines2
-   putGrid x
+   let x = transposez [] $ map (map trimC . slice cspec1) lines2
+   editGrid x
+
+ls = do
+   text <- readProcess "ls" ["-al", "--color=always"] ""
+   let colourText = readColour text
+   let lines1 = linesColour colourText
+   let lines2 = tail lines1
+   let cspec1 = j68 $ cspecC lines2
+   --return $ fromGridH1 (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) $ 
+   let x = transposez [] $ map (map trimC . slice cspec1) lines2
+   editGrid x
+
+isSpaceC (c,  x) = isSpace1 x
+
+trimC = trimtrailingC . L.dropWhile isSpaceC
+
+trimtrailingC [] = []
+trimtrailingC (x : xs) = let xst = trimtrailingC xs in if isSpaceC x && null xst then [] else x : xst
+
+linesColour s = cons (case break (\(_, c) -> c == '\n') s of
+                              (l, s') -> (l, case s' of
+                                                []      -> []
+                                                _:s''   -> linesColour s''))
+   where
+      cons ~(h, t) = h : t
 
 cols lines1 = let
    cspec1 = cspec lines1
@@ -117,6 +147,17 @@ cspec lines1 = let
    linest    = transposez ' ' lines1
    le        = length lines1
    allspaces = map (all (== ' ')) linest
+   f []        = Nothing
+   f allspaces = let
+      (text, rest1) = L.span not allspaces
+      (gap , rest2) = L.span id rest1
+      in Just ((length text, length gap), rest2)
+   in unfoldr f allspaces
+
+cspecC lines1 = let
+   linest    = transposez (normal, ' ') lines1
+   le        = length lines1
+   allspaces = map (all (\(_, c) -> c == ' ')) linest
    f []        = Nothing
    f allspaces = let
       (text, rest1) = L.span not allspaces
