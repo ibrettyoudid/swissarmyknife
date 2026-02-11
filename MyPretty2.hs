@@ -4,6 +4,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Replace case with maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE CPP #-}
 {- HLINT ignore "Move filter" -}
 {- HLINT ignore "Avoid lambda using `infix`" -}
 {- HLINT ignore "Use section" -}
@@ -46,6 +47,7 @@ module MyPretty2 (
    wrapText,
    justify,
    justify1,
+   test,
    GridH(..),
    GridV(..),
    Term (Int1, Integer1, Data, Double1, String1, Date, DateTime, Bool1, List, NDiffTime, ByteStr),
@@ -55,6 +57,7 @@ where
 import Favs
 import Numeric
 import Show1
+import ShowTuple
 import {-# SOURCE #-} MHashDynamic3
 import MSolve hiding (list, number)
 import MPoly hiding (replaceIndices, showm)
@@ -314,31 +317,31 @@ colWidthsIntegral width cellLengthCols =
 -- shrink them until no need
 colWidths1 width cellLengthCols = gridDriver width (colWidths1A width cellLengthCols)
 
-colWidths1A :: (Integral a, Integral b) => a -> [[a]] -> ((a, a, [(a, b)], [a], [a]) -> (a, a, [(a, b)], [a], [a]), (a, a, [(a, b)], [a], [a]), (a, a, [(a, b)], [a], [a]) -> [a])
+colWidths1A :: (Integral a) => a -> [[a]] -> ((a, a, [a], [a]) -> (a, a, [a], [a]), (a, a, [a], [a]), (a, a, [a], [a]) -> [a])
 colWidths1A width cellLengthCols =
    let
       colwsF = map maximum $ checkNoNulls cellLengthCols
-      colwsV = map sum cellLengthCols
+      colwsV = colWidthsIntegral width cellLengthCols
 
    in
       -- mult      = fromIntegral width / fromIntegral (sum colwsV)
       -- colwsV1   = map (ceiling . (mult*) . fromIntegral) colwsV
 
-      (colWidths1B width, (0, sum colwsV, [], colwsF, colwsV), colWidths1C)
+      (colWidths1B width, (0, sum colwsV, colwsF, colwsV), colWidths1C)
 
-colWidths1B width (wf, wv, _, colwsF, colwsV) =
+colWidths1B width (wf, wv, colwsF, colwsV) =
    let
       mult = fromIntegral (width - wf) / fromIntegral wv
       colwsV1 = map (ceiling . (mult *) . fromIntegral) colwsV
       colwsMin = zipWith min (map (,1) colwsF) (map (,2) colwsV1)
-      wf1 = sum [w | (w, x) <- colwsMin, x == 1]
-      wv1 = sum [w | (w, x) <- colwsMin, x == 2]
+      wf1 = sum $ map fst $ filter ((==1) . snd) colwsMin
+      wv1 = sum $ map fst $ filter ((==2) . snd) colwsMin
       -- [(1, wf1), (2, wv1)] = combine (+) 0 $ map tflip colws5
       colwsV2 = map fst colwsMin
 
-   in (wf1, wv1, colwsMin, colwsF, if wv1 == 0 then colwsF else colwsV2)
+   in (wf1, wv1, colwsF, if wv1 == 0 then colwsF else colwsV2)
 
-colWidths1C (wf, wv, _, colwsF, colwsV) = map fst $ zipWith min (map (,1) colwsF) (map (,2) colwsV)
+colWidths1C (wf, wv, colwsF, colwsV) = zipWith min colwsF colwsV
 
 --colWidths2 width cellLengthCols = 
 
@@ -379,7 +382,7 @@ rowHeightsRaise colWidth cellLengthsCol rowHeights = zipWith (\rh cl -> let ch =
 
 rowHeights1 colWidths cellLengthsRow = reverse $ nubSet $ cellHeightsRow colWidths cellLengthsRow
 
-gridHeight cellLengthRows colWidths = sum $ map (rowHeight colWidths) cellLengthRows
+gridHeight colWidths cellLengthRows = sum $ rowHeights colWidths cellLengthRows
 
 maxColumns width colWidths = max 1 $ length $ takeWhile (< width) $ tail $ scanl (+) 0 $ map (+1) colWidths -- $ map (sqrt . fromIntegral) colWidths
 
@@ -726,13 +729,13 @@ colWidths3 width tab =
 -- colWidths4A :: Int -> [[a]] -> [[Int]] -> [Int] -> [Int]
 colWidths3A width cellLengthRows cellMapsRows colWidths =
    let
-      th = gridHeight cellLengthRows colWidths
+      th = gridHeight colWidths cellLengthRows
       tw = sum colWidths
       colWidths2 = snd
             $ minimum
             $ map
                (\(newHeight, newWidth, colWidths) -> let
-                     gh = gridHeight cellLengthRows colWidths
+                     gh = gridHeight colWidths cellLengthRows
 
                      in (gh * newWidth, colWidths))
             $ nubSet
@@ -954,11 +957,12 @@ colWidths4M width tab cellLengthRows cellLengthCols colWidths changeCol stepWidt
 
    in do
       putGrid $ transpose [
+         ["sum rowHeights"    , show $ sum rowHeights ],
+         ["£"                 , "£"                   ],
          ["colWidths"         , show colWidths        ],
          ["cellLengthRows"    , show cellLengthRows   ],
          ["cellHeightRows"    , show cellHeightRows1  ],
          ["rowHeights"        , show rowHeights       ],
-         ["sum rowHeights"    , show $ sum rowHeights ],
          ["colAdvantages1"    , show colAdvantages1   ],
          ["colAdvantages2"    , show colAdvantages2   ],
          ["change"            , show change           ],
@@ -1274,103 +1278,276 @@ colWidths6A width = sort . colWidths6 width
 
 colWidths62 width = putStr . unlines . map ((`replicate` '#') . min 470 . ceiling . (400 /) . fst) . colWidths6 width
 
-data Column = Column { heights :: [Double], xw :: Double, number :: Int }
+data Column = Column { heights :: [Double], width2 :: Double, number :: Int }
             | Merged { heights :: [Double], wasted :: Double, colX :: Column, colY :: Column }
+            deriving (Show)
+
+instance Ord Column where
+   compare a@(Merged {}) b@(Merged {}) = compare (wasted a) (wasted b)
+   compare (Column {}) (Merged {}) = GT
+   compare (Merged {}) (Column {}) = LT
+   compare (Column {}) (Column {}) = EQ
 
 foldl2 f xs = let
    xs1 = take 4 xs
    (x:xs2) = xs1
-   xs3 = zipWith (\y i -> (f x y, deleteIndex i xs2)) xs2 [0..]
-   x4 = snd $ minOn (wasted . fst) xs3
-   in fst x4 : foldl2 f (snd x4 ++ drop 4 xs)
+   xss3 = zipWith (\y i -> (f x y, deleteIndex i xs2)) xs2 [0..]
+   xs4 = snd $ minOn (wasted . fst) xss3
+   in fst xs4 : foldl2 f (snd xs4 ++ drop 4 xs)
+
+foldl2A :: (Column -> Column -> Column) -> [Column] -> [Column]
+foldl2A f xs = let
+   xs1 = concatMap (\i -> map (\j -> xs !! i : xs !! j : deleteIndices [i, j] xs) [i + 1..length xs - 1]) [0..length xs - 2]
+   xs2 = map (\(x : y : rest) -> (f x y : rest, x, y)) xs1
+   (rest1, x, y) = minimum xs2
+
+   in rest1
+
+foldl2AD :: (Column -> Column -> IO Column) -> [Column] -> IO [Column]
+foldl2AD f xs = do
+   let xs1 = concatMap (\i -> map (\j -> xs !! i : xs !! j : deleteIndices [i, j] xs) [i + 1..length xs - 1]) [0..length xs - 2]
+   xs2 <- mapM (\(x : y : rest) -> do
+      putStrLn $ "x="++show x
+      putStrLn $ "y="++show y
+      r <- f x y
+      return (r : rest, x, y)) xs1
+   let (rest1, x, y) = minimum xs2
+   putStrLn "merging" 
+   putStrLn $ "x="++show x
+   putStrLn $ "y="++show y
+   putStrLn $ "result="++show (head rest1)
+   putStrLn $ replicate 80 '='
+   return rest1
+
+
+-- A = list of columns
+-- B = merges of all columns
+-- M = minimum B <------<------<---+
+-- B = B - M                       | 
+-- C = merges of result with A     |
+-- B = B + C                       |
+-- go to -->------>------>------>--+
+foldl2BD :: (Column -> Column -> IO Column) -> [([Column], Column, Column)] -> IO [([Column], Column, Column)]
+foldl2BD f merges = do
+   let (m : rest, prevm, y) = minimum merges
+   putStrLn "minimum selected, made from" 
+   putStrLn $ "prev m="++show prevm
+   putStrLn $ "y="++show y
+   putStrLn $ "to make new m="++show m
+   putStrLn $ replicate 80 '='
+   mapM (\i -> do
+      let y = rest !! i
+      putStrLn $ "m="++show m
+      putStrLn $ "y="++show y
+      r <- f m y
+      return (r : deleteIndex i rest, m, y)) [0..length rest - 1]
 
 foldl3 f [] = error "must be at least 1 in foldl3"
-foldl3 f xs =
-   case foldl2 f xs of
+foldl3 f xs = let
+   r = foldl2A f xs
+   in case r of
       [] -> error "[] in foldl3"
       [x] -> x
       xsnew@(a:b) -> foldl3 f xsnew
 
+foldl3D f [] = error "must be at least 1 in foldl3"
+foldl3D f xs = do
+   r <- foldl2AD f xs
+   case r of
+      [] -> error "[] in foldl3"
+      [x] -> return x
+      xsnew@(a:b) -> foldl3D f xsnew
 
-colWidths7 width tab =
-   (id, , map ceiling) $
-   map xw $
-   sortOn number $
-   colWidths7D $
-   foldl3 colWidths7B $
-   zipWith (colWidths7A $ fromIntegral width) [0..] tab
+foldl3BD f [] = error "must be at least 1 in foldl3"
+foldl3BD f xs = do
+   r <- foldl2BD f xs
+   case r of
+      [] -> error "[] in foldl3"
+      [x] -> return x
+      xsnew@(a:b) -> foldl3BD f xsnew
+
+foldl4D f [] = error "must be at least 1 in foldl3"
+foldl4D f xs = do
+   xs1 <- mapM (\i -> mapM (\j -> do
+      let x = xs !! i
+      let y = xs !! j
+      putStrLn $ "x="++show x
+      putStrLn $ "y="++show y
+      r <- f x y
+      return (r : deleteIndices [i, j] xs, x, y)) [i + 1..length xs - 1]) [0..length xs - 2]
+   let xs2 = concat xs1
+   foldl3BD f xs2
+
+
+
+colWidths7 width cellLengthCols = map width2 $ sortOn number $ colWidths7E $ foldl3 colWidths7B $ zipWith (colWidths7A $ fromIntegral width) [0..] cellLengthCols
+
+colWidths7D width cellLengthCols = do
+   r <- foldl3D colWidths7BD $
+      zipWith (colWidths7A $ fromIntegral width) [0..] cellLengthCols
+   return $ map width2 $ sortOn number $ colWidths7E r
 
 colWidths7A width number1 lengths = let
-   h = map ((width /) . fromIntegral) lengths
+   h = map fromIntegral lengths
 
    in Column {
       heights  = h,
-      xw       = width,
+      width2   = width,
       number   = number1 }
 
 colWidths7B colX1 colY1 = let
-   rowRatios = sort $ zipWith (\x y -> [x / y, x, y]) (heights colX1) (heights colY1)
-   [rs, xs, ys] = transpose rowRatios
+   ratiosT = sort $ zipWith (\x y -> [x / y, x, y]) (heights colX1) (heights colY1)
+   [ratios, xs, ys] = transpose ratiosT
    as = scanr (+) 0 xs
-   bs = scanl (+) 0 ys
-   (divs, totals) = unzip $ zipWith4 (\a b x y -> let
-{-
-div is BETWEEN x / (x + y) and y / (x + y)
+   bs = scanl (+) 0 ys 
+   width = 1
+   -- no, a + b is not constant. a is the total area of cells where one side is higher and b where the other side is higher
+   -- at the point where a row held up by one side becomes held up by the other side, the cells are equal heights
+   --(heights1, xws, yws, ratioMins, ratioMaxes, ratios1) 
+   hxyr3n = concat $ zipWith5 (\a b ratioMin ratioMax n -> let
+      c = a / (b - a)
+      xs = [width * (sqrt (c^2 + c) - c), width * (-sqrt (c^2 + c) - c)]
+      ys = map (width -) xs
+      hs = zipWith (\x y -> a / x + b / y) xs ys
+      in zipWith3 (\h x y -> if x >= 0 && y >= 0 && h >= 0
+         then let
+#if 0
+            height = a / x + b / y
 
-minimum of a / div + b / (1 - div)
-m = 1 / div
-div = 1 / m = 1 / (n+1)
+            in (height, x, y, a, b, ratioMin, ratioMax, x / y, x, y, h, x / y, n)
+#else
+            ratio = clamp ratioMin ratioMax (x / y)
 
-a * m + b * (1 / (1 - 1/m))
-a * m + b * (m / (m - 1))
+            x2 = ratio * width / (ratio + 1)
+            y2 = width - x2
+               
+            height = a / x2 + b / y2
 
-n = m - 1 = (1 / div) - 1
-m = n + 1
+            in (height, x2, y2, a, b, ratioMin, ratioMax, x / y, x, y, h, ratio, n)
+#endif
+         else (1/0, x, y, a, b, ratioMin, ratioMax, x / y, x, y, 1/0, sqrt (-1), n)) hs xs ys) as bs (0:ratios) (ratios++[1/0]) [(0::Int)..]
 
-a * (n + 1) + b * (n + 1)/n
-an + a + b + b/n = 0
-
-multiply by n
-an^2 + an + bn + b = 0
-n^2 + (1+b/a)n + b/a = 0
-c = b/a
-n^2 + (1+c)n + c = 0
-(n + (1+c)/2)^2 = c^2/4 - c
-d = c/2 = b/2a
-n + d + 0.5 = sqrt (d^2 - 2d)
-n = sqrt (d^2 - 2d) - d - 1/2
--}
-      d = b / (2*a)
-      n = sqrt (d^2 - 2*d) - d - 0.5
-      div1 = 1 / (n+1)
-      divmin = min (x / (x+y)) (y / (x + y))
-      divmax = max (x / (x+y)) (y / (x + y))
-      div = max divmin (min div divmax)
-      total = a / div + b / (1 - div)
-
-      in (div, total)) as bs xs ys
-
-   sorted = sort $ zip totals [0..]
-   index = snd $ head sorted
-   divx = divs !! index
-   divy = 1 - divx
-   xw = recip divx
-   yw = recip divy
-   xh = map (xw *) xs
-   yh = map (yw *) ys
-   maxh = zipWith max xh yh
-   waste w h maxh = w * (maxh - h)
-
+   --xyhr4 = map (\(x, y, h, r0, r1, r) -> (x, y, h, r0, r1, clamp r0 r1 r)) xyhr3
+   minentry = minimum hxyr3n
+   (height, xw, yw, _, _, _, _, _, _, _, _, _, _) = minentry
+   rowHeights = zipWith (\x y -> max (x / xw) (y / yw)) (heights colX1) (heights colY1)
+   waste xw xh rowh = xw * (rowh - xh)
+   wasted1 = sum $ zipWith3 (\xh yh rowh -> waste xw xh rowh + waste yw yh rowh) (heights colX1) (heights colY1) rowHeights
    in Merged {
-      heights = maxh,
-      wasted  = sum $ zipWith3 (\xh yh maxh -> max (waste xw xh maxh) (waste yw yh maxh)) xh yh maxh,
-      colX    = colWidths7C xw colX1,
-      colY    = colWidths7C yw colY1 }
+         heights = rowHeights,
+         wasted  = wasted1,
+         colX    = colWidths7C xw colX1,
+         colY    = colWidths7C yw colY1 }
+
+colWidths7BD colX1 colY1 = let
+   ratiosT = sort $ zipWith (\x y -> [x / y, x, y]) (heights colX1) (heights colY1)
+   [ratios, xs, ys] = transpose ratiosT
+   as = scanr (+) 0 xs
+   bs = scanl (+) 0 ys 
+   width = 1
+   -- no, a + b is not constant. a is the total area of cells where one side is higher and b where the other side is higher
+   -- at the point where a row held up by one side becomes held up by the other side, the cells are equal heights
+   --(heights1, xws, yws, ratioMins, ratioMaxes, ratios1) 
+   hxyr3n = concat $ zipWith5 (\a b ratioMin ratioMax n -> let
+{-
+a is the total area of cells holding up the row in column A = those cells where cella / x > cellb / y or cella/cellb > x/y
+b is the total area of cells holding up the row in column B = those cells where cella / x < cellb / y or cella/cellb < x/y
+
+we must check that the ratio of x & y 
+
+x is the width of column A
+y is the width of column B
+
+width is the total width
+height is the total height
+
+minimum of a / x + b / y
+
+x + y = width
+
+height=a/x+b/y=a/x+b/(width-x)
+height=a(width-x) + bx = (b - a)x + a * width
+       ---------------   --------------------
+         x(width - x)        x(width - x)
+
+
+find minimum height
+
+y=width-x
+dy/dx=-1
+d(b/y)/dy=-b/y^2
+d(b/y)/dx=b/y^2=b/(width-x)^2
+
+
+
+dh/dx = b/(width-x)^2 - a / x^2 = 0
+expand
+dh/dx = b/(width^2-2*width*x+x^2) - a / x^2 = 0
+multiply by x^2
+bx^2/(width^2-2*width*x+x^2) - a = 0
+multiply by (width^2-2*width*x+x^2)
+bx^2 - a(width^2-2*width*x+x^2) = 0
+collect terms
+(b - a)x^2 + 2*a*width*x - a*width^2 = 0
+divide by (b - a)
+x^2 + 2*x*width*(a/(b-a)) - width^2*(a/(b-a)) = 0
+set c = a/(b-a)
+x^2 + 2*x*width*c - width^2*c = 0
+complete square
+(x + width*c)^2 - width^2*c^2 - width^2*c = 0
+(x + width*c)^2 - width^2*(c^2 + c) = 0
+(x + width*c)^2 = width^2*(c^2 + c)
+x + width*c = +/-width * sqrt(c^2 + c)
+x = width * (+/- sqrt(c^2 + c) - c)
+
+x/y = x/(width - x) = ratio
+x = ratio * (width - x)
+x = ratio * width - ratio * x
+(ratio + 1) * x = ratio * width
+x = ratio * width / (ratio + 1)
+
+-}
+      c = a / (b - a)
+      xs = [width * (sqrt (c^2 + c) - c), width * (-sqrt (c^2 + c) - c)]
+      ys = map (width -) xs
+      hs = zipWith (\x y -> a / x + b / y) xs ys
+      in zipWith3 (\h x y -> if x >= 0 && y >= 0 && h >= 0
+         then let
+#if 0
+            height = a / x + b / y
+
+            in (height, x, y, a, b, ratioMin, ratioMax, x / y, x, y, h, x / y, n)
+#else
+            ratio = clamp ratioMin ratioMax (x / y)
+
+            x2 = ratio * width / (ratio + 1)
+            y2 = width - x2
+               
+            height = a / x2 + b / y2
+
+            in (height, x2, y2, a, b, ratioMin, ratioMax, x / y, x, y, h, ratio, n)
+#endif
+         else (1/0, x, y, a, b, ratioMin, ratioMax, x / y, x, y, 1/0, sqrt (-1), n)) hs xs ys) as bs (0:ratios) (ratios++[1/0]) [(0::Int)..]
+
+   --xyhr4 = map (\(x, y, h, r0, r1, r) -> (x, y, h, r0, r1, clamp r0 r1 r)) xyhr3
+   minentry = minimum hxyr3n
+   (height, xw, yw, _, _, _, _, _, _, _, _, _, _) = minentry
+   rowHeights = zipWith (\x y -> max (x / xw) (y / yw)) (heights colX1) (heights colY1)
+   waste xw xh rowh = xw * (rowh - xh)
+   wasted1 = sum $ zipWith3 (\xh yh rowh -> waste xw xh rowh + waste yw yh rowh) (heights colX1) (heights colY1) rowHeights
+   in do
+      putGrid $ transpose $ ["height", "x2", "y2", "a", "b", "ratioMin", "ratioMax", "ratio", "x", "y", "h", "clamped", "n"] : map showT hxyr3n
+      print (xw, yw, height, wasted1)
+      return Merged {
+         heights = rowHeights,
+         wasted  = wasted1,
+         colX    = colWidths7C xw colX1,
+         colY    = colWidths7C yw colY1 }
 
 colWidths7C mult col@(Column {}) =
    col {
       --lengths = map (mult *) lengths1,
-      xw      = mult * xw col }
+      width2  = mult * width2 col }
 
 colWidths7C mult col@(Merged {}) =
    col {
@@ -1379,24 +1556,28 @@ colWidths7C mult col@(Merged {}) =
       colX    = colWidths7C mult $ colX col,
       colY    = colWidths7C mult $ colY col }
 
-colWidths7D col@(Column {}) = [col]
-colWidths7D col@(Merged {}) = colWidths7D (colX col) ++ colWidths7D (colY col)
+colWidths7E col@(Column {}) = [col]
+colWidths7E col@(Merged {}) = colWidths7E (colX col) ++ colWidths7E (colY col)
 
 instance Eq Column where
    a@(Column {}) == b@(Column {}) = number a == number b
    a@(Merged {}) == b@(Merged {}) = (colX a, colY a) == (colX b, colY b)
    _ == _ = False
 
-colWidths7Z celllcols =
+colWidths7Z cellLengthCols =
    let
-      celllrows = transpose celllcols
-      rowratios = sort $ map (\[x, y] -> [x / y, x, y]) celllrows
+      cellLengthRows = transpose cellLengthCols
+      rowratios = sort $ map (\[x, y] -> [x / y, x, y]) cellLengthRows
       [r, x, y] = transpose rowratios
       a = scanr (+) 0 x
-      b = scanl (+) 0 y
+      b = scanl (+) 0 y 
+      c = zipWith (+) a b 
+      -- no, a + b is not constant. a is the total area of cells where one side is higher and b where the other side is higher
       -- rowratios = M.fromList $ zip (map (\[x, y] -> x // y) celllrows) $ zip xacc yacc
-      -- x = column X lengths
-      -- y = column Y lengths
+      -- x = column A lengths
+      -- y = column B lengths
+      -- a = sum of lengths of cells in column A that are holding up the row
+      -- b = sum of lengths of cells in column B that are holding up the row
       -- xw = column X width   = x/(x+y)
       -- 1-xw = column Y width = y/(x+y)
       -- r = x/y
@@ -1410,9 +1591,9 @@ colWidths7Z celllcols =
       yw    = map    (1-) xw          -- y / x+y
       boyw  = zipWith (/) b    yw     -- b / yw
       total = zipWith (+) aoxw boyw   -- a / xw + b / yw
-      check = map (gridHeight celllrows) $ zipWith (\xw yw -> [xw, yw]) xw yw
+      check = map (\colWidths -> gridHeight colWidths cellLengthRows) $ zipWith (\xw yw -> [xw, yw]) xw yw
 
-   in putGrid $ z [r, x, y, xw, yw, a, b, aoxw, boyw, total, check]
+   in putGrid $ z [r, x, y, xw, yw, a, b, c, aoxw, boyw, total, check]
 
 z cols = zipWith (:) ["r=x/y", "x", "y", "xw = x/(x+y)", "yw = y/(x+y)", "a", "b", "a/xw", "b/yw", "total", "check"] $ map2 show cols
 
@@ -1571,12 +1752,32 @@ showCol col =
 
    in c
 
+colWidths12 width1 tab = let
+   cellLengthCols = map2 length tab
+   width2 = width1 - length tab
+   colWidths2 = colWidths1 width2 cellLengthCols
+   
+   in if sum colWidths2 < width2
+         then colWidths2
+         else forceLessD (fromIntegral width2) $ colWidths7 width2 cellLengthCols
+
+colWidths12D width1 tab = let
+   cellLengthCols = map2 length tab
+   width2 = width1 - length tab
+   colWidths2 = colWidths1 width2 cellLengthCols
+   
+   in if sum colWidths2 < width2
+         then return colWidths2
+         else do
+            cw7 <- colWidths7D width2 cellLengthCols
+            return $ forceLessD (fromIntegral width2) cw7
+
 -- showGridF f width tab = showGrid1 (f (width - length tab) tab) tab
-showGrid = showGridF colWidthsIntegral showGrid1 width
+showGrid = showGridF colWidths1 showGrid1 width
 
-showGridWrap = showGridF colWidthsIntegral showGridWrap1 width
+showGridWrap = showGridF colWidths1 showGridWrap1 width
 
-showGridW = showGridF colWidthsIntegral showGrid1
+showGridW = showGridF colWidths1 showGrid1
 
 showGridF f g width1 tab =
    let
@@ -1585,7 +1786,7 @@ showGridF f g width1 tab =
       width2 = width1 - length tab
       colWidths =
          if sum colWidths1 < width2
-            then forceLess width2 colWidths1
+            then colWidths1
             else forceLess width2 $ f width cellLengthCols
 
    in g colWidths cellLengthCols $ padRWith "" tab
@@ -1716,6 +1917,7 @@ doColour cc = "\27["++show (40+cc)++"m"
 
 combineColours a b = if a == 0 then b else a
 
+smudge f [] = []
 smudge f xs = head xs : concat (zipWith (\a b -> [a, f a b]) xs (tail xs)) ++ [last xs, last xs]
 
 smudge2 f = smudge (zipWith f) . map (smudge f)
@@ -1742,28 +1944,28 @@ showGridColour1 colWidths cellColours cellLengthCols tab = let
    in unlines $ map (++ doColour 0) $ concat $ map2 concat $ map transpose $ zipWith (zipWith (zipWith (\cc cl -> doColour cc ++ cl))) (map2 repeat rows3) rows4
 --   in unlines $ intercalate [line1] $ map2 (intercalate "|") $ map transpose rows2
 
-showGridColour2 :: [Int] -> [[Int]] -> p -> [[[(Colour, Char)]]] -> [[[[(Colour, Char)]]]]
-showGridColour2 colWidths cellColours cellLengthCols tab = let
+showGridColour2 :: [Int] -> [[Int]] -> [[[(Colour, Char)]]] -> [[[[(Colour, Char)]]]]
+showGridColour2 colWidths cellColours tab = let
    rows = transpose $ zipWith3 (\cw cc c -> zipWith (\cellc celltext -> (cw, cellc, groupN cw celltext)) cc c) colWidths cellColours tab
    rows2 = map (\row -> let
             rh = maximum $ map (\(cw, cc, cell) -> length cell) row
             in map (\(cw, cc, cell) -> let
                li = replicate cw (normal, '-')
-               in (cw, cc, rh, if decolourStr (head cell) == "£" then replicate rh li else map (padRWith1 (normal, ' ') cw) $ padRWith1 [] rh cell)) row) rows
+               in (cw, cc, rh, if not (null cell) && decolourStr (head cell) == "£" then replicate rh li else map (padRWith1 (normal, ' ') cw) $ padRWith1 [] rh cell)) row) rows
    rows3 = smudge2 combineColours $ map2 (\(_, cc, _, _) -> cc) rows2
    rows4 = concatMap (\row -> let
-                              a = concatMap (\(cw, cc, rh, cell) -> [[[(normal, '+')]]           , [replicate cw (normal, '-')]]) row ++ [head a]
-                              b = concatMap (\(cw, cc, rh, cell) -> [replicate rh [(normal, '|')], cell                        ]) row ++ [head b]
+                              a = concatMap (\(cw, cc, rh, cell) -> [            [[(normal, '+')]], [replicate cw (normal, '-')]]) row ++ [head a]
+                              b = concatMap (\(cw, cc, rh, cell) -> [replicate rh [(normal, '|')] , cell                        ]) row ++ [head b]
                               in [a, b]) rows2 ++ [head rows4]
 
-   in zipWith3D (\cc cl -> recolourStr (normal { bg = cc }) cl) (map2 repeat rows3) rows4
+   in zipWith3D (\cc cl -> map (\(col, ch) -> (col { bg = cc }, ch)) cl) (map2 repeat rows3) rows4
 
 zipWith3D f = zipWith (zipWith (zipWith f))
 
 fillLine f x0 x1 l = let
    (l0, r0) = splitAt x0 l
    (ce, r1) = splitAt (x1-x0) r0
-   in l0 ++ f ce ++ r1
+   in l0 ++ map f ce ++ r1
 
 fillRect f x0 x1 y0 y1 ls = fillLine (fillLine f y0 y1) x0 x1 ls
 
@@ -1775,6 +1977,7 @@ putGridW w = putStr . showGridW w
 
 putGrid grid = putStr $ showGrid grid
 
+getWidth1 :: IO Int
 getWidth1 = do
    mwindow <- Term.size
    return $ case mwindow of
@@ -1824,58 +2027,112 @@ pages1 xs n = do
 
 data GridMode = Edit | Select | View
 
-editGrid tab = let
-   cellLengthCols = map2 length tab
-   colWidths = colWidthsIntegral width cellLengthCols
-   rowHeights1 = rowHeights colWidths cellLengthCols
+test = editGrid $ map2 (\n -> replicate n (normal, 'x')) $ transpose [[1,1,1,1],[1,1,1,9],[1,1,9,1],[1,1,9,9],[1,9,1,1],[1,9,1,9],[1,9,9,1],[1,9,9,9],[9,1,1,1],[9,1,1,9],[9,1,9,1],[9,1,9,9],[9,9,1,1],[9,9,1,9],[9,9,9,1],[9,9,9,9]]
 
-   in do
-      (width, height) <- getXY
-      editGrid1 width height colWidths rowHeights1 tab cellLengthCols 0 0 0 0 0 0 Select
+editGrid tab = do
+   (width, height) <- getXY
+   --let (width, height) = (50, 50)
+   let cellLengthCols = map2 length tab
+   let cellLengthRows = transpose cellLengthCols
+   colWidths <- colWidths12D (fromIntegral width) tab
+   let rowHeights1 = rowHeights colWidths cellLengthRows
+
+   editGrid1 width (height-5) colWidths rowHeights1 tab cellLengthRows 0 0 0 0 0 0 Select
+
+clamp min1 max1 x = if max1 < min1 then error "max1 less than min1 in clamp" else max min1 (min max1 x)
 
 editGridAux colWidths scrX scrCharX scrCharX1 cursX cursX1 = let
    stepsX = scanl (+) 1 $ map (+1) colWidths
    scrCharX2 = scrCharX  + 1 + stepsX !! scrX
    scrCharX3 = scrCharX1 + 1 + stepsX !! scrX
-   scrCharX4 = scrCharX  + 1 + stepsX !! cursX1 - div width 2
+   scrCharX4 = scrCharX  + 1 + stepsX !! cursX1 - width `div` 2
    (scrCharX5, cursX2) = if abs (scrCharX2 - scrCharX3) < abs (scrCharX2 - scrCharX4) then (scrCharX3, cursX) else (scrCharX4, cursX1)
    scrX2 = max 0 $ length $ takeWhile (<= scrCharX5) $ tail stepsX
    scrCharX6 = scrCharX5 - 1 - stepsX !! scrX2
 
-   in (scrX2, scrCharX6, cursX2)
+   in do
+      print (scrCharX2, scrCharX3, scrCharX4, scrCharX5, scrCharX6, cursX2)
+      return (scrX2, scrCharX6, cursX2)
 
-editGrid1 width height colWidths rowHeights tab cellLengthCols scrX scrY scrCharX scrCharY cursX cursY gridMode = let
+editGridAux1 width colWidths scrX scrCharX scrCharX1 cursX cursX1 = let
+   stepsX = scanl (+) 0 $ map (+1) colWidths
+   stepsXS = S.fromList stepsX
+   len = length stepsX - 1
+
+   cursX2 = clamp 0 len cursX1
+   scrCharX2 = scrCharX1 + 1 + stepsX !! clamp 0 len (cursX2 + 1) - width
+   scrCharX3 = scrCharX1     + stepsX !! clamp 0 len scrX
+   scrCharX4 = scrCharX1     + stepsX !! clamp 0 len  cursX2
+   scrCharX5 = clamp scrCharX2 scrCharX4 scrCharX3
+   scrX2     = max 0 $ length $ takeWhile (< scrCharX5) $ stepsX ++ [scrCharX5 + 1]
+   scrCharX6 = max 0 $ scrCharX5 - stepsX !! clamp 0 len scrX2
+
+   in do
+      putStrLn $ "charX2="++show scrCharX2++" charX3="++show scrCharX3++" charX4="++show scrCharX4++" charX5="++show scrCharX5++" X2="++show scrX2++" charX6="++show scrCharX6++" cursX2="++show cursX2
+      return (scrX2, scrCharX6, cursX2)
+
+editGrid1 width height colWidths rowHeights1 tab cellLengthRows scrX scrY scrCharX scrCharY cursX cursY gridMode = let
    --sizeX = max 1 $ length $ takeWhile (< width) $ tail $ scanl (+) 1 $ map (+1) colWidths
    --sizeY 
-   cellColours = fillRect (map2 (const 1)) cursX (cursX+1) cursY (cursY+1) $ replicate (length tab) $ replicate (length $ head tab) 0
-   grid1 = showGridColour2 colWidths cellColours cellLengthCols tab
-   grid2 = map (drop scrX) $ drop scrY grid1
+   rowHeights2 = rowHeights colWidths cellLengthRows
+   cellColours = fillRect (const 1) cursX (cursX+1) cursY (cursY+1) $ replicate (length tab) $ replicate (length $ head tab) 0
+   grid1 = showGridColour2 colWidths cellColours tab
+   grid2 = map (drop (scrX * 2)) $ drop (scrY * 2) grid1
 
    --grid2 = sliceRect scrX (scrX+sizeX) scrY (scrY+sizeY) grid1
-   grid3 = map showColour $ concat $ map2 concat $ map transpose grid2
-   grid4 = map (take width) $ take height grid3
+   grid3 = concat $ map2 concat $ map transpose grid2
+   height1 = length grid3
+   grid4 = map showColour $ map (take width) $ map (drop scrCharX) $ take height $ drop scrCharY grid3
 
-   height1 = length grid4
+   height2 = length grid4 
+   grid5 = map (++"\27[0m") grid4
+   
+   stepsY = scanl (+) 1 $ map (+1) rowHeights2
    in do
-      putStrLn $ unlines (map (++"\27[0m") grid4) ++ "\27[" ++ show height1 ++ "A"
-      ch <- getChar
-      case ch of
+      putStr "\27?25l"
+      putStrLn $ show rowHeights2 ++ " " ++ show colWidths ++ " " ++ show (sum rowHeights2) ++ "x" ++ show (sum colWidths) ++ "=" ++ show (sum rowHeights2 * sum colWidths) ++ "                          "
+      putStrLn $ unlines grid5 ++ "\27[" ++ show (height2+4) ++ "A\27?25h"
+      --putGrid $ map2 show cellColours
+      ch1 <- getChar
+      chars <- case ch1 of
          '\27' -> do
-            getChar
             ch2 <- getChar
-            let (cursX1, cursY1) = case ch2 of
-                     'A' -> (cursX, cursY-1)
-                     'B' -> (cursX, cursY+1)
-                     'C' -> (cursX+1, cursY)
-                     'D' -> (cursX-1, cursY)
-            let (scrCharX1, scrCharY1) = case ch2 of
-                     'A' -> (scrCharX, scrCharY-div height 2)
-                     'B' -> (scrCharX, scrCharY+div height 2)
-                     'C' -> (scrCharX+div width 2, scrCharY)
-                     'D' -> (scrCharX-div width 2, scrCharY)
-            let (scrX2, scrCharX2, cursX2) = editGridAux colWidths  scrX scrCharX scrCharX1 cursX cursX1
-            let (scrY2, scrCharY2, cursY2) = editGridAux rowHeights scrY scrCharY scrCharY1 cursY cursY1
-            editGrid1 width height colWidths rowHeights tab cellLengthCols scrX2 scrY2 scrCharX2 scrCharY2 cursX2 cursY2 gridMode
+            ch3 <- getChar
+            case ch3 of
+               '5' -> do
+                  ch4 <- getChar
+                  return [ch1, ch2, ch3, ch4]
+               '6' -> do
+                  ch4 <- getChar
+                  return [ch1, ch2, ch3, ch4]
+               _ -> return [ch1, ch2, ch3]
+         _ -> return [ch1]
+
+      let (scrCharX1, scrCharY1) = case chars of
+               "\27[A" -> (scrCharX, scrCharY-height `div` 2)
+               "\27[B" -> (scrCharX, scrCharY+height `div` 2)
+               "\27[C" -> (scrCharX+width `div` 2, scrCharY)
+               "\27[D" -> (scrCharX-width `div` 2, scrCharY)
+               "\27[5~" -> (scrCharX, clamp 0 (height1-height2+1) (scrCharY - height))
+               "\27[6~" -> (scrCharX, clamp 0 (height1-height2+1) (scrCharY + height))
+               _ -> (scrCharX, scrCharY)
+      let (cursX1, cursY1) = case chars of
+               "\27[A" -> (cursX, cursY-1)
+               "\27[B" -> (cursX, cursY+1)
+               "\27[C" -> (cursX+1, cursY)
+               "\27[D" -> (cursX-1, cursY)
+               "\27[5~" -> let chY5 = stepsY !! cursY - height2
+                           in  (cursX, clamp 0 (height1 - height2 + 1) $ length $ takeWhile (< chY5) $ stepsY ++ [chY5 + 1])
+               "\27[6~" -> let chY5 = stepsY !! cursY + height2
+                           in  (cursX, clamp 0 (height1 - height2 + 1) $ length $ takeWhile (< chY5) $ stepsY ++ [chY5 + 1])
+               _ -> (cursX, cursY)
+      let colWidths1 = case chars of
+               "+" -> replaceIndex cursX (colWidths !! cursX + 1) colWidths
+               "-" -> replaceIndex cursX (colWidths !! cursX - 1) colWidths
+               _ -> colWidths
+      (scrX2, scrCharX2, cursX2) <- editGridAux1 width  colWidths1  scrX scrCharX scrCharX1 cursX cursX1
+      (scrY2, scrCharY2, cursY2) <- editGridAux1 height rowHeights2 scrY scrCharY scrCharY1 cursY cursY1
+      editGrid1 width height colWidths1 rowHeights2 tab cellLengthRows scrX2 scrY2 scrCharX2 scrCharY2 cursX2 cursY2 gridMode
 
 iterateM mf x = do
    mf_x <- mf x
@@ -1917,6 +2174,9 @@ forceLess width colWidths = let
 
    in if sum colWidths > width then roundList (fromIntegral width) colWidthsD else colWidths
 
+forceLessD width colWidths = let
+   colWidthsI = map ceiling colWidths
+   in if sum colWidthsI > round width then roundList width colWidths else colWidthsI
 
 tryGridF f width tab = gridTester $ f (width - length tab) tab
 {-
@@ -1927,9 +2187,9 @@ putGridT tab = do
    mapM_ (pp width) colws1
    pp width colWidths
 -}
-randGrid y x seed = runStateGen_ (mkStdGen seed) (replicateM y . replicateM x . uniformRM (1, 100))
+randGrid x y seed = runStateGen_ (mkStdGen seed) (replicateM y . replicateM x . uniformRM (1, 100))
 
-randGridS y x seed = map2 (`replicate` 'x') $ randGrid y x seed
+randGridS x y seed = map2 (`replicate` 'x') $ randGrid y x seed
 
 readGrid str = map (map trim . transpose . map snd)
    $ filter (fst . head)
@@ -1958,6 +2218,8 @@ With three columns you want equal amounts of text in all the limiting cells of e
 If you put the columns together in order of total text, would that be ideal?
 
 The question remains: can there be multiple minima?
+
+The fact that you have to change multiple columns to get to the minima is necessary but not sufficient for there to be multiple minima
 
 I think I found an analogy:
 Gas makes no sense, text is more like incompressible liquid
@@ -2069,7 +2331,38 @@ with 3 columns
 
 as you increase the width of A
 
+OR
 
+for each row, choose the highest cell
+that sets the conditions that
+
+      length of highest cell   length of other cell
+      ---------------------- > --------------------
+      width of highest cell    width of other cell
+
+      lengthHigh * widthOther > lengthOther * widthHigh
+
+      widthHigh    lengthHigh
+      ---------- > ----------
+      widthOther   lengthOther
+
+                  lengthHigh
+      widthHigh > ---------- * widthOther
+                  lengthOther
+
+and try to get it so all the conditions agree with each other
+
+OR
+
+for each partition of columns into two groups,
+you can adjust the widths of the columns in each group, 
+proportionately with the others in the same group
+
+equilibrium is when you can't reduce the height whichever partition you choose
+
+
+
+--------------------------------------------------------
 if you do a cumulative histogram of height of each column
 then narrowing a column expands its histogram to the right
 the total height is the integral between the rightmost histogram and the y-axis

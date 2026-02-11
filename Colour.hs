@@ -39,10 +39,14 @@ colourStr1 = choice [try $ do
    colour <- getState
    str <- many1 $ noneOf "\27"
    str2 <- colourStr1
-   return $ colourStr colour str ++ str2, do
+   return $ colourStr colour str ++ str2, try $ do
       
    eof
-   return []]
+   return [], do
+      
+   colour <- getState
+   c <- anyChar
+   return [(colour, c)]]
 
 data Colour = Colour { fg :: Int, bg :: Int, bold :: Bool, under :: Bool, blink :: Bool, inver :: Bool, invis :: Bool } deriving (Eq, Ord, Show)
 
@@ -67,22 +71,22 @@ colourStr2 = do
       | i >= 40 && i <= 47 -> setState colour { bg = i-40 }
       | i == 39            -> setState colour { fg = 4 }
       | i == 49            -> setState colour { bg = 0 }
-      | otherwise          -> error $ show i
+      | otherwise          -> return () --error $ show i
 
 showColour s = showColour1 normal { fg = -1 } s
 
-flag n f = if f then n else 0
+flag n f = if f then 0 else n
 
 showColour1 _          [              ] = []
 showColour1 lastColour ((colour, c):xs) =
    (if colour /= lastColour then (("\27[" ++ 
          show (30 + fg colour) ++ ";" ++ 
          show (40 + bg colour) ++ ";" ++
-         show (1  + flag 21 (bold  colour)) ++ ";" ++
-         show (4  + flag 20 (under colour)) ++ ";" ++
-         show (5  + flag 20 (blink colour)) ++ ";" ++
-         show (7  + flag 20 (inver colour)) ++ ";" ++
-         show (8  + flag 20 (invis colour)) ++ "m")++) else id) $
+         show (if bold  colour then 1 else 22) ++ ";" ++
+         show (if under colour then 4 else 24) ++ ";" ++
+         show (if blink colour then 5 else 25) ++ ";" ++
+         show (if inver colour then 7 else 27) ++ ";" ++
+         show (if invis colour then 8 else 28) ++ "m")++) else id) $
             c : showColour1 colour xs
 
 colourStr colour s = map (colour, ) s
@@ -90,4 +94,3 @@ colourStr colour s = map (colour, ) s
 recolourStr colour s = map (\(_, c) -> (colour, c)) s
 
 decolourStr s = map snd s
-

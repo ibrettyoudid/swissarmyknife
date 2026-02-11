@@ -92,6 +92,8 @@ addCommas x = let
    gs = if il == 0 then groupN 3 a else b : groupN 3 a
    in intercalate "," gs
 
+j46 [c1, c2, c3, (t4, g4), (t5, g5), (t6, g6), c7] = [c1, c2, c3, (t4+g4+t5+g5+t6, g6), c7]
+
 j68 [c1, c2, c3, c4, c5, (t6, g6), (t7, g7), (t8, g8), c9] = [c1, c2, c3, c4, c5, (t6+g6+t7+g7+t8, g8), c9]
 --ls :: IO (Table (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) Int (String :- Int :- String :- String :- Int :- String :- String :- ()))
 
@@ -100,7 +102,6 @@ lsD = do
    let colourText = readColour text
    let lines1 = linesColour colourText
    let lines2 = tail lines1
-   mapM_ (print . decolourStr) lines2
    let cspec0 = cspecC lines2
    print cspec0
    let cspec1 = j68 $ cspecC lines2
@@ -108,15 +109,18 @@ lsD = do
    let x = transposez [] $ map (map trimC . slice cspec1) lines2
    editGrid x
 
+--ls :: IO (Table (NFileMode :- Size :- User :- ModTime :- Name :- ()) Int (String :- Int :- String :- String :- String :- ()))
 ls = do
-   text <- readProcess "ls" ["-al", "--color=always"] ""
+   text <- readProcess "/bin/eza" ["-al", "--color=always", "/home/brett/swissarmyknife"] ""
    let colourText = readColour text
+   putStr $ showColour colourText
    let lines1 = linesColour colourText
-   let lines2 = tail lines1
-   let cspec1 = j68 $ cspecC lines2
-   --return $ fromGridH1 (NFileMode :- N :- User :- UGroup :- Size :- ModTime :- Name :- ()) $ 
-   let x = transposez [] $ map (map trimC . slice cspec1) lines2
-   editGrid x
+   let cspec0 = cspecC lines1
+   print cspec0
+   let cspec1 = j46 $ cspecC lines1
+   let x = map (map trimC . slice cspec1) lines1
+   editGrid $ transposez [] x
+   --return $ fromGridH1 (NFileMode :- Size :- User :- ModTime :- Name :- ()) x
 
 isSpaceC (c,  x) = isSpace1 x
 
