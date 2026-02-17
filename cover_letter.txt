@@ -9,7 +9,7 @@ Tell us about your background and experiences (e.g. volunteer work/club particip
 I play guitar and keyboard
 
 How have you learned about the tech space?
-An Oric-1 computer when I was 10, The Register, Haskell blogs, Personal Computer World magazine in the 1990s, C++ websites (there used to be loads)
+An Oric-1 computer when I was 10, an Acorn Electron, a BBC Model B, an Atari ST, an Acorn Archimedes, and several PCs, The Register, Haskell blogs, Personal Computer World magazine in the 1990s, C++ websites (there used to be loads), C++ books (Gang of 4, Andrei Alexandrescu)
 
 Step 2: Click on the “Apply Now” button on this page to provide the following required materials:
 In the “Resume Section” attach a resume, motivational letter, and answers to the short questions.
