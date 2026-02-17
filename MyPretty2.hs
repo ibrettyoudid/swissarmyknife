@@ -5,6 +5,7 @@
 {-# HLINT ignore "Replace case with maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE CPP #-}
+{- HLINT ignore "Eta reduce" -}
 {- HLINT ignore "Use all" -}
 {- HLINT ignore "Move filter" -}
 {- HLINT ignore "Avoid lambda using `infix`" -}
@@ -2791,33 +2792,25 @@ colWidths99B width colWidths cellAreaCols cellAreaRows colFullAreas colFullProps
 
 data Var a = Row Int | Col Int | Val a
 
-getv val@(Val {}) _ = Just val
 getv v vars = case M.lookup v vars of
-   Just j  -> case getv j vars of
-      Nothing -> Just j
-      Just k  -> Just k
-   Nothing -> Nothing
+   Just j  -> getv j vars
+   Nothing -> v
 
-setv v val vars = M.insert v r vars
+setv v val vars = M.insert v val vars
 
-chooseFullCells cellAreaCols = do
-   let cellAreas = rsort $ concat $ zipWith (\x -> zipWith (\y a -> (x, y, a)) [(0::Int)..]) [(0::Int)..] cellAreaCols
+chooseFullCells cellAreaCols = let
+   cellAreas = rsort $ concat $ zipWith (\x -> zipWith (\y a -> (x, y, a)) [(0::Int)..]) [(0::Int)..] cellAreaCols
 
-   groups <- newIORef M.empty
-
-   foldl (\vars (x, y, a) -> let
+   in foldl (\(vars, cellsOut) cell@(x, y, a) -> let
       xv = getv (Col x) vars
       yv = getv (Row y) vars
-      ok = case (xg, yg) of
-         (Just ar, Just br) -> if ar /= br
-            then do
-               a <- readIORef ar
-               b <- readIORef br
-               writeIORef a 
-         _                -> True
-      case xg of
-         Just a -> 
+      in if xv /= yv
+            then (setv xv yv vars, cell:cellsOut)
+            else (vars, cellsOut)) (M.empty, []) cellAreas
 
+    
+      
+{-}
    fullCells1 = refoldMaybe (\(xys, yxs, set) ca@(x, y, a) -> let
       xymatches = fromMaybe [] $ M.lookup x xys
       yxmatches = fromMaybe [] $ M.lookup y yxs
@@ -2829,6 +2822,7 @@ chooseFullCells cellAreaCols = do
       in ifJust ok (ca, (xysnew, yxsnew, setnew))) (M.empty, M.empty, S.empty) cellAreas
 
    in fullCells
+-}
 {-
 a 10x10 grid has 20 degrees of freedom
 
