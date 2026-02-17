@@ -1,0 +1,16 @@
+
+Why are you interested in a Software Development apprenticeship at Google?
+I am obsessed with making use of my skills, the whole area fascinates me, the endless possibilities
+
+What are you most excited about in the Software Engineering space? Why?
+AI is quite interesting. Of course AGI is the holy grail. I'm into functional programming in Haskell. I did my final year project on partial evaluation. I am interested in similar things to that such as compiler optimisation and even supercompilation
+
+Tell us about your background and experiences (e.g. volunteer work/club participation/extracurricular activities) and how they make you unique.
+I play guitar and keyboard
+
+How have you learned about the tech space?
+An Oric-1 computer when I was 10, The Register, Haskell blogs, Personal Computer World magazine in the 1990s, C++ websites (there used to be loads)
+
+Step 2: Click on the “Apply Now” button on this page to provide the following required materials:
+In the “Resume Section” attach a resume, motivational letter, and answers to the short questions.
+In the “Education Section” attach a current unofficial or official transcript if applicable.

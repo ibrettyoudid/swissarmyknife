@@ -5,6 +5,7 @@
 {-# HLINT ignore "Replace case with maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE CPP #-}
+{- HLINT ignore "Use all" -}
 {- HLINT ignore "Move filter" -}
 {- HLINT ignore "Avoid lambda using `infix`" -}
 {- HLINT ignore "Use section" -}
@@ -283,6 +284,7 @@ indent []         = []
 class Divisible a where
    (//) :: a -> a -> a
 
+infixl 7 //
 {-
 instance (Integral a, Integral b, Fractional c) => Divisible a b c where
       n // d = fromIntegral n / fromIntegral d
@@ -370,13 +372,14 @@ factors1 length (prevHeight, prevWidth)
          in Just (length // width, width)
 
 -- a refinement of colwidths1. divide cell widths by total width of row first
-cellHeightsRow a b = zipWith (//) b a
+cellHeightsRow colWidths cellLengthsRow = zipWith (//) cellLengthsRow colWidths
 
 cellHeightsCol colWidth cellLengthsCol = map (// colWidth) cellLengthsCol
 
 rowHeight colWidths cellLengthsRow = maximum $ cellHeightsRow colWidths cellLengthsRow
 
 rowHeights colWidths cellLengthRows = map (rowHeight colWidths) cellLengthRows
+--rowHeights colWidths cellLengthRows = map (maximum . zipWith (flip (//)) colWidths) cellLengthRows
 
 rowHeightsRaise colWidth cellLengthsCol rowHeights = zipWith (\rh cl -> let ch = cl // colWidth in max rh ch) rowHeights cellLengthsCol
 
@@ -495,220 +498,6 @@ colWideningAdvantage2 rowHeights colWidthW colWidthN cellLengthsColW cellLengths
 --   sum (zipWith (\rh cl -> cl / cw / cw) rowHeights cellLengthsCol)
 
 filterPattern cellsFullCol xs = catMaybes $ zipWith (\cf x -> if cf then Just x else Nothing) cellsFullCol xs
-{-
-
-can't we just choose the column widths such that the advantage is equal across the whole table?
-for all columns, sqrt (sum lengths) / width is equal (for the bottomed out cells)
-
-then we get a pattern of full cells
-
-then we do it again, only counting full cells?
-
-the width of a column is the area of full cells divided by their height
-
-colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rh) cellLengthCols
-
-filterPattern cfc xs = catMaybes $ zipWith (\cf x -> if cf then Just x else Nothing) cellsFullCol xs
-
-the height of a grid is the sum of the row heights
-
-gridHeight = sum rowHeights = sum $ filter full $ area / width
-
-rowHeight = fullHeight
-
-height = area / width
-
-I think we need to consider a moving grid over a time span or differentiate over total grid height
-
-dw/dh = - area / height^2
-
-dw = - dh * area / height^2
-
-dh = - dw * height^2 / area
-
-w = startwidth + area / height - area / startheight
-
-say startwidth = 10, startheight = 10, so area = 100
-
-if we plug in height = 5
-
-w = 10 + 100 / 5 - 100 / 10
-
-the next thing is to work out at what height the full pattern changes
-
-for all nonfull cells, they become full when height = area / width where the height and width is from the full cells
-
-can't really work out row heights from grid height, the best you can do is change their height in proportion to the grid height change
-
-so we know how h and w are linked for each   full cell: hw = area
-so we know how h and w are linked for each unfull cell: hw > area <=> h > area/w <=> w > area / h
-sadly, knowing that two numbers eg. be and bf are both greater than a third doesn't really link the first two
-they are also linked by the fact that all the cells in the same row have the same h
-and all the cells in the same column have the same w
-
-for the grid below,
-
-ah = 1
-dh = 2
-de = 2
-be > 2
-bg = 7
-bf > 1
-cf = 4
-
-ah = 1 & dh = 2 => d = 2a
-dh = 2 & de = 2 => e = h
-be > 2 & bf > 1 => nothing
-be > 2 & bg = 7 => b = 7/g => 7e/g > 2 => e > 2g/7
-bf > 1 & bg = 7 => b = 7/g => 7f/g > 1 => f >  g/7
-bf > 1 & cf = 4 => f = 4/c => 4b/c > 1 => b > c/4
-
-a+b+c+d = x
-e+f+g+h = y
-
-e = h & e+f+g+h = y => e+f+g+e = y
-3a+b+c = x
-
-ae = 1 => a = 1/e & e = 1/a
-be > 2
-bg = 7 => b = 7/g
-bf > 1
-cf = 4 => c = 4/f
-
-b > 2/e
-b > 1/f
-7/g > 2/e
-7/g > 1/f
-7e>2g
-7f>g
-
-A = xy = (3a+b+c)(2e+f+g) 
-A = 6 + 3af + 3ag + 2be + bf + 7 + 2ce + 4 + cg
-A = (f+g)3a  + b(2e+f) + c(2e+g) + 17
-A = (2b+2c)e + (3a+b)f + (3a+c)g + 17
-A = 3(f+g)/e + 4(2e+g)/f + 7(2e+f)/g + 17
--(3f+3g)/e^2 + 8/f + 14/g = 0
-3/e - (8e+4g)/f^2 + 7/g = 0
-3/e + 4/f - (14e+7f)/g^2 = 0
-
--(3f+3g)fg + 8e^2g + 14e^2f
-
-A = a(e + f + g + h) + b(e + f + g + h) + c(e + f + g + h) + d(e + f + g + h)
-A = sum $ concat $ crossWith rows cols
-dA/da = filter dependent on a
-
-hmm, do all the differentials have to = 0 or just the sum of them? try both I guess
-I think all
-
-imagine a grid with these lengths, the blank ones are zero
-if you widen A, that lowers h, which widens d, which lowers e, which widens b, which lowers g
-
-  a b c d 
-e| |2| |2|1
-f| |1|4| |2
-g| |7| | |2.33
-h|1| | |2|1
-
-  1 3 2 2 = widths
-  width = 8
-  height = 6.33
-  
-  a b c d 
-e| |2| |2|0.66
-f| |1|4| |2
-g| |7| | |2.33
-h|1| | |2|0.66
-
-  1 3 2 3 = widths
-  .
-  3
-  3
-  width = 9
-  height = 5.66
-  
-  a b c d 
-e| |2| |2|2
-f| |1|4| |1
-g| |7| | |7
-h|1| | |2|2
-
-  1 2 8 2 = widths
-  width = 8
-  height = 6*13/8 = 78/8 = 9.75
-  
-  a b c d 
-e| |2| |2|1
-f| | |1| |1.11
-g| |7| | |2.25
-h|1| | |2|1
-
-  1 3 0 2 = widths sum = 7
-    . .
-    1 9
-
-height = 5.36
-
-  a b c d 
-e| |2| |2|1
-f| | |1| |0.909
-g| |7| | |2.41379
-h|1| | |2|1
-
-  1 2 1 2 = widths sum = 7
-    . .
-    9 1
-
-  a b c d 
-e| |2| |2|1
-f| | |1| |0.911437827766
-g| |7| | |2.41143782777
-h|1| | |2|1
-
-  1 2 1 2 = widths sum = 7
-    . .
-    9 1
-
-height = 5.32288
-
-  a b c d 
-e| |2| |2|1
-f| | |1| |0.5
-g| |7| | |3.5
-h|1| | |2|1
-
-  1 2 2 2 = widths sum = 7
-     
-height = 6
-
-s      = sqrt (sum (cellLengthCols !! widenCol) // sum (cellLengthCols !! narrowCol)) = sqrt (1/7) = 0.378
-change = (narrowWidth * s - widenWidth) / (s + 1)
-
-3 * 0.378 - 1 / 1.378 = 
-
-
-  a b c d 
-e| | |2| |2| |
-f| | | |1| |1|
-g| | |7| | | |
-h| |1| | |2| |
- |1| | | | |3|
-  1 1 3 1 2 2 = sqrt (sum lengths)
-
-widening a lowers e and h, which widens c and d, which widens b
-
-  a b c d 
-e|2| | |2|
-f| |2|2| |
-g| |2| |2|
-h|2| |2| |
-
-  1 3 1 2 = sqrt (sum lengths)
-  1 3 1 2 = widths
-
-
-
-OK, but how do we handle the changing of which ones are full?
--}
 --patternChangeAtWidth rowHeights cellLengthsColW cellLengthsColN =
 cellFullAtWidthCol rowHeights cellLengthsCol = zipWith cellFullAtWidth rowHeights cellLengthsCol
 
@@ -1637,11 +1426,220 @@ colWidths9 width cellLengthCols = let
    rowVars = [0..length rowHeights1 - 1]
    colVars = [length rowHeights1 .. nVars - 1]
    nVars = length rowHeights1 + length colWidths1
+
    mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ MPoly varNames [mono 1 [(cv, 1), (rv, 1)] nVars, ([], clc)] else Nothing) rowVars) colVars cellsFullCols cellLengthCols
    area = MPoly varNames $ concat $ crossWith (\cv rv -> mono 1 [(cv, 1), (rv, 1)] nVars) colVars rowVars
    colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellsFullCols cellLengthCols
    in colWidths
 
+{-
+A = area
+Af = area of full cells (constant)
+Ae = area of non full cells
+W = width
+H = height
+c = column
+r = row
+v = variable (row or column)
+re = empty cells in row r
+ce = empty cells in column c
+n = next cell to be full
+
+Afcr = Wc * Hr
+=>
+Wc = Afcr/Hr
+Hr = Afcr/Wc
+
+A = Af + Ae
+
+dAf/dHr = 0 since it's fixed
+dAf/dWc = 0 since it's fixed
+
+dAecr/dHr = Wc
+dAecr/dWc = Hr
+
+dAe/dHr = Wre
+dAe/dWc = Hce
+
+sum dAe/dHr + sum dAe/dWc = 0 since we want equilibrium
+sum Wre + sum Hce = 0
+
+
+
+how can the sum be zero? that means either they're all zero or some are positive and some negative
+neither of those is possible
+no column can reduce the area by getting wider ON ITS OWN. this is something weird that perhaps i don't understand about partial differential equations
+the thing I'm missing is that there's no minimum (except when a cell bottoms out)
+
+clearly you can have a situation where making one row/column smaller allows others to be wider
+some of the variables are eliminated (substituted ) but the rows and columns are still there
+
+decrease a variable until a cell bottoms out (choose things so that this is the biggest cell in the grid)
+the row and column become linked
+we then change the width and height simultaneously, they're linked!
+
+Afcr=Hr*Wc
+Wc=Afcr/Hr
+Hr=Afcr/Wc
+Ae=Hr*sum We+Wc*sum He
+Ae=Afcr/Wc*sum We+Wc*sum He
+dAe/Wc=sum He-Afcr*sum We/Wc^2
+this can be 0 so there is a minimum
+sum We-sum He/Hr^2=0
+sum We=sum He/Hr^2
+Hr^2*sum We=sum He
+
+also, at either end of the range, another cell will become full, so there will be a minimum due to an inequality, so you have to choose
+this happens when A = W * H for any cell
+see which end has less total area for the grid
+
+so now you have two rows or columns linked to each other and a column or row respectively
+if the two cells share a variable, eg. a column c with cells in row r & s. so column c still changes. we can eliminate any two of the three variables
+Wc=Afcr/Hr=Afcs/Hs
+Hr=Afcr/Wc
+Hs=Afcs/Wc
+Hs*Afcr = Hr*Afcs
+A=Wc*sum Hec+Hr*sum Wer+Hs*sum Wes -- Wer = Wes might not be true
+A=Wc*sum Hec+(Afcr/Wc)*sum Wer+(Afcs/Wc)*sum Wes
+A=Wc*sum Hec+(Afcr*sum Wer+Afcs*sum Wes)/Wc
+dAe/dWc=sum He-(Afcr*sum Wer+Afcs*sum Wes)/Wc^2=0
+sum He-(Afcr*sum Wer+Afcs*sum Wes)/Wc^2=0
+sum He=(Afcr*sum Wer+Afcs*sum Wes)/Wc^2
+Wc^2*sum He=(Afcr*sum Wer+Afcs*sum Wes)
+Wc^2=(Afcr*sum Wer+Afcs*sum Wes)/sum We
+Wc=sqrt((Afcr*sum Wer+Afcs*sum Wes)/sum We)
+This gives the value of Wc for the minimum area, perhaps we should check it IS the minimum by differentiating again?
+What does the graph look like
+          ^ y
+          |
+*****     |     *****
+     **   |   ** 
+-------*--+--*-------> x
+        * | * \ 
+        * | *  this is the point
+         *|*
+         *|*
+         *|*
+         *|*
+         *|*
+We have to check the column and both rows for the largest non-full cell in each
+Note that as the column widens the rows get lower
+Wn * Hn >= An must be true simultaneously for all three next cells, but which gives the least total area?
+Which row with Wn * Hn = An implies Wn * Hn > An for the other, that tells you which row is ALLOWED
+Then work out what is LEAST area, either end of the range allowed, or the true minimum found by differentiation
+If it's the minimum, we've finished these rows & columns. Do all the others too (separately)
+Otherwise link the row and column of the cell we've just found
+
+We could have 3 rows and one column or 2 rows and 2 columns
+2 rows and 2 columns
+Afds=Wd*Hs
+Afds=Afcs*Wd/Wc
+Wd=Afds/Hs
+Wd=Wc*Afds/Afcs
+A=Wc*sum Hec+Wd*sum Hed+(Afcr*sum Wer+Afcs*sum Wes)/Wc
+A=Wc*(sum Hec+Afds/Afcs*sum Hed)+(Afcr*sum Wer+Afcs*sum Wes)/Wc
+dAe=(sum Hec+Afds/Afcs*sum Hed)-(Afcr*sum Wer+Afcs*sum Wes)/Wc^2
+
+what vars do we need
+(Num a) =>
+{-
+w :: a = width
+wcs :: [a] = column widths
+hrs :: [a] = row heights
+afcrs :: [[a]] = cell areas
+crs :: [(Int, Int)] = column #s+row #s for each row/column linked
+-}
+-}
+colWidths0 w wcs hrs areas crs = let
+   areasT = transpose areas
+   row = 0
+   col = 0
+   -- find highest cells in the new row
+   (hnc, nr) = maximum $ zip (zipWith (//) (areasT !! row) wcs) [0..]
+   -- find highest cells in the new column
+   (hnr, nc) = maximum $ zip (zipWith (//) (areas  !! col) hrs) [0..]
+
+
+
+   in 0
+{-
+k     :: a = sum Hec+Afds/Afcs*sum Hed
+coeff :: a = Afcr*sum Wer+Afcs*sum Wes
+
+
+
+With 2 rows and 2 columns
+x = cells changing
+* = fixed cells that relate columns to rows or vice versa (Afcr etc.)
+     x      x
+     x      x
+xxxxx*xxxxxx*xxxx
+     x      x
+xxxxxxxxxxxx*xxxx
+     x      x
+     x      x
+The pattern of xs and *s is different
+So yes, the value of He and We for different rows and cols is different
+
+OK but why do all this
+We want to find the true minimum rather than the one caused by inequalities and we may have to change a set of row and columns to get to it and keep satisfying the inequalities
+
+difficult grid:
+1 8 4 5
+2 7
+3 6
+4 5 1 8
+5 4 8 1
+6 3
+7 2
+8 1 5 4
+
+
+
+
+
+
+
+
+what if we choose the column width and row height of the biggest cell first
+   how do you choose the ratio?
+   could just make it square, but that 
+   try column width first
+      look for next largest cell
+         if in same
+   
+   if all the large cells are in different rows and columns, then just make all those cells square
+      can only happen if no. of rows = no. of cols
+   what do i mean by large cells?
+      take the largest cell
+      if it's in the same row as another large cell
+and then proceed by choosing the widths and heights in decreasing order of 
+
+Dataflow:
+how do we show that inputs or outputs are functions
+
+due to currying, a function as output is equivalent to extra arguments, could
+1. draw extra inputs on the main function
+2. draw an output function and show that it's unapplied with disconnected inputs. 
+   an arrow indicates application
+   a dotted line indicates a result
+   then you can apply things to results
+
+
+map f []     = []
+map f (x:xs) = f x:map f xs
+
+is map f = \case
+      []     -> []
+      (x:xs) -> f x:map f xs
+
+map = \f (x:xs) -> f x:map f xs
+
+what if you want to use an output function as an input function?
+
+how to show an input is function-type?
+maybe it joins from the side?
+-}
 colWidths10 width cellLengthCols = let
    cellsSorted = rsort $ zipWith (\y -> map (\(l, x) -> (l, x, y))) [0..] $ transpose $ zipWith (\x -> map (, x)) [0..] cellLengthCols
 
@@ -2068,7 +2066,7 @@ editGridAux1 width colWidths scrX scrCharX scrCharX1 cursX cursX1 = let
    scrCharX6 = max 0 $ scrCharX5 - stepsX !! clamp 0 len scrX2
 
    in do
-      putStrLn $ "charX2="++show scrCharX2++" charX3="++show scrCharX3++" charX4="++show scrCharX4++" charX5="++show scrCharX5++" X2="++show scrX2++" charX6="++show scrCharX6++" cursX2="++show cursX2
+      putStrLn $ "charX2="++show scrCharX2++" charX3="++show scrCharX3++" charX4="++show scrCharX4++" charX5="++show scrCharX5++" X2="++show scrX2++" charX6="++show scrCharX6++" cursX2="++show cursX2++"    "
       return (scrX2, scrCharX6, cursX2)
 
 editGrid1 width height colWidths rowHeights1 tab cellLengthRows scrX scrY scrCharX scrCharY cursX cursY gridMode = let
@@ -2109,10 +2107,12 @@ editGrid1 width height colWidths rowHeights1 tab cellLengthRows scrX scrY scrCha
          _ -> return [ch1]
 
       let (scrCharX1, scrCharY1) = case chars of
+         {-
                "\27[A" -> (scrCharX, scrCharY-height `div` 2)
                "\27[B" -> (scrCharX, scrCharY+height `div` 2)
                "\27[C" -> (scrCharX+width `div` 2, scrCharY)
                "\27[D" -> (scrCharX-width `div` 2, scrCharY)
+         -}
                "\27[5~" -> (scrCharX, clamp 0 (height1-height2+1) (scrCharY - height))
                "\27[6~" -> (scrCharX, clamp 0 (height1-height2+1) (scrCharY + height))
                _ -> (scrCharX, scrCharY)
@@ -2129,6 +2129,7 @@ editGrid1 width height colWidths rowHeights1 tab cellLengthRows scrX scrY scrCha
       let colWidths1 = case chars of
                "+" -> replaceIndex cursX (colWidths !! cursX + 1) colWidths
                "-" -> replaceIndex cursX (colWidths !! cursX - 1) colWidths
+               --" " -> 
                _ -> colWidths
       (scrX2, scrCharX2, cursX2) <- editGridAux1 width  colWidths1  scrX scrCharX scrCharX1 cursX cursX1
       (scrY2, scrCharY2, cursY2) <- editGridAux1 height rowHeights2 scrY scrCharY scrCharY1 cursY cursY1
@@ -2242,8 +2243,14 @@ pressure = vertical force / horizontal size
 pressure = horizontal force / vertical size
 
 vertical force * vertical size = horizontal force * horizontal size
+horizontal force = vertical force * vertical size / horizontal size
+
 but only if that cell is holding up the row above (a limiting cell)/has more height than others in the row
 if the row above is resting on a cell, there is both a horizontal force and a vertical force from that cell
+
+include the force that keeps the total width the same, ie the force from the outer sides of the grid
+including the compressing force will be like subtracting the mean
+make velocity proportional to force and let it move
 
 I think the analogy breaks down when dealing with single characters
 Probably becomes like a Diophantine equation
@@ -2321,20 +2328,26 @@ heights
 1.2 1.2
 total = 2.4
 
-
+full cells = max(rows, cols)
 
 with 3 columns
 
-      sum of length of highest A cells   sum of length of highest B cells   sum of length of highest C cells
-      -------------------------------- + -------------------------------- + --------------------------------
-            width of column A                  width of column B                    width of column C
+         area of full A cells   area of full B cells   area of full C cells
+height = -------------------- + -------------------- + --------------------
+          width of column A      width of column B      width of column C
 
-as you increase the width of A
+              sqrt(area of full A cells)   sqrt(area of full B cells)   sqrt(area of full C cells)
+min height => -------------------------- = -------------------------- = --------------------------
+                  width of column A            width of column B            width of column C
+
+changing the ratio of widths of col A and col B can change the order in which cells in col C become full
 
 OR
 
 for each row, choose the highest cell
 that sets the conditions that
+
+by the way I use area and length interchangeably
 
       length of highest cell   length of other cell
       ---------------------- > --------------------
@@ -2351,6 +2364,62 @@ that sets the conditions that
                   lengthOther
 
 and try to get it so all the conditions agree with each other
+if you want (c,r) and (d,s) as the full cells, then
+
+Wc   Acr
+-- < ---
+Wd   Adr
+
+Wc   Acs
+-- > ---
+Wd   Ads
+  
+   
+=> 
+
+Acr   Wc   Acs
+--- > -- > ---
+Adr   Wd   Ads
+
+if you also want (e, t)
+
+Acr   Wc   Act
+--- > -- > ---
+Aer   We   Aet
+
+Ads   Wd   Adt
+--- > -- > ---
+Aes   We   Aet
+
+Full   Width   Non
+---- > ----- > ---
+Non    Width   Full
+
+could start by choosing all the cells with greatest areas in their row
+will that always work?
+if some full cells are in the same column it could fail
+for any pair of rows, the 4 cells that maximise the possible range for width/width are good(?)
+   good? yes because when choosing mo
+   choose 2 rows & 2 columns
+      get 1 inequality
+   choose 2 rows
+      sort the columns by ratio of the heights of the cells in that row & column
+      see at a glance which columns you can choose
+for 3 rows
+   choose 3 rows & 3 columns
+   get 3 inequalities but only 2 unknowns
+      a/b * b/c = a/c
+for 4 rows
+   get 6 inequalities but only 3 unknowns
+for 5 rows
+   get 10 inequalities but only 4 unknowns
+6
+   15
+7
+   21
+8
+   28
+
 
 OR
 
@@ -2396,6 +2465,224 @@ for each column, work out the number of cells with each area or more
 when adding two columns
 its pretty easy to add these up column by column
 
+-------------------------------------------------------------------------------------------------------------------
+can't we just choose the column widths such that the advantage is equal across the whole table?
+for all columns, sqrt (sum lengths) / width is equal (for the full cells)
+
+then we get a pattern of full cells
+
+then we do it again, only counting full cells?
+
+keep doing it until it repeats (or the height goes UP)
+
+or do a few steps and then gradually transition between the lowest two steps
+
+the width of a column is the area of full cells divided by their height
+
+colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rh) cellLengthCols
+
+filterPattern cfc xs = catMaybes $ zipWith (\cf x -> if cf then Just x else Nothing) cellsFullCol xs
+
+the height of a grid is the sum of the row heights
+
+gridHeight = sum rowHeights = sum $ filter full $ area / width
+
+rowHeight = fullHeight
+
+height = area / width
+
+width = area / height
+
+I think we need to consider a moving grid over a time span or differentiate over total grid height
+
+dw/dh = - area / height^2
+
+dw = - dh * area / height^2
+
+dh = - dw * height^2 / area
+
+w = startwidth + area / height - area / startheight
+
+say startwidth = 10, startheight = 10, so area = 100
+
+if we plug in height = 5
+
+w = 10 + 100 / 5 - 100 / 10
+
+the next thing is to work out at what height the full pattern changes
+
+for all nonfull cells, they become full when height = area / width where the height and width is from the full cells
+
+can't really work out row heights from grid height, the best you can do is change their height in proportion to the grid height change
+
+so we know how h and w are linked for each   full cell: hw = area
+so we know how h and w are linked for each unfull cell: hw > area <=> h > area/w <=> w > area / h
+sadly, knowing that two numbers eg. be and bf are both greater than a third doesn't really link the first two
+they are also linked by the fact that all the cells in the same row have the same h
+and all the cells in the same column have the same w
+
+for the grid below,
+
+ah = 1
+dh = 2
+de = 2
+be > 2
+bg = 7
+bf > 1
+cf = 4
+
+ah = 1 & dh = 2 => d = 2a
+dh = 2 & de = 2 => e = h
+be > 2 & bf > 1 => nothing
+be > 2 & bg = 7 => b = 7/g => 7e/g > 2 => e > 2g/7
+bf > 1 & bg = 7 => b = 7/g => 7f/g > 1 => f >  g/7
+bf > 1 & cf = 4 => f = 4/c => 4b/c > 1 => b > c/4
+
+a+b+c+d = x
+e+f+g+h = y
+
+e = h & e+f+g+h = y => e+f+g+e = y
+3a+b+c = x
+
+ae = 1 => a = 1/e & e = 1/a
+be > 2
+bg = 7 => b = 7/g
+bf > 1
+cf = 4 => c = 4/f
+
+b > 2/e
+b > 1/f
+7/g > 2/e
+7/g > 1/f
+7e>2g
+7f>g
+
+A = xy = (3a+b+c)(2e+f+g) 
+A = 6 + 3af + 3ag + 2be + bf + 7 + 2ce + 4 + cg
+A = (f+g)3a  + b(2e+f) + c(2e+g) + 17
+A = (2b+2c)e + (3a+b)f + (3a+c)g + 17
+A = 3(f+g)/e + 4(2e+g)/f + 7(2e+f)/g + 17
+-(3f+3g)/e^2 + 8/f + 14/g = 0
+3/e - (8e+4g)/f^2 + 7/g = 0
+3/e + 4/f - (14e+7f)/g^2 = 0
+
+-(3f+3g)fg + 8e^2g + 14e^2f
+
+A = a(e + f + g + h) + b(e + f + g + h) + c(e + f + g + h) + d(e + f + g + h)
+A = sum $ concat $ crossWith rows cols
+dA/da = filter dependent on a
+
+hmm, do all the differentials have to = 0 or just the sum of them? try both I guess
+I think all
+
+imagine a grid with these lengths, the blank ones are zero
+if you widen A, that lowers h, which widens d, which lowers e, which widens b, which lowers g
+
+  a b c d 
+e| |2| |2|1
+f| |1|4| |2
+g| |7| | |2.33
+h|1| | |2|1
+
+  1 3 2 2 = widths
+  width = 8
+  height = 6.33
+  
+  a b c d 
+e| |2| |2|0.66
+f| |1|4| |2
+g| |7| | |2.33
+h|1| | |2|0.66
+
+  1 3 2 3 = widths
+  .
+  3
+  3
+  width = 9
+  height = 5.66
+  
+  a b c d 
+e| |2| |2|2
+f| |1|4| |1
+g| |7| | |7
+h|1| | |2|2
+
+  1 2 8 2 = widths
+  width = 8
+  height = 6*13/8 = 78/8 = 9.75
+  
+  a b c d 
+e| |2| |2|1
+f| | |1| |1.11
+g| |7| | |2.25
+h|1| | |2|1
+
+  1 3 0 2 = widths sum = 7
+    . .
+    1 9
+
+height = 5.36
+
+  a b c d 
+e| |2| |2|1
+f| | |1| |0.909
+g| |7| | |2.41379
+h|1| | |2|1
+
+  1 2 1 2 = widths sum = 7
+    . .
+    9 1
+
+  a b c d 
+e| |2| |2|1
+f| | |1| |0.911437827766
+g| |7| | |2.41143782777
+h|1| | |2|1
+
+  1 2 1 2 = widths sum = 7
+    . .
+    9 1
+
+height = 5.32288
+
+  a b c d 
+e| |2| |2|1
+f| | |1| |0.5
+g| |7| | |3.5
+h|1| | |2|1
+
+  1 2 2 2 = widths sum = 7
+     
+height = 6
+
+s      = sqrt (sum (cellLengthCols !! widenCol) // sum (cellLengthCols !! narrowCol)) = sqrt (1/7) = 0.378
+change = (narrowWidth * s - widenWidth) / (s + 1)
+
+3 * 0.378 - 1 / 1.378 = 
+
+
+  a b c d 
+e| | |2| |2| |
+f| | | |1| |1|
+g| | |7| | | |
+h| |1| | |2| |
+ |1| | | | |3|
+  1 1 3 1 2 2 = sqrt (sum lengths)
+
+widening a lowers e and h, which widens c and d, which widens b
+
+  a b c d 
+e|2| | |2|
+f| |2|2| |
+g| |2| |2|
+h|2| |2| |
+
+  1 3 1 2 = sqrt (sum lengths)
+  1 3 1 2 = widths
+
+
+
+OK, but how do we handle the changing of which ones are full?
 -}
 
 wrapText width xs = let
@@ -2435,3 +2722,184 @@ justify1 width ws ls = let
    in if n > 0
          then concat $ (head ws :) $ zipWith (++) sp3 (tail ws)
          else concat ws ++ replicate sp ' '
+
+colWidths90 w areas = let
+   wcs    = map (sqrt . realToFrac . sum) areas
+   mult   = realToFrac w / sum wcs
+   wcs1   = map (mult *) wcs
+   areasT = transpose areas
+   in takeWhileUnique $ iterate (colWidths90A areas areasT) wcs
+
+colWidths90A areas areasT wcs = let
+   hrs  = rowHeights wcs areasT
+   wcs1 = zipWith (\a f -> sqrt $ sum $ map fst $ filter snd $ zip a f) areas $ map (zipWith (<=) hrs) $ zipWith (\wc -> map (// wc)) wcs1 areas
+   in wcs1
+
+-- areasF = sum of areas of full cells for each column
+-- ar = area of highest cell in each row
+
+interpolate areasF1 areasF2 = 0
+{-
+wc = wc2*t + wc1*(1-t)
+
+hr = ar / wc
+hr = ar / (wc2*t + wc1*(1-t))
+
+hdr = adr / wd
+hdr = adr / (wd2*t + wd1*(1-t))
+stop when hdr=hr
+hr = ar / (wc2*t + wc1*(1-t)) = hdr = adr / (wd2*t + wd1*(1-t))
+ar / (wc2*t + wc1*(1-t)) = adr / (wd2*t + wd1*(1-t))
+(wc2*t + wc1*(1-t)) / ar = (wd2*t + wd1*(1-t)) / adr
+(wc1 + (wc2-wc1)*t) / ar = (wd2*t + wd1*(1-t)) / adr
+wc1/ar + (wc2-wc1)*t/ar = wd1/adr + (wd2-wd1)*t/adr
+((wc2-wc1)/ar + (wd2-wd1)/adr)*t = wd1/adr - wc1/ar
+
+
+areasF = areasF2*t + areasF1*(1-t)
+wc = sqrt
+-}
+colWidths99 width cellAreaCols = let
+   colWidths        = map (sqrt . realToFrac . sum) cellAreaCols
+   cellAreaRows     = transpose cellAreaCols
+   cellHeightRows1  = cellHeightRows colWidths cellAreaRows
+   rowHeights       = map maximum cellHeightRows1
+   cellPatternRows1 = cellPatternRows rowHeights cellHeightRows1
+   cellPatternCols1 = transpose cellPatternRows1
+   cellHeightCols   = transpose cellHeightRows1
+   colFullAreas     = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellAreaCols
+   colFullHeights   = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellHeightCols
+   gridHeight       = sum rowHeights
+   colFullProps     = map (/ gridHeight) colFullHeights
+
+   in colWidths99B width colWidths cellAreaCols cellAreaRows colFullAreas colFullProps colFullHeights
+
+colWidths99B width colWidths cellAreaCols cellAreaRows colFullAreas colFullProps colFullHeights = let
+   cellHeightRows1  = cellHeightRows colWidths cellAreaRows
+   rowHeights       = map maximum cellHeightRows1
+   cellPatternRows1 = cellPatternRows rowHeights cellHeightRows1
+   cellPatternCols1 = transpose cellPatternRows1
+   colAdvantages1   = colAdvantages cellPatternCols1 cellAreaCols colWidths
+
+   colWidths = zipWith3 (\a p h -> a / (p * h)) colFullAreas colFullProps colFullHeights
+   
+   -- ok but we need to break this up into single rows
+
+   --imagine a 2 x 2 grid, areas a00 a01 a10 a11 widths w0 w1 height h0 h1
+
+   in 0
+
+data Var a = Row Int | Col Int | Val a
+
+getv val@(Val {}) _ = Just val
+getv v vars = case M.lookup v vars of
+   Just j  -> case getv j vars of
+      Nothing -> Just j
+      Just k  -> Just k
+   Nothing -> Nothing
+
+setv v val vars = M.insert v r vars
+
+chooseFullCells cellAreaCols = do
+   let cellAreas = rsort $ concat $ zipWith (\x -> zipWith (\y a -> (x, y, a)) [(0::Int)..]) [(0::Int)..] cellAreaCols
+
+   groups <- newIORef M.empty
+
+   foldl (\vars (x, y, a) -> let
+      xv = getv (Col x) vars
+      yv = getv (Row y) vars
+      ok = case (xg, yg) of
+         (Just ar, Just br) -> if ar /= br
+            then do
+               a <- readIORef ar
+               b <- readIORef br
+               writeIORef a 
+         _                -> True
+      case xg of
+         Just a -> 
+
+   fullCells1 = refoldMaybe (\(xys, yxs, set) ca@(x, y, a) -> let
+      xymatches = fromMaybe [] $ M.lookup x xys
+      yxmatches = fromMaybe [] $ M.lookup y yxs
+      ok = not $ and $ concat $ crossWith (\x1 y1 -> S.member (x1, y1) set) yxmatches xymatches
+      xysnew = M.insert x (y:xymatches) xys
+      yxsnew = M.insert y (x:yxmatches) yxs
+      setnew = S.insert (x, y) set
+
+      in ifJust ok (ca, (xysnew, yxsnew, setnew))) (M.empty, M.empty, S.empty) cellAreas
+
+   in fullCells
+{-
+a 10x10 grid has 20 degrees of freedom
+
+
+
+marking a cell full links the column and row
+
+so you can have as many full cells on the same row and column as you want, as long as you don't have a complete loop (unless there's a symmetry in the areas)
+
+so this is OK
+**********
+*.........
+*.........
+*.........
+*.........
+but not this
+**********
+*.........
+*.........
+*.........
+*........*
+this is OK
+*.*.*.*.*.
+.........*
+*.........
+.*.*.*.*.*
+this is OK
+*.........
+.*.......*
+..*.....*.
+...*...*..
+....*.*...
+....**....
+...*..*...
+..*....*..
+.*......*.
+*........*
+this is OK
+*....*...*
+..........
+..........
+..........
+*......*..
+..**.*..*.
+..........
+.....*.*..
+*.........
+
+isn't equilibrium when no row can shrink without making the other rows larger by more
+
+you need a full cell in every row & column
+
+if a full cell becomes lower, it must become wider
+h = A / w
+w = A / h
+w / h = w^2 / A
+dw1 = dh1 * w1 / h1 = dh1 * w1^2 / A1
+
+if there are other full cells that share neither a row or column (transitively), they must become narrower, making their rows higher, but how much by?
+
+dw2 = -dw1
+
+dh2 = dw2 * A2 / w2^2
+dh2 = -dh1 * w1^2 * A2 / w2^2 / A1
+
+if there are other full cells that do share a row or column, they must become wider by the same proportion
+
+
+
+make the widths proportional to the sqrt of the full area
+and the rows?
+dw = 
+dw/dh = 
+-}

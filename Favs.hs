@@ -79,6 +79,11 @@ multimapOn f = multimap . mapfxx f
 refold f z [] = []
 refold f z (x : xs) = let (a, b) = f z x in a : refold f b xs
 
+refoldMaybe f z [] = []
+refoldMaybe f z (x:xs) = case f z x of
+   Just (a, b) -> a : refoldMaybe f b xs
+   Nothing     -> refoldMaybe f z xs
+
 for lst fun = map fun lst
 
 -- ppFor lst fun = mapM_ (\d -> putStr (show d ++ "  " ++ show (fun d) ++ "\n")) lst
