@@ -77,6 +77,8 @@ class BString s => BStringC c s | s -> c where
    takeWhile :: (c -> Bool) -> s -> s
    dropWhile :: (c -> Bool) -> s -> s
    span :: (c -> Bool) -> s -> (s, s)
+
+   elemIndex :: Eq c => c -> s -> Maybe Int
    --singleton :: c -> s
    --filter :: (c -> Bool) -> s -> s
    --partition :: (c -> Bool) -> s -> (s, s)
@@ -122,6 +124,7 @@ instance BStringC a [a] where
    takeWhile = L.takeWhile
    dropWhile = L.dropWhile
    span = L.span
+   elemIndex = L.elemIndex
    --singleton = L.singleton
    --filter = L.filter
    --partition = L.partition
@@ -165,6 +168,7 @@ instance BStringC Word8 B.ByteString where
    takeWhile = B.takeWhile
    dropWhile = B.dropWhile
    span = B.span
+   elemIndex = B.elemIndex
    --singleton = B.singleton
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
@@ -206,6 +210,9 @@ instance BStringC Word8 LB.ByteString where
    takeWhile = LB.takeWhile
    dropWhile = LB.dropWhile
    span = LB.span
+   elemIndex a b = case LB.elemIndex a b of
+      Just n  -> Just $ fromIntegral n
+      Nothing -> Nothing
    --singleton = LB.singleton
 
    stripPrefix p s = if isPrefixOf p s then Just $ drop (length p) s else Nothing
@@ -288,6 +295,7 @@ instance BStringC Char LT.Text where
    takeWhile = LT.takeWhile
    dropWhile = LT.dropWhile
    span = LT.span
+   elemIndex = error "not implemented for Lazy Text"
    --singleton = LT.singleton
 
    stripPrefix = LT.stripPrefix

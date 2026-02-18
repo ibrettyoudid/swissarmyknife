@@ -11,6 +11,7 @@
 
 {-# HLINT ignore "Use fmap" #-}
 {-# HLINT ignore "Eta reduce" #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module ID3P6 where
 
@@ -32,8 +33,6 @@ import ShowTuple
 import Control.Applicative hiding (empty)
 import Control.Monad
 import System.Directory
-import System.IO
-import System.IO.Unsafe
 
 -- import System.IO.Extra
 import System.Posix.Files
@@ -45,9 +44,10 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
-import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++))
-import Data.List qualified
-import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++))
+import Data.List (transpose)
+import qualified Data.List as L
+import qualified System.IO as L
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, splitAt, readFile, writeFile, putStrLn, (!!), (++))
 
 -- import Data.Algorithm.Diff
 
@@ -62,7 +62,10 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Word qualified as W
 import GHC.Generics hiding (Meta)
-{-
+
+import System.IO (hFileSize, hGetChar, hPutStr, hSeek, openBinaryFile, hClose, SeekMode(..), IOMode(..))
+import System.IO.Unsafe
+
 -- things to try
 t1 db = putt $ artists db
 t2 = p fta
@@ -153,13 +156,13 @@ albump a = filter (inlow a) $ cdirPaths $ dirPaths artistd
 ismp3 = (".mp3" `isSuffixOf`) . low
 mp3s = filter ismp3 . fileTree
 artistmp3s a = mp3s $ artistd ++ a
-
+{-}
 tagTree = unsafePerformIO . tagTreeM
 tagTreeM d = fromAssocsD . concat <$> tagTreeM1 d
 tagTreeM1 d =
    mapM (\f -> map (\fr -> ([toDyn f, toDyn $ fst fr], snd fr)) . M.toList . metaOfFrames1 <$> readTagM (readSomeAudio 4) f) $
       mp3s d
-
+-}
 -- test = afl . ta . tagTree2
 
 para = artistd @ "Paradise Lost"
@@ -185,6 +188,7 @@ data ID3Tag
       tagBytes :: IOString, 
       frames   :: [Frame] }
 
+{-
 data FrameHeader = 
    FrameHeader { 
       stringID    :: T.Text, 
@@ -204,6 +208,21 @@ data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, te
             | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     description :: T.Text }
             | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     description :: T.Text, language :: T.Text }
             | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, picture :: IOString, description :: T.Text, mimeType :: T.Text, pictureType :: Int }
+
+            | FrameTruncated
+            | Invalid B.ByteString
+            | Bytes Int
+            | Nowt
+            deriving (Eq, Ord, Show, Read, Generic)
+
+-}
+
+data Frame  = FrameHeader   { stringID :: T.Text, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FText         { stringID :: T.Text, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString, frameID :: FrameID, textEncoding :: Int, value :: T.Text }
+            | FSyncLyrics   { stringID :: T.Text, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString, frameID :: FrameID, textEncoding :: Int, value :: T.Text,     timeFormat :: Int,     language :: T.Text, contentType :: Int, syncedLyrics :: M.Map Int T.Text }
+            | FUserText     { stringID :: T.Text, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString, frameID :: FrameID, textEncoding :: Int, value :: T.Text,     description :: T.Text }
+            | FUnsyncLyrics { stringID :: T.Text, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString, frameID :: FrameID, textEncoding :: Int, value :: T.Text,     description :: T.Text, language :: T.Text }
+            | FPicture      { stringID :: T.Text, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString, frameID :: FrameID, textEncoding :: Int, picture :: IOString, description :: T.Text, mimeType :: T.Text, pictureType :: Int }
 
             | FrameTruncated
             | Invalid B.ByteString
@@ -510,7 +529,7 @@ differences1 strs delims =
          Just n -> let (a, b : bs) = splitAt (n + 1) delims in differences1 strs (a ++ bs)
 
 diffcheck (c1 : c2 : cs) n =
-   case M.toList $ counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of
+   case counts1 $ zipWith (\e1 e2 -> (e1 == "", e2 == "")) c1 c2 of
       [((False, True), a), ((True, False), b)] -> Just n
       _ -> diffcheck (c2 : cs) (n + 1)
 diffcheck _ _ = Nothing
@@ -590,9 +609,9 @@ saveDB = writeFile dbpath . show
 updateDB :: M.Map T.Text Meta -> IO (M.Map T.Text Meta)
 updateDB db = do
    dbnew <- updateDB1 db <$> readDB db dbroots
-   putStrLn "Writing..."
+   L.putStrLn "Writing..."
    saveDB dbnew
-   putStrLn "Done"
+   L.putStrLn "Done"
    return dbnew
 
 readDB db roots = mapOfList <$> readDB1 db dbroots
@@ -650,11 +669,11 @@ c = convertString
 readFS :: M.Map T.Text Meta -> Meta -> IO [Meta]
 readFS db f
    | isDir f = do
-         putStrLn ("DIR " ++ c (path f))
+         L.putStrLn ("DIR " ++ c (path f))
          let path1 = path f ++ "/"
          (times1, orig1) <- readFileTimes f -- otimes1 is only different for a new dir
          -- if field "FT.Current.Written" times1 > field "FT.Current.Written" f
-         putStrLn "hello"
+         L.putStrLn "hello"
          if on (>) written times1 (times f)
             then do
                rdir <- listDirectory $ c path1
@@ -664,18 +683,18 @@ readFS db f
                updated <- mapM (readFS db) withnew -- recurse into subdirectories and files
                return $ f{times = times1} : concat updated -- otimes1 is only updated if it's a new dir
             else do
-               putStrLn "UH OH"
+               L.putStrLn "UH OH"
                updated <- mapM (readFSD db) $ inDir path1 db -- recurse into subdirectories only
                return $ f{times = times1} : concat updated
    | otherwise = do
-         putStrLn $ c $ path f
+         L.putStrLn $ c $ path f
          let path1 = path f
          (times1, orig1) <- readFileTimes f
          -- if on (>) written times1 (times f)
          if ((>) `on` written) times1 (times f)
             -- if times1 `on (>) written` times f
             then do
-               rfr <- readTagM (readSomeAudio 8) path1
+               rfr <- readTagM 0 path1 --(readSomeAudio 8) path1
                return [metaOfFrames False path1 times1 orig1 rfr]
             else
                return [f]
@@ -851,6 +870,7 @@ where
 
 -- format the frame data for writing. this has to be different to the parseTag method
 -- because of having to move the audio
+{-
 readAllAudio h ts = do
    fs <- fromIntegral <$> hFileSize h
    let as = fs - ts - 10
@@ -872,9 +892,6 @@ readSomeAudio nf h ts = do
    let as = fs - ts - 10
    mapM (\n -> readSomeAudio1 h $ ts + 10 + n * (fs - ts - 10) `div` nf) [1 .. (nf - 1)]
 
-hGet h n = replicateM n $ hGetChar h
-hPut h s = hPutStr h s
-
 readSomeAudio1 h pos = do
    hSeek h AbsoluteSeek $ fromIntegral $ pos - maxFrameSize
    audio <- hGet h $ maxFrameSize * 2
@@ -883,6 +900,9 @@ readSomeAudio1 h pos = do
       -- Right r       -> return r
       Done m _ _ -> return m
 
+-}
+hGet h n = replicateM n $ hGetChar h
+hPut h s = hPutStr h s
 middle l = l !! (length l `div` 2)
 
 getMPEGFrame fs = head $ getMPEGFrames fs
@@ -956,7 +976,7 @@ myget1A id framemap = c (myget1B id framemap :: String)
 myget1B id framemap = fromDyn1 $ fromJust $ M.lookup id framemap 
 
 myget1C :: FrameID -> [M.Map Var Dynamic] -> Maybe (M.Map Var Dynamic)
-myget1C id frames = Data.List.find (\f -> isJust $ do
+myget1C id frames = L.find (\f -> isJust $ do
    d <- M.lookup FrameID f
    s <- fromDynamic d
    j <- M.lookup s stringIDMap
@@ -1039,6 +1059,9 @@ readTag2 f = parseTag <$> B.readFile f
 
 unright (Right r) = r
 
+parseTag str = case parse header str of
+   Done _ _ res -> res
+{-}
 parseTag str =
    let 
       Done rest1 _ hd = parse header str
@@ -1058,14 +1081,15 @@ unparseTag tag1 =
          in case P.format header tag2 of
             FFail thead _ em -> error em
             FDone thead _ -> thead ++ tbody
-
+-}
+{-
 formatFrame v frame =
-   case P.format (framebody $ frameID frame) frame of
+   case P.format (framebody $ convertString $ fromMaybe "TXXX" $ idStringOfFrame $ frameID frame) frame of
       FDone tbody _ -> let
-         frame2 = frame1 { frameSize = length tbody }
-         in case P.format frameheader $ frameHeader frame of
+         frame2 = frame { frameHeader = (frameHeader frame) { frameSize = length tbody } }
+         in case P.format (frameheader v) $ frameHeader frame2 of
                FDone thead _ -> thead ++ tbody
-
+-}
 {-
 unparseTag1 totalSize framedat =
    let
@@ -1101,12 +1125,12 @@ unsync1 (a : rest) = a : unsync1 rest
 
 resync2 [] = []
 resync2 [a] = [a]
-resync2 ('\255' : '\000' : rest) = '\255' : resync1 rest
-resync2 (a : rest) = a : resync1 rest
+resync2 ('\255' : '\000' : rest) = '\255' : resync2 rest
+resync2 (a : rest) = a : resync2 rest
 
 unsync2 [] = []
-unsync2 ('\255' : rest) = '\255' : '\0' : unsync1 rest
-unsync2 (a : rest) = a : unsync1 rest
+unsync2 ('\255' : rest) = '\255' : '\0' : unsync2 rest
+unsync2 (a : rest) = a : unsync2 rest
 
 isync1 True  = total resync desync
 isync1 False = total id id
@@ -1129,17 +1153,19 @@ tag = Build emptyTag (
       (\f r -> case Parser6.format1 (FramesK <-- Many frame) f r of
          FDone t1 f1 -> Parser6.format1 (Get TagSizeK) f1 (length t1)))
 -}
-tag = header :/ body
 
 header :: Rule IOString Word8 () ID3Tag
 header = Build emptyTag (
-   Id3K      <-- rep char 3 :/
+   Id3K      <-- Apply ic (Tokens 3) :/
    VerMajorK <-- int :/
    VerMinorK <-- int :/
-   SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
-   TagSizeK  <-- int4 0x80 )
+   SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
+   TagSizeK  <-- int4 0x80 :/
+   TagBytesK <-- (Get TagSizeK >>== tokens) :/
+   FramesK   <-- Redo TagBytesK body)
 
-body = Many (VerMajor --> frame)
+body :: Rule IOString Word8 ID3Tag [Frame]
+body = Many (VerMajorK --> frame)
 
 {-
 let unsync = flags .&. 0x80 /= 0
@@ -1158,109 +1184,124 @@ hjkl = total stringID undefined
 lm :: Rule s t f FrameID
 lm = iFrameString >$< Return "TPE2"
 
+frame :: Int -> Rule IOString Word8 ID3Tag Frame
 frame v = 
-   FrameHeader <-- frameheader v :/
-   FrameIDK    <-- iFrameString >$< Get StringIDK
+   frameheader v 
 
 framecommon = 
    FrameIDK    <-- iFrameString >$< Get StringIDK
 
 
-frameheader :: Int -> Rule IOString Word8 x FrameHeader
+frameheader :: Int -> Rule IOString Word8 ID3Tag Frame
 frameheader 2 =
    Build (FrameHeader {}) (
-      StringIDK   <-- Apply ic (rep char 3) :/
+      StringIDK   <-- Apply ic (Tokens 3) :/
       FrameSizeK  <-- int4 0x100 :/
-      FrameBytesK <-- (Get FrameSizeK >>== tokens))
+      FrameBytesK <-- (Get FrameSizeK >>== tokens) :/
+      FrameIDK    --> framebody)
 
 frameheader 3 =
    Build (FrameHeader {}) (
-      StringIDK   <-- Apply ic (rep char 4) :/
+      StringIDK   <-- Apply ic (Tokens 4) :/
       FrameSizeK  <-- int4 0x100 :/
-      SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
-      SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK) (Apply tuple8 $ bits 8) :/
-      FrameBytesK <-- (Get FrameSizeK >>== tokens))
+      SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
+      SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
+      FrameBytesK <-- (Get FrameSizeK >>== tokens) :/
+      FrameIDK    --> framebody)
 
 frameheader 4 =
    Build (FrameHeader {}) (
-      StringIDK   <-- Apply ic (rep char 4) :/
+      StringIDK   <-- Apply ic (Tokens 4) :/
       FrameSizeK  <-- int4 0x80 :/
       SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
       SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
-      FrameBytesK <-- (Get FrameSizeK >>== tokens))
+      FrameBytesK <-- (Get FrameSizeK >>== tokens) :/
+      FrameIDK    --> framebody)
       
 
 textEnc     = TextEncodingK --> (\enc -> Apply (itext enc) Rest)
 
-zeroTextEnc = TextEncodingK --> (\enc -> Apply (itext enc) $ case enc of
-                                                      0 -> zeroText
-                                                      1 -> AnyTill $ String "\0\0")
+zeroTextEnc = TextEncodingK --> zeroText
 
-zeroText = AnyTill $ Token 0
+zeroText enc = Apply (itext enc) $ case enc of
+                                       0 -> AnyTill $ Token 0
+                                       1 -> AnyTill $ String "\0\0"
+
 
 ic = total c c
-
-framebody :: IOString -> Rule B.ByteString t2 f3 Frame
+{-}
+framebody :: a -> Rule ByteString t Frame ()
 framebody id
-   | take 1 (low id) == "t" = Build (FText { }) (
-      TextEncodingK <-- int :/
-      ValueK        <-- textEnc)
-
-   | low id == "txxx" = Build (FUserText { }) (
+   | low id == "txxx" = 
       TextEncodingK <-- int :/
       DescriptionK  <-- zeroTextEnc :/
-      ValueK        <-- textEnc)
+      ValueK        <-- textEnc :/
+      Return ()
 
-   | low id == "uslt" = Build (FUnsyncLyrics { }) (
+   | take 1 (low id) == "t" = 
+      TextEncodingK <-- int :/
+      ValueK        <-- textEnc :/
+      Return ()
+
+   | low id == "uslt" = 
       TextEncodingK <-- int :/
       LanguageK     <-- rep char 3 :/
       DescriptionK  <-- zeroTextEnc :/
-      LyricsK       <-- textEnc)
+      LyricsK       <-- textEnc :/
+      Return ()
 
-   | low id == "apic" = Build (FPicture { }) (
+   | low id == "apic" = 
       TextEncodingK <-- int :/
       MIMETypeK     <-- ic >$< zeroText :/
       PictureTypeK  <-- int :/
       DescriptionK  <-- zeroTextEnc :/
-      PictureK      <-- Rest)
+      PictureK      <-- Rest :/
+      Return ()
 
-   | low id == "sylt" = Build (FSyncLyrics { }) (
-      TextEncodingK <-- int :/
-      LanguageK     <-- rep int 3 :/
-      TimeFormatK   <-- int :/
-      ContentTypeK  <-- int)
-      --SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
-
-{-
-   | id `elem` textFrames = Build (FText { }) (
-      TextEncodingK <-- int :/
-      ValueK        <-- textEnc)
-
-   | id == Txxx = Build (FUserText { }) (
-      TextEncodingK <-- int :/
-      DescriptionK  <-- zeroTextEnc :/
-      ValueK        <-- textEnc)
-
-   | id == Uslt = Build (FUnsyncLyrics { }) (
-      TextEncodingK <-- int :/
-      LanguageK     <-- rep char 3 :/
-      DescriptionK  <-- zeroTextEnc :/
-      LyricsK       <-- textEnc)
-
-   | id == Apic = Build (FPicture { }) (
-      TextEncodingK <-- int :/
-      MIMETypeK     <-- zeroText :/
-      PictureTypeK  <-- int :/
-      DescriptionK  <-- zeroTextEnc :/
-      PictureK      <-- Rest)
-
-   | id == Sylt = Build (FSyncLyrics { }) (
+   | low id == "sylt" = 
       TextEncodingK <-- int :/
       LanguageK     <-- rep int 3 :/
       TimeFormatK   <-- int :/
       ContentTypeK  <-- int :/
-      SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
+      Return ()
+      --SyncedLyricsK <-- Many (zeroTextEnc :+ int4 0x100))
+-}
+framebody :: FrameID -> Rule ByteString Word8 Frame ()
+framebody id
+   | id `elem` textFrames = 
+      TextEncodingK <-- int :/
+      ValueK        <-- textEnc :/
+      Return ()
 
+   | id == Txxx = 
+      TextEncodingK <-- int :/
+      DescriptionK  <-- zeroTextEnc :/
+      ValueK        <-- textEnc :/
+      Return ()
+
+   | id == Uslt = 
+      TextEncodingK <-- int :/
+      LanguageK     <-- Apply ic (Tokens 3) :/
+      DescriptionK  <-- zeroTextEnc :/
+      LyricsK       <-- textEnc :/
+      Return ()
+
+   | id == Apic = 
+      TextEncodingK <-- int :/
+      MIMETypeK     <-- zeroText 0 :/
+      PictureTypeK  <-- int :/
+      DescriptionK  <-- zeroTextEnc :/
+      PictureK      <-- Rest :/
+      Return ()
+
+   | id == Sylt = 
+      TextEncodingK <-- int :/
+      LanguageK     <-- Apply ic (Tokens 3) :/
+      TimeFormatK   <-- int :/
+      ContentTypeK  <-- int :/
+      --SyncedLyricsK <-- Many (zeroText 0 :+ int4 0x100) :/
+      Return ()
+{-
    | toLower (head stringID) == 't' = Build (FText { frameID = id1 $ fromJust $ M.lookup stringID stringIDMap }) (
    | low stringID == "txxx" = Build (FUserText { }) (
    | low stringID == "uslt" = Build (FUnsyncLyrics { }) (
@@ -1322,7 +1363,7 @@ sampPerFrames =  [[0,    0,    0,    0],
 
 mpegFrameOK = Build emptyMPEGFrame (
    --AP.word8 0xFF
-   SetM (AllOnes2K :- AllOnes1K :- AllOnes0K :- VersionEnc1K :- VersionEnc0K :- LayerEnc1K :- LayerEnc0K :- ZK :- BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K :- SampRateEnc1K :- SampRateEnc0K :- ZK :- ChannelMode1K :- ChannelMode0K) (int3 0x100) :/
+   SetM (AllOnes2K :- AllOnes1K :- AllOnes0K :- VersionEnc1K :- VersionEnc0K :- LayerEnc1K :- LayerEnc0K :- ZK :- BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K :- SampRateEnc1K :- SampRateEnc0K :- ZK :- ChannelMode1K :- ChannelMode0K :- ()) (int3 0x100) :/
    AllOnesK     <-- Apply (inverse $ ibits 3) (GetM (AllOnes2K :- AllOnes1K :- AllOnes0K)) :/
    VersionEncK  <-- Apply (inverse $ ibits 2) (GetM (VersionEnc1K :- VersionEnc0K)) :/
    LayerEncK    <-- Apply (inverse $ ibits 2) (GetM (LayerEnc1K :- LayerEnc0K)) :/
@@ -1385,6 +1426,8 @@ ibsofs = total bsofs sofbs
 
 tuple8 = Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h :- ())) (\(a :- b :- c :- d :- e :- f :- g :- h :- ()) -> Just [a, b, c, d, e, f, g, h])
 
+tuple8 = Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h :- ())) (\(a :- b :- c :- d :- e :- f :- g :- h :- ()) -> Just [a, b, c, d, e, f, g, h])
+
 bits n = Apply (ibits n) int
 
 ibits n = total (dobits n) undobits
@@ -1402,6 +1445,7 @@ intn n m = Apply (total (dointn m) (undoint n m)) $ Count n int
 dointn :: Int -> [Int] -> Int
 dointn m = foldl (\a b -> a * m + b) 0
 
+int :: Rule ByteString Word8 f Int
 int = Apply (total fromIntegral fromIntegral) AnyToken
 --int = fromIntegral <$> AP.anyWord8
 
@@ -1589,6 +1633,14 @@ instance P.Frame TagBytesK B.ByteString ID3Tag where
       myget1 TagBytesK = tagBytes
       myset1 TagBytesK value frame = frame { tagBytes = value }
 
+instance P.Frame FramesK [Frame] ID3Tag where
+      myget1 FramesK = frames
+      myset1 FramesK value frame = frame { frames = value }
+
+instance P.Frame ZK Bool ID3Tag where
+   myget1 ZK frame = True
+   myset1 ZK value frame = frame
+
 instance P.FrameD Var ID3Tag where
       mygetD name frame = case name of
          Id3       ->  toDyn $ id3       frame
@@ -1612,75 +1664,121 @@ instance P.FrameD Var ID3Tag where
          TagSize   ->  frame { tagSize  = fromDyn1 value }
          TagBytes  ->  frame { tagBytes = fromDyn1 value }
 
-instance P.Frame StringIDK T.Text FrameHeader where
+instance P.Frame StringIDK T.Text Frame where
    myget1 StringIDK = stringID
-   myset1 StringIDK value frame = frame { stringID = value }
+   --myset1 StringIDK value frame = frame { stringID = value }
+   myset1 StringIDK value frame = let
+      id = fromJust $ idFrameOfString value
+      in
+         if | id `elem` textFrames -> FText         { stringID = value, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Txxx           -> FUserText     { stringID = value, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Uslt           -> FUnsyncLyrics { stringID = value, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Apic           -> FPicture      { stringID = value, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Sylt           -> FSyncLyrics   { stringID = value, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
 
-instance P.Frame FrameSizeK Int FrameHeader where
+instance P.Frame FrameIDK FrameID Frame where
+   myget1 FrameIDK = frameID
+   --myset1 StringIDK value frame = frame { stringID = value }
+   myset1 FrameIDK value frame = let
+      id = value
+      str = fromJust $ idStringOfFrame value
+      in
+         if | id `elem` textFrames -> FText         { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Txxx           -> FUserText     { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Uslt           -> FUnsyncLyrics { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Apic           -> FPicture      { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+            | id == Sylt           -> FSyncLyrics   { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
+
+
+instance P.Frame FrameSizeK Int Frame where
    myget1 FrameSizeK = frameSize
    myset1 FrameSizeK value frame = frame { frameSize = value }
 
-instance P.Frame TagAltPrsvK Bool FrameHeader where
+instance P.Frame TagAltPrsvK Bool Frame where
    myget1 TagAltPrsvK = tagAltPrsv
    myset1 TagAltPrsvK value frame = frame { tagAltPrsv = value }
 
-instance P.Frame FileAltPrsvK Bool FrameHeader where
+instance P.Frame FileAltPrsvK Bool Frame where
    myget1 FileAltPrsvK = fileAltPrsv
    myset1 FileAltPrsvK value frame = frame { fileAltPrsv = value }
 
-instance P.Frame ReadOnlyK Bool FrameHeader where
+instance P.Frame ReadOnlyK Bool Frame where
    myget1 ReadOnlyK = readOnly
    myset1 ReadOnlyK value frame = frame { readOnly = value }
 
-instance P.Frame CompressionK Bool FrameHeader where
+instance P.Frame CompressionK Bool Frame where
    myget1 CompressionK = compression
    myset1 CompressionK value frame = frame { compression = value }
 
-instance P.Frame EncryptionK Bool FrameHeader where
+instance P.Frame EncryptionK Bool Frame where
    myget1 EncryptionK = encryption
    myset1 EncryptionK value frame = frame { encryption = value }
 
-instance P.Frame GroupingK Bool FrameHeader where
+instance P.Frame GroupingK Bool Frame where
    myget1 GroupingK = grouping
    myset1 GroupingK value frame = frame { grouping = value }
 
-instance P.Frame UnsyncFrK Bool FrameHeader where
+instance P.Frame UnsyncFrK Bool Frame where
    myget1 UnsyncFrK = unsyncFr
    myset1 UnsyncFrK value frame = frame { unsyncFr = value }
 
-instance P.Frame DataLenIK Bool FrameHeader where
+instance P.Frame DataLenIK Bool Frame where
    myget1 DataLenIK = dataLenI
    myset1 DataLenIK value frame = frame { dataLenI = value }
 
-instance P.Frame FrameBytesK IOString FrameHeader where
+instance P.Frame ZK Bool Frame where
+   myget1 ZK frame = True
+   myset1 ZK value frame = frame
+
+instance P.Frame FrameBytesK IOString Frame where
    myget1 FrameBytesK = frameBytes
    myset1 FrameBytesK value frame = frame { frameBytes = value }
 
-instance P.FrameD Var FrameHeader where
+instance P.FrameD Var Frame where
    mygetD name frame = case name of
-      StringID    -> toDyn $ stringID    frame 
-      FrameSize   -> toDyn $ frameSize   frame
-      TagAltPrsv  -> toDyn $ tagAltPrsv  frame 
-      FileAltPrsv -> toDyn $ fileAltPrsv frame 
-      ReadOnly    -> toDyn $ readOnly    frame 
-      Compression -> toDyn $ compression frame 
-      Encryption  -> toDyn $ encryption  frame 
-      Grouping    -> toDyn $ grouping    frame 
-      UnsyncFr    -> toDyn $ unsyncFr    frame 
-      DataLenI    -> toDyn $ dataLenI    frame 
-      FrameBytes  -> toDyn $ frameBytes  frame
-   mysetD name value frame = case name of
-      StringID    -> frame { stringID    = fromDyn1 value } 
-      FrameSize   -> frame { frameSize   = fromDyn1 value }
-      TagAltPrsv  -> frame { tagAltPrsv  = fromDyn1 value } 
-      FileAltPrsv -> frame { fileAltPrsv = fromDyn1 value } 
-      ReadOnly    -> frame { readOnly    = fromDyn1 value } 
-      Compression -> frame { compression = fromDyn1 value } 
-      Encryption  -> frame { encryption  = fromDyn1 value } 
-      Grouping    -> frame { grouping    = fromDyn1 value } 
-      UnsyncFr    -> frame { unsyncFr    = fromDyn1 value } 
-      DataLenI    -> frame { dataLenI    = fromDyn1 value } 
-      FrameBytes  -> frame { frameBytes  = fromDyn1 value }
+      StringID     -> toDyn $ stringID     frame 
+      FrameSize    -> toDyn $ frameSize    frame
+      TagAltPrsv   -> toDyn $ tagAltPrsv   frame 
+      FileAltPrsv  -> toDyn $ fileAltPrsv  frame 
+      ReadOnly     -> toDyn $ readOnly     frame 
+      Compression  -> toDyn $ compression  frame 
+      Encryption   -> toDyn $ encryption   frame 
+      Grouping     -> toDyn $ grouping     frame 
+      UnsyncFr     -> toDyn $ unsyncFr     frame 
+      DataLenI     -> toDyn $ dataLenI     frame 
+      FrameBytes   -> toDyn $ frameBytes   frame
+      Value        -> toDyn $ value        frame
+      TextEncoding -> toDyn $ textEncoding frame
+      Language     -> toDyn $ language     frame
+      Description  -> toDyn $ description  frame
+      MIMEType     -> toDyn $ mimeType     frame
+      PictureType  -> toDyn $ pictureType  frame
+      Picture      -> toDyn $ picture      frame
+      TimeFormat   -> toDyn $ timeFormat   frame
+      ContentType  -> toDyn $ contentType  frame
+      SyncedLyrics -> toDyn $ syncedLyrics frame
+   mysetD name value1 frame = case name of
+      StringID     -> frame { stringID     = fromDyn1 value1 } 
+      FrameSize    -> frame { frameSize    = fromDyn1 value1 }
+      TagAltPrsv   -> frame { tagAltPrsv   = fromDyn1 value1 } 
+      FileAltPrsv  -> frame { fileAltPrsv  = fromDyn1 value1 } 
+      ReadOnly     -> frame { readOnly     = fromDyn1 value1 } 
+      Compression  -> frame { compression  = fromDyn1 value1 } 
+      Encryption   -> frame { encryption   = fromDyn1 value1 } 
+      Grouping     -> frame { grouping     = fromDyn1 value1 } 
+      UnsyncFr     -> frame { unsyncFr     = fromDyn1 value1 } 
+      DataLenI     -> frame { dataLenI     = fromDyn1 value1 } 
+      FrameBytes   -> frame { frameBytes   = fromDyn1 value1 }
+      Value        -> frame { value        = fromDyn1 value1 }
+      TextEncoding -> frame { textEncoding = fromDyn1 value1 }
+      Language     -> frame { language     = fromDyn1 value1 }
+      Description  -> frame { description  = fromDyn1 value1 }
+      MIMEType     -> frame { mimeType     = fromDyn1 value1 }
+      PictureType  -> frame { pictureType  = fromDyn1 value1 }
+      Picture      -> frame { picture      = fromDyn1 value1 }
+      TimeFormat   -> frame { timeFormat   = fromDyn1 value1 }
+      ContentType  -> frame { contentType  = fromDyn1 value1 }
+      SyncedLyrics -> frame { syncedLyrics = fromDyn1 value1 }
 
 instance P.Frame ValueK T.Text Frame where
    myget1 ValueK = value
@@ -1718,35 +1816,13 @@ instance P.Frame ContentTypeK Int Frame where
    myget1 ContentTypeK = contentType
    myset1 ContentTypeK value frame = frame { contentType = value }
 
+instance P.Frame LyricsK T.Text Frame where
+   myget1 LyricsK = value
+   myset1 LyricsK value1 frame = frame { value = value1 }
+
 instance P.Frame SyncedLyricsK (M.Map Int T.Text) Frame where
    myget1 SyncedLyricsK = syncedLyrics
    myset1 SyncedLyricsK value frame = frame { syncedLyrics = value }
-
-
-instance P.FrameD Var Frame where
-   mygetD name frame = case name of
-      Value        -> toDyn $ value        frame
-      TextEncoding -> toDyn $ textEncoding frame
-      Language     -> toDyn $ language     frame
-      Description  -> toDyn $ description  frame
-      MIMEType     -> toDyn $ mimeType     frame
-      PictureType  -> toDyn $ pictureType  frame
-      Picture      -> toDyn $ picture      frame
-      TimeFormat   -> toDyn $ timeFormat   frame
-      ContentType  -> toDyn $ contentType  frame
-      SyncedLyrics -> toDyn $ syncedLyrics frame
-
-   mysetD name value1 frame = case name of
-      Value        -> frame { value        = fromDyn1 value1 }
-      TextEncoding -> frame { textEncoding = fromDyn1 value1 }
-      Language     -> frame { language     = fromDyn1 value1 }
-      Description  -> frame { description  = fromDyn1 value1 }
-      MIMEType     -> frame { mimeType     = fromDyn1 value1 }
-      PictureType  -> frame { pictureType  = fromDyn1 value1 }
-      Picture      -> frame { picture      = fromDyn1 value1 }
-      TimeFormat   -> frame { timeFormat   = fromDyn1 value1 }
-      ContentType  -> frame { contentType  = fromDyn1 value1 }
-      SyncedLyrics -> frame { syncedLyrics = fromDyn1 value1 }
 
 stringIDMap = M.fromList $ mapfxx stringID1 frameIDList
 
@@ -1769,163 +1845,163 @@ data FrameIDEntry = FT { sec :: T.Text, frameID1 :: FrameID, stringID1 :: T.Text
 data FrameID = T FrameID | Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 
 frameIDList =
-   [ FT "4.20 " Aenc "AENC" "Audio encryption" ""
-   , FT "4.15 " Apic "APIC" "Picture" "Attached picture"
-   , FT "4.11 " Comm "COMM" "Comments" ""
-   , FT "4.25 " Comr "COMR" "Commercial" "Commercial frame"
-   , FT "4.26 " Encr "ENCR" "Encryption method registration" ""
-   , FT "4.13 " Equa "EQUA" "Equalizn" "Equalization"
-   , FT "4.6  " Etco "ETCO" "Events" "Event timing codes"
-   , FT "4.16 " Geob "GEOB" "Object" "General encapsulated object"
-   , FT "4.27 " Grid "GRID" "Group ID" "Group identification registration"
-   , FT "4.4  " Ipls "IPLS" "People" "Involved people list"
-   , FT "4.21 " Link "LINK" "Link" "Linked information"
-   , FT "4.5  " Mcdi "MCDI" "CD ID" "Music CD identifier"
-   , FT "4.7  " Mllt "MLLT" "Loc. Grid" "MPEG location lookup Grid"
-   , FT "4.24 " Owne "OWNE" "Owner" "Ownership frame"
-   , FT "4.28 " Priv "PRIV" "Private" "Private frame"
-   , FT "4.17 " Pcnt "PCNT" "# Plays" "Play counter"
-   , FT "4.18 " Popm "POPM" "Popularimeter" ""
-   , FT "4.22 " Poss "POSS" "Position synchronisation frame" ""
-   , FT "4.19 " Rbuf "RBUF" "Recommended buffer size" ""
-   , FT "4.12 " Rvad "RVAD" "Relative volume adjustment" ""
-   , FT "4.14 " Rvrb "RVRB" "Reverb" ""
-   , FT "4.10 " Sylt "SYLT" "Synchronized lyric/text" ""
-   , FT "4.8  " Sytc "SYTC" "Synchronized tempo codes" ""
-   , FT "4.2.1" Album "TALB" "Album" "Album/Movie/Show title"
-   , FT "4.2.1" Tbpm "TBPM" "BPM" "BPM [beats per minute]"
-   , FT "4.2.1" Tcom "TCOM" "Composer" ""
-   , FT "4.2.1" Genre "TCON" "Genre" "Content type"
-   , FT "4.2.1" Tcop "TCOP" "Copyright" "Copyright message"
-   , FT "4.2.1" Tdat "TDAT" "Date" ""
-   , FT "4.2.1" Tdly "TDLY" "Playlist delay" ""
-   , FT "4.2.1" Tenc "TENC" "Encoded by" ""
-   , FT "4.2.1" Text "TEXT" "Lyrics by" "Lyricist/Text writer"
-   , FT "4.2.1" Tflt "TFLT" "File type" ""
-   , FT "4.2.1" Time "TIME" "Time" ""
-   , FT "4.2.1" Tit1 "TIT1" "Content group" "Content group description"
-   , FT "4.2.1" Song "TIT2" "Song" "Title/songname/content description"
-   , FT "4.2.1" Tit3 "TIT3" "Subtitle/Description refinement" ""
-   , FT "4.2.1" Tkey "TKEY" "Initial key" ""
-   , FT "4.2.1" Tlan "TLAN" "Language" ""
-   , FT "4.2.1" Tlen "TLEN" "Length [ms]" "Length"
-   , FT "4.2.1" Tmed "TMED" "Media type" ""
-   , FT "4.2.1" Toal "TOAL" "Original album" "Original album/movie/show title"
-   , FT "4.2.1" Tofn "TOFN" "Original filename" ""
-   , FT "4.2.1" Toly "TOLY" "Original lyricist" "Original lyricist[s]/text writer[s]"
-   , FT "4.2.1" Tope "TOPE" "Original artist" "Original artist[s]/performer[s]"
-   , FT "4.2.1" Tory "TORY" "Original release year" ""
-   , FT "4.2.1" Town "TOWN" "File owner/licensee" ""
-   , FT "4.2.1" Artist "TPE1" "Artist" "Lead performer[s]/Soloist[s]"
+   [ FT "4.20 " Aenc        "AENC" "Audio encryption" ""
+   , FT "4.15 " Apic        "APIC" "Picture" "Attached picture"
+   , FT "4.11 " Comm        "COMM" "Comments" ""
+   , FT "4.25 " Comr        "COMR" "Commercial" "Commercial frame"
+   , FT "4.26 " Encr        "ENCR" "Encryption method registration" ""
+   , FT "4.13 " Equa        "EQUA" "Equalizn" "Equalization"
+   , FT "4.6  " Etco        "ETCO" "Events" "Event timing codes"
+   , FT "4.16 " Geob        "GEOB" "Object" "General encapsulated object"
+   , FT "4.27 " Grid        "GRID" "Group ID" "Group identification registration"
+   , FT "4.4  " Ipls        "IPLS" "People" "Involved people list"
+   , FT "4.21 " Link        "LINK" "Link" "Linked information"
+   , FT "4.5  " Mcdi        "MCDI" "CD ID" "Music CD identifier"
+   , FT "4.7  " Mllt        "MLLT" "Loc. Grid" "MPEG location lookup Grid"
+   , FT "4.24 " Owne        "OWNE" "Owner" "Ownership frame"
+   , FT "4.28 " Priv        "PRIV" "Private" "Private frame"
+   , FT "4.17 " Pcnt        "PCNT" "# Plays" "Play counter"
+   , FT "4.18 " Popm        "POPM" "Popularimeter" ""
+   , FT "4.22 " Poss        "POSS" "Position synchronisation frame" ""
+   , FT "4.19 " Rbuf        "RBUF" "Recommended buffer size" ""
+   , FT "4.12 " Rvad        "RVAD" "Relative volume adjustment" ""
+   , FT "4.14 " Rvrb        "RVRB" "Reverb" ""
+   , FT "4.10 " Sylt        "SYLT" "Synchronized lyric/text" ""
+   , FT "4.8  " Sytc        "SYTC" "Synchronized tempo codes" ""
+   , FT "4.2.1" Album       "TALB" "Album" "Album/Movie/Show title"
+   , FT "4.2.1" Tbpm        "TBPM" "BPM" "BPM [beats per minute]"
+   , FT "4.2.1" Tcom        "TCOM" "Composer" ""
+   , FT "4.2.1" Genre       "TCON" "Genre" "Content type"
+   , FT "4.2.1" Tcop        "TCOP" "Copyright" "Copyright message"
+   , FT "4.2.1" Tdat        "TDAT" "Date" ""
+   , FT "4.2.1" Tdly        "TDLY" "Playlist delay" ""
+   , FT "4.2.1" Tenc        "TENC" "Encoded by" ""
+   , FT "4.2.1" Text        "TEXT" "Lyrics by" "Lyricist/Text writer"
+   , FT "4.2.1" Tflt        "TFLT" "File type" ""
+   , FT "4.2.1" Time        "TIME" "Time" ""
+   , FT "4.2.1" Tit1        "TIT1" "Content group" "Content group description"
+   , FT "4.2.1" Song        "TIT2" "Song" "Title/songname/content description"
+   , FT "4.2.1" Tit3        "TIT3" "Subtitle/Description refinement" ""
+   , FT "4.2.1" Tkey        "TKEY" "Initial key" ""
+   , FT "4.2.1" Tlan        "TLAN" "Language" ""
+   , FT "4.2.1" Tlen        "TLEN" "Length [ms]" "Length"
+   , FT "4.2.1" Tmed        "TMED" "Media type" ""
+   , FT "4.2.1" Toal        "TOAL" "Original album" "Original album/movie/show title"
+   , FT "4.2.1" Tofn        "TOFN" "Original filename" ""
+   , FT "4.2.1" Toly        "TOLY" "Original lyricist" "Original lyricist[s]/text writer[s]"
+   , FT "4.2.1" Tope        "TOPE" "Original artist" "Original artist[s]/performer[s]"
+   , FT "4.2.1" Tory        "TORY" "Original release year" ""
+   , FT "4.2.1" Town        "TOWN" "File owner/licensee" ""
+   , FT "4.2.1" Artist      "TPE1" "Artist" "Lead performer[s]/Soloist[s]"
    , FT "4.2.1" AlbumArtist "TPE2" "Album Artist" "Band/orchestra/accompaniment"
-   , FT "4.2.1" Tpe3 "TPE3" "Conductor/performer refinement" ""
-   , FT "4.2.1" Tpe4 "TPE4" "Interpreted, remixed, or otherwise modified by" ""
-   , FT "4.2.1" Tpos "TPOS" "Disc" "Part of a set"
-   , FT "4.2.1" Tpub "TPUB" "Publisher" ""
-   , FT "4.2.1" Track "TRCK" "#" "Track number/Position in set"
-   , FT "4.2.1" Trda "TRDA" "Recording dates" ""
-   , FT "4.2.1" Trsn "TRSN" "Internet radio station name" ""
-   , FT "4.2.1" Trso "TRSO" "Internet radio station owner" ""
-   , FT "4.2.1" Tsiz "TSIZ" "Size" ""
-   , FT "4.2.1" Tsrc "TSRC" "ISRC" "ISRC [international standard recording code]"
-   , FT "4.2.1" Tsse "TSSE" "Settings" "Software/Hardware and settings used for encoding"
-   , FT "4.2.1" Year "TYER" "Year" ""
-   , FT "4.2.2" Txxx "TXXX" "User text" "User defined text information frame"
-   , FT "4.1  " Ufid "UFID" "Unique file identifier" ""
-   , FT "4.23 " User "USER" "Terms of use" ""
-   , FT "4.9  " Uslt "USLT" "U Lyrics" "Unsychronized lyric/text transcription"
-   , FT "4.3.1" Wcom "WCOM" "Commercial information" ""
-   , FT "4.3.1" Wcop "WCOP" "Copyright/Legal information" ""
-   , FT "4.3.1" Woaf "WOAF" "Official audio file webpage" ""
-   , FT "4.3.1" Woar "WOAR" "Official artist/performer webpage" ""
-   , FT "4.3.1" Woas "WOAS" "Official audio source webpage" ""
-   , FT "4.3.1" Wors "WORS" "Official internet radio station homepage" ""
-   , FT "4.3.1" Wpay "WPAY" "Payment" ""
-   , FT "4.3.1" Wpub "WPUB" "Publishers official webpage" ""
-   , FT "4.3.2" Wxxx "WXXX" "User defined URL link frame" ""
+   , FT "4.2.1" Tpe3        "TPE3" "Conductor/performer refinement" ""
+   , FT "4.2.1" Tpe4        "TPE4" "Interpreted, remixed, or otherwise modified by" ""
+   , FT "4.2.1" Tpos        "TPOS" "Disc" "Part of a set"
+   , FT "4.2.1" Tpub        "TPUB" "Publisher" ""
+   , FT "4.2.1" Track       "TRCK" "#" "Track number/Position in set"
+   , FT "4.2.1" Trda        "TRDA" "Recording dates" ""
+   , FT "4.2.1" Trsn        "TRSN" "Internet radio station name" ""
+   , FT "4.2.1" Trso        "TRSO" "Internet radio station owner" ""
+   , FT "4.2.1" Tsiz        "TSIZ" "Size" ""
+   , FT "4.2.1" Tsrc        "TSRC" "ISRC" "ISRC [international standard recording code]"
+   , FT "4.2.1" Tsse        "TSSE" "Settings" "Software/Hardware and settings used for encoding"
+   , FT "4.2.1" Year        "TYER" "Year" ""
+   , FT "4.2.2" Txxx        "TXXX" "User text" "User defined text information frame"
+   , FT "4.1  " Ufid        "UFID" "Unique file identifier" ""
+   , FT "4.23 " User        "USER" "Terms of use" ""
+   , FT "4.9  " Uslt        "USLT" "U Lyrics" "Unsychronized lyric/text transcription"
+   , FT "4.3.1" Wcom        "WCOM" "Commercial information" ""
+   , FT "4.3.1" Wcop        "WCOP" "Copyright/Legal information" ""
+   , FT "4.3.1" Woaf        "WOAF" "Official audio file webpage" ""
+   , FT "4.3.1" Woar        "WOAR" "Official artist/performer webpage" ""
+   , FT "4.3.1" Woas        "WOAS" "Official audio source webpage" ""
+   , FT "4.3.1" Wors        "WORS" "Official internet radio station homepage" ""
+   , FT "4.3.1" Wpay        "WPAY" "Payment" ""
+   , FT "4.3.1" Wpub        "WPUB" "Publishers official webpage" ""
+   , FT "4.3.2" Wxxx        "WXXX" "User defined URL link frame" ""
    , -- seen in the wild but not part of the standard
-      FT "" Atxt "ATXT" "ATXT" ""
-   , FT "" Chap "CHAP" "ID3 Chapter" ""
-   , FT "" Ctoc "CTOC" "ID3 Table Of Contents" ""
-   , FT "" Rgad "RGAD" "RGAD" ""
-   , FT "" Tcmp "TCMP" "Comp" "Set to 1 if the song is part of a compilation"
-   , FT "" Tso2 "TSO2" "TSO2" ""
-   , FT "" Tsoc "TSOC" "TSOC" ""
-   , FT "" Xrva "XRVA" "XRVA" ""
-   , FT "" Ntrk "NTRK" "Total number of tracks" ""
+     FT "" Atxt "ATXT"      "ATXT" ""
+   , FT "" Chap "CHAP"      "ID3 Chapter" ""
+   , FT "" Ctoc "CTOC"      "ID3 Table Of Contents" ""
+   , FT "" Rgad "RGAD"      "RGAD" ""
+   , FT "" Tcmp "TCMP"      "Comp" "Set to 1 if the song is part of a compilation"
+   , FT "" Tso2 "TSO2"      "TSO2" ""
+   , FT "" Tsoc "TSOC"      "TSOC" ""
+   , FT "" Xrva "XRVA"      "XRVA" ""
+   , FT "" Ntrk "NTRK"      "Total number of tracks" ""
    , -- id3v2.4
-      FT "4.19 " Aspi "ASPI" "Audio seek point index" ""
-   , FT "4.12 " Equ2 "EQU2" "Equalisation" ""
-   , FT "4.11 " Rva2 "RVA2" "Relative volume adjustment" ""
-   , FT "4.29 " Seek "SEEK" "Seek" ""
-   , FT "4.28 " Sign "SIGN" "Signature" ""
-   , FT "4.2.5" Tden "TDEN" "Encoding time" ""
-   , FT "4.2.5" Tdor "TDOR" "Original release time" ""
-   , FT "4.2.5" Tdrc "TDRC" "Recording time" ""
-   , FT "4.2.5" Tdrl "TDRL" "Release time" ""
-   , FT "4.2.5" Tdtg "TDTG" "Tagging time" ""
-   , FT "4.2.2" Tipl "TIPL" "Involved people" "Involved people list"
-   , FT "4.2.2" Tmcl "TMCL" "Musician credits list" ""
-   , FT "4.2.3" Tmoo "TMOO" "Mood" ""
-   , FT "4.2.4" Tpro "TPRO" "Production notice" ""
-   , FT "4.2.5" Tsoa "TSOA" "Album sort" "Album sort order"
-   , FT "4.2.5" Tsop "TSOP" "Perf sort" "Performer sort order"
-   , FT "4.2.5" Tsot "TSOT" "Title sort" "Title sort order"
-   , FT "4.2.1" Tsst "TSST" "Set subtitle" ""
+     FT "4.19 " Aspi        "ASPI" "Audio seek point index" ""
+   , FT "4.12 " Equ2        "EQU2" "Equalisation" ""
+   , FT "4.11 " Rva2        "RVA2" "Relative volume adjustment" ""
+   , FT "4.29 " Seek        "SEEK" "Seek" ""
+   , FT "4.28 " Sign        "SIGN" "Signature" ""
+   , FT "4.2.5" Tden        "TDEN" "Encoding time" ""
+   , FT "4.2.5" Tdor        "TDOR" "Original release time" ""
+   , FT "4.2.5" Tdrc        "TDRC" "Recording time" ""
+   , FT "4.2.5" Tdrl        "TDRL" "Release time" ""
+   , FT "4.2.5" Tdtg        "TDTG" "Tagging time" ""
+   , FT "4.2.2" Tipl        "TIPL" "Involved people" "Involved people list"
+   , FT "4.2.2" Tmcl        "TMCL" "Musician credits list" ""
+   , FT "4.2.3" Tmoo        "TMOO" "Mood" ""
+   , FT "4.2.4" Tpro        "TPRO" "Production notice" ""
+   , FT "4.2.5" Tsoa        "TSOA" "Album sort" "Album sort order"
+   , FT "4.2.5" Tsop        "TSOP" "Perf sort" "Performer sort order"
+   , FT "4.2.5" Tsot        "TSOT" "Title sort" "Title sort order"
+   , FT "4.2.1" Tsst        "TSST" "Set subtitle" ""
    , -- id3v2.2
-      FT "4.19 " Buf "BUF" "Recommended buffer size" ""
-   , FT "4.17 " Cnt "CNT" "# Plays" ""
-   , FT "4.11 " Comm "COM" "Comments" ""
-   , FT "4.21 " Aenc "CRA" "Audio encryption" ""
-   , FT "4.20 " Crm "CRM" "Encrypted meta frame" ""
-   , FT "4.6  " Etco "ETC" "Events" ""
-   , FT "4.13 " Equa "EQU" "Equalization" ""
-   , FT "4.16 " Geob "GEO" "Object" ""
-   , FT "4.4  " Ipls "IPL" "Involved people" ""
-   , FT "4.22 " Link "LNK" "Link" "Linked information"
-   , FT "4.5  " Mcdi "MCI" "CD ID" "Music CD Identifier"
-   , FT "4.7  " Mllt "MLL" "Loc. Grid" "MPEG location lookup Grid"
-   , FT "4.15 " Apic "PIC" "Picture" ""
-   , FT "4.18 " Popm "POP" "Popularimeter" ""
-   , FT "4.14 " Rvrb "REV" "Reverb" ""
-   , FT "4.12 " Rvad "RVA" "Relative volume adjustment" ""
-   , FT "4.10 " Sylt "SLT" "Synchronized lyric/text" ""
-   , FT "4.8  " Album "TAL" "Album" "Album/Movie/Show title"
-   , FT "4.2.1" Tbpm "TBP" "BPM" "BPM [Beats Per Minute]"
-   , FT "4.2.1" Tcom "TCM" "Composer" ""
-   , FT "4.2.1" Genre "TCO" "Genre" "Content type"
-   , FT "4.2.1" Tcop "TCR" "Copyright" "Copyright message"
-   , FT "4.2.1" Tdat "TDA" "Date" ""
-   , FT "4.2.1" Tdly "TDY" "Playlist delay" ""
-   , FT "4.2.1" Tenc "TEN" "Encoded by" ""
-   , FT "4.2.1" Tflt "TFT" "File type" ""
-   , FT "4.2.1" Time "TIM" "Time" ""
-   , FT "4.2.1" Tkey "TKE" "Initial key" ""
-   , FT "4.2.1" Tlan "TLA" "Language" ""
-   , FT "4.2.1" Tlen "TLE" "Length [ms]" "Length"
-   , FT "4.2.1" Tmed "TMT" "Media type" ""
-   , FT "4.2.1" Tope "TOA" "Original artist[s]/performer[s]" ""
-   , FT "4.2.1" Tofn "TOF" "Original filename" ""
-   , FT "4.2.1" Toly "TOL" "Original Lyricist[s]/text writer[s]" ""
-   , FT "4.2.1" Tory "TOR" "Original release year" ""
-   , FT "4.2.1" Toal "TOT" "Original album" "Original album/Movie/Show title"
-   , FT "4.2.1" Artist "TP1" "Artist" "Lead artist[s]/Lead performer[s]/Soloist[s]/Performing group"
+     FT "4.19 " Buf         "BUF" "Recommended buffer size" ""
+   , FT "4.17 " Cnt         "CNT" "# Plays" ""
+   , FT "4.11 " Comm        "COM" "Comments" ""
+   , FT "4.21 " Aenc        "CRA" "Audio encryption" ""
+   , FT "4.20 " Crm         "CRM" "Encrypted meta frame" ""
+   , FT "4.6  " Etco        "ETC" "Events" ""
+   , FT "4.13 " Equa        "EQU" "Equalization" ""
+   , FT "4.16 " Geob        "GEO" "Object" ""
+   , FT "4.4  " Ipls        "IPL" "Involved people" ""
+   , FT "4.22 " Link        "LNK" "Link" "Linked information"
+   , FT "4.5  " Mcdi        "MCI" "CD ID" "Music CD Identifier"
+   , FT "4.7  " Mllt        "MLL" "Loc. Grid" "MPEG location lookup Grid"
+   , FT "4.15 " Apic        "PIC" "Picture" ""
+   , FT "4.18 " Popm        "POP" "Popularimeter" ""
+   , FT "4.14 " Rvrb        "REV" "Reverb" ""
+   , FT "4.12 " Rvad        "RVA" "Relative volume adjustment" ""
+   , FT "4.10 " Sylt        "SLT" "Synchronized lyric/text" ""
+   , FT "4.8  " Album       "TAL" "Album" "Album/Movie/Show title"
+   , FT "4.2.1" Tbpm        "TBP" "BPM" "BPM [Beats Per Minute]"
+   , FT "4.2.1" Tcom        "TCM" "Composer" ""
+   , FT "4.2.1" Genre       "TCO" "Genre" "Content type"
+   , FT "4.2.1" Tcop        "TCR" "Copyright" "Copyright message"
+   , FT "4.2.1" Tdat        "TDA" "Date" ""
+   , FT "4.2.1" Tdly        "TDY" "Playlist delay" ""
+   , FT "4.2.1" Tenc        "TEN" "Encoded by" ""
+   , FT "4.2.1" Tflt        "TFT" "File type" ""
+   , FT "4.2.1" Time        "TIM" "Time" ""
+   , FT "4.2.1" Tkey        "TKE" "Initial key" ""
+   , FT "4.2.1" Tlan        "TLA" "Language" ""
+   , FT "4.2.1" Tlen        "TLE" "Length [ms]" "Length"
+   , FT "4.2.1" Tmed        "TMT" "Media type" ""
+   , FT "4.2.1" Tope        "TOA" "Original artist[s]/performer[s]" ""
+   , FT "4.2.1" Tofn        "TOF" "Original filename" ""
+   , FT "4.2.1" Toly        "TOL" "Original Lyricist[s]/text writer[s]" ""
+   , FT "4.2.1" Tory        "TOR" "Original release year" ""
+   , FT "4.2.1" Toal        "TOT" "Original album" "Original album/Movie/Show title"
+   , FT "4.2.1" Artist      "TP1" "Artist" "Lead artist[s]/Lead performer[s]/Soloist[s]/Performing group"
    , FT "4.2.1" AlbumArtist "TP2" "Album Artist" "Band/Orchestra/Accompaniment"
-   , FT "4.2.1" Tpe3 "TP3" "Conductor/Performer refinement" ""
-   , FT "4.2.1" Tpe4 "TP4" "Interpreted, remixed, or otherwise modified by" ""
-   , FT "4.2.1" Tpos "TPA" "Disc" "Part of a set"
-   , FT "4.2.1" Tpub "TPB" "Publisher" ""
-   , FT "4.2.1" Tsrc "TRC" "ISRC" "ISRC [International Standard Recording Code]"
-   , FT "4.2.1" Trda "TRD" "Recording dates" ""
-   , FT "4.2.1" Track "TRK" "#" "Track number/Position in set"
-   , FT "4.2.1" Tsiz "TSI" "Size" ""
-   , FT "4.2.1" Tsse "TSS" "Settings" "Software/hardware and settings used for encoding"
-   , FT "4.2.1" Tit1 "TT1" "Content group description" ""
-   , FT "4.2.1" Song "TT2" "Song" "Title/Songname/Content description"
-   , FT "4.2.1" Tit3 "TT3" "Subtitle/Description refinement" ""
-   , FT "4.2.1" Text "TXT" "Lyrics by" "Lyricist/text writer"
-   , FT "4.2.2" Txxx "TXX" "User text" "User defined text information frame"
-   , FT "4.2.1" Year "TYE" "Year" ""
+   , FT "4.2.1" Tpe3        "TP3" "Conductor/Performer refinement" ""
+   , FT "4.2.1" Tpe4        "TP4" "Interpreted, remixed, or otherwise modified by" ""
+   , FT "4.2.1" Tpos        "TPA" "Disc" "Part of a set"
+   , FT "4.2.1" Tpub        "TPB" "Publisher" ""
+   , FT "4.2.1" Tsrc        "TRC" "ISRC" "ISRC [International Standard Recording Code]"
+   , FT "4.2.1" Trda        "TRD" "Recording dates" ""
+   , FT "4.2.1" Track       "TRK" "#" "Track number/Position in set"
+   , FT "4.2.1" Tsiz        "TSI" "Size" ""
+   , FT "4.2.1" Tsse        "TSS" "Settings" "Software/hardware and settings used for encoding"
+   , FT "4.2.1" Tit1        "TT1" "Content group description" ""
+   , FT "4.2.1" Song        "TT2" "Song" "Title/Songname/Content description"
+   , FT "4.2.1" Tit3        "TT3" "Subtitle/Description refinement" ""
+   , FT "4.2.1" Text        "TXT" "Lyrics by" "Lyricist/text writer"
+   , FT "4.2.2" Txxx        "TXX" "User text" "User defined text information frame"
+   , FT "4.2.1" Year        "TYE" "Year" ""
    , FT "4.1  " Ufid "UFI" "Unique file identifier" ""
    , FT "4.9  " Uslt "ULT" "U Lyrics" "Unsychronized lyric/text transcription"
    , FT "4.3.1" Woaf "WAF" "Official audio file webpage" ""
@@ -1936,4 +2012,4 @@ frameIDList =
    , FT "4.3.1" Wpub "WPB" "Publishers official webpage" ""
    , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
    ]
--}
+

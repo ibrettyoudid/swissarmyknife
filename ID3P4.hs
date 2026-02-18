@@ -44,9 +44,9 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
-import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++), splitAt)
+import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, elemIndex, (!!), (++), splitAt)
 import Data.List qualified
-import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), (/), splitAt, readFile, writeFile)
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), (/), splitAt, readFile, writeFile, elemIndex)
 import qualified Prelude
 
 -- import Data.Algorithm.Diff

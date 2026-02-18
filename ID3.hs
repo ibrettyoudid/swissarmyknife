@@ -41,7 +41,8 @@ import System.Process
 import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
-import Data.List hiding (concat, take, drop, elem, find, groupBy, head, inits, intercalate, isInfixOf, isPrefixOf, isSuffixOf, last, length, notElem, null, stripPrefix, tail, tails, (!!), (++), splitAt)
+import Data.List (transpose)
+import qualified Data.List as L
 import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, (!!), (++), splitAt, readFile, writeFile)
 
 -- import Data.Algorithm.Diff
@@ -488,7 +489,7 @@ elemIndexRev e f =
    let
       l = length f
       r = reverse f
-      i = fromMaybe (-1) $ elemIndex e r
+      i = fromMaybe (-1) $ L.elemIndex e r
       in
       l - i - 1
 

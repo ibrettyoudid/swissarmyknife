@@ -23,6 +23,7 @@ import Atto
 
 import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, splitAt)
 import Data.List (singleton, transpose, sort, elemIndex, findIndex)
+import qualified Data.List as L
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Builder
@@ -301,7 +302,7 @@ nest1 context (t : tags)
    | isEnd t context && length context >= 2 =
          let 
             ty = tagType t
-            ix = fromMaybe (-1) $ elemIndex ty $ map tagType context
+            ix = fromMaybe (-1) $ L.elemIndex ty $ map tagType context
          in nest1 (iterate pop context !! (ix + 1)) tags
    | isCont t = nest1 (t : context) tags
    | otherwise =
