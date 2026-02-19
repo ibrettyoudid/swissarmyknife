@@ -17,7 +17,7 @@ import Network.HTTP.Client
 
 import Control.Exception
 
-import BString 
+import BString hiding (elemIndex)
 import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, (/))
 import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 import Data.Char

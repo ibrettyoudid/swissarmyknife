@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LexicalNegation #-}
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE TupleSections #-}
@@ -160,7 +161,7 @@ artistmp3s a = mp3s $ artistd ++ a
 tagTree = unsafePerformIO . tagTreeM
 tagTreeM d = fromAssocsD . concat <$> tagTreeM1 d
 tagTreeM1 d =
-   mapM (\f -> map (\fr -> ([toDyn f, toDyn $ fst fr], snd fr)) . M.toList . metaOfFrames1 <$> readTagM (readSomeAudio 4) f) $
+   mapM (\f -> map (\fr -> ([toDyn f, toDyn $ fst fr], snd fr)) . M.toList . metaOfTag1 <$> readTagM (readSomeAudio 4) f) $
       mp3s d
 -}
 -- test = afl . ta . tagTree2
@@ -174,6 +175,8 @@ tf = obsid @ "02 Fall from Grace.mp3"
 
 type MyString = B.ByteString
 type IOString = B.ByteString
+
+type MPEGInt = Int
 
 data ID3Tag
    = ID3Tag { 
@@ -538,7 +541,7 @@ differences2 :: [String] -> [[String]]
 differences2 strs = let delims = commonSubsequencesList strs in map (infoFromString delims) strs
 
 metaFromString :: [FrameID] -> [String] -> String -> Meta
-metaFromString fields delims str = metaOfFrames2 False (c str) blankFT blankFT $ fieldsFromString fields delims str
+metaFromString fields delims str = metaOfTag2 False (c str) blankFT blankFT $ fieldsFromString fields delims str
 
 fieldsFromString fields delims str = M.fromList $ zip fields $ map toDyn $ infoFromString delims str
 
@@ -695,7 +698,7 @@ readFS db f
             -- if times1 `on (>) written` times f
             then do
                rfr <- readTagM 0 path1 --(readSomeAudio 8) path1
-               return [metaOfFrames False path1 times1 orig1 rfr]
+               return [metaOfTag False path1 times1 orig1 rfr]
             else
                return [f]
 
@@ -934,11 +937,11 @@ combineMPEGFrames totalBytes frs =
       [MPEGFrame mVersion mLayer bitRate sampRate totalBytes totalTime empty]
 
 {-
-[ FrameText "MPEG Ver" $ c $ show $ mode $ map version frs
-, FrameText "MPEG Layer" $ c $ show $ mode $ map layer frs
-, FrameText "Bitrate" $ c $ show $ round bitRate
+[ FrameText "MPEG Ver"    $ c $ show $ mode $ map version frs
+, FrameText "MPEG Layer"  $ c $ show $ mode $ map layer frs
+, FrameText "Bitrate"     $ c $ show $ round bitRate
 , FrameText "Audio bytes" $ c $ show totalBytes
-, FrameText "Time" $ c $ show $ realToFrac totalTime
+, FrameText "Time"        $ c $ show $ realToFrac totalTime
 , FrameText "Sample rate" $ c $ show $ round sampRate
 ]
 -}
@@ -982,12 +985,11 @@ myget1C id frames = L.find (\f -> isJust $ do
    j <- M.lookup s stringIDMap
    guard $ id == frameID1 j) frames
 
-metaOfFrames isDir1 path1 times1 orig1 = metaOfFrames2 isDir1 path1 times1 orig1 . metaOfFrames1
+metaOfTag isDir1 path1 times1 orig1 = metaOfTag2 isDir1 path1 times1 orig1 . metaOfTag1 
 
-metaOfFrames1 tag = M.fromList $ map (\frame -> (frameID frame, P.mygetD Value frame)) $ frames tag
+metaOfTag1 tag = M.fromList $ map (\frame -> (frameID frame, P.mygetD Value frame)) $ frames tag
 
-
-metaOfFrames2 isDir1 path1 times1 orig1 byId1 =
+metaOfTag2 isDir1 path1 times1 orig1 byId1 =
       Meta
          { isDir       = isDir1
          , path        = path1
@@ -1033,8 +1035,6 @@ encodeText enc text = case enc of
    0 -> T.encodeUtf8 text
    1 -> T.encodeUtf16LE text
 
-
-
 decodeUCS2 str = case B.take 2 str of
    "\255\254" -> T.decodeUtf16LE $ B.drop 2 str
    "\254\255" -> T.decodeUtf16BE $ B.drop 2 str
@@ -1059,8 +1059,9 @@ readTag2 f = parseTag <$> B.readFile f
 
 unright (Right r) = r
 
-parseTag str = case parse header str of
+parseTag str = case parse tag str of
    Done _ _ res -> res
+
 {-}
 parseTag str =
    let 
@@ -1154,8 +1155,8 @@ tag = Build emptyTag (
          FDone t1 f1 -> Parser6.format1 (Get TagSizeK) f1 (length t1)))
 -}
 
-header :: Rule IOString Word8 () ID3Tag
-header = Build emptyTag (
+tag :: Rule IOString Word8 () ID3Tag
+tag = Build emptyTag (
    Id3K      <-- Apply ic (Tokens 3) :/
    VerMajorK <-- int :/
    VerMinorK <-- int :/
@@ -1216,8 +1217,7 @@ frameheader 4 =
       SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
       SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
       FrameBytesK <-- (Get FrameSizeK >>== tokens) :/
-      FrameIDK    --> framebody)
-      
+      FrameIDK    --> framebody)      
 
 textEnc     = TextEncodingK --> (\enc -> Apply (itext enc) Rest)
 
@@ -1226,7 +1226,6 @@ zeroTextEnc = TextEncodingK --> zeroText
 zeroText enc = Apply (itext enc) $ case enc of
                                        0 -> AnyTill $ Token 0
                                        1 -> AnyTill $ String "\0\0"
-
 
 ic = total c c
 {-}
@@ -1359,17 +1358,20 @@ sampPerFrames =  [[0,    0,    0,    0],
                   [0,  384,  384,  384],
                   [0, 1152, 1152, 1152],
                   [0, 1152,  576,  576]]
-          
 
+mpegFrameOK = intn 4 0x100
+
+{-
 mpegFrameOK = Build emptyMPEGFrame (
    --AP.word8 0xFF
-   SetM (AllOnes2K :- AllOnes1K :- AllOnes0K :- VersionEnc1K :- VersionEnc0K :- LayerEnc1K :- LayerEnc0K :- ZK :- BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K :- SampRateEnc1K :- SampRateEnc0K :- ZK :- ChannelMode1K :- ChannelMode0K :- ()) (int3 0x100) :/
+   SetM (AllOnes2K :- AllOnes1K :- AllOnes0K :- VersionEnc1K :- VersionEnc0K :- LayerEnc1K :- LayerEnc0K :- ZK :- BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K :- SampRateEnc1K :- SampRateEnc0K :- ZK :- ZK :- ChannelMode1K :- ChannelMode0K :- ZK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple24 $ bits 24) :/
    AllOnesK     <-- Apply (inverse $ ibits 3) (GetM (AllOnes2K :- AllOnes1K :- AllOnes0K)) :/
    VersionEncK  <-- Apply (inverse $ ibits 2) (GetM (VersionEnc1K :- VersionEnc0K)) :/
    LayerEncK    <-- Apply (inverse $ ibits 2) (GetM (LayerEnc1K :- LayerEnc0K)) :/
    BitRateEncK  <-- Apply (inverse $ ibits 4) (GetM (BitRateEnc3K :- BitRateEnc2K :- BitRateEnc1K :- BitRateEnc0K)) :/
    SampRateEncK <-- Apply (inverse $ ibits 2) (GetM (SampRateEnc1K :- SampRateEnc0K)) :/
    ChannelModeK <-- Apply (inverse $ ibits 2) (GetM (ChannelMode1K :- ChannelMode0K)))
+-}
 {-
 mpegFrameF = do
    let version = [mpegv2_5, 0, mpegv2, mpegv1] !! versionEnc
@@ -1426,7 +1428,7 @@ ibsofs = total bsofs sofbs
 
 tuple8 = Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h :- ())) (\(a :- b :- c :- d :- e :- f :- g :- h :- ()) -> Just [a, b, c, d, e, f, g, h])
 
-tuple8 = Iso (\[a, b, c, d, e, f, g, h] -> Just (a :- b :- c :- d :- e :- f :- g :- h :- ())) (\(a :- b :- c :- d :- e :- f :- g :- h :- ()) -> Just [a, b, c, d, e, f, g, h])
+tuple24 = Iso (\[a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x] -> Just (a :- b :- c :- d :- e :- f :- g :- h :- i :- j :- k :- l :- m :- n :- o :- p :- q :- r :- s :- t :- u :- v :- w :- x :- ())) (\(a :- b :- c :- d :- e :- f :- g :- h :- i :- j :- k :- l :- m :- n :- o :- p :- q :- r:- s :- t :- u :- v :- w :- x :- ()) -> Just [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x])
 
 bits n = Apply (ibits n) int
 
@@ -1461,8 +1463,6 @@ undoint n m x =
       
    in q : undoint (n - 1) m r
 
-rep p n = Seq $ replicate n p
-
 --char = chr <$> int
 
 char = AnyToken
@@ -1477,7 +1477,6 @@ data FS  = Dir  { dpath :: String, objs :: M.Map String FS, dTimes :: FileTime, 
             | File { fpath :: String, frames :: [Frame], fTimes :: FileTime, foTimes :: FileTime }
             deriving (Generic)
 -}
-
 
 data Var = 
    Id3          |
@@ -1689,7 +1688,6 @@ instance P.Frame FrameIDK FrameID Frame where
             | id == Apic           -> FPicture      { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
             | id == Sylt           -> FSyncLyrics   { stringID = str, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame, frameID = id }
 
-
 instance P.Frame FrameSizeK Int Frame where
    myget1 FrameSizeK = frameSize
    myset1 FrameSizeK value frame = frame { frameSize = value }
@@ -1824,11 +1822,21 @@ instance P.Frame SyncedLyricsK (M.Map Int T.Text) Frame where
    myget1 SyncedLyricsK = syncedLyrics
    myset1 SyncedLyricsK value frame = frame { syncedLyrics = value }
 
+instance P.Frame VersionEncK Int MPEGInt where
+   myget1 VersionEncK frame = (shift frame -19) .&. 3
+
+instance P.Frame LayerEncK Int MPEGInt where
+   myget1 LayerEncK frame = (shift frame -17) .&. 3
+
+instance P.Frame BitRateEncK Int MPEGInt where
+   myget1 BitRateEncK frame = (shift frame -12) .&. 15
+
+instance P.Frame SampRateEncK Int MPEGInt where
+   myget1 SampRateEncK frame = (shift frame -10) .&. 3
+
 stringIDMap = M.fromList $ mapfxx stringID1 frameIDList
 
-frameIDMap = M.fromList $ mapfxx frameID1 frameIDList
-
-idMap       = M.fromList $ mapfxx frameID1    frameIDList
+frameIDMap  = M.fromList $ mapfxx frameID1  frameIDList
 
 descOfStringID stringID = fromMaybe (error "stringID " ++ stringID ++ " not found") $ M.lookup stringID descOfStringIDMap
 
