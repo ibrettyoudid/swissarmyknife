@@ -12,7 +12,7 @@ module Parser6 where
 
 import Parser6Types
 import Iso
-import MHashDynamic2 hiding (Apply, Frame, Member, Let, Lambda, cname)
+import MHashDynamic3 hiding (Apply, Frame, Member, Let, Lambda, cname)
 import NewTuple
 import BString
 
@@ -62,7 +62,7 @@ data Rule s t f r where
    Seq      :: SeqTuple a b f s t =>           a    -> Rule s t f  b
    Redo     :: Frame      n  s  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Lambda   :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
-   Set      :: Frame      n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
+   Set      :: (Show n, Show v, Frame      n  v  f) =>           n    -> Rule s t f  v  -> Rule s t f  v
    SetM     :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Get      :: Frame      n  v  f =>           n                      -> Rule s t f  v
    GetM     :: FrameTuple n  v  f =>           n                      -> Rule s t f  v
@@ -207,8 +207,8 @@ instance (FrameTuple names values frame, Frame name value frame) => FrameTuple (
 
 data HostPort = HostPort String Int deriving (Eq, Ord, Show)
 
-data Host = Host
-data Port = Port
+data Host = Host deriving (Eq, Ord, Show)
+data Port = Port deriving (Eq, Ord, Show)
 
 instance Frame Host String HostPort where
    myget1 Host (HostPort h p) = h
@@ -311,7 +311,7 @@ parse1 m@(Many a) fs i =
          case parse1 m fs1 i1 of
             Done i2 fs2 mr -> Done i2 fs2 (ar:mr)
             Fail i2 fs2 em -> Done i1 fs1 [ar]
-      Fail i1 fs1 em -> trace "reached last repeat" $ Done i fs []
+      Fail i1 fs1 em -> Done i fs [] --trace ("reached last repeat: "++em) $ Done i fs []
 
 parse1 m@(ManyTill a b) fs i =
    case parse1 b fs i of
@@ -355,31 +355,17 @@ parse1 (Let names rule) f t =
 -}
 parse1 (Set name rule) f t =
    case parse1 rule f t of
-      Done t1 f1 r -> Done t1 (myset1 name r f1) r
-         {-
-         case myset1 name r f1 of
-            Just j  -> Done t1 j r
-            Nothing -> Fail "Set failed" f1 t1
-            -}
+      Done t1 f1 r -> trace (show name ++ "=" ++ show r) $ 
+         Done t1 (myset1 name r f1) r
       Fail t1 f1 m -> Fail t1 f1 m
 
 parse1 (Member name rule) f t =
    case parse1 rule (myget1 name f) t of
       Done t1 f1 r -> Done t1 (myset1 name f1 f) f1
-         {-
-         case myset1 name r f1 of
-            Just j  -> Done t1 j r
-            Nothing -> Fail f1 failed" "Set t1
-            -}
       Fail t1 f1 m -> Fail t1 f m
 
 parse1 (Get name) f t = Done t f (myget1 name f)
 {-
-   case myget1 name f of
-      Just j  -> Done t f j
-      Nothing -> Fail f failed" "Get t
--}
-{-}
 parse1 (GetSub name rule) f t = 
    case parse1 rule f t of
       Done t1 f1 r -> let x = myget1 name r in Done t1 (myget1 name r)
@@ -417,7 +403,10 @@ parse1 (Build init rule) f t =
       Done t1 f1 r  -> Done t1 f f1
       Fail t1 f1 em -> Fail t1 f em
 
-parse1 (Redo name rule) f t = parse1 rule f (myget1 name f)
+parse1 (Redo name rule) f t = 
+   case parse1 rule f (myget1 name f) of
+      Done t1 f1 r  -> Done t f1 r
+      Fail t1 f1 em -> Fail t f1 em
 
 parse1 Rest f t = Done empty f t
 
@@ -455,6 +444,9 @@ parse1count x f t n =
       Done t1 f1 xr ->
          case parse1count x f1 t1 (n-1) of
             Done t2 f2 xsr -> Done t2 f2 (xr:xsr)
+            Fail t2 f2 em  -> Fail t2 f2 em --Done t2 f2 [xr]
+      Fail t1 f1 em -> Fail t1 f1 "not enough repeats"
+
 
 --formatcount (r:rs) fs x 0 = FDone [] fs
 formatcount x fs []     = FDone empty fs
@@ -754,7 +746,6 @@ a <-- b = Set a b
 infixr 2 :+
 infixr 2 :/
 infixr 2 ://
-infixr 2 //
 
 (>>==) :: Rule s t f a -> (a -> Rule s t f b, b -> a) -> Rule s t f b
 (>>==) = Bind
@@ -835,15 +826,15 @@ data DataField = DataField { fname :: String, ftype :: String, fkey  :: String, 
 --data DataCon   = DataCon   { con   :: String, fields :: [DataField] }
 
 
-data TypeK = TypeK
-data ConzK = ConzK
-data CNameK = CNameK
-data FieldsK = FieldsK
-data DynTypeK = DynTypeK
-data FNameK = FNameK
-data FKeyK = FKeyK
-data FDynKeyK = FDynKeyK
-data FTypeK = FTypeK
+data TypeK    = TypeK    deriving (Eq, Ord, Show, Read)     
+data ConzK    = ConzK    deriving (Eq, Ord, Show, Read)     
+data CNameK   = CNameK   deriving (Eq, Ord, Show, Read)      
+data FieldsK  = FieldsK  deriving (Eq, Ord, Show, Read)       
+data DynTypeK = DynTypeK deriving (Eq, Ord, Show, Read)        
+data FNameK   = FNameK   deriving (Eq, Ord, Show, Read)      
+data FKeyK    = FKeyK    deriving (Eq, Ord, Show, Read)     
+data FDynKeyK = FDynKeyK deriving (Eq, Ord, Show, Read)   
+data FTypeK   = FTypeK   deriving (Eq, Ord, Show, Read)      
 
 instance Frame TypeK String DataInfo where
    myget1 TypeK = dtype
@@ -949,8 +940,6 @@ s6 = sp 6
 sp n = Default (replicate n ' ') $ Many (Token ' ')
 
 a /+ b = a :+ s1 :/ b :// s1
-
-a // b = a :// s1 :/ b :/ s1
 
 crlf = Default "\n" $ Many (Token ' ' <|> Token '\n')
 

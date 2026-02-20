@@ -3,7 +3,7 @@
 module Parser6Types where
 
 import Data.Typeable
-import {-# SOURCE #-} MHashDynamic2
+import {-# SOURCE #-} MHashDynamic3
 
 class Frame name value frame | name frame -> value where
    myget1 :: name -> frame -> value

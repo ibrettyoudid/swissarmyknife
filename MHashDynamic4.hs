@@ -1,6 +1,7 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DatatypeContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# HLINT ignore "Move brackets to avoid $" #-}
@@ -15,8 +16,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module MHashDynamic3 (
-   module MHashDynamic3,
+module MHashDynamic4 (
+   module MHashDynamic4,
    Typeable,
    Data.Typeable.typeOf,
    typeRepArgs,
@@ -56,42 +57,43 @@ import GHC.Stack
 --import Syntax3 hiding (foldl, foldr, print, right)
 --import Syntax3 qualified as S3
 
-newtype Dynamic = Dynamic D.Dynamic
+newtype (Typeable c, Typeable t) => Dynamic c t = Dynamic D.Dynamic deriving (Typeable)
 
-und :: Dynamic -> D.Dynamic
+
+und :: Dynamic c t -> D.Dynamic
 und (Dynamic d) = d
 
-fromDynamic :: (Typeable a) => Dynamic -> Maybe a
+fromDynamic :: (Typeable a) => Dynamic c t -> Maybe a
 fromDynamic d = D.fromDynamic $ und d
 dynApply f x = Dynamic <$> D.dynApply (und f) (und x)
-dynTypeRep :: Dynamic -> SomeTypeRep
+dynTypeRep :: Dynamic c t -> SomeTypeRep
 dynTypeRep = D.dynTypeRep . und
 typeOf1 t = typeOf t
-toDyn :: (Typeable a) => a -> Dynamic
+toDyn :: (Typeable a) => a -> Dynamic c t
 toDyn a = Dynamic $ D.toDyn a
-fromDyn :: (Typeable a) => Dynamic -> a -> a
+fromDyn :: (Typeable a) => Dynamic c t -> a -> a
 fromDyn a = D.fromDyn $ und a
 
-fromDyn1 :: (Typeable a) => Dynamic -> a
+fromDyn1 :: (Typeable a) => Dynamic c t -> a
 fromDyn1 d = case fromDynamic d of
    Just j -> j
    n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (dynTypeRep d))
 
-fromDyn2 :: (Typeable a, HasCallStack) => String -> Dynamic -> a
+fromDyn2 :: (Typeable a, HasCallStack) => String -> Dynamic c t -> a
 fromDyn2 e d = case fromDynamic d of
    Just j -> j
    Nothing -> error $ e ++ ", is " ++ show d
 
 
-instance Eq Dynamic where
+instance forall k1 k2 (c :: k1) (t :: k2). (Typeable c, Typeable t) => Eq (Dynamic c t) where
    a == b = am eqm [a, b]
 
-instance Ord Dynamic where
+instance Ord (Dynamic c t) where
    compare a b = case applyMultimethod comparem [a, b] of
       Right d -> fromDyn d (error "should be an Ordering")
       Left e -> compare (showDyn a) (showDyn b)
 
-instance Num Dynamic where
+instance Num (Dynamic c t) where
    a + b = am3 addm [a, b]
    a - b = am3 subm [a, b]
    a * b = am3 mulm [a, b]
@@ -99,12 +101,12 @@ instance Num Dynamic where
    signum a = am3 signumm [a]
    fromInteger a = toDyn (fromInteger a :: Double)
 
-instance Fractional Dynamic where
+instance Fractional (Dynamic c t) where
    a / b = am3 divfracm [a, b]
 
-data NamedValue = NamedValue {nname :: String, nvalue :: Dynamic}
+data NamedValue c t = NamedValue {nname :: String, nvalue :: Dynamic c t }
 
-instance Eq NamedValue where
+instance Eq (NamedValue c t) where
    a == b = nname a == nname b
 
 data MType = MType {mtname :: String, conv :: TypeLink, constr :: Constr}
@@ -120,27 +122,27 @@ instance Eq MType where
 instance Ord MType where
    compare = compare `on` mtname
 
-data Expr
-   = Value   {etype :: MType, value :: Dynamic}
+data Expr c t
+   = Value   {etype :: MType, value :: Dynamic c t}
    | VarRef  {etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int}
-   | VarDef  {xtype :: Expr , name :: String, frameIndex :: Int, memIndex :: Int}
+   | VarDef  {xtype :: Expr c t, name :: String, frameIndex :: Int, memIndex :: Int}
    | VarRef1 {etype :: MType, name :: String}
-   | Lambda  {etype :: MType, econstr :: Constr,                     subexpr :: Expr}
-   | Let     {etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr}
-   | Block   {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
-   | Apply   {etype :: MType,                    subexprs :: [Expr]}
-   | If      {etype :: MType,                clauses :: [(Expr :- Expr)]}
-   | Case    {etype :: MType, case1 :: Expr, clauses :: [(Expr :- Expr)]}
+   | Lambda  {etype :: MType, econstr :: Constr,                     subexpr :: Expr c t}
+   | Let     {etype :: MType, econstr :: Constr, subexprs :: [Expr c t], subexpr :: Expr c t}
+   | Block   {etype :: MType, econstr :: Constr, subexprs :: [Expr c t]}
+   | Apply   {etype :: MType,                    subexprs :: [Expr c t]}
+   | If      {etype :: MType,                clauses :: [(Expr c t :- Expr c t)]}
+   | Case    {etype :: MType, case1 :: Expr c t, clauses :: [(Expr c t :- Expr c t)]}
    | Else
-   | Exprs   {etype :: MType, exprs1 :: [Expr]}
+   | Exprs   {etype :: MType, exprs1 :: [Expr c t]}
    | Keyword String
    deriving (Typeable, Eq, Show)
 
-data Closure = Closure Constr Expr Env deriving (Typeable)
+data Closure c t = Closure Constr (Expr c t) (Env c t) deriving (Typeable)
 
-type Env = [Frame]
+type Env c t = [Frame c t]
 
-data Frame = Frame {fconstr :: Constr, items :: [Dynamic]} deriving (Show, Eq)
+data Frame c t = Frame {fconstr :: Constr, items :: [Dynamic c t]} deriving (Show, Eq)
 
 pattern Co n m = Constr n (TypeLink [] []) m
 
@@ -148,13 +150,13 @@ data Constr = Constr {cname :: String, tl :: TypeLink, members :: [Member]} deri
 
 data Member = Member {mtype :: MType, mname :: String} deriving (Show, Eq)
 
-data MMEntry = Method Dynamic | Types [MType]
+data MMEntry c t = Method (Dynamic c t) | Types [MType]
 
-data Multimethod = Multimethod {mmname :: String, funcs :: M.Map [SomeTypeRep] Dynamic} deriving (Typeable)
+data Multimethod c t = Multimethod {mmname :: String, funcs :: M.Map [SomeTypeRep] (Dynamic c t)} deriving (Typeable)
 
-data MultimethodA = MultimethodA {namea :: String, funcsa :: SubArrayD Dynamic String} deriving (Typeable)
+data MultimethodA c t = MultimethodA {namea :: String, funcsa :: SubArrayD c t (Dynamic c t) String} deriving (Typeable)
 
-data PartApply = PartApply [Dynamic] Constr Expr Env deriving (Typeable)
+data PartApply c t = PartApply [Dynamic c t] Constr (Expr c t) (Env c t) deriving (Typeable)
 
 data Person = Tyrone | Danny | James | David deriving (Eq, Ord, Show, Read)
 
@@ -164,6 +166,7 @@ data TC = Trans | Cum deriving (Eq, Ord, Show, Read)
 
 dmean xs = toDyn (fromJust (fromDynamic (sum xs)) / fromIntegral (length xs) :: Double)
 
+am :: forall {k1} {k2} {c :: k1} {t :: k2} {a}. (Typeable c, Typeable t, Typeable a, Typeable k1, Typeable k2) => Multimethod c t -> [Dynamic c t] -> a
 am m xs = fromJust $ fromDynamic $ right $ applyMultimethod m xs
 
 am2 m = right . applyMultimethod m
@@ -172,14 +175,15 @@ am3 m xs = case applyMultimethod m xs of
    Left l -> toDyn (0 :: Int)
    Right r -> r
 
-applyMulti :: MMEntry -> [Dynamic] -> Dynamic
+applyMulti :: MMEntry c t -> [Dynamic c t] -> Dynamic c t
 applyMulti f xs = case f of
    Method m -> applyMulti1 m xs
    Types t -> error "Ambiguous call of multimethod"
 
-applyMulti1 :: Dynamic -> [Dynamic] -> Dynamic
+applyMulti1 :: Dynamic c t -> [Dynamic c t] -> Dynamic c t
 applyMulti1 = foldl (fromJust .: dynApply)
 
+zz :: Dynamic () ()
 zz = toDyn 'a'
 
 convertArg t x = if
@@ -191,7 +195,7 @@ convertArg1 f x = convertArg (head $ args $ dynTypeRep f) x
 
 convertArgs f xs = zipWith convertArg (init $ args $ dynTypeRep f) xs
 
-applyMultimethod :: Multimethod -> [Dynamic] -> Either String Dynamic
+applyMultimethod :: forall {k1} {k2} {c :: k1} {t :: k2}. (Typeable c, Typeable t, Typeable k1, Typeable k2) => Multimethod c t -> [Dynamic c t] -> Either [Char] (Dynamic c t)
 applyMultimethod (Multimethod n fs) xs = let
    xts = map dynTypeRep xs
    in
@@ -206,7 +210,7 @@ applyMultimethod2 (Multimethod n fs) rt xs = let
       Nothing -> Left $ "Multimethod " ++ n ++ " does not have an entry to match " ++ if elem n ["show", "convert"] then show xts else showDyn (toDyn xs)
       Just f -> Right $ applyMulti1 f xs
 
-applyMultimethodIO :: Multimethod -> [Dynamic] -> IO (Either String Dynamic)
+applyMultimethodIO :: forall {k1} {k2} {c :: k1} {t :: k2}. (Typeable c, Typeable t, Typeable k1, Typeable k2) => Multimethod c t -> [Dynamic c t] -> IO (Either [Char] (Dynamic c t))
 applyMultimethodIO m@(Multimethod n fs) xs = do
    xds <- mapM expandVal xs
    let rs = mapMaybe (\xs -> do f <- M.lookup (map dynTypeRep xs) fs; return $ applyMulti1 f xs) $ crossList xds
@@ -220,16 +224,16 @@ applyMultimethodA (MultimethodA n a) xs = let
    applyMulti1 (getElemDyn xts a) xs
 
 expandVal d = do
-   case fromDynamic d :: Maybe (IORef Dynamic) of
+   case fromDynamic d :: forall {k1} {k2} {c :: k1} {t :: k2}. (Typeable k1, Typeable k2, Typeable c, Typeable t) => Maybe (IORef (Dynamic c t)) of
       Just r -> do x <- readIORef r; y <- expandVal2 x; return (d : x : y)
       Nothing -> return [d]
 
 expandVal2 d = do
-   case fromDynamic d :: Maybe (IORef Dynamic) of
+   case fromDynamic d :: forall {k1} {k2} {c :: k1} {t :: k2}. (Typeable k1, Typeable k2, Typeable c, Typeable t) => Maybe (IORef (Dynamic c t)) of
       Just r -> do x <- readIORef r; y <- expandVal2 x; return (x : y)
       Nothing -> return [d]
 
-collectMulti :: [(String, Dynamic)] -> [(String, Dynamic)]
+collectMulti :: forall {k1} {k2} {k3} {k4} {c1 :: k1} {t1 :: k2} {c2 :: k3} {t2 :: k4}. (Typeable c1, Typeable t1, Typeable k1, Typeable k2) => [(String, Dynamic c1 t1)] -> [(String, Dynamic c2 t2)]
 collectMulti env = map (\(n, fs) -> (n, toDyn $ createMultimethod n fs)) $ nubMulti env
 
 myTypeOf :: (Typeable a) => a -> TypeRep
@@ -273,7 +277,7 @@ typeList =
    , (myTypeOf (z :: Double), tiDouble)
    , (myTypeOf (z :: Rational), tiRational)
    , (myTypeOf (z :: String), tiString)
-   , (myTypeOf (z :: [Dynamic]), tiList)
+   , (myTypeOf (z :: [Dynamic c t]), tiList)
    , (myTypeOf (z :: Ordering), tiOrdering)
    , (myTypeOf (z :: TC), tiTC)
    , (myTypeOf (z :: Day), tiDay)
@@ -283,9 +287,9 @@ typeList =
    , (myTypeOf (z :: Char), tiChar)
    , (myTypeOf (z :: Bool), tiBool)
    , (myTypeOf (z :: ()), tiVoid)
-   , (myTypeOf (z :: Dynamic), tiDynamic)
-   , (myTypeOf (z :: Maybe Dynamic), tiMaybe)
-   , (myTypeOf (z :: NamedValue), tiNamedValue)
+   , (myTypeOf (z :: Dynamic c t), tiDynamic)
+   , (myTypeOf (z :: Maybe (Dynamic c t)), tiMaybe)
+   , (myTypeOf (z :: NamedValue c t), tiNamedValue)
    ]
 
 void = Constr "void" (TypeLink [] []) []
@@ -309,7 +313,7 @@ goodhead tss =
    in
       mapFJE (error "no good heads") (ifPred (`S.notMember` tails)) (map head tss)
 
-createMultimethod :: String -> [Dynamic] -> Multimethod
+createMultimethod :: String -> [Dynamic c t] -> Multimethod c t
 createMultimethod n fs = Multimethod n $ M.fromList $ mergeMethods fs
 
 createMultimethod1 n fs = Multimethod n $ M.fromList $ mapfxx (init . args . dynTypeRep) fs
@@ -504,13 +508,13 @@ convertm =
          ] ++ showl)
 
 fromdynm d = mapMaybe (\f -> dynApply f d)
-   [toDyn (fromDynamic :: Dynamic -> Maybe Int),
-   toDyn (fromDynamic :: Dynamic -> Maybe Char),
-   toDyn (fromDynamic :: Dynamic -> Maybe String),
-   toDyn (fromDynamic :: Dynamic -> Maybe [Dynamic]),
-   toDyn (fromDynamic :: Dynamic -> Maybe (Dynamic, Dynamic)),
-   toDyn (fromDynamic :: Dynamic -> Maybe (Dynamic :- Dynamic)),
-   toDyn (fromDynamic :: Dynamic -> Maybe Dynamic)]
+   [toDyn (fromDynamic :: (Dynamic c t) -> Maybe Int),
+   toDyn (fromDynamic :: (Dynamic c t) -> Maybe Char),
+   toDyn (fromDynamic :: (Dynamic c t) -> Maybe String),
+   toDyn (fromDynamic :: (Dynamic c t) -> Maybe [(Dynamic c t)]),
+   toDyn (fromDynamic :: (Dynamic c t) -> Maybe ((Dynamic c t), (Dynamic c t))),
+   toDyn (fromDynamic :: (Dynamic c t) -> Maybe ((Dynamic c t) :- (Dynamic c t))),
+   toDyn (fromDynamic :: (Dynamic c t) -> Maybe (Dynamic c t))]
 
 
 --readRational s = try $ evaluate $ read s
@@ -522,12 +526,12 @@ readNum2 str = case NP.parse NP.floating "convert String -> Double" str of
 showAny :: (Typeable a) => a -> String
 showAny = showDyn . toDyn
 
-showDyn :: Dynamic -> String
+showDyn :: Dynamic c t -> String
 showDyn x = case applyMultimethod showm [x] of
    Left e -> show $ und x
    Right r -> fromMaybe "all show functions must return String" $ fromDynamic r
 
-showDyn1 :: Dynamic -> String
+showDyn1 :: Dynamic c t -> String
 showDyn1 x = case applyMultimethod showm1 [x] of
    Left e -> show $ und x
    Right r -> fromMaybe "all show functions must return String" $ fromDynamic r
@@ -542,7 +546,7 @@ showRec x = case applyMultimethod showm [x] of
 showAnyIO :: (Typeable a) => a -> IO String
 showAnyIO = showDynIO . toDyn
 
-showDynIO :: Dynamic -> IO String
+showDynIO :: Dynamic c t -> IO String
 showDynIO x = do
    xr <- applyMultimethodIO showm [x]
    case xr of
@@ -614,12 +618,12 @@ putAny x = showAnyIO x >>= putStr
 putAnyLn :: (Typeable a) => a -> IO ()
 putAnyLn x = showAnyIO x >>= putStrLn
 
-putDyn :: Dynamic -> IO ()
+putDyn :: Dynamic c t -> IO ()
 putDyn x = showDynIO x >>= putStr
-putDynLn :: Dynamic -> IO ()
+putDynLn :: Dynamic c t -> IO ()
 putDynLn x = showDynIO x >>= putStrLn
 
-eqm :: Multimethod
+eqm :: Multimethod c t
 eqm = createMultimethod "=="
    [ toDyn ((==) :: Int -> Int -> Bool)
    , toDyn ((==) :: Integer -> Integer -> Bool)
@@ -630,17 +634,17 @@ eqm = createMultimethod "=="
    , toDyn ((==) :: Char -> Char -> Bool)
    , toDyn ((==) :: Bool -> Bool -> Bool)
    , toDyn ((==) :: () -> () -> Bool)
-   , toDyn ((==) :: Maybe Dynamic -> Maybe Dynamic -> Bool)
-   , toDyn ((==) :: [Dynamic] -> [Dynamic] -> Bool)
+   , toDyn ((==) :: Maybe (Dynamic c t) -> Maybe (Dynamic c t) -> Bool)
+   , toDyn ((==) :: [(Dynamic c t)] -> [(Dynamic c t)] -> Bool)
    , toDyn ((==) :: TC -> TC -> Bool)
    , toDyn ((==) :: Day -> Day -> Bool)
    , toDyn ((==) :: DayOfWeek -> DayOfWeek -> Bool)
    , toDyn ((==) :: Field -> Field -> Bool)
    , toDyn ((==) :: Person -> Person -> Bool)
-   , toDyn ((==) :: NamedValue -> NamedValue -> Bool)
+   , toDyn ((==) :: NamedValue c t -> NamedValue c t -> Bool)
    ]
 
-comparem :: Multimethod
+comparem :: Multimethod c t
 comparem = createMultimethod "compare" comparel
 
 comparel =
@@ -670,7 +674,7 @@ divfracm =
       , toDyn ((/) :: Float -> Float -> Float)
       ]
 
-numl :: (forall n. (Num n) => n -> n -> n) -> [Dynamic]
+numl :: (forall n. (Num n) => n -> n -> n) -> [Dynamic c t]
 numl op =
    [ toDyn (op :: Int -> Int -> Int)
    , toDyn (op :: Integer -> Integer -> Integer)
@@ -719,32 +723,32 @@ toIntegerm =
       , toDyn (round :: Rational -> Integer)
       ]
 
-instance Show Closure where
+instance Show (Closure c t) where
    show (Closure constr expr env) = "{" ++ show (Lambda u constr expr) ++ "}"
 
-instance Show Dynamic where
+instance Show (Dynamic c t) where
    show = showDyn
 
-instance Show1 Dynamic where
+instance Show1 (Dynamic c t) where
    show1 = showDyn1
 
---instance Show Multimethod where
---   show mm = show $ fromAssocsDA (\_ x -> x) (toDyn "") (map (\x -> "arg"++show x) [0..]) $ map (\(i, e) -> (map toDyn i, e)) $ M.toList $ funcs mm
+instance Show (Multimethod c t) where
+   show mm = show $ fromAssocsDA (\_ x -> x) (toDyn "") (map (\x -> "arg"++show x) [0..]) $ map (\(i, e) -> (map toDyn i, e)) $ M.toList $ funcs mm
 
---instance Show MultimethodA where
---   show (MultimethodA n a) = "name: " ++ n ++ "\n" ++ show a
+instance Show (MultimethodA c t) where
+   show (MultimethodA n a) = "name: " ++ n ++ "\n" ++ show a
 
 
-instance Read Dynamic where
+instance Read (Dynamic c t) where
    readsPrec p s0 = px (readsPrec p :: ReadS Int) $ px (readsPrec p :: ReadS Double) $ px (readsPrec p :: ReadS Bool) $ px (readsPrec p :: ReadS String) $ px (readsPrec p :: ReadS Char) [(toDyn s0, "")]
       where
          px p y = let (r, s) = unzip $ p s0 in if not $ null r then zip (map toDyn r) s else y
 
-deriving instance Show MMEntry
+deriving instance Show (MMEntry c t)
 
 --deriving instance Show HTTPTypes.HVar
 
-showm :: Multimethod
+showm :: Multimethod c t
 showm =
    createMultimethod1
       "show" showl
@@ -763,27 +767,27 @@ showl =
    , toDyn ((\d -> showFFloat (Just 4) d "") :: Float -> String)
    , toDyn (show :: Rational -> String)
    , toDyn (show :: () -> String)
-   , toDyn (show :: Maybe Dynamic -> String)
-   , toDyn (show :: [Dynamic] -> String)
-   --, toDyn (show :: Multimethod -> String)
-   --, toDyn (show :: MultimethodA -> String)
-   , toDyn (show :: M.Map [SomeTypeRep] Dynamic -> String)
-   , toDyn (show :: [([SomeTypeRep], Dynamic)] -> String)
-   , toDyn (show :: ([SomeTypeRep], Dynamic) -> String)
+   , toDyn (show :: Maybe (Dynamic c t) -> String)
+   , toDyn (show :: [Dynamic c t] -> String)
+   , toDyn (show :: Multimethod c t -> String)
+   , toDyn (show :: MultimethodA c t -> String)
+   , toDyn (show :: M.Map [SomeTypeRep] (Dynamic c t) -> String)
+   , toDyn (show :: [([SomeTypeRep], Dynamic c t)] -> String)
+   , toDyn (show :: ([SomeTypeRep], Dynamic c t) -> String)
    , toDyn (show :: [SomeTypeRep] -> String)
    , toDyn (show :: SomeTypeRep -> String)
-   , toDyn (show :: M.Map HTTPTypes.HVar Dynamic -> String)
+   , toDyn (show :: M.Map HTTPTypes.HVar (Dynamic c t) -> String)
    , toDyn (show :: Ordering -> String)
-   , toDyn (show :: MMEntry -> String)
+   , toDyn (show :: MMEntry c t -> String)
    , toDyn (show :: Person -> String)
    , toDyn (show :: Field -> String)
    , toDyn (show :: TC -> String)
    , toDyn (showDate)
-   , toDyn (show :: Expr -> String)
-   , toDyn (show :: Closure -> String)
+   , toDyn (show :: Expr c t -> String)
+   , toDyn (show :: Closure c t -> String)
    , toDyn (fromJust . fp expr)
-   , toDyn (show :: (Dynamic :- Dynamic) -> String)
-   , toDyn (show :: (Dynamic, Dynamic) -> String)
+   , toDyn (show :: (Dynamic c t :- Dynamic c t) -> String)
+   , toDyn (show :: (Dynamic c t, Dynamic c t) -> String)
    ]
 
 showm1 =
@@ -804,27 +808,27 @@ showl1 =
    , toDyn ((\d -> showFFloat (Just 4) d "") :: Float -> String)
    , toDyn (show :: Rational -> String)
    , toDyn (show :: () -> String)
-   , toDyn (show :: Maybe Dynamic -> String)
-   , toDyn (show :: [Dynamic] -> String)
-   --, toDyn (show :: Multimethod -> String)
-   --, toDyn (show :: MultimethodA -> String)
-   , toDyn (show :: M.Map [SomeTypeRep] Dynamic -> String)
-   , toDyn (show :: [([SomeTypeRep], Dynamic)] -> String)
-   , toDyn (show :: ([SomeTypeRep], Dynamic) -> String)
+   , toDyn (show :: Maybe (Dynamic c t) -> String)
+   , toDyn (show :: [(Dynamic c t)] -> String)
+   , toDyn (show :: Multimethod c t -> String)
+   , toDyn (show :: MultimethodA c t -> String)
+   , toDyn (show :: M.Map [SomeTypeRep] (Dynamic c t) -> String)
+   , toDyn (show :: [([SomeTypeRep], (Dynamic c t))] -> String)
+   , toDyn (show :: ([SomeTypeRep], (Dynamic c t)) -> String)
    , toDyn (show :: [SomeTypeRep] -> String)
    , toDyn (show :: SomeTypeRep -> String)
-   , toDyn (show :: M.Map HTTPTypes.HVar Dynamic -> String)
+   , toDyn (show :: M.Map HTTPTypes.HVar (Dynamic c t) -> String)
    , toDyn (show :: Ordering -> String)
-   , toDyn (show :: MMEntry -> String)
+   , toDyn (show :: MMEntry c t -> String)
    , toDyn (show :: Person -> String)
    , toDyn (show :: Field -> String)
    , toDyn (show :: TC -> String)
    , toDyn (showDate)
-   , toDyn (show :: Expr -> String)
-   , toDyn (show :: Closure -> String)
+   , toDyn (show :: Expr c t -> String)
+   , toDyn (show :: Closure c t -> String)
    , toDyn (fromJust . fp expr)
-   , toDyn (show :: (Dynamic :- Dynamic) -> String)
-   , toDyn (show :: (Dynamic, Dynamic) -> String)
+   , toDyn (show :: ((Dynamic c t) :- (Dynamic c t)) -> String)
+   , toDyn (show :: ((Dynamic c t), (Dynamic c t)) -> String)
    ]
 
 showDate (YearMonthDay y m d) = pad0 2 (show d) ++ "/" ++ pad0 2 (show m) ++ "/" ++ show y
@@ -849,7 +853,7 @@ readShow = total "readShow" read show
 
 num = "num" <=> valueIso >$< (readShow :: Iso String Int) >$< many1 (RangeR '0' '9')
 
-numIso = valueIso :: Iso Int Expr
+numIso = valueIso :: Iso Int (Expr c t)
 
 valueIso = Iso "valueIso" (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> Nothing)
 
@@ -881,7 +885,7 @@ app (Apply _ l) = l
 
 --prediso p = Iso (ifPred p) (ifPred p)
 
-opiso :: [String] -> Iso (Expr :- (String :- Expr)) Expr
+opiso :: [String] -> Iso ((Expr c t) :- (String :- (Expr c t))) (Expr c t)
 opiso ops =
    Iso
       "opiso"
@@ -894,11 +898,11 @@ opiso ops =
 opc :: [[Char]] -> RuleR Char String
 opc ops = Prelude.foldr1 (<|>) $ map text ops
 
-opl :: [[Char]] -> RuleR Char Expr -> RuleR Char Expr
+opl :: [[Char]] -> RuleR Char (Expr c t) -> RuleR Char (Expr c t)
 opl ops term = chainl1 term (opc ops) $ opiso ops
 
-opr :: [[Char]] -> RuleR Char Expr -> RuleR Char Expr
-opr ops term = (chainr1) (term :: RuleR Char Expr) (opc ops :: RuleR Char String) (opiso ops :: Iso (Expr :- (String :- Expr)) Expr)
+opr :: [[Char]] -> RuleR Char (Expr c t) -> RuleR Char (Expr c t)
+opr ops term = (chainr1) (term :: RuleR Char (Expr c t)) (opc ops :: RuleR Char String) (opiso ops :: Iso ((Expr c t) :- (String :- (Expr c t))) (Expr c t))
 
 ops = ["+", "-", "*", "/", "$", ".", "=", "=="]
 
@@ -976,7 +980,7 @@ ifSyn =
       (Just . If u)
       (\case If _ blah -> Just blah; _ -> Nothing)
       >$< text "if"
-      *< groupOf (expr0 >*< text "->" *< expr0 :: RuleR Char (Expr :- Expr))
+      *< groupOf (expr0 >*< text "->" *< expr0 :: RuleR Char ((Expr c t) :- (Expr c t)))
 
 conIso = Iso "conIso" (Just . Co "data") (\case Co _ members -> Just members)
 
@@ -999,13 +1003,13 @@ expr = "expr" <=> (ifSyn <|> lambdaSyn <|> blockSyn <|> expr0)
 
 exprs = groupOf expr
 
-data Dimension name
+data Dimension c t name
    = DimInt {dimName :: name, dimLower :: Int, dimUpper :: Int, dimMult :: Int}
-   | DimMap {dimName :: name, dimLower :: Int, dimUpper :: Int, dimMult :: Int, dimMap1 :: M.Map Int Dynamic, dimMap2 :: M.Map Dynamic Int}
+   | DimMap {dimName :: name, dimLower :: Int, dimUpper :: Int, dimMult :: Int, dimMap1 :: M.Map Int (Dynamic c t), dimMap2 :: M.Map (Dynamic c t) Int}
 --            | DimCat { dimDim::Dimension, dimDiv::[Int], dimMult1::[Int] }
    deriving (Show)
 
-data SubArrayD e dimName = SubArrayD {dims :: [Dimension dimName], offset :: Int, payload :: A.Array Int e} deriving (Show)
+data SubArrayD c t e dimName = SubArrayD {dims :: [Dimension c t dimName], offset :: Int, payload :: A.Array Int e}
 
 -- main = print $ Main.transpose 0 1 $ fromList2z 0 [[1,2,3],[4,5,6],[7,8,9]]
 
@@ -1150,7 +1154,7 @@ indicesA a = indices $ dims a
 indices ds = crossList $ dimRanges ds
 indicesD ds = crossList $ dimRangesD ds
 
-toAssocs :: SubArrayD e dimName -> [([Int], e)]
+toAssocs :: SubArrayD c t e dimName -> [([Int], e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indicesA a
 
 toAssocsD a = map (\i -> (zipWith elemName i d, getElem i a)) $ indicesA a where d = dims a
@@ -1158,7 +1162,7 @@ toAssocsD a = map (\i -> (zipWith elemName i d, getElem i a)) $ indicesA a where
 elemName i (DimInt dn dl du dm) = toDyn i
 elemName i (DimMap dn dl du dm dm1 dm2) = dm1 M.! i
 
-fromAssocs :: [dimName] -> [([Int], e)] -> SubArrayD e dimName
+fromAssocs :: [dimName] -> [([Int], e)] -> SubArrayD c t e dimName
 fromAssocs ns as = let
    (mins, maxs, lens) = unzip3 $ map toDim $ transpose $ checkRectangular $ map fst as
    (len : muls) = scanr (*) 1 lens
@@ -1173,7 +1177,7 @@ toDim is = let
    
    in (mi, ma, le)
 
-fromAssocsD :: [dimName] -> [([Dynamic], e)] -> SubArrayD e dimName
+fromAssocsD :: [dimName] -> [([Dynamic c t ], e)] -> SubArrayD c t e dimName
 fromAssocsD dnames as = let
    (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectangular $ map fst as
    (len : muls) = scanr (*) 1 lens
@@ -1274,25 +1278,25 @@ fromArrayList2 dl du as = let
 
 fromAOA a = fromAssocs $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (i1 ++ i2, e2)) $ toAssocs e1) $ toAssocs a
 
-newtype SubArray1 b dimName = SubArray1 (SubArrayD b dimName)
-newtype SubArray2 b dimName = SubArray2 (SubArrayD b dimName)
-newtype SubArray3 b dimName = SubArray3 (SubArrayD b dimName)
+newtype SubArray1 c t b dimName = SubArray1 (SubArrayD c t b dimName)
+newtype SubArray2 c t b dimName = SubArray2 (SubArrayD c t b dimName)
+newtype SubArray3 c t b dimName = SubArray3 (SubArrayD c t b dimName)
 
 class SubArray a e where
    (!) :: a -> Int -> e
-   (?) :: a -> Dynamic -> e
+   (?) :: a -> Dynamic c t -> e
 
-instance SubArray (SubArray1 b dimName) b where
+instance SubArray (SubArray1 c t b dimName) b where
    SubArray1 a ! i = getElem [i] a
    SubArray1 a ? i = getElem [] $ getSubDyn i a
 
-instance SubArray (SubArray2 b dimName) (SubArray1 b dimName) where
+instance SubArray (SubArray2 c t b dimName) (SubArray1 c t b dimName) where
    SubArray2 a ! i = SubArray1 $ getSub i a
    SubArray2 a ? i = SubArray1 $ getSubDyn i a
-{-
-instance (Show dimName, Show e) => Show (SubArrayD e dimName) where
+
+instance (Show dimName, Show e) => Show (SubArrayD c t e dimName) where
    show = showHyper
--}
+
 {-
 toAssocs :: SubArrayD e -> [([Int], e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indices a
@@ -1429,7 +1433,7 @@ unionAA f z a1 a2 = fromAssocsDA f z $ toAssocsD a1 ++ toAssocsD a2
 unionsAA f z as = fromAssocsDA f z $ concatMap toAssocsD as
 joinAAAdd f z dn dv a1 a2 = fromAssocsDA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocsD a1) ++ toAssocsD a2
 
-ignore = const id
+ignore = const 
 
 insertAt n v l = let
    (b, a) = splitAt n l

@@ -4,25 +4,25 @@ import Parser6Types
 import NewTuple
 
 
-data ProtocolK = ProtocolK
-data HostK = HostK
-data PortK = PortK
-data AbsPathK = AbsPathK
-data QueryK = QueryK
-data MethodK = MethodK
-data UrlK = UrlK
-data HeadersK = HeadersK
-data Headers1K = Headers1K
-data BodyK = BodyK
-data HeaderNameK = HeaderNameK
-data ValueK = ValueK
-data ContentLengthK = ContentLengthK
-data HTTPVersionK = HTTPVersionK
-data StatusCodeK = StatusCodeK
-data ReasonPhraseK = ReasonPhraseK
+data ProtocolK      = ProtocolK      deriving (Eq, Ord, Show)
+data HostK          = HostK          deriving (Eq, Ord, Show)
+data PortK          = PortK          deriving (Eq, Ord, Show)
+data AbsPathK       = AbsPathK       deriving (Eq, Ord, Show)   
+data QueryK         = QueryK         deriving (Eq, Ord, Show) 
+data MethodK        = MethodK        deriving (Eq, Ord, Show)  
+data UrlK           = UrlK           deriving (Eq, Ord, Show)
+data HeadersK       = HeadersK       deriving (Eq, Ord, Show)   
+data Headers1K      = Headers1K      deriving (Eq, Ord, Show)    
+data BodyK          = BodyK          deriving (Eq, Ord, Show)
+data HeaderNameK    = HeaderNameK    deriving (Eq, Ord, Show)      
+data ValueK         = ValueK         deriving (Eq, Ord, Show) 
+data ContentLengthK = ContentLengthK deriving (Eq, Ord, Show)         
+data HTTPVersionK   = HTTPVersionK   deriving (Eq, Ord, Show)       
+data StatusCodeK    = StatusCodeK    deriving (Eq, Ord, Show)      
+data ReasonPhraseK  = ReasonPhraseK  deriving (Eq, Ord, Show)        
 
-data Url = Url { protocol :: String, host :: String, port :: Maybe Int, absPath :: [String], query :: Maybe String, httpVersion1 :: String }
-data Message = Message { method :: String, url :: Url, httpVersion :: String, statusCode :: Int, reasonPhrase :: String, headers :: [(String :- String)], contentLength :: Int, body :: String }
+data Url = Url { protocol :: String, host :: String, port :: Maybe Int, absPath :: [String], query :: Maybe String, httpVersion1 :: String } deriving (Eq, Ord, Show)
+data Message = Message { method :: String, url :: Url, httpVersion :: String, statusCode :: Int, reasonPhrase :: String, headers :: [(String :- String)], contentLength :: Int, body :: String } deriving (Eq, Ord, Show)
 
 data HVar = HVar deriving (Eq, Ord, Show)
 

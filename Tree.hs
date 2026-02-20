@@ -498,7 +498,7 @@ mapp a b = let
    n = max (length a) (length b)
    in zipWith3 (\a b c -> a ++ b ++ c) 
          (padRWith ' ' (padCWith1 "" n a))
-                        (padRWith1 "  " n [])
+                       (padRWith1 "  " n [])
          (padRWith ' ' (padCWith1 "" n b))
 
 mcat xs = unlines $ replicate 80 '-' : L.foldr mapp [] xs

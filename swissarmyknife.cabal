@@ -150,6 +150,7 @@ library
         MHash,
         MHashDynamic2,
         MHashDynamic3,
+        --MHashDynamic4,
         Matrix, 
         Matrix2,
         Maximum,
