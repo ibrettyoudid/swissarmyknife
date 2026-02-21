@@ -99,7 +99,6 @@ m = Build blankMeta (
    TrackK  <-- upto " - " :/
    SongK   <-- upto ".")
 
-
 upto x = AnyTill $ String x
 ft = fileTree
 fta = fileTree artistd
@@ -154,10 +153,10 @@ ismp3 = (".mp3" `isSuffixOf`) . low
 mp3s = filter ismp3 . fileTree
 artistmp3s a = mp3s $ artistd ++ a
 
-showMeta :: [Meta] -> SubArrayD String String
-showMeta ms = fromAssocsDA ignore (toDyn ("" :: T.Text)) ["file", "field", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn $ show $ path m, toDyn $ show f], show v)) $ fields1 m) ms
+showMeta :: [Meta] -> SubArrayD Dynamic String
+showMeta ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
 
-test3 = showMeta $ map readMeta $ fileTree volc
+test3 = showMeta $ map readMeta $ fileTree beth
 
 {-}
 tagTree = unsafePerformIO . tagTreeM
@@ -170,18 +169,21 @@ tagTreeM1 d =
 para = artistd / "Paradise Lost"
 satyr = artistd / "Satyricon"
 super = artistd / "Superior"
+beh = artistd / "Beherit"
+beth = artistd / "Bethany Curve"
 volc = satyr / "2002 - Volcano"
 obsid = para / "2020 - Obsidian"
 tf = obsid / "02 Fall from Grace.mp3"
 
-type MyString = B.ByteString
-type IOString = B.ByteString
+type MyString = ByteString
+type IOString = ByteString
+type NiceText = Text
 
 type MPEGInt = Int
 
 data ID3Tag
    = ID3Tag { 
-      id3      :: T.Text, 
+      id3      :: NiceText, 
       verMajor :: Int, 
       verMinor :: Int, 
       unsync   :: Bool, 
@@ -197,7 +199,7 @@ emptyTag = ID3Tag { id3 = "", verMajor = 0, verMinor = 0, unsync = False, extHdr
 {-
 data FrameHeader = 
    FrameHeader { 
-      stringID    :: T.Text, 
+      stringID    :: NiceText, 
       frameSize   :: Int, 
       tagAltPrsv  :: Bool, 
       fileAltPrsv :: Bool, 
@@ -209,11 +211,11 @@ data FrameHeader =
       dataLenI    :: Bool, 
       frameBytes  :: IOString } deriving (Eq, Ord, Show, Read, Generic)
 
-data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text }
-            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     timeFormat :: Int,     language :: T.Text, contentType :: Int, syncedLyrics :: M.Map Int T.Text }
-            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     description :: T.Text }
-            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: T.Text,     description :: T.Text, language :: T.Text }
-            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, picture :: IOString, description :: T.Text, mimeType :: T.Text, pictureType :: Int }
+data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: NiceText }
+            | FSyncLyrics   { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: NiceText,     timeFormat :: Int,     language :: NiceText, contentType :: Int, syncedLyrics :: M.Map Int NiceText }
+            | FUserText     { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: NiceText,     description :: NiceText }
+            | FUnsyncLyrics { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, value :: NiceText,     description :: NiceText, language :: NiceText }
+            | FPicture      { frameID :: FrameID, frameHeader :: FrameHeader, textEncoding :: Int, picture :: IOString, description :: NiceText, mimeType :: NiceText, pictureType :: Int }
 
             | FrameTruncated
             | Invalid B.ByteString
@@ -223,14 +225,15 @@ data Frame  = FText         { frameID :: FrameID, frameHeader :: FrameHeader, te
 
 -}
 
-data Frame  = FrameHeader   {                                                                                                                                            stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FText         { textEncoding :: Int, value :: T.Text,                                                                                                      stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FSyncLyrics   { textEncoding :: Int, value :: T.Text,     timeFormat :: Int,     language :: T.Text, contentType :: Int, syncedLyrics :: M.Map Int T.Text, stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FUserText     { textEncoding :: Int, value :: T.Text,     description :: T.Text,                                                                           stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FUnsyncLyrics { textEncoding :: Int, value :: T.Text,     description :: T.Text, language :: T.Text,                                                       stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FPicture      { textEncoding :: Int, picture :: IOString, description :: T.Text, mimeType :: T.Text, pictureType :: Int,                                   stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FComment      { textEncoding :: Int, value :: T.Text,     description :: T.Text, language :: T.Text,                                                       stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
-            | FUrl          { value :: T.Text,                                                                                                                           stringID :: T.Text, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+data Frame  = FrameHeader   {                                                                                                                                                  stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FText         { textEncoding :: Int, value   :: NiceText,                                                                                                        stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FSyncLyrics   { textEncoding :: Int, value   :: NiceText,     timeFormat :: Int,   language :: NiceText, contentType :: Int, syncedLyrics :: M.Map Int NiceText, stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FUserText     { textEncoding :: Int, value   :: NiceText, description :: NiceText,                                                                               stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FUnsyncLyrics { textEncoding :: Int, value   :: NiceText, description :: NiceText, language :: NiceText,                                                         stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FPicture      { textEncoding :: Int, picture :: IOString, description :: NiceText, mimeType :: NiceText, pictureType :: Int,                                     stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FComment      { textEncoding :: Int, value   :: NiceText, description :: NiceText, language :: NiceText,                                                         stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FUrl          { value :: NiceText,                                                                                                                               stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
+            | FPriv         { ioString :: IOString,                                                                                                                            stringID :: NiceText, frameID :: FrameID, frameSize :: Int, tagAltPrsv  :: Bool, fileAltPrsv :: Bool, readOnly :: Bool, compression :: Bool, encryption :: Bool, grouping :: Bool, unsyncFr :: Bool, dataLenI :: Bool, frameBytes :: IOString }
 
             | FrameTruncated
             | Invalid B.ByteString
@@ -250,23 +253,24 @@ blankUserText     = FUserText         { stringID = "TXXX", frameID = Txxx  , tex
 blankUnsyncLyrics = FUnsyncLyrics     { stringID = "USLT", frameID = Uslt  , textEncoding = 0, value = "", description = "", language = "",                                        frameSize = 0, tagAltPrsv = False, fileAltPrsv = False, readOnly = False, compression = False, encryption = False, grouping = False, unsyncFr = False, dataLenI = False, frameBytes = "" }
 blankPicture      = FPicture          { stringID = "APIC", frameID = Apic  , textEncoding = 0,                     picture = "", description = "", mimeType = "", pictureType = 0, frameSize = 0, tagAltPrsv = False, fileAltPrsv = False, readOnly = False, compression = False, encryption = False, grouping = False, unsyncFr = False, dataLenI = False, frameBytes = "" }
 blankUrl          = FUrl              { stringID = "WCOM", frameID = Wcom  ,                   value = "",                                                                         frameSize = 0, tagAltPrsv = False, fileAltPrsv = False, readOnly = False, compression = False, encryption = False, grouping = False, unsyncFr = False, dataLenI = False, frameBytes = "" }
+blankPriv         = FPriv             { stringID = "PRIV", frameID = Priv  ,                   ioString = "",                                                                      frameSize = 0, tagAltPrsv = False, fileAltPrsv = False, readOnly = False, compression = False, encryption = False, grouping = False, unsyncFr = False, dataLenI = False, frameBytes = "" }
 blankComment      = blankUnsyncLyrics { stringID = "COMM", frameID = Comm }
 blankUserUrl      = blankUserText     { stringID = "WXXX", frameID = Wxxx }
 
 data Meta = Meta
-   { byId :: M.Map FrameID Dynamic
-   , isDir :: Bool
-   , path :: T.Text
-   , audio :: T.Text
-   , artist :: T.Text
-   , album :: T.Text
-   , albumartist :: T.Text
-   , track :: T.Text
-   , song :: T.Text
-   , year :: Int
-   , genre :: T.Text
-   , times :: FileTimes
-   , orig :: FileTimes
+   { byId        :: M.Map FrameID Dynamic
+   , isDir       :: Bool
+   , path        :: NiceText
+   , audio       :: NiceText
+   , artist      :: NiceText
+   , album       :: NiceText
+   , albumartist :: NiceText
+   , track       :: NiceText
+   , song        :: NiceText  
+   , year        :: Int
+   , genre       :: NiceText
+   , times       :: FileTimes
+   , orig        :: FileTimes
    }
    deriving (Eq, Ord, Show, Read)
 
@@ -288,8 +292,6 @@ fixalbumname = do
    let fs1 = map (\m -> m{album = "Symbol Of Life"}) fs
    return $ updateDB1 db fs1
 -}
-timeFrame = mpegFrameTime
-
 a $$ b = a . map b
 
 fieldname ?= b = \fileframes -> field fieldname fileframes == b
@@ -463,7 +465,7 @@ readMetaM f = do
    tag <- readTagM f
    return $ metaOfTag isDir1 path1 times1 orig1 tag
 
-myget1A :: FrameID -> M.Map FrameID Dynamic -> T.Text
+myget1A :: FrameID -> M.Map FrameID Dynamic -> NiceText
 myget1A id framemap = maybe "" (\x -> fromDyn x "") $ M.lookup id framemap 
 
 myget1B id framemap = fromDyn1 $ fromJust $ M.lookup id framemap 
@@ -500,7 +502,7 @@ instance Zero [a] where
 instance (Zero a, Zero b) => Zero (a, b) where
    zero = (zero, zero)
 
-instance Zero T.Text where
+instance Zero NiceText where
    zero = ""
 
 hd [] = zero
@@ -666,9 +668,9 @@ commonSubsequences2 a b  = let
 dbpath = baseDir / "haskelldb.bin"
 
 -- dbroots = map (baseDir ++) ["Artists/Paradise Lost/2015 - The Plague Within"]
-dbroots = map (artistd /) ["Paradise Lost", "Isis"] :: [T.Text]
+dbroots = map (artistd /) ["Paradise Lost", "Isis"] :: [NiceText]
 
-type DB = M.Map T.Text Meta
+type DB = M.Map NiceText Meta
 type FS = Meta
 
 newDB :: DB
@@ -683,7 +685,7 @@ saveDB = writeFile dbpath . show
 -- readDB1 = decodeFile dbpath
 
 -- writeDB1 = encodeFile dbpath
-updateDB :: M.Map T.Text Meta -> IO (M.Map T.Text Meta)
+updateDB :: M.Map NiceText Meta -> IO (M.Map NiceText Meta)
 updateDB db = do
    dbnew <- updateDB1 db <$> readDB db dbroots
    L.putStrLn "Writing..."
@@ -727,7 +729,7 @@ picosecondsToDiffTime :: Integer -> DiffTime
 diffTimeToPicoseconds :: DiffTime -> Integer
 -}
 c = convertString
-readFS :: M.Map T.Text Meta -> Meta -> IO [Meta]
+readFS :: M.Map NiceText Meta -> Meta -> IO [Meta]
 readFS db f
    | isDir f = do
          L.putStrLn ("DIR " ++ c (path f))
@@ -771,13 +773,15 @@ zeroTime = MyPretty2.DateTime (posixSecondsToUTCTime 0)
 -- intOfFT (FILETIME ft) = fromIntegral ft
 -- https://www.ubereats.com/gb/orders/d79a668a-365e-46fa-8d75-af17bd713bb0
 
+noSlash = notElem (convertChar '/')
+
 inDir d =
    let
       l = length d
       in
-      M.takeWhileAntitone (\x -> isPrefixOf d x && notElem '/' (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
+      M.takeWhileAntitone (\x -> isPrefixOf d x && noSlash (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
 
-inDir1 d = M.takeWhileAntitone (all (notElem '/') . stripPrefix d) . M.dropWhileAntitone (not . isPrefixOf d)
+inDir1 d = M.takeWhileAntitone (all noSlash . stripPrefix d) . M.dropWhileAntitone (not . isPrefixOf d)
 
 inDirRec d = M.takeWhileAntitone (isPrefixOf d) . M.dropWhileAntitone (not . isPrefixOf d)
 
@@ -856,7 +860,7 @@ readTagM f1 = do
       then do
          let f = convertString f1 :: String
          h <- openBinaryFile f ReadMode
-         hdat <- B.hGet h 65536
+         hdat <- B.hGet h 262144
          return $ parseTag hdat 
       else
          return emptyTag
@@ -1084,12 +1088,12 @@ decodeBE (a : b : rest) = chr (a * 0x100 + b) : decodeBE rest
 itext enc = total (decodeText enc) (encodeText enc)
 
 decodeText enc text = case enc of
-   0 -> T.decodeLatin1 text
    1 -> decodeUCS2     text
+   _ -> T.decodeLatin1 text
 
 encodeText enc text = case enc of
-   0 -> T.encodeUtf8 text
    1 -> T.encodeUtf16LE text
+   _ -> T.encodeUtf8    text
 
 decodeUCS2 str = case B.take 2 str of
    "\255\254" -> T.decodeUtf16LE $ B.drop 2 str
@@ -1302,7 +1306,7 @@ framebody id
       Return ()
 
    | otherwise =
-      ValueK        <-- text 0 :/
+      IOStringK     <-- Rest :/
       Return ()
 
 textEnc     = TextEncodingK --> text
@@ -1517,6 +1521,7 @@ data Var =
    TimeFormat   |
    ContentType  |
    SyncedLyrics |
+   IOStringV    |
    AllOnes2     |
    AllOnes1     |
    AllOnes0     |
@@ -1576,6 +1581,7 @@ data PictureK      = PictureK      deriving (Eq, Ord, Show)
 data TimeFormatK   = TimeFormatK   deriving (Eq, Ord, Show)
 data ContentTypeK  = ContentTypeK  deriving (Eq, Ord, Show)
 data SyncedLyricsK = SyncedLyricsK deriving (Eq, Ord, Show)
+data IOStringK     = IOStringK     deriving (Eq, Ord, Show)
 data AllOnes2K     = AllOnes2K     deriving (Eq, Ord, Show)     
 data AllOnes1K     = AllOnes1K     deriving (Eq, Ord, Show)     
 data AllOnes0K     = AllOnes0K     deriving (Eq, Ord, Show)     
@@ -1610,36 +1616,37 @@ data YearK         = YearK         deriving (Eq, Ord, Show)
 data GenreK        = GenreK        deriving (Eq, Ord, Show) 
 data TimesK        = TimesK        deriving (Eq, Ord, Show) 
 data OrigK         = OrigK         deriving (Eq, Ord, Show)
+data ExtensionK    = ExtensionK    deriving (Eq, Ord, Show)
 
 instance P.Frame IsDirK Bool Meta where
    myget1 IsDirK = isDir
    myset1 IsDirK value frame = frame { isDir = value }
 
-instance P.Frame PathK T.Text Meta where
+instance P.Frame PathK NiceText Meta where
    myget1 PathK = path
    myset1 PathK value frame = frame { path = value }
 
-instance P.Frame AudioK T.Text Meta where
+instance P.Frame AudioK NiceText Meta where
    myget1 AudioK = audio
    myset1 AudioK value frame = frame { audio = value }
 
-instance P.Frame ArtistK T.Text Meta where
+instance P.Frame ArtistK NiceText Meta where
    myget1 ArtistK = artist
    myset1 ArtistK value frame = frame { artist = value }
 
-instance P.Frame AlbumK T.Text Meta where
+instance P.Frame AlbumK NiceText Meta where
    myget1 AlbumK = album
    myset1 AlbumK value frame = frame { album = value }
 
-instance P.Frame AlbumArtistK T.Text Meta where
+instance P.Frame AlbumArtistK NiceText Meta where
    myget1 AlbumArtistK = albumartist
    myset1 AlbumArtistK value frame = frame { albumartist = value }
 
-instance P.Frame TrackK T.Text Meta where
+instance P.Frame TrackK NiceText Meta where
    myget1 TrackK = track
    myset1 TrackK value frame = frame { track = value }
 
-instance P.Frame SongK T.Text Meta where
+instance P.Frame SongK NiceText Meta where
    myget1 SongK = song
    myset1 SongK value frame = frame { song = value }
 
@@ -1647,7 +1654,7 @@ instance P.Frame YearK Int Meta where
    myget1 YearK = year
    myset1 YearK value frame = frame { year = value }
 
-instance P.Frame GenreK T.Text Meta where
+instance P.Frame GenreK NiceText Meta where
    myget1 GenreK = genre
    myset1 GenreK value frame = frame { genre = value }
 
@@ -1687,7 +1694,7 @@ instance P.FrameD FrameID Meta where
       Btimes      -> frame { times       = fromDyn1 value }
       Borig       -> frame { orig        = fromDyn1 value }
 
-instance P.Frame Id3K T.Text ID3Tag where
+instance P.Frame Id3K NiceText ID3Tag where
    myget1 Id3K = id3
    myset1 Id3K value frame = frame { id3 = value }
 
@@ -1754,7 +1761,7 @@ instance P.FrameD Var ID3Tag where
       TagSize   ->  frame { tagSize  = fromDyn1 value }
       TagBytes  ->  frame { tagBytes = fromDyn1 value }
 
-instance P.Frame StringIDK T.Text Frame where
+instance P.Frame StringIDK NiceText Frame where
    myget1 StringIDK = stringID
    --myset1 StringIDK value frame = frame { stringID = value }
    myset1 StringIDK value frame = let
@@ -1768,7 +1775,7 @@ instance P.Frame StringIDK T.Text Frame where
             | id == Comm           -> blankComment      { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
             | id == Wxxx           -> blankUserUrl      { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
             | id `elem` urlFrames  -> blankUrl          { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
-            | otherwise            -> blankUrl          { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
+            | otherwise            -> blankPriv         { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
 
 instance P.Frame FrameIDK FrameID Frame where
    myget1 FrameIDK = frameID
@@ -1784,7 +1791,7 @@ instance P.Frame FrameIDK FrameID Frame where
             | id == Comm           -> blankComment      { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
             | id == Wxxx           -> blankUserUrl      { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
             | id `elem` urlFrames  -> blankUrl          { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
-            | otherwise            -> blankUrl          { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
+            | otherwise            -> blankPriv         { stringID = value, frameID = id, frameSize = frameSize frame, tagAltPrsv = tagAltPrsv frame, fileAltPrsv = fileAltPrsv frame, readOnly = readOnly frame, compression = compression frame, encryption = encryption frame, grouping = grouping frame, unsyncFr = unsyncFr frame, dataLenI = dataLenI frame, frameBytes = frameBytes frame }
 
 instance P.Frame FrameSizeK Int Frame where
    myget1 FrameSizeK = frameSize
@@ -1853,6 +1860,7 @@ instance P.FrameD Var Frame where
       TimeFormat   -> toDyn $ timeFormat   frame
       ContentType  -> toDyn $ contentType  frame
       SyncedLyrics -> toDyn $ syncedLyrics frame
+      IOStringV    -> toDyn $ ioString     frame
    mysetD name value1 frame = case name of
       StringID     -> frame { stringID     = fromDyn1 value1 } 
       FrameSize    -> frame { frameSize    = fromDyn1 value1 }
@@ -1875,8 +1883,9 @@ instance P.FrameD Var Frame where
       TimeFormat   -> frame { timeFormat   = fromDyn1 value1 }
       ContentType  -> frame { contentType  = fromDyn1 value1 }
       SyncedLyrics -> frame { syncedLyrics = fromDyn1 value1 }
+      IOStringV    -> frame { ioString     = fromDyn1 value1 }
 
-instance P.Frame ValueK T.Text Frame where
+instance P.Frame ValueK NiceText Frame where
    myget1 ValueK = value
    myset1 ValueK value1 frame = frame { value = value1 }
 
@@ -1884,15 +1893,15 @@ instance P.Frame TextEncodingK Int Frame where
    myget1 TextEncodingK = textEncoding
    myset1 TextEncodingK value frame = frame { textEncoding = value }
 
-instance P.Frame LanguageK T.Text Frame where
+instance P.Frame LanguageK NiceText Frame where
    myget1 LanguageK = language
    myset1 LanguageK value frame = frame { language = value }
 
-instance P.Frame DescriptionK T.Text Frame where
+instance P.Frame DescriptionK NiceText Frame where
    myget1 DescriptionK = description
    myset1 DescriptionK value frame = frame { description = value }
 
-instance P.Frame MIMETypeK T.Text Frame where
+instance P.Frame MIMETypeK NiceText Frame where
    myget1 MIMETypeK = mimeType
    myset1 MIMETypeK value frame = frame { mimeType = value }
 
@@ -1912,13 +1921,17 @@ instance P.Frame ContentTypeK Int Frame where
    myget1 ContentTypeK = contentType
    myset1 ContentTypeK value frame = frame { contentType = value }
 
-instance P.Frame LyricsK T.Text Frame where
+instance P.Frame LyricsK NiceText Frame where
    myget1 LyricsK = value
    myset1 LyricsK value1 frame = frame { value = value1 }
 
-instance P.Frame SyncedLyricsK (M.Map Int T.Text) Frame where
+instance P.Frame SyncedLyricsK (M.Map Int NiceText) Frame where
    myget1 SyncedLyricsK = syncedLyrics
    myset1 SyncedLyricsK value frame = frame { syncedLyrics = value }
+
+instance P.Frame IOStringK IOString Frame where
+   myget1 IOStringK = ioString
+   myset1 IOStringK value frame = frame { ioString = value }
 
 instance P.Frame VersionEncK Int MPEGInt where
    myget1 VersionEncK frame = (shift frame -19) .&. 3
@@ -1948,7 +1961,7 @@ urlFrames = [Wcom, Wcop, Woaf, Woar, Woas, Wors, Wpay, Wpub]
 
 frameIDEntry = FT "" Comm "" "" ""
 
-data FrameIDEntry = FT { sec :: T.Text, frameID1 :: FrameID, stringID1 :: T.Text, desc :: T.Text, longdesc :: T.Text }
+data FrameIDEntry = FT { sec :: NiceText, frameID1 :: FrameID, stringID1 :: NiceText, desc :: NiceText, longdesc :: NiceText }
 
 data FrameID = T FrameID | Unknown | Baudio | Bpath | Bisdir | Btimes | Borig | Aenc | Apic | Comm | Comr | Encr | Equa | Etco | Geob | Grid | Ipls | Link | Mcdi | Mllt | Owne | Priv | Pcnt | Popm | Poss | Rbuf | Rvad | Rvrb | Sylt | Sytc | Album | Tbpm | Tcom | Genre | Tcop | Tdat | Tdly | Tenc | Text | Tflt | Time | Tit1 | Song | Tit3 | Tkey | Tlan | Tlen | Tmed | Toal | Tofn | Toly | Tope | Tory | Town | Artist | AlbumArtist | Tpe3 | Tpe4 | Tpos | Tpub | Track | Trda | Trsn | Trso | Tsiz | Tsrc | Tsse | Year | Txxx | Ufid | User | Uslt | Wcom | Wcop | Woaf | Woar | Woas | Wors | Wpay | Wpub | Wxxx | Atxt | Chap | Ctoc | Rgad | Tcmp | Tso2 | Tsoc | Xrva | Ntrk | Aspi | Equ2 | Rva2 | Seek | Sign | Tden | Tdor | Tdrc | Tdrl | Tdtg | Tipl | Tmcl | Tmoo | Tpro | Tsoa | Tsop | Tsot | Tsst | Buf | Cnt | Crm deriving (Eq, Ord, Show, Read)
 

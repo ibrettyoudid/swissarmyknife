@@ -1005,7 +1005,7 @@ data Dimension name
 --            | DimCat { dimDim::Dimension, dimDiv::[Int], dimMult1::[Int] }
    deriving (Show)
 
-data SubArrayD e dimName = SubArrayD {dims :: [Dimension dimName], offset :: Int, payload :: A.Array Int e} deriving (Show)
+data SubArrayD e dimName = SubArrayD {dims :: [Dimension dimName], offset :: Int, payload :: A.Array Int e}
 
 -- main = print $ Main.transpose 0 1 $ fromList2z 0 [[1,2,3],[4,5,6],[7,8,9]]
 
@@ -1160,7 +1160,7 @@ elemName i (DimMap dn dl du dm dm1 dm2) = dm1 M.! i
 
 fromAssocs :: [dimName] -> [([Int], e)] -> SubArrayD e dimName
 fromAssocs ns as = let
-   (mins, maxs, lens) = unzip3 $ map toDim $ transpose $ checkRectangular $ map fst as
+   (mins, maxs, lens) = unzip3 $ map toDim $ transpose $ checkRectilinear $ map fst as
    (len : muls) = scanr (*) 1 lens
    dims = zipWith4 DimInt ns mins maxs muls
    
@@ -1175,14 +1175,14 @@ toDim is = let
 
 fromAssocsD :: [dimName] -> [([Dynamic], e)] -> SubArrayD e dimName
 fromAssocsD dnames as = let
-   (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectangular $ map fst as
+   (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectilinear $ map fst as
    (len : muls) = scanr (*) 1 lens
    dims = zipWith5 toDim2 dnames mins maxs muls vals
    in
    SubArrayD dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
 fromAssocsDA f zeroel dnames as = let
-   (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectangular $ map fst as
+   (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectilinear $ map fst as
    (len : muls) = scanr (*) 1 lens
    dims = zipWith5 toDim2 dnames mins maxs muls vals
    
@@ -1190,12 +1190,12 @@ fromAssocsDA f zeroel dnames as = let
          then error "no assocs in fromAssocsDA, can't figure out dimension information"
          else SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
-checkRectangular as = let
+checkRectilinear as = let
    lens = map length as
    mi = minimum lens
    ma = maximum lens
    
-   in if mi /= ma then error "varying number of dimensions" else as
+   in if mi /= ma then error "not rectilinear, varying number of dimensions in assocs" else as
 
 {-
 toDimD is = if
@@ -1209,7 +1209,7 @@ toDim2 name min max mul vals = DimMap name min max mul (M.fromList $ zip [0 ..] 
 
 isInt d = dynTypeRep d == intR
 
-int0 = (0 :: Int)
+int0 = 0 :: Int
 intD = toDyn int0
 intR = dynTypeRep intD
 
@@ -1289,10 +1289,10 @@ instance SubArray (SubArray1 b dimName) b where
 instance SubArray (SubArray2 b dimName) (SubArray1 b dimName) where
    SubArray2 a ! i = SubArray1 $ getSub i a
    SubArray2 a ? i = SubArray1 $ getSubDyn i a
-{-
+
 instance (Show dimName, Show e) => Show (SubArrayD e dimName) where
    show = showHyper
--}
+
 {-
 toAssocs :: SubArrayD e -> [([Int], e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indices a
@@ -1376,11 +1376,12 @@ showHyper2 xn yn a = let
    d = xn ++ yn
    ip = inversePerm d
    in
-   ( map (show . dimName) xd, 
-     map (show . dimName) yd, 
-     map (zipWith showLabel xd) xs
-   , map (zipWith showLabel yd) ys
-   , crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
+   (
+      map (show . dimName) xd, 
+      map (show . dimName) yd, 
+      map (zipWith showLabel xd) xs,
+      map (zipWith showLabel yd) ys,
+      crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
    )
 
 stringHyper2 xn yn a = let
@@ -1390,13 +1391,14 @@ stringHyper2 xn yn a = let
    ys = indices yd
    d = xn ++ yn
    ip = inversePerm d
-   in
-   ( map (show . dimName) xd,
-     map (show . dimName) yd,
-     map (zipWith showLabel xd) xs
-   , map (zipWith showLabel yd) ys
-   , crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
-   )
+
+   in (  
+         map (show . dimName) xd,
+         map (show . dimName) yd,
+         map (zipWith showLabel xd) xs,
+         map (zipWith showLabel yd) ys,
+         crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
+      )
 
 showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 xn yn a
 
