@@ -1,12 +1,14 @@
 
 Why are you interested in a Software Development apprenticeship at Google?
-I am obsessed with making use of my skills, the whole area fascinates me, the endless possibilities
+Google is a company with a great worldwide reputation and presence and I would like to be part of their journey in the future. I have a great passion and drive to explore the endless possibilities in software development and want to build on my skills in this area. 
+more stuff
 
 What are you most excited about in the Software Engineering space? Why?
-AI is quite interesting. Of course AGI is the holy grail. I'm into functional programming in Haskell. I did my final year project on partial evaluation. I am interested in similar things to that such as compiler optimisation and even supercompilation
+AI is a extremely interesting field, of course AGI is the holy grail. I'm into functional programming in Haskell. I did my final year project on partial evaluation. I am interested in similar things to that such as compiler optimisation and even supercompilation
 
 Tell us about your background and experiences (e.g. volunteer work/club participation/extracurricular activities) and how they make you unique.
 I play guitar and keyboard
++more work experience +education
 
 How have you learned about the tech space?
 An Oric-1 computer when I was 10, an Acorn Electron, a BBC Model B, an Atari ST, an Acorn Archimedes, and several PCs, The Register, Haskell blogs, Personal Computer World magazine in the 1990s, C++ websites (there used to be loads), C++ books (Gang of 4, Andrei Alexandrescu)
