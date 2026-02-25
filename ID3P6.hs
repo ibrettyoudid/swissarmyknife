@@ -8,6 +8,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {- HLINT ignore "Avoid lambda using `infix`" -}
 
@@ -50,9 +51,10 @@ import Data.Binary
 import Data.Bits
 import Data.Char hiding (toLower)
 import Data.List (transpose)
+import Data.Either
 import qualified Data.List as L
 import qualified System.IO as L
-import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, splitAt, readFile, writeFile, putStrLn, (!!), (++), (/))
+import Prelude hiding (concat, take, drop, elem, head, length, notElem, null, tail, last, splitAt, readFile, writeFile, putStrLn, span, (!!), (++), (/))
 import qualified Prelude
 
 -- import Data.Algorithm.Diff
@@ -94,7 +96,7 @@ f = [Artist, Year, Album, Track, Song]
 d = [baseDir, "/", " - ", "/", " - "]
 m = Build blankMeta (
    ArtistK <-- upto "/" :/
-   YearK   <-- Apply ireadShow (upto " - ") :/
+   YearK   <-- Apply (ireadShow :: Iso _ Int) (upto " - ") :/
    AlbumK  <-- upto "/" :/
    TrackK  <-- upto " - " :/
    SongK   <-- upto ".")
@@ -156,7 +158,7 @@ artistmp3s a = mp3s $ artistd ++ a
 showMeta :: [Meta] -> SubArrayD Dynamic String
 showMeta ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
 
-test3 = showMeta $ map readMeta $ fileTree beth
+test3 = showMeta $ map readMeta $ fileTree enoid
 
 {-}
 tagTree = unsafePerformIO . tagTreeM
@@ -171,6 +173,7 @@ satyr = artistd / "Satyricon"
 super = artistd / "Superior"
 beh = artistd / "Beherit"
 beth = artistd / "Bethany Curve"
+enoid = artistd / "E-Noid"
 volc = satyr / "2002 - Volcano"
 obsid = para / "2020 - Obsidian"
 tf = obsid / "02 Fall from Grace.mp3"
@@ -182,16 +185,16 @@ type NiceText = Text
 type MPEGInt = Int
 
 data ID3Tag
-   = ID3Tag { 
-      id3      :: NiceText, 
-      verMajor :: Int, 
-      verMinor :: Int, 
-      unsync   :: Bool, 
-      extHdr   :: Bool, 
-      experi   :: Bool, 
-      footer   :: Bool, 
-      tagSize  :: Int, 
-      tagBytes :: IOString, 
+   = ID3Tag {
+      id3      :: NiceText,
+      verMajor :: Int,
+      verMinor :: Int,
+      unsync   :: Bool,
+      extHdr   :: Bool,
+      experi   :: Bool,
+      footer   :: Bool,
+      tagSize  :: Int,
+      tagBytes :: IOString,
       frames   :: [Frame] } deriving (Eq, Ord, Show, Read)
 
 emptyTag :: ID3Tag
@@ -266,7 +269,7 @@ data Meta = Meta
    , album       :: NiceText
    , albumartist :: NiceText
    , track       :: NiceText
-   , song        :: NiceText  
+   , song        :: NiceText
    , year        :: Int
    , genre       :: NiceText
    , times       :: FileTimes
@@ -353,10 +356,6 @@ fields2 meta = M.fromList $ fields1 meta
 
 setField1 id val meta = meta{byId = M.alter (const $ Just $ toDyn val) id $ byId meta}
 
-instance P.Frame FrameID Dynamic Meta where
-   myget1 n f = fromJust $ getField n f
-   myset1 = setField
-
 setField id val meta = case id of
    Bisdir      -> meta { isDir       = fromDyn1 val }
    Bpath       -> meta { path        = fromDyn1 val }
@@ -388,6 +387,22 @@ fields1 meta =
    ]
       ++ M.toList (byId meta)
 
+fieldStrs meta =
+   [ (Bisdir     , show          $ isDir       meta)
+   , (Bpath      , convertString $ path        meta)
+   , (Baudio     , convertString $ audio       meta)
+   , (Track      , convertString $ track       meta)
+   , (Album      , convertString $ album       meta)
+   , (Artist     , convertString $ artist      meta)
+   , (AlbumArtist, convertString $ albumartist meta)
+   , (Song       , convertString $ song        meta)
+   , (Year       , show          $ year        meta)
+   , (Genre      , convertString $ genre       meta)
+   , (Btimes     , show          $ times       meta)
+   , (Borig      , show          $ orig        meta)
+   ]
+      ++ M.toList (M.map show1 $ byId meta)
+
 field1 id meta = fromDynamic $ case id of
    Bisdir      -> toDyn $ isDir  meta
    Bpath       -> toDyn $ path   meta
@@ -418,19 +433,19 @@ isfixed id = case id of
 
 blankMeta =
    Meta
-      { isDir = False
-      , path = empty
-      , audio = empty
-      , byId = M.empty
-      , artist = empty
-      , album = empty
+      { isDir       = False
+      , path        = empty
+      , audio       = empty
+      , byId        = M.empty
+      , artist      = empty
+      , album       = empty
       , albumartist = empty
-      , track = empty
-      , song = empty
-      , year = 0
-      , genre = empty
-      , times = FileTimes 0 0 0
-      , orig = FileTimes 0 0 0
+      , track       = empty
+      , song        = empty
+      , year        = 0
+      , genre       = empty
+      , times       = FileTimes 0 0 0
+      , orig        = FileTimes 0 0 0
       }
 
 metaOfTag2 isDir1 path1 times1 orig1 byId1 =
@@ -452,7 +467,7 @@ metaOfTag2 isDir1 path1 times1 orig1 byId1 =
 
 isFile = not . isDir
 
-metaOfTag isDir1 path1 times1 orig1 = metaOfTag2 isDir1 path1 times1 orig1 . metaOfTag1 
+metaOfTag isDir1 path1 times1 orig1 = metaOfTag2 isDir1 path1 times1 orig1 . metaOfTag1
 
 metaOfTag1 tag = M.fromList $ map (\frame -> (frameID frame, P.mygetD Value frame)) $ frames tag
 
@@ -466,9 +481,9 @@ readMetaM f = do
    return $ metaOfTag isDir1 path1 times1 orig1 tag
 
 myget1A :: FrameID -> M.Map FrameID Dynamic -> NiceText
-myget1A id framemap = maybe "" (\x -> fromDyn x "") $ M.lookup id framemap 
+myget1A id framemap = maybe "" (\x -> fromDyn x "") $ M.lookup id framemap
 
-myget1B id framemap = fromDyn1 $ fromJust $ M.lookup id framemap 
+myget1B id framemap = fromDyn1 $ fromJust $ M.lookup id framemap
 
 myget1C :: FrameID -> [M.Map Var Dynamic] -> Maybe (M.Map Var Dynamic)
 myget1C id frames = L.find (\f -> isJust $ do
@@ -579,6 +594,7 @@ interleave as bs = concat $ transpose [as, bs]
 
 uninterleave = transpose . groupN 2
 
+
 {-
 stats = do
    st <- filter ("Statement-" `isPrefixOf`) <$> listDirectory down
@@ -618,6 +634,49 @@ differences2 strs = let delims = commonSubsequencesList strs in map (infoFromStr
 
 metaFromString :: [FrameID] -> [String] -> String -> Meta
 metaFromString fields delims str = metaOfTag2 False (c str) blankFT blankFT $ fieldsFromString fields delims str
+
+matchMetaFS meta | isDir meta = mapxfx matchMetaPath $ subFiles meta
+
+matchMetaPath meta = let
+   parts = split "/" $ path meta
+   partsmatch = map (matchMetaString meta) parts
+   in partsmatch
+
+parserFromMatch :: [Either String FrameID] -> [Rule String Char Meta String]
+parserFromMatch [] = []
+parserFromMatch ms@(m:_) = case m of
+   Left c  -> let
+      stop = String c
+      in stop : parserFromMatch (tail ms)
+   Right f -> (f <-- case tail ms of
+               [] -> Rest
+               (Left l:_) -> AnyTill (String l)
+               (Right r:_) -> error "cannot handle two consecutive fields") : parserFromMatch (tail ms)
+
+--sortOn snd $ mapMaybe (\case (f, Just i) -> Just (f, i); (f, Nothing) -> Nothing) match
+matchMetaString meta str = let
+   fss = fieldStrs meta
+   fs = map fst fss
+   ss = map snd fss
+   in mapMaybe ((\fis -> let  
+      inField    = L.sort $ concat $ zipWith (\(f, i) s -> [i .. i + length s - 1]) fis ss
+      notInField = [0..length str - 1] L.\\ inField
+      charsNotInField = map (\i -> (i, Left $ str !! i)) notInField
+      fields = L.sort $ concat $ zipWith (\(f, i) s -> map (, Right f) [i .. i + length s - 1]) fis ss
+      chars = L.sort $ charsNotInField ++ fields
+      f x = case head x of
+         Left c -> let 
+            (b, a) = span isLeft x
+            in Left (map (fromLeft '_') b) : f a
+         Right r -> let
+            (b, a) = span isRight x
+            in Right (fromRight Unknown $ head b) : f a
+      strs = f $ map snd chars
+      --check they do not overlap, ie. no characters have the same index
+      ok = not $ or $ zipWith (/=) inField (tail inField)
+
+      in ifJust ok strs) . catMaybes . zipWith (\f m -> (f, ) <$> m) fs) 
+      $ crossList $ map (\(f, s) -> (Nothing :) $ map Just $ L.findIndices (isPrefixOf s) $ tails str) fss
 
 fieldsFromString fields delims str = M.fromList $ zip fields $ map toDyn $ infoFromString delims str
 
@@ -729,6 +788,7 @@ picosecondsToDiffTime :: Integer -> DiffTime
 diffTimeToPicoseconds :: DiffTime -> Integer
 -}
 c = convertString
+
 readFS :: M.Map NiceText Meta -> Meta -> IO [Meta]
 readFS db f
    | isDir f = do
@@ -768,18 +828,14 @@ readFSD db f
 
 --writeFS f = writeTag (path f) $ framesOfMeta f
 
-zeroTime = MyPretty2.DateTime (posixSecondsToUTCTime 0)
-
 -- intOfFT (FILETIME ft) = fromIntegral ft
--- https://www.ubereats.com/gb/orders/d79a668a-365e-46fa-8d75-af17bd713bb0
 
 noSlash = notElem (convertChar '/')
 
-inDir d =
-   let
-      l = length d
-      in
-      M.takeWhileAntitone (\x -> isPrefixOf d x && noSlash (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
+inDir d = let
+   l = length d
+   
+   in M.takeWhileAntitone (\x -> isPrefixOf d x && noSlash (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
 
 inDir1 d = M.takeWhileAntitone (all noSlash . stripPrefix d) . M.dropWhileAntitone (not . isPrefixOf d)
 
@@ -861,7 +917,7 @@ readTagM f1 = do
          let f = convertString f1 :: String
          h <- openBinaryFile f ReadMode
          hdat <- B.hGet h 262144
-         return $ parseTag hdat 
+         return $ parseTag hdat
       else
          return emptyTag
 
@@ -870,7 +926,7 @@ readTagMA readAudio f1 = do
    let f = convertString f1 :: String
    h <- openBinaryFile f ReadMode
    hdat <- B.hGet h 65536
-   return $ parseTag hdat 
+   return $ parseTag hdat
 
 readFileU2 = unsafePerformIO . readFile
 
@@ -1205,9 +1261,11 @@ tag = Build emptyTag (
          FDone t1 f1 -> Parser6.format1 (Get TagSizeK) f1 (length t1)))
 -}
 
+icn = ic :: Iso _ NiceText
+
 tag :: Rule IOString Word8 () ID3Tag
 tag = Build emptyTag (
-   Id3K      <-- Apply ic (Tokens 3) :/
+   Id3K      <-- Apply icn (Tokens 3) :/
    VerMajorK <-- int :/
    VerMinorK <-- int :/
    SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
@@ -1226,7 +1284,7 @@ let footer = flags .&. 0x10 /= 0 -- v2.4 only
 -}
 
 frame :: Int -> Rule IOString Word8 ID3Tag Frame
-frame v = 
+frame v =
    Build blankFrame (
       frameheader v :/
       FrameBytesK <-- (Get FrameSizeK >>== tokens) :/
@@ -1234,19 +1292,19 @@ frame v =
 
 frameheader :: Int -> Rule IOString Word8 Frame ()
 frameheader 2 =
-   StringIDK   <-- Apply ic (Tokens 3) :/
+   StringIDK   <-- Apply icn (Tokens 3) :/
    FrameSizeK  <-- int4 0x100 :/
    Return ()
 
 frameheader 3 =
-   StringIDK   <-- Apply ic (Tokens 4) :/
+   StringIDK   <-- Apply icn (Tokens 4) :/
    FrameSizeK  <-- int4 0x100 :/
    SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
    SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
    Return ()
 
 frameheader 4 =
-   StringIDK   <-- Apply ic (Tokens 4) :/
+   StringIDK   <-- Apply icn (Tokens 4) :/
    FrameSizeK  <-- int4 0x80 :/
    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
@@ -1254,25 +1312,25 @@ frameheader 4 =
 
 framebody :: FrameID -> Rule ByteString Word8 Frame ()
 framebody id
-   | id `elem` textFrames = 
+   | id `elem` textFrames =
       TextEncodingK <-- int :/
       ValueK        <-- textEnc :/
       Return ()
 
-   | id == Txxx = 
+   | id == Txxx =
       TextEncodingK <-- int :/
       DescriptionK  <-- zeroTextEnc :/
       ValueK        <-- textEnc :/
       Return ()
 
-   | id == Uslt = 
+   | id == Uslt =
       TextEncodingK <-- int :/
-      LanguageK     <-- Apply ic (Tokens 3) :/
+      LanguageK     <-- Apply icn (Tokens 3) :/
       DescriptionK  <-- zeroTextEnc :/
       LyricsK       <-- textEnc :/
       Return ()
 
-   | id == Apic = 
+   | id == Apic =
       TextEncodingK <-- int :/
       MIMETypeK     <-- zeroText 0 :/
       PictureTypeK  <-- int :/
@@ -1280,9 +1338,9 @@ framebody id
       PictureK      <-- Rest :/
       Return ()
 
-   | id == Sylt = 
+   | id == Sylt =
       TextEncodingK <-- int :/
-      LanguageK     <-- Apply ic (Tokens 3) :/
+      LanguageK     <-- Apply icn (Tokens 3) :/
       TimeFormatK   <-- int :/
       ContentTypeK  <-- int :/
       --SyncedLyricsK <-- Many (zeroText 0 :+ int4 0x100) :/
@@ -1290,7 +1348,7 @@ framebody id
 
    | id == Comm =
       TextEncodingK <-- int :/
-      LanguageK     <-- Apply ic (Tokens 3) :/
+      LanguageK     <-- Apply icn (Tokens 3) :/
       ValueK        <-- textEnc :/
       ContentTypeK  <-- int :/
       Return ()
@@ -1310,13 +1368,15 @@ framebody id
       Return ()
 
 textEnc     = TextEncodingK --> text
-   
+
+text :: Int -> Rule ByteString t f Text
 text enc = Apply (itext enc) Rest
 
 zeroTextEnc = TextEncodingK --> zeroText
 
+zeroText :: Int -> Rule ByteString a2 f Text
 zeroText enc = Apply (itext enc) $ case enc of
-                                       0 -> AnyTill $ Token 0
+                                       0 -> AnyTill $ String "\0" 
                                        1 -> AnyTill $ String "\0\0"
 
 ic = total c c
@@ -1370,7 +1430,7 @@ sampRates =      [[0, 44100, 22050, 11025],
                   [0, 48000, 24000, 12000],
                   [0, 32000, 16000,  8000],
                   [0,     0,     0,     0]]
-    
+
 --          !! sampRateEnc
 --          !! version
 
@@ -1470,7 +1530,7 @@ dointn m = foldl (\a b -> a * m + b) 0
 undoint 0 _ _ = []
 undoint n m x =
    let (q, r) = divMod x (m ^ (n - 1))
-      
+
    in q : undoint (n - 1) m r
 
 int :: Rule ByteString Word8 f Int
@@ -1485,7 +1545,7 @@ char = AnyToken
 ireadShow :: (Read b2, ConvertString b1 String, ConvertString String b1, Show b2) => Iso b1 b2
 ireadShow = total read show C.. ic
 
-data Var = 
+data Var =
    Id3          |
    VerMajor     |
    VerMinor     |
@@ -1497,17 +1557,17 @@ data Var =
    Frames       |
    FrameID      |
    StringID     |
-   FrameSize    | 
-   TagAltPrsv   |  
-   FileAltPrsv  |   
+   FrameSize    |
+   TagAltPrsv   |
+   FileAltPrsv  |
    ReadOnly     |
    Grouping     |
-   Compression  |   
-   Encryption   |  
+   Compression  |
+   Encryption   |
    UnsyncFr     |
    DataLenI     |
-   Z            |   
-   Dat          |      
+   Z            |
+   Dat          |
    TagBytes     |
    FrameBytes   |
    Value        |
@@ -1525,50 +1585,50 @@ data Var =
    AllOnes2     |
    AllOnes1     |
    AllOnes0     |
-   VersionEnc1  |   
-   VersionEnc0  |   
-   LayerEnc1    | 
-   LayerEnc0    | 
-   BitRateEnc3  |   
-   BitRateEnc2  |   
-   BitRateEnc1  |   
-   BitRateEnc0  |   
-   SampRateEnc1 |    
-   SampRateEnc0 |    
+   VersionEnc1  |
+   VersionEnc0  |
+   LayerEnc1    |
+   LayerEnc0    |
+   BitRateEnc3  |
+   BitRateEnc2  |
+   BitRateEnc1  |
+   BitRateEnc0  |
+   SampRateEnc1 |
+   SampRateEnc0 |
    Padding      |
-   ChannelMode1 |    
-   ChannelMode0 |    
+   ChannelMode1 |
+   ChannelMode0 |
    AllOnes      |
-   VersionEnc   |  
+   VersionEnc   |
    LayerEnc     |
-   BitRateEnc   |  
-   SampRateEnc  |        
-   ChannelMode  deriving (Eq, Ord, Show)        
+   BitRateEnc   |
+   SampRateEnc  |
+   ChannelMode  deriving (Eq, Ord, Show)
 
-data Id3K          = Id3K          deriving (Eq, Ord, Show)       
-data VerMajorK     = VerMajorK     deriving (Eq, Ord, Show)     
-data VerMinorK     = VerMinorK     deriving (Eq, Ord, Show)     
-data UnsyncK       = UnsyncK       deriving (Eq, Ord, Show)   
-data ExtHdrK       = ExtHdrK       deriving (Eq, Ord, Show)   
-data ExperiK       = ExperiK       deriving (Eq, Ord, Show)   
-data FooterK       = FooterK       deriving (Eq, Ord, Show)   
-data TagSizeK      = TagSizeK      deriving (Eq, Ord, Show)    
-data FramesK       = FramesK       deriving (Eq, Ord, Show)   
+data Id3K          = Id3K          deriving (Eq, Ord, Show)
+data VerMajorK     = VerMajorK     deriving (Eq, Ord, Show)
+data VerMinorK     = VerMinorK     deriving (Eq, Ord, Show)
+data UnsyncK       = UnsyncK       deriving (Eq, Ord, Show)
+data ExtHdrK       = ExtHdrK       deriving (Eq, Ord, Show)
+data ExperiK       = ExperiK       deriving (Eq, Ord, Show)
+data FooterK       = FooterK       deriving (Eq, Ord, Show)
+data TagSizeK      = TagSizeK      deriving (Eq, Ord, Show)
+data FramesK       = FramesK       deriving (Eq, Ord, Show)
 data FrameHeaderK  = FrameHeaderK  deriving (Eq, Ord, Show)
-data StringIDK     = StringIDK     deriving (Eq, Ord, Show)    
-data FrameIDK      = FrameIDK      deriving (Eq, Ord, Show)    
-data FrameSizeK    = FrameSizeK    deriving (Eq, Ord, Show)      
-data TagAltPrsvK   = TagAltPrsvK   deriving (Eq, Ord, Show)       
-data FileAltPrsvK  = FileAltPrsvK  deriving (Eq, Ord, Show)        
-data ReadOnlyK     = ReadOnlyK     deriving (Eq, Ord, Show)     
-data GroupingK     = GroupingK     deriving (Eq, Ord, Show)     
-data CompressionK  = CompressionK  deriving (Eq, Ord, Show)        
-data EncryptionK   = EncryptionK   deriving (Eq, Ord, Show)       
-data UnsyncFrK     = UnsyncFrK     deriving (Eq, Ord, Show)     
-data DataLenIK     = DataLenIK     deriving (Eq, Ord, Show)     
-data ZK            = ZK            deriving (Eq, Ord, Show)        
+data StringIDK     = StringIDK     deriving (Eq, Ord, Show)
+data FrameIDK      = FrameIDK      deriving (Eq, Ord, Show)
+data FrameSizeK    = FrameSizeK    deriving (Eq, Ord, Show)
+data TagAltPrsvK   = TagAltPrsvK   deriving (Eq, Ord, Show)
+data FileAltPrsvK  = FileAltPrsvK  deriving (Eq, Ord, Show)
+data ReadOnlyK     = ReadOnlyK     deriving (Eq, Ord, Show)
+data GroupingK     = GroupingK     deriving (Eq, Ord, Show)
+data CompressionK  = CompressionK  deriving (Eq, Ord, Show)
+data EncryptionK   = EncryptionK   deriving (Eq, Ord, Show)
+data UnsyncFrK     = UnsyncFrK     deriving (Eq, Ord, Show)
+data DataLenIK     = DataLenIK     deriving (Eq, Ord, Show)
+data ZK            = ZK            deriving (Eq, Ord, Show)
 data DatK          = DatK          deriving (Eq, Ord, Show)
-data TagBytesK     = TagBytesK     deriving (Eq, Ord, Show)           
+data TagBytesK     = TagBytesK     deriving (Eq, Ord, Show)
 data FrameBytesK   = FrameBytesK   deriving (Eq, Ord, Show)
 data ValueK        = ValueK        deriving (Eq, Ord, Show)
 data TextEncodingK = TextEncodingK deriving (Eq, Ord, Show)
@@ -1582,39 +1642,39 @@ data TimeFormatK   = TimeFormatK   deriving (Eq, Ord, Show)
 data ContentTypeK  = ContentTypeK  deriving (Eq, Ord, Show)
 data SyncedLyricsK = SyncedLyricsK deriving (Eq, Ord, Show)
 data IOStringK     = IOStringK     deriving (Eq, Ord, Show)
-data AllOnes2K     = AllOnes2K     deriving (Eq, Ord, Show)     
-data AllOnes1K     = AllOnes1K     deriving (Eq, Ord, Show)     
-data AllOnes0K     = AllOnes0K     deriving (Eq, Ord, Show)     
-data VersionEnc1K  = VersionEnc1K  deriving (Eq, Ord, Show)        
-data VersionEnc0K  = VersionEnc0K  deriving (Eq, Ord, Show)        
-data LayerEnc1K    = LayerEnc1K    deriving (Eq, Ord, Show)      
-data LayerEnc0K    = LayerEnc0K    deriving (Eq, Ord, Show)      
-data BitRateEnc3K  = BitRateEnc3K  deriving (Eq, Ord, Show)        
-data BitRateEnc2K  = BitRateEnc2K  deriving (Eq, Ord, Show)        
-data BitRateEnc1K  = BitRateEnc1K  deriving (Eq, Ord, Show)        
-data BitRateEnc0K  = BitRateEnc0K  deriving (Eq, Ord, Show)        
-data SampRateEnc1K = SampRateEnc1K deriving (Eq, Ord, Show)         
-data SampRateEnc0K = SampRateEnc0K deriving (Eq, Ord, Show)         
-data PaddingK      = PaddingK      deriving (Eq, Ord, Show)    
-data ChannelMode1K = ChannelMode1K deriving (Eq, Ord, Show)         
-data ChannelMode0K = ChannelMode0K deriving (Eq, Ord, Show)         
-data AllOnesK      = AllOnesK      deriving (Eq, Ord, Show)    
-data VersionEncK   = VersionEncK   deriving (Eq, Ord, Show)       
-data LayerEncK     = LayerEncK     deriving (Eq, Ord, Show)     
-data BitRateEncK   = BitRateEncK   deriving (Eq, Ord, Show)       
-data SampRateEncK  = SampRateEncK  deriving (Eq, Ord, Show)        
-data ChannelModeK  = ChannelModeK  deriving (Eq, Ord, Show)        
-data IsDirK        = IsDirK        deriving (Eq, Ord, Show) 
-data PathK         = PathK         deriving (Eq, Ord, Show) 
-data AudioK        = AudioK        deriving (Eq, Ord, Show) 
-data ArtistK       = ArtistK       deriving (Eq, Ord, Show)  
-data AlbumK        = AlbumK        deriving (Eq, Ord, Show)  
-data AlbumArtistK  = AlbumArtistK  deriving (Eq, Ord, Show)       
-data TrackK        = TrackK        deriving (Eq, Ord, Show) 
+data AllOnes2K     = AllOnes2K     deriving (Eq, Ord, Show)
+data AllOnes1K     = AllOnes1K     deriving (Eq, Ord, Show)
+data AllOnes0K     = AllOnes0K     deriving (Eq, Ord, Show)
+data VersionEnc1K  = VersionEnc1K  deriving (Eq, Ord, Show)
+data VersionEnc0K  = VersionEnc0K  deriving (Eq, Ord, Show)
+data LayerEnc1K    = LayerEnc1K    deriving (Eq, Ord, Show)
+data LayerEnc0K    = LayerEnc0K    deriving (Eq, Ord, Show)
+data BitRateEnc3K  = BitRateEnc3K  deriving (Eq, Ord, Show)
+data BitRateEnc2K  = BitRateEnc2K  deriving (Eq, Ord, Show)
+data BitRateEnc1K  = BitRateEnc1K  deriving (Eq, Ord, Show)
+data BitRateEnc0K  = BitRateEnc0K  deriving (Eq, Ord, Show)
+data SampRateEnc1K = SampRateEnc1K deriving (Eq, Ord, Show)
+data SampRateEnc0K = SampRateEnc0K deriving (Eq, Ord, Show)
+data PaddingK      = PaddingK      deriving (Eq, Ord, Show)
+data ChannelMode1K = ChannelMode1K deriving (Eq, Ord, Show)
+data ChannelMode0K = ChannelMode0K deriving (Eq, Ord, Show)
+data AllOnesK      = AllOnesK      deriving (Eq, Ord, Show)
+data VersionEncK   = VersionEncK   deriving (Eq, Ord, Show)
+data LayerEncK     = LayerEncK     deriving (Eq, Ord, Show)
+data BitRateEncK   = BitRateEncK   deriving (Eq, Ord, Show)
+data SampRateEncK  = SampRateEncK  deriving (Eq, Ord, Show)
+data ChannelModeK  = ChannelModeK  deriving (Eq, Ord, Show)
+data IsDirK        = IsDirK        deriving (Eq, Ord, Show)
+data PathK         = PathK         deriving (Eq, Ord, Show)
+data AudioK        = AudioK        deriving (Eq, Ord, Show)
+data ArtistK       = ArtistK       deriving (Eq, Ord, Show)
+data AlbumK        = AlbumK        deriving (Eq, Ord, Show)
+data AlbumArtistK  = AlbumArtistK  deriving (Eq, Ord, Show)
+data TrackK        = TrackK        deriving (Eq, Ord, Show)
 data SongK         = SongK         deriving (Eq, Ord, Show)
 data YearK         = YearK         deriving (Eq, Ord, Show)
-data GenreK        = GenreK        deriving (Eq, Ord, Show) 
-data TimesK        = TimesK        deriving (Eq, Ord, Show) 
+data GenreK        = GenreK        deriving (Eq, Ord, Show)
+data TimesK        = TimesK        deriving (Eq, Ord, Show)
 data OrigK         = OrigK         deriving (Eq, Ord, Show)
 data ExtensionK    = ExtensionK    deriving (Eq, Ord, Show)
 
@@ -1667,7 +1727,7 @@ instance P.Frame OrigK FileTimes Meta where
    myset1 OrigK value frame = frame { times = value }
 
 instance P.FrameD FrameID Meta where
-   mygetD name frame = case name of 
+   mygetD name frame = case name of
       Bisdir      -> toDyn $ isDir       frame
       Bpath       -> toDyn $ path        frame
       Baudio      -> toDyn $ audio       frame
@@ -1693,6 +1753,35 @@ instance P.FrameD FrameID Meta where
       Genre       -> frame { genre       = fromDyn1 value }
       Btimes      -> frame { times       = fromDyn1 value }
       Borig       -> frame { orig        = fromDyn1 value }
+
+instance P.Frame FrameID String Meta where
+   myget1 name frame = case name of
+      Bisdir      -> show          $ isDir       frame
+      Bpath       -> convertString $ path        frame
+      Baudio      -> convertString $ audio       frame
+      Artist      -> convertString $ artist      frame
+      Album       -> convertString $ album       frame
+      AlbumArtist -> convertString $ albumartist frame
+      Track       -> convertString $ track       frame
+      Song        -> convertString $ song        frame
+      Year        -> show          $ year        frame
+      Genre       -> convertString $ genre       frame
+      Btimes      -> show          $ times       frame
+      Borig       -> show          $ orig        frame
+      n           -> show1 $ byId frame M.! n
+   myset1 name value frame = case name of
+      Bisdir      -> frame { isDir       = read          value }
+      Bpath       -> frame { path        = convertString value }
+      Baudio      -> frame { audio       = convertString value }
+      Artist      -> frame { artist      = convertString value }
+      Album       -> frame { album       = convertString value }
+      AlbumArtist -> frame { albumartist = convertString value }
+      Track       -> frame { track       = convertString value }
+      Song        -> frame { song        = convertString value }
+      Year        -> frame { year        = read          value }
+      Genre       -> frame { genre       = convertString value }
+      Btimes      -> frame { times       = read          value }
+      Borig       -> frame { orig        = read          value }
 
 instance P.Frame Id3K NiceText ID3Tag where
    myget1 Id3K = id3
@@ -1839,16 +1928,16 @@ instance P.Frame FrameBytesK IOString Frame where
 
 instance P.FrameD Var Frame where
    mygetD name frame = case name of
-      StringID     -> toDyn $ stringID     frame 
+      StringID     -> toDyn $ stringID     frame
       FrameSize    -> toDyn $ frameSize    frame
-      TagAltPrsv   -> toDyn $ tagAltPrsv   frame 
-      FileAltPrsv  -> toDyn $ fileAltPrsv  frame 
-      ReadOnly     -> toDyn $ readOnly     frame 
-      Compression  -> toDyn $ compression  frame 
-      Encryption   -> toDyn $ encryption   frame 
-      Grouping     -> toDyn $ grouping     frame 
-      UnsyncFr     -> toDyn $ unsyncFr     frame 
-      DataLenI     -> toDyn $ dataLenI     frame 
+      TagAltPrsv   -> toDyn $ tagAltPrsv   frame
+      FileAltPrsv  -> toDyn $ fileAltPrsv  frame
+      ReadOnly     -> toDyn $ readOnly     frame
+      Compression  -> toDyn $ compression  frame
+      Encryption   -> toDyn $ encryption   frame
+      Grouping     -> toDyn $ grouping     frame
+      UnsyncFr     -> toDyn $ unsyncFr     frame
+      DataLenI     -> toDyn $ dataLenI     frame
       FrameBytes   -> toDyn $ frameBytes   frame
       Value        -> toDyn $ value        frame
       TextEncoding -> toDyn $ textEncoding frame
@@ -1862,16 +1951,16 @@ instance P.FrameD Var Frame where
       SyncedLyrics -> toDyn $ syncedLyrics frame
       IOStringV    -> toDyn $ ioString     frame
    mysetD name value1 frame = case name of
-      StringID     -> frame { stringID     = fromDyn1 value1 } 
+      StringID     -> frame { stringID     = fromDyn1 value1 }
       FrameSize    -> frame { frameSize    = fromDyn1 value1 }
-      TagAltPrsv   -> frame { tagAltPrsv   = fromDyn1 value1 } 
-      FileAltPrsv  -> frame { fileAltPrsv  = fromDyn1 value1 } 
-      ReadOnly     -> frame { readOnly     = fromDyn1 value1 } 
-      Compression  -> frame { compression  = fromDyn1 value1 } 
-      Encryption   -> frame { encryption   = fromDyn1 value1 } 
-      Grouping     -> frame { grouping     = fromDyn1 value1 } 
-      UnsyncFr     -> frame { unsyncFr     = fromDyn1 value1 } 
-      DataLenI     -> frame { dataLenI     = fromDyn1 value1 } 
+      TagAltPrsv   -> frame { tagAltPrsv   = fromDyn1 value1 }
+      FileAltPrsv  -> frame { fileAltPrsv  = fromDyn1 value1 }
+      ReadOnly     -> frame { readOnly     = fromDyn1 value1 }
+      Compression  -> frame { compression  = fromDyn1 value1 }
+      Encryption   -> frame { encryption   = fromDyn1 value1 }
+      Grouping     -> frame { grouping     = fromDyn1 value1 }
+      UnsyncFr     -> frame { unsyncFr     = fromDyn1 value1 }
+      DataLenI     -> frame { dataLenI     = fromDyn1 value1 }
       FrameBytes   -> frame { frameBytes   = fromDyn1 value1 }
       Value        -> frame { value        = fromDyn1 value1 }
       TextEncoding -> frame { textEncoding = fromDyn1 value1 }
@@ -2041,15 +2130,15 @@ frameIDList =
    , FT "4.3.1" Wpub        "WPUB" "Publishers official webpage" ""
    , FT "4.3.2" Wxxx        "WXXX" "User defined URL link frame" ""
    , -- seen in the wild but not part of the standard
-     FT "" Atxt "ATXT"      "ATXT" ""
-   , FT "" Chap "CHAP"      "ID3 Chapter" ""
-   , FT "" Ctoc "CTOC"      "ID3 Table Of Contents" ""
-   , FT "" Rgad "RGAD"      "RGAD" ""
-   , FT "" Tcmp "TCMP"      "Comp" "Set to 1 if the song is part of a compilation"
-   , FT "" Tso2 "TSO2"      "TSO2" ""
-   , FT "" Tsoc "TSOC"      "TSOC" ""
-   , FT "" Xrva "XRVA"      "XRVA" ""
-   , FT "" Ntrk "NTRK"      "Total number of tracks" ""
+     FT ""      Atxt        "ATXT" "ATXT" ""
+   , FT ""      Chap        "CHAP" "ID3 Chapter" ""
+   , FT ""      Ctoc        "CTOC" "ID3 Table Of Contents" ""
+   , FT ""      Rgad        "RGAD" "RGAD" ""
+   , FT ""      Tcmp        "TCMP" "Comp" "Set to 1 if the song is part of a compilation"
+   , FT ""      Tso2        "TSO2" "TSO2" ""
+   , FT ""      Tsoc        "TSOC" "TSOC" ""
+   , FT ""      Xrva        "XRVA" "XRVA" ""
+   , FT ""      Ntrk        "NTRK" "Total number of tracks" ""
    , -- id3v2.4
      FT "4.19 " Aspi        "ASPI" "Audio seek point index" ""
    , FT "4.12 " Equ2        "EQU2" "Equalisation" ""
@@ -2122,15 +2211,15 @@ frameIDList =
    , FT "4.2.1" Tit3        "TT3" "Subtitle/Description refinement" ""
    , FT "4.2.1" Text        "TXT" "Lyrics by" "Lyricist/text writer"
    , FT "4.2.2" Txxx        "TXX" "User text" "User defined text information frame"
-   , FT "4.2.1" Year        "TYE" "Year" ""
-   , FT "4.1  " Ufid "UFI" "Unique file identifier" ""
-   , FT "4.9  " Uslt "ULT" "U Lyrics" "Unsychronized lyric/text transcription"
-   , FT "4.3.1" Woaf "WAF" "Official audio file webpage" ""
-   , FT "4.3.1" Woar "WAR" "Official artist/performer webpage" ""
-   , FT "4.3.1" Woas "WAS" "Official audio source webpage" ""
-   , FT "4.3.1" Wcom "WCM" "Commercial information" ""
-   , FT "4.3.1" Wcop "WCP" "Copyright/Legal information" ""
-   , FT "4.3.1" Wpub "WPB" "Publishers official webpage" ""
-   , FT "4.3.2" Wxxx "WXX" "User defined URL link frame" ""
+   , FT "4.2.1" Year        "TYE" "Year" "Year"
+   , FT "4.1  " Ufid        "UFI" "Unique file identifier" "Unique file identifier"
+   , FT "4.9  " Uslt        "ULT" "U Lyrics" "Unsychronized lyric/text transcription"
+   , FT "4.3.1" Woaf        "WAF" "Official audio file webpage" ""
+   , FT "4.3.1" Woar        "WAR" "Official artist/performer webpage" ""
+   , FT "4.3.1" Woas        "WAS" "Official audio source webpage" ""
+   , FT "4.3.1" Wcom        "WCM" "Commercial information" ""
+   , FT "4.3.1" Wcop        "WCP" "Copyright/Legal information" ""
+   , FT "4.3.1" Wpub        "WPB" "Publishers official webpage" ""
+   , FT "4.3.2" Wxxx        "WXX" "User defined URL link frame" ""
    ]
 

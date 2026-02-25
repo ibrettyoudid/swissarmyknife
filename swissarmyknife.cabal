@@ -166,6 +166,7 @@ library
         Parser3,
         Parser3Types,
         Parser4,
+        Parser5,
         Parser6,
         Parser6Types,
         Parser6TH,

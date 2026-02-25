@@ -61,7 +61,6 @@ data Rule s t f r where
    Apply    ::   Iso  a  b        -> Rule s t f  a  -> Rule s t f  b
    Seq      :: SeqTuple a b f s t =>           a    -> Rule s t f  b
    Redo     :: Frame      n  s  f =>           n    -> Rule s t f  v  -> Rule s t f  v
-   Lambda   :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Set      :: (Show n, Show v, Frame      n  v  f) =>           n    -> Rule s t f  v  -> Rule s t f  v
    SetM     :: FrameTuple n  v  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Get      :: Frame      n  v  f =>           n                      -> Rule s t f  v
@@ -380,14 +379,6 @@ parse1 (SetM names rule) f t =
       -}
       Fail t1 f1 em -> Fail t1 f1 em
 
-parse1 (Lambda names rule) f t =
-   case parse1 rule f t of
-      Done t1 f1 r -> Done t1 (mysetm names r f1) r
-      {-
-         case mysetm names r f1 of
-            Just j  -> Done r j t1
-      -}
-      Fail t1 f1 em -> Fail t1 f1 em
 {-
 parse1 (Call lambda args) f t =
    case parse1

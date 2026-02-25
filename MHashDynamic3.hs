@@ -43,7 +43,7 @@ import qualified Data.Set as S
 
 import Data.IORef
 import Data.Time.Calendar
-import qualified Data.Array as A
+import qualified Data.Array.IArray as A
 
 import qualified Data.Dynamic as D
 import Data.Typeable
@@ -725,7 +725,7 @@ instance Show Closure where
 instance Show Dynamic where
    show = showDyn
 
-instance Show1 Dynamic where
+instance {-# OVERLAPPING #-} Show1 Dynamic where
    show1 = showDyn1
 
 --instance Show Multimethod where
@@ -1060,7 +1060,7 @@ copy a = fromAssocs $ toAssocs a
 
 zipWitha f a b = fromAssocs $ zipWith (\i j -> ([i], f (getSub i a) (getSub j b))) (dimRange $ head $ dims a) (dimRange $ head $ dims b)
 
-mapEE f a = fromAssocs (dimNames $ dims a) $ map (\(i, e) -> (i, f e)) $ toAssocs a
+mapEE f a = a { payload = A.amap f $ payload a }
 
 mapEA f a = let
    assocs1 = toAssocs a
