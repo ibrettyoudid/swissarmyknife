@@ -10,6 +10,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{- HLINT ignore "Redundant multi-way if" -}
 {- HLINT ignore "Avoid lambda using `infix`" -}
 
 {- HLINT ignore "Use zipWith" -}
@@ -635,12 +636,85 @@ differences2 strs = let delims = commonSubsequencesList strs in map (infoFromStr
 metaFromString :: [FrameID] -> [String] -> String -> Meta
 metaFromString fields delims str = metaOfTag2 False (c str) blankFT blankFT $ fieldsFromString fields delims str
 
-matchMetaFS meta | isDir meta = mapxfx matchMetaPath $ subFiles meta
+matchMetaFS db meta | isDir meta = let
+   subPs = map (\(p, m) -> (m, matchMetaPath m)) $ M.toList $ subNodes db $ path meta
+   parts = split "/" $ path meta
+   depth = L.length parts
+{-}
+   lasts = map (\(m, p) -> (m, last p)) subPs
+   (singles, multis) = L.partition (\(m, p) -> length p == 1) lasts
+   singlevotes = counts2 $ map (head . snd) singles
+   singlechoices = map (\(m, p) -> (m, head p)) singles
+   multichoices = map (\(m, p) -> let
+      (p2, c) = maximum $ mapMaybe 
+         (\p1 -> case M.lookup p1 singlevotes of
+            Just j -> Just (p1, j)
+            Nothing -> Nothing) p
+      in (m, p2)) multis
+   choices = singlechoices ++ multichoices
+-}
+   (singles, multis) = L.partition (\(m, p) -> all ((== 1) . length) (drop (depth-1) p)) subPs
+   singlechoices = map (map head . drop (depth-1) . snd) singles
+   singlevotes = counts2 singlechoices
+   multichoices = map (\(m, p) -> let
+      ch = rsort $ mapMaybe
+         (\p1 -> case M.lookup p1 singlevotes of
+                     Just j -> Just (j, p1)
+                     Nothing -> Nothing) $ crossList p
+                     
+      in (m, if   -- | length ch >= 2 && fst (ch !! 0) > fst (ch !! 1) * 5 -> [snd (ch !! 0)]
+                  | not $ null ch -> map snd ch
+                  | otherwise -> p)) multis
+   {-
+   singlevotes = counts2 $ map (head . snd) singles
+   singlechoices = map (\(m, p) -> (m, head p)) singles
+   multichoices = map (\(m, p) -> let
+      (p2, c) = maximum $ mapMaybe 
+         (\p1 -> case M.lookup p1 singlevotes of
+            Just j -> Just (p1, j)
+            Nothing -> Nothing) p
+      in (m, p2)) multis
+   choices = singlechoices ++ multichoices
+   -}
+   in subPs
+
+-- if there are multiple options for any file/dir
+-- take the option that is most common single option in the closest files/dirs ie. sibling files/dirs
+-- or, if they all have multiple options, leave it for further up the directory tree
+-- if we leave it for further up, we have to deal with entries that differ at more than one level
+
+-- assume that different dirs/files in the same dir only differ in the last entry? yes
+-- assume it for now but maybe come back to it
 
 matchMetaPath meta = let
-   parts = split "/" $ path meta
+   parts = split "/" $ convertString $ path meta
    partsmatch = map (matchMetaString meta) parts
    in partsmatch
+
+--sortOn snd $ mapMaybe (\case (f, Just i) -> Just (f, i); (f, Nothing) -> Nothing) match
+matchMetaString meta str = let
+   fss = fieldStrs meta
+   fs = map fst fss
+   ss = map snd fss
+   in mapMaybe ((\fis -> let
+      inField    = L.sort $ concat $ zipWith (\(f, i) s -> [i .. i + length s - 1]) fis ss
+      notInField = [0..length str - 1] L.\\ inField
+      charsNotInField = map (\i -> (i, Left $ str !! i)) notInField
+      fields = L.sort $ concat $ zipWith (\(f, i) s -> map (, Right f) [i .. i + length s - 1]) fis ss
+      chars = L.sort $ charsNotInField ++ fields
+      f x = case head x of
+         Left c -> let
+            (b, a) = span isLeft x
+            in Left (map (fromLeft '_') b) : f a
+         Right r -> let
+            (b, a) = span isRight x
+            in Right (fromRight Unknown $ head b) : f a
+      strs = f $ map snd chars
+      --check they do not overlap, ie. no characters have the same index
+      ok = not $ or $ zipWith (/=) inField (tail inField)
+
+      in ifJust ok strs) . catMaybes . zipWith (\f m -> (f, ) <$> m) fs)
+      $ crossList $ map (\(f, s) -> (Nothing :) $ map Just $ L.findIndices (isPrefixOf s) $ tails str) fss
 
 parserFromMatch :: [Either String FrameID] -> [Rule String Char Meta String]
 parserFromMatch [] = []
@@ -652,31 +726,6 @@ parserFromMatch ms@(m:_) = case m of
                [] -> Rest
                (Left l:_) -> AnyTill (String l)
                (Right r:_) -> error "cannot handle two consecutive fields") : parserFromMatch (tail ms)
-
---sortOn snd $ mapMaybe (\case (f, Just i) -> Just (f, i); (f, Nothing) -> Nothing) match
-matchMetaString meta str = let
-   fss = fieldStrs meta
-   fs = map fst fss
-   ss = map snd fss
-   in mapMaybe ((\fis -> let  
-      inField    = L.sort $ concat $ zipWith (\(f, i) s -> [i .. i + length s - 1]) fis ss
-      notInField = [0..length str - 1] L.\\ inField
-      charsNotInField = map (\i -> (i, Left $ str !! i)) notInField
-      fields = L.sort $ concat $ zipWith (\(f, i) s -> map (, Right f) [i .. i + length s - 1]) fis ss
-      chars = L.sort $ charsNotInField ++ fields
-      f x = case head x of
-         Left c -> let 
-            (b, a) = span isLeft x
-            in Left (map (fromLeft '_') b) : f a
-         Right r -> let
-            (b, a) = span isRight x
-            in Right (fromRight Unknown $ head b) : f a
-      strs = f $ map snd chars
-      --check they do not overlap, ie. no characters have the same index
-      ok = not $ or $ zipWith (/=) inField (tail inField)
-
-      in ifJust ok strs) . catMaybes . zipWith (\f m -> (f, ) <$> m) fs) 
-      $ crossList $ map (\(f, s) -> (Nothing :) $ map Just $ L.findIndices (isPrefixOf s) $ tails str) fss
 
 fieldsFromString fields delims str = M.fromList $ zip fields $ map toDyn $ infoFromString delims str
 
@@ -802,12 +851,12 @@ readFS db f
                rdir <- listDirectory $ c path1
                let rdir1 = map c rdir
                rnew <- mapM (\p -> do d <- doesDirectoryExist $ c p; return $ blankMeta{isDir = d, path = p}) $ map (path1 ++) rdir1
-               let withnew = M.union (inDir path1 db) $ M.fromList $ mapfxx path rnew
+               let withnew = M.union (subNodes db path1) $ M.fromList $ mapfxx path rnew
                updated <- mapM (readFS db) withnew -- recurse into subdirectories and files
                return $ f{times = times1} : concat updated -- otimes1 is only updated if it's a new dir
             else do
                L.putStrLn "UH OH"
-               updated <- mapM (readFSD db) $ inDir path1 db -- recurse into subdirectories only
+               updated <- mapM (readFSD db) $ subNodes db path1 -- recurse into subdirectories only
                return $ f{times = times1} : concat updated
    | otherwise = do
          L.putStrLn $ c $ path f
@@ -832,14 +881,14 @@ readFSD db f
 
 noSlash = notElem (convertChar '/')
 
-inDir d = let
+subNodes db d = let
    l = length d
-   
-   in M.takeWhileAntitone (\x -> isPrefixOf d x && noSlash (drop l x)) . M.dropWhileAntitone (not . isPrefixOf d)
 
-inDir1 d = M.takeWhileAntitone (all noSlash . stripPrefix d) . M.dropWhileAntitone (not . isPrefixOf d)
+   in M.takeWhileAntitone (\x -> isPrefixOf d x && noSlash (drop l x)) $ M.dropWhileAntitone (not . isPrefixOf d) db
 
-inDirRec d = M.takeWhileAntitone (isPrefixOf d) . M.dropWhileAntitone (not . isPrefixOf d)
+subNodes1 db d = M.takeWhileAntitone (all noSlash . stripPrefix d) $ M.dropWhileAntitone (not . isPrefixOf d) db
+
+inDirRec db d = M.takeWhileAntitone (isPrefixOf d) $ M.dropWhileAntitone (not . isPrefixOf d) db
 
 -- fti = posixSecondsToUTCTime
 fti = picoOfPosixTime
@@ -1376,7 +1425,7 @@ zeroTextEnc = TextEncodingK --> zeroText
 
 zeroText :: Int -> Rule ByteString a2 f Text
 zeroText enc = Apply (itext enc) $ case enc of
-                                       0 -> AnyTill $ String "\0" 
+                                       0 -> AnyTill $ String "\0"
                                        1 -> AnyTill $ String "\0\0"
 
 ic = total c c
