@@ -637,9 +637,9 @@ metaFromString :: [FrameID] -> [String] -> String -> Meta
 metaFromString fields delims str = metaOfTag2 False (c str) blankFT blankFT $ fieldsFromString fields delims str
 
 matchMetaFS db meta | isDir meta = let
-   subPs = map (\(p, m) -> (m, matchMetaPath m)) $ M.toList $ subNodes db $ path meta
+   subPs = concatMap (matchMetaFS db . snd) $ M.toList $ subNodes db $ path meta
    parts = split "/" $ path meta
-   depth = L.length parts
+   depth = L.length parts - 1
 {-}
    lasts = map (\(m, p) -> (m, last p)) subPs
    (singles, multis) = L.partition (\(m, p) -> length p == 1) lasts
@@ -653,12 +653,12 @@ matchMetaFS db meta | isDir meta = let
       in (m, p2)) multis
    choices = singlechoices ++ multichoices
 -}
-   (singles, multis) = L.partition (\(m, p) -> all ((== 1) . length) (drop (depth-1) p)) subPs
-   singlechoices = map (map head . drop (depth-1) . snd) singles
+   (singles, multis) = L.partition (\(m, p) -> all ((== 1) . length) (drop depth p)) subPs
+   singlechoices = map (map head . drop depth . snd) singles
    singlevotes = counts2 singlechoices
    multichoices = map (\(m, p) -> let
       ch = rsort $ mapMaybe
-         (\p1 -> case M.lookup p1 singlevotes of
+         (\p1 -> case M.lookup (drop depth p1) singlevotes of
                      Just j -> Just (j, p1)
                      Nothing -> Nothing) $ crossList p
                      
@@ -676,7 +676,8 @@ matchMetaFS db meta | isDir meta = let
       in (m, p2)) multis
    choices = singlechoices ++ multichoices
    -}
-   in subPs
+   in singles ++ multichoices
+matchMetaFS db meta = [(meta, matchMetaPath meta)]
 
 -- if there are multiple options for any file/dir
 -- take the option that is most common single option in the closest files/dirs ie. sibling files/dirs
@@ -888,7 +889,7 @@ subNodes db d = let
 
 subNodes1 db d = M.takeWhileAntitone (all noSlash . stripPrefix d) $ M.dropWhileAntitone (not . isPrefixOf d) db
 
-inDirRec db d = M.takeWhileAntitone (isPrefixOf d) $ M.dropWhileAntitone (not . isPrefixOf d) db
+subNodesRec db d = M.takeWhileAntitone (isPrefixOf d) $ M.dropWhileAntitone (not . isPrefixOf d) db
 
 -- fti = posixSecondsToUTCTime
 fti = picoOfPosixTime
@@ -1416,7 +1417,7 @@ framebody id
       IOStringK     <-- Rest :/
       Return ()
 
-textEnc     = TextEncodingK --> text
+textEnc = TextEncodingK --> text
 
 text :: Int -> Rule ByteString t f Text
 text enc = Apply (itext enc) Rest
@@ -1425,8 +1426,8 @@ zeroTextEnc = TextEncodingK --> zeroText
 
 zeroText :: Int -> Rule ByteString a2 f Text
 zeroText enc = Apply (itext enc) $ case enc of
-                                       0 -> AnyTill $ String "\0"
                                        1 -> AnyTill $ String "\0\0"
+                                       _ -> AnyTill $ String "\0"
 
 ic = total c c
 
@@ -1988,7 +1989,11 @@ instance P.FrameD Var Frame where
       UnsyncFr     -> toDyn $ unsyncFr     frame
       DataLenI     -> toDyn $ dataLenI     frame
       FrameBytes   -> toDyn $ frameBytes   frame
-      Value        -> toDyn $ value        frame
+      Value        -> case frame of
+         FPriv       {} -> toDyn ("" :: Text)
+         FPicture    {} -> toDyn ("" :: Text)
+         FrameHeader {} -> toDyn ("" :: Text)
+         _                -> toDyn $ value        frame
       TextEncoding -> toDyn $ textEncoding frame
       Language     -> toDyn $ language     frame
       Description  -> toDyn $ description  frame
