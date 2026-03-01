@@ -32,14 +32,17 @@ instance (Ord a, Ord b) => Ord (a :- b) where
 instance (Show1 a, Show1 b) => Show1 (a :- b) where
    show1 (a :- b) = show1 a ++ " :- " ++ show1 b
 
-class NamedTuple a b c d | a b c -> d where
-   lookup :: a -> b -> c -> d
+class NamedTuple n ns vs v | n ns vs -> v where
+   lookup :: n -> ns -> vs -> v
+   update :: n -> v -> ns -> vs -> vs
 
-instance NamedTuple a c e f => NamedTuple a (b :- c) (d :- e) f where
-   lookup a (b :- c) (d :- e) = NewTuple.lookup a c e
+instance NamedTuple n ns vs v => NamedTuple n (m :- ns) (u :- vs) v where
+   lookup n (m :- ns) (u :- vs) = NewTuple.lookup n ns vs
+   update n v (m :- ns) (u :- vs) = u :- NewTuple.update n v ns vs
 
-instance NamedTuple a (a :- b) (c :- d) c where
-   lookup a (a1 :- b) (c :- d) = c
+instance NamedTuple n (n :- ns) (v :- vs) v where
+   lookup n (n1 :- ns) (v :- vs) = v
+   update n v (n1 :- ns) (v1 :- vs) = v :- vs
 
 data A = A deriving (Eq, Ord, Show)
 data B = B deriving (Eq, Ord, Show)

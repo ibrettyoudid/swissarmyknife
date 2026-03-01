@@ -36,19 +36,21 @@ data Record f v = Record {fieldsr :: f, values :: v} deriving (Show)
 
 instance NewTuple.NamedTuple name names values value => Frame name value (Record names values) where
    lookup name (Record names values) = NewTuple.lookup name names values
+   update name value (Record names values) = Record names $ NewTuple.update name value names values
 
 class Frame name value frame where
    lookup :: name -> frame -> value
    update :: name -> value -> frame -> frame
 
 data Rule s t f i o where
-   Call    :: (Frame m u f, Frame n v f) => m -> Rule s t g u v -> n -> Rule s t f u v
+   Call    :: (Frame m u f, Frame n v f) => m -> g -> Rule s t g u v -> n -> Rule s t f u v
    Lambda  :: (Frame j u g, Frame k v g) => j -> Rule s t g u v -> k -> Rule s t g u v
-   IsoRule :: Iso a b -> Rule s t f a b
+   IsoRule :: (a -> b) -> (b -> a) -> Rule s t f a b
 
-data PResult t f r = Done t f r
+data PResult s f r = Done s f r
 {-
-parse1 (Call m (Lambda j body k) n) f t =
-   case parse1 body (update j (lookup m f) undefined) t of
-      Done t1 g r1 -> Done t1 (update n (lookup k g) f) r1
+parse1 :: Rule s t f i o -> f -> s -> PResult s f r
+parse1 (Call m g (Lambda j body k) n) f t =
+   case parse1 body (update j (lookup m f) g) t of
+      Done t1 g1 r1 -> Done t1 (update n (lookup k g1) f) r1
 -}
