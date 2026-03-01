@@ -345,7 +345,7 @@ parse1 (Apply iso a) f t =
 
 --   Call   :: (FrameTuple m u f, FrameTuple n v f) => m -> Lambda s t g u v -> n -> Rule s t f  v
 --   Lambda :: (FrameTuple j u g, FrameTuple k v g) => j -> Rule s t g v -> k -> Lambda s t g u v
-{-}
+{-
 parse1 (Call m (Lambda j body k) n) f t =
    case parse1 body (myset1 j (myget1 m f) undefined) t of
       Done t1 g r1 -> Done t1 (myset1 n (myget1 k g) f) r1
