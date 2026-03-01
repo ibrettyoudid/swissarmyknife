@@ -169,11 +169,11 @@ cspecC lines1 = let
       in Just ((length text, length gap), rest2)
    in unfoldr f allspaces
 
-data Table f i r = Table { fields :: f, tgroup :: Group i r} deriving (Generic, NFData)
+data Table f i v = Table { fields :: f, tgroup :: Group i v} deriving (Generic, NFData)
 
-data Group i r = INode (M.Map i (Group i r)) | Recs (Tree.Tree (Group i r)) | Rec r deriving (Eq, Ord, Show, Generic, NFData)
+data Group i v = INode (M.Map i (Group i v)) | Recs (Tree.Tree (Group i v)) | Rec v deriving (Eq, Ord, Show, Generic, NFData)
 
-data Record f r = Record {fieldsr :: f, values :: r} deriving (Show, Generic, NFData)
+data Record f v = Record {fieldsr :: f, values :: v} deriving (Show, Generic, NFData)
 
 empty = Table $ Recs Tree.empty
 
