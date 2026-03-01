@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Redundant multi-way if" #-}
@@ -43,14 +44,13 @@ class Frame name value frame where
    update :: name -> value -> frame -> frame
 
 data Rule s t f i o where
-   Call    :: (Frame m u f, Frame n v f) => m -> g -> Rule s t g u v -> n -> Rule s t f u v
+   Call    :: (Frame m u f, Frame n v f) => m -> Rule s t g u v -> n -> Rule s t f u v
    Lambda  :: (Frame j u g, Frame k v g) => j -> Rule s t g u v -> k -> Rule s t g u v
    IsoRule :: (a -> b) -> (b -> a) -> Rule s t f a b
 
-data PResult s f r = Done s f r
-{-
-parse1 :: Rule s t f i o -> f -> s -> PResult s f r
-parse1 (Call m g (Lambda j body k) n) f t =
-   case parse1 body (update j (lookup m f) g) t of
-      Done t1 g1 r1 -> Done t1 (update n (lookup k g1) f) r1
--}
+data PResult s f o = Done s f o
+
+parse1 :: Rule s t f i o -> f -> s -> i -> PResult s f o
+parse1 (Call m (Lambda j body k) n) f s i  =
+   case parse1 body (update @_ @i j (lookup m f) undefined) s i of
+      Done s1 g1 r1 -> Done s1 (update @_ @o n (lookup k g1) f) r1
