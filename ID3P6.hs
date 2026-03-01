@@ -156,10 +156,15 @@ ismp3 = (".mp3" `isSuffixOf`) . low
 mp3s = filter ismp3 . fileTree
 artistmp3s a = mp3s $ artistd ++ a
 
-showMeta :: [Meta] -> SubArrayD Dynamic String
-showMeta ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
+showMeta1 :: [Meta] -> SubArrayD Dynamic String
+showMeta1 ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
 
-test3 = showMeta $ map readMeta $ fileTree enoid
+--showMeta :: M.Map a Meta -> SubArrayD Dynamic String
+showMeta map1 = {-fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $-} concatMap (\(file, meta) -> map (\(field, value) -> ([toDyn (show field), toDyn (convertString (path meta) :: String)], value)) $ fields1 meta) $ M.toList map1
+
+test3 = showMeta1 . map readMeta . fileTree
+
+test4 = unsafePerformIO $ showMeta <$> readDB newDB dbroots
 
 {-}
 tagTree = unsafePerformIO . tagTreeM
@@ -187,7 +192,7 @@ type MPEGInt = Int
 
 data ID3Tag
    = ID3Tag {
-      id3      :: NiceText,
+      id3      :: IOString,
       verMajor :: Int,
       verMinor :: Int,
       unsync   :: Bool,
@@ -665,17 +670,6 @@ matchMetaFS db meta | isDir meta = let
       in (m, if   -- | length ch >= 2 && fst (ch !! 0) > fst (ch !! 1) * 5 -> [snd (ch !! 0)]
                   | not $ null ch -> map snd ch
                   | otherwise -> p)) multis
-   {-
-   singlevotes = counts2 $ map (head . snd) singles
-   singlechoices = map (\(m, p) -> (m, head p)) singles
-   multichoices = map (\(m, p) -> let
-      (p2, c) = maximum $ mapMaybe 
-         (\p1 -> case M.lookup p1 singlevotes of
-            Just j -> Just (p1, j)
-            Nothing -> Nothing) p
-      in (m, p2)) multis
-   choices = singlechoices ++ multichoices
-   -}
    in singles ++ multichoices
 matchMetaFS db meta = [(meta, matchMetaPath meta)]
 
@@ -982,7 +976,10 @@ readFileU2 = unsafePerformIO . readFile
 
 parseTag str = case parse tag str of
    Done _ _ res -> res
-   Fail i f m -> error $ m ++ " input="++show (take 100 i)
+   Fail i f m -> 
+      case m of
+         "No ID3v2" -> emptyTag
+         _          -> error $ m ++ " input="++show (take 100 i)
 
       {-
       _ -> do
@@ -1191,35 +1188,6 @@ decodeLE (a : b : rest) = chr (a + b * 0x100) : decodeLE rest
 decodeBE [] = []
 decodeBE (a : b : rest) = chr (a * 0x100 + b) : decodeBE rest
 -}
-itext enc = total (decodeText enc) (encodeText enc)
-
-decodeText enc text = case enc of
-   1 -> decodeUCS2     text
-   _ -> T.decodeLatin1 text
-
-encodeText enc text = case enc of
-   1 -> T.encodeUtf16LE text
-   _ -> T.encodeUtf8    text
-
-decodeUCS2 str = case B.take 2 str of
-   "\255\254" -> T.decodeUtf16LE $ B.drop 2 str
-   "\254\255" -> T.decodeUtf16BE $ B.drop 2 str
-   _ -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
-
-countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off, off + 2 .. length s - 1]
-
-countZero = length . filter (== 0) -- thanks to William Gibson
-
-alternateChars [] = []
-alternateChars [a] = [a]
-alternateChars (a : b : rest) = a : alternateChars rest
-
-encodeTextA = B.pack . map fromIntegral . encodeText1
-
-encodeText1 x = 0 : map ord x
-
-unright (Right r) = r
-
 {-}
 parseTag str =
    let 
@@ -1312,15 +1280,17 @@ tag = Build emptyTag (
 -}
 
 icn = ic :: Iso _ NiceText
+ici = ic :: Iso _ IOString
 
 tag :: Rule IOString Word8 () ID3Tag
 tag = Build emptyTag (
-   Id3K      <-- Apply icn (Tokens 3) :/
+   Id3K      <-- Apply ici (Tokens 3) :/
+   Guard (("ID3"==) . id3) "No ID3v2" :/
    VerMajorK <-- int :/
    VerMinorK <-- int :/
    SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
    TagSizeK  <-- int4 0x80 :/
-   TagBytesK <-- (Get TagSizeK >>== tokens) :/
+   TagBytesK <-- (UnsyncK --> (\s -> Apply (isync1 s) (Get TagSizeK >>== tokens))) :/
    FramesK   <-- Redo TagBytesK body)
 
 body :: Rule IOString Word8 ID3Tag [Frame]
@@ -1359,6 +1329,8 @@ frameheader 4 =
    SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
    SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
    Return ()
+
+frameheader x = Guard (const False) $ "cannot process tag with VerMajor="++show x
 
 framebody :: FrameID -> Rule ByteString Word8 Frame ()
 framebody id
@@ -1430,6 +1402,46 @@ zeroText enc = Apply (itext enc) $ case enc of
                                        _ -> AnyTill $ String "\0"
 
 ic = total c c
+
+itext enc = total (decodeText enc) (encodeText enc)
+
+decodeText enc text = case enc of
+   1 -> decodeUCS2     text
+   _ -> T.decodeLatin1 text
+
+encodeText enc text = case enc of
+   1 -> T.encodeUtf16LE text
+   _ -> T.encodeUtf8    text
+
+decodeUCS2 str = case B.take 2 str of
+   --"\255\254" -> T.decodeUtf16LE $ B.drop 2 str
+   --"\254\255" -> T.decodeUtf16BE $ B.drop 2 str
+   --_ -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
+   "\255\254" -> decodeLE (B.drop 2 str) (B.length str - 2) 0
+   "\254\255" -> decodeBE (B.drop 2 str) (B.length str - 2) 0
+   _ -> if countZeroAlt 0 str >= countZeroAlt 1 str 
+      then decodeBE str (B.length str) 0
+      else decodeLE str (B.length str) 0
+
+decodeLE str l x | x < l = cons (chr (fromIntegral (str !! x) + fromIntegral (str !! (x+1)) * 0x100)) (decodeLE str (x+2) l)
+decodeLE str l x = empty            
+
+decodeBE str l x | x < l = cons (chr (fromIntegral (str !! x) * 0x100 + fromIntegral (str !! (x+1)))) (decodeBE str (x+2) l)
+decodeBE str l x = empty         
+
+countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off, off + 2 .. length s - 1]
+
+countZero = length . filter (== 0) -- thanks to William Gibson
+
+alternateChars [] = []
+alternateChars [a] = [a]
+alternateChars (a : b : rest) = a : alternateChars rest
+
+encodeTextA = B.pack . map fromIntegral . encodeText1
+
+encodeText1 x = 0 : map ord x
+
+unright (Right r) = r
 
 idFrameOfString stringID = fromMaybe Unknown $ frameID1 <$> M.lookup stringID stringIDMap
 idStringOfFrame frameID  = fromMaybe "UNKN" $ stringID1 <$> M.lookup frameID  frameIDMap
@@ -1833,7 +1845,7 @@ instance P.Frame FrameID String Meta where
       Btimes      -> frame { times       = read          value }
       Borig       -> frame { orig        = read          value }
 
-instance P.Frame Id3K NiceText ID3Tag where
+instance P.Frame Id3K IOString ID3Tag where
    myget1 Id3K = id3
    myset1 Id3K value frame = frame { id3 = value }
 

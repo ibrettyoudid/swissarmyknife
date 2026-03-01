@@ -75,6 +75,7 @@ data Rule s t f r where
    Member   :: Frame n v f        =>           n    -> Rule s t v  a  -> Rule s t f  v
    GetSub   :: Frame n v f        =>           n    -> Rule s t f  v  -> Rule s t f  v
    Taken    :: Eq s               => Rule s t f  a  -> Rule s t f  s
+   Guard    :: (f -> Bool)        -> String         -> Rule s t f  ()
 
 {-}
 data Rule name value tok
@@ -115,7 +116,7 @@ newtype Pos = Pos { fromPos :: Int }
 -- This type is an instance of 'Functor', where 'fmap' transforms the
 -- value in a 'Done' result.
 data IResult str tok frame res
-   = Fail str frame String
+   = Fail { rest::str, fr::frame, message::String }
    -- ^ The parse1 failed.  The @i@ parameter is the input that had
    -- not yet been consumed when the failure occurred.  The
    -- @[@'String'@]@ is a list of contexts in which the error
@@ -131,11 +132,12 @@ data IResult str tok frame res
    | Done { rest::str, fr::frame, result::res }
    -- ^ The parse1 succeeded.  The @i@ parameter is the input that had
    -- not yet been consumed (if any) when the parse1 succeeded.
+   | Warn { rest::str, fr::frame, result::res, message::String }
       deriving Show
 
 data FResult str tok frame
    = FDone { fresult :: str, ffr :: frame }
-   | FFail { fresult :: str, ffr :: frame, message :: String }
+   | FFail { fresult :: str, ffr :: frame, fmessage :: String }
    deriving (Show)
 {-
 newtype parse1r i f a = parse1r {
@@ -344,7 +346,8 @@ parse1 (Count n x) f t = parse1count x f t n
 
 parse1 (Tokens n) f t
    | length t >= n = Done (drop n t) f (take n t)
-   | otherwise     = Fail t f $ "EOF when trying to read "++show n++" tokens"
+   | null t        = Fail t f "EOF"
+   | otherwise     = trace ("EOF when trying to read "++show n++" tokens, only got "++show (length t)) $ Done (take 0 t) f t
 
 {-
 parse1 (Let names rule) f t =
@@ -354,7 +357,7 @@ parse1 (Let names rule) f t =
 -}
 parse1 (Set name rule) f t =
    case parse1 rule f t of
-      Done t1 f1 r -> trace (show name ++ "=" ++ show r) $ 
+      Done t1 f1 r -> --trace (show name ++ "=" ++ show r) $ 
          Done t1 (myset1 name r f1) r
       Fail t1 f1 m -> Fail t1 f1 m
 
@@ -418,6 +421,11 @@ parse1 (Taken rule) f t =
    case parse1 rule f t of
       Done t1 f1 r1 -> Done t1 f1 $ search t1 t
       Fail t1 f1 em -> Fail t1 f1 em
+
+parse1 (Guard fn em) f t =
+   if fn f
+      then Done t f ()
+      else Fail t f em
 
 search :: (Eq s, BStringC c s) => s -> s -> s
 search needle haystack
@@ -620,6 +628,10 @@ format1 (Redo name rule) fs r =
             FDone t f2
       fail@FFail {} -> fail
 -}
+format1 (Guard fn em) f r =
+   if fn f
+      then FDone empty f
+      else FFail empty f em
 
 visitPost :: (forall r f t. Rule s t f r -> Rule s t f r) -> Rule s t f r -> Rule s t f r
 visitPost f x = f $ visit (visitPost f) x

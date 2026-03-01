@@ -5,6 +5,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Eta reduce" #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {- HLINT ignore "Redundant bracket" -}
 
 
@@ -58,7 +59,7 @@ data Rule s t f r where
    Build    ::           f1       -> Rule s t f1 a  -> Rule s t f  f1
    Name     :: String             -> Rule s t f  a  -> Rule s t f  a
    Apply    ::   Iso  a  b        -> Rule s t f  a  -> Rule s t f  b
-   Call     :: (FrameTuple m u f, FrameTuple n v f, FrameTuple m1 u g, FrameTuple n1 v g) => m -> Lambda s t g u v -> n -> Rule s t f  v
+   Call     :: (Frame m u f, Frame n v f) => m -> Lambda s t g u v -> n -> Rule s t f  v
    Seq      :: SeqTuple a b f s t =>           a    -> Rule s t f  b
    Redo     :: Frame      n  s  f =>           n    -> Rule s t f  v  -> Rule s t f  v
    Set      :: (Show n, Show v, Frame      n  v  f) =>           n    -> Rule s t f  v  -> Rule s t f  v
@@ -76,8 +77,8 @@ data Rule s t f r where
    GetSub   :: Frame n v f        =>           n    -> Rule s t f  v  -> Rule s t f  v
    Taken    :: Eq s               => Rule s t f  a  -> Rule s t f  s
 
-data Lambda s t g i o where
-   Lambda :: (FrameTuple m u g, FrameTuple n v g) => m -> Rule s t g v -> n -> Lambda s t g u v
+data Lambda s t g u v where
+   Lambda :: (Frame j u g, Frame k v g) => j -> Rule s t g v -> k -> Lambda s t g u v
 {-}
 data Rule name value tok
    = Many     (Rule name value tok)
@@ -343,12 +344,12 @@ parse1 (Apply iso a) f t =
       Fail t1 f1 em -> Fail t1 f1 em
 
 --   Call   :: (FrameTuple m u f, FrameTuple n v f) => m -> Lambda s t g u v -> n -> Rule s t f  v
---   Lambda :: (FrameTuple m u g, FrameTuple n v g) => m -> Rule s t g v -> n -> Lambda s t g u v
-{-}
-parse1 (Call m (Lambda m1 body n1) n) f t =
-   case parse1 body (mysetm (m1 :: m2) (mygetm m f) undefined) t of
-      Done t1 g r1 -> Done t1 (mysetm n (mygetm n1 g) f) r1
--}
+--   Lambda :: (FrameTuple j u g, FrameTuple k v g) => j -> Rule s t g v -> k -> Lambda s t g u v
+
+parse1 (Call m (Lambda j body k) n) f t =
+   case parse1 body (myset1 j (myget1 m f) undefined) t of
+      Done t1 g r1 -> Done t1 (myset1 n (myget1 k g) f) r1
+
 parse1 (Count n x) f t = parse1count x f t n
 
 parse1 (Tokens n) f t
