@@ -18,15 +18,15 @@ import Data.List hiding (lookup)
 import Data.Map qualified as M
 import Data.Set qualified as S
 
-class DArrow d where
+class BiArrow d where
    --darr   :: (b -> c) -> (c -> b) -> d b c
-   darr    :: (Arrow a, Arrow b) => a m n -> b n m -> d a b m n
+   biarr   :: (Arrow a, Arrow b) => a m n -> b n m -> d a b m n
    (****)  :: (Arrow a, Arrow b) => d a b e o -> d a b m n -> d a b (e, m) (o, n)
 
-data DArr a b m n = DArr (a m n) (b n m)
+data BiArr a b m n = DArr (a m n) (b n m)
 
-instance DArrow DArr where
-   darr = DArr
+instance BiArrow BiArr where
+   biarr = DArr
    DArr aeo boe **** DArr amn bnm = DArr (aeo *** amn) (boe *** bnm)
 
 DArr amn bnm >><< DArr ano bon = DArr (amn >>> ano) (bnm <<< bon)
@@ -42,14 +42,17 @@ class Frame name value frame where
    lookup :: name -> frame -> value
    update :: name -> value -> frame -> frame
 
-data Rule s t f i o where
-   Call    :: (Frame m u f, Frame n v f) => m -> Rule s t g u v -> n -> Rule s t f u v
-   Lambda  :: (Frame j u g, Frame k v g) => j -> Rule s t g u v -> k -> Rule s t g u v
-   IsoRule :: (a -> b) -> (b -> a) -> Rule s t f a b
+data Rule s t f a b i o where
+   Call    :: (Frame m u f, Frame n v f) => m -> Rule s t g a b u v -> n -> Rule s t f a b u v
+   Lambda  :: (Frame j u g, Frame k v g) => j -> Rule s t g a b u v -> k -> Rule s t g a b u v
+--   IsoRule :: (a -> b) -> (b -> a) -> Rule s t f a b
+   Arrow   :: (Arrow a, Arrow b) => a i o -> b o i -> Rule s t f a b i o
 
 data PResult s f o = Done s f o
 
-parse1 :: forall s t f i o. Rule s t f i o -> f -> s -> PResult s f o
+parse1 :: forall s t f a b i o. Rule s t f a b i o -> f -> s -> PResult s f o
 parse1 (Call m (Lambda j body k) n) f s  =
    case parse1 body (update @_ @i j (lookup m f) undefined) s of
       Done s1 g1 r1 -> Done s1 (update @_ @o n (lookup k g1) f) r1
+
+--parse1 (Arrow a b) f s =

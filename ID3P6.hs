@@ -1259,6 +1259,20 @@ unsync2 [] = []
 unsync2 ('\255' : rest) = '\255' : '\0' : unsync2 rest
 unsync2 (a : rest) = a : unsync2 rest
 
+resync3 str x l = if x < l 
+   then 
+      if str !! x == 255 && str !! (x+1) == 0 
+         then resync3 (deleteIndex (x+1) str) (x+1) l 
+         else resync3 str (x+1) l 
+   else str
+
+unsync3 str x l = if x < l 
+   then 
+      if str !! x == 255
+         then unsync3 (insertIndex (x+1) 32 str) (x+1) l 
+         else unsync3 str (x+1) l 
+   else str
+
 isync1 True  = total resync desync
 isync1 False = total id id
 
@@ -1288,13 +1302,16 @@ tag = Build emptyTag (
    Guard (("ID3"==) . id3) "No ID3v2" :/
    VerMajorK <-- int :/
    VerMinorK <-- int :/
-   SetM (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
+   (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK :- ()) <== Apply tuple8 (bits 8) :/
    TagSizeK  <-- int4 0x80 :/
-   TagBytesK <-- (UnsyncK --> (\s -> Apply (isync1 s) (Get TagSizeK >>== tokens))) :/
+   -- only resync/unsync if VerMajorK == 3
+   TagBytesK <-- ((UnsyncK :- VerMajorK :- ()) ==> 
+                     (\(u :- (v :: Int) :- ()) -> 
+                        Apply (isync1 (u && v == 3)) (Get TagSizeK >>== tokens))) :/
    FramesK   <-- Redo TagBytesK body)
 
 body :: Rule IOString Word8 ID3Tag [Frame]
-body = Many (VerMajorK --> frame)
+body = Many ((UnsyncK :- VerMajorK :- ()) ==> frame)
 
 {-
 let unsync = flags .&. 0x80 /= 0
@@ -1303,11 +1320,12 @@ let experi = flags .&. 0x20 /= 0 -- v2.3 & 2.4
 let footer = flags .&. 0x10 /= 0 -- v2.4 only
 -}
 
-frame :: Int -> Rule IOString Word8 ID3Tag Frame
-frame v =
+frame :: (Bool :- Int :- ()) -> Rule IOString Word8 ID3Tag Frame
+frame (u :- v :- ()) =
    Build blankFrame (
       frameheader v :/
-      FrameBytesK <-- (Get FrameSizeK >>== tokens) :/
+      -- only resync/unsync if VerMajorK == 4
+      FrameBytesK <-- Apply (isync1 (u && v == 4)) (Get FrameSizeK >>== tokens) :/
       Redo FrameBytesK (FrameIDK --> framebody))
 
 frameheader :: Int -> Rule IOString Word8 Frame ()
@@ -1319,15 +1337,15 @@ frameheader 2 =
 frameheader 3 =
    StringIDK   <-- Apply icn (Tokens 4) :/
    FrameSizeK  <-- int4 0x100 :/
-   SetM (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
-   SetM (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 $ bits 8) :/
+   (TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) <== Apply tuple8 (bits 8) :/
+   (CompressionK :- EncryptionK :- GroupingK :- ZK :- ZK :- ZK :- ZK :- ZK :- ()) <== Apply tuple8 (bits 8) :/
    Return ()
 
 frameheader 4 =
    StringIDK   <-- Apply icn (Tokens 4) :/
    FrameSizeK  <-- int4 0x80 :/
-   SetM (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ()) (Apply tuple8 (bits 8)) :/
-   SetM (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) (Apply tuple8 (bits 8)) :/
+   (ZK :- TagAltPrsvK :- FileAltPrsvK :- ReadOnlyK :- ZK :- ZK :- ZK :- ZK :- ())               <== Apply tuple8 (bits 8) :/
+   (ZK :- GroupingK :- ZK :- ZK :- CompressionK :- EncryptionK :- UnsyncFrK :- DataLenIK :- ()) <== Apply tuple8 (bits 8) :/
    Return ()
 
 frameheader x = Guard (const False) $ "cannot process tag with VerMajor="++show x

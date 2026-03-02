@@ -68,7 +68,8 @@ data Rule s t f r where
    Range    ::         t          ->        t       -> Rule s t f  t
    Tokens   ::             Int    ->                   Rule s t f  s
    Token    ::         t          -> Rule s t f  t
-   OneWay   :: Frame      n  v  f =>           n    -> (v -> Rule s t f  a)  -> Rule s t f  a
+   OneWay   :: Frame      n  v  f =>     n    -> (v -> Rule s t f  a) -> Rule s t f  a
+   OneWayM  :: FrameTuple n  v  f =>     n    -> (v -> Rule s t f  a) -> Rule s t f  a
    Bind     ::  Rule s t f a      -> (a -> Rule s t f b, b -> a) -> Rule s t f b
    Anything :: (BStringC tok str, Eq tok, Show tok, Ord tok) => (frame -> str -> IResult str tok frame res) -> (frame -> res -> FResult str tok frame) -> Rule str tok frame res
    Inner    ::  Rule s t f a      -> Rule s t b  f
@@ -417,6 +418,8 @@ parse1 (Anything a b) f t = a f t
 
 parse1 (OneWay n func) f t = parse1 (func $ myget1 n f) f t
 
+parse1 (OneWayM n func) f t = parse1 (func $ mygetm n f) f t
+
 parse1 (Taken rule) f t =
    case parse1 rule f t of
       Done t1 f1 r1 -> Done t1 f1 $ search t1 t
@@ -617,6 +620,8 @@ format1 (Bind a (b, c)) f r = let
 
 format1 (OneWay n func) f r = format1 (func $ myget1 n f) f r
 
+format1 (OneWayM n func) f r = format1 (func $ mygetm n f) f r
+
 format1 (Anything a b) f r = b f r
 
 format1 (Taken rule) f r = FDone r f
@@ -744,28 +749,19 @@ infixr 6 *<
 infixr 3 <--
 infixl 9 <@>
 
-a <-- b = Set a b
-
 infixr 2 :+
 infixr 2 :/
 infixr 2 ://
 
-(>>==) :: Rule s t f a -> (a -> Rule s t f b, b -> a) -> Rule s t f b
-(>>==) = Bind
+a >>== b = Bind a b
+a <-- b = Set a b
+a <== b = SetM a b
+a --> b = OneWay a b
+a ==> b = OneWayM a b
+a <@> b = Member a b
 
-(-->) :: Frame n v f => n -> (v -> Rule s t f  a)  -> Rule s t f  a
-(-->) = OneWay
-
-(<@>) :: Frame n v f => n -> Rule s t v a -> Rule s t f v
-(<@>) = Member
-
-(>*<) :: Rule s t f a -> Rule s t f b -> Rule s t f (a :- b)
 (>*<) = (:+)
-
-(*<) :: Rule s t f a -> Rule s t f b -> Rule s t f b
 (*<) = (:/)
-
-(>*) :: Rule s t f a -> Rule s t f b -> Rule s t f a
 (>*) = (://)
 
 {-
