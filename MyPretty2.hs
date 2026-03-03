@@ -1751,44 +1751,30 @@ showCol col =
 
    in c
 
-colWidths12 width1 tab = let
-   cellLengthCols = map2 length tab
-   width2 = width1 - length tab
-   colWidths2 = colWidths1 width2 cellLengthCols
-   
-   in if sum colWidths2 < width2
-         then colWidths2
-         else forceLessD (fromIntegral width2) $ colWidths7 width2 cellLengthCols
-
-colWidths12D width1 tab = let
-   cellLengthCols = map2 length tab
-   width2 = width1 - length tab
-   colWidths2 = colWidths1 width2 cellLengthCols
-   
-   in if sum colWidths2 < width2
-         then return colWidths2
-         else do
-            cw7 <- colWidths7D width2 cellLengthCols
-            return $ forceLessD (fromIntegral width2) cw7
-
 -- showGridF f width tab = showGrid1 (f (width - length tab) tab) tab
-showGrid = showGridF colWidths1 showGrid1 width
+showGrid tab = showGridF colWidths7 showGrid1 width tab
 
 showGridWrap = showGridF colWidths1 showGridWrap1 width
 
 showGridW = showGridF colWidths1 showGrid1
 
-showGridF f g width1 tab =
-   let
-      cellLengthCols = map2 length tab
-      colWidths1 = colWidthsF cellLengthCols
-      width2 = width1 - length tab
-      colWidths =
-         if sum colWidths1 < width2
-            then colWidths1
-            else forceLess width2 $ f width cellLengthCols
+showGridF f g width tab = let
+   cellLengthCols = map2 length tab
+   colWidths = colWidths12D colWidths1 f width tab
 
    in g colWidths cellLengthCols $ padRWith "" tab
+
+colWidths12D f g width1 tab =
+   let
+      cellLengthCols = map2 length tab
+      colWidths2 = f width2 cellLengthCols
+      width2 = width1 - length tab
+      
+   in if sum colWidths2 < width2
+            then colWidths2
+            else forceLessD (fromIntegral width2) $ g width cellLengthCols
+
+
 
 showTerms (cw, rh, b, a, l, _) d =
    case fromDynamic d :: Maybe String of

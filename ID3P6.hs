@@ -159,8 +159,8 @@ artistmp3s a = mp3s $ artistd ++ a
 showMeta1 :: [Meta] -> SubArrayD Dynamic String
 showMeta1 ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
 
---showMeta :: M.Map a Meta -> SubArrayD Dynamic String
-showMeta map1 = {-fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $-} concatMap (\(file, meta) -> map (\(field, value) -> ([toDyn (show field), toDyn (convertString (path meta) :: String)], value)) $ fields1 meta) $ M.toList map1
+showMeta :: M.Map a Meta -> SubArrayD Dynamic String
+showMeta map1 = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\(file, meta) -> map (\(field, value) -> ([toDyn (show field), toDyn (convertString (path meta) :: String)], value)) $ fields1 meta) $ M.toList map1
 
 test3 = showMeta1 . map readMeta . fileTree
 
@@ -1416,35 +1416,35 @@ zeroTextEnc = TextEncodingK --> zeroText
 
 zeroText :: Int -> Rule ByteString a2 f Text
 zeroText enc = Apply (itext enc) $ case enc of
-                                       1 -> AnyTill $ String "\0\0"
-                                       _ -> AnyTill $ String "\0"
+                                       0 -> AnyTill $ String "\0"
+                                       _ -> AnyTill $ String "\0\0"
 
 ic = total c c
 
 itext enc = total (decodeText enc) (encodeText enc)
 
 decodeText enc text = case enc of
-   1 -> decodeUCS2     text
-   _ -> T.decodeLatin1 text
+   0 -> T.decodeLatin1 text
+   _ -> decodeUCS2     text
 
 encodeText enc text = case enc of
-   1 -> T.encodeUtf16LE text
-   _ -> T.encodeUtf8    text
+   0 -> T.encodeUtf8    text
+   _ -> T.encodeUtf16LE text
 
 decodeUCS2 str = case B.take 2 str of
    --"\255\254" -> T.decodeUtf16LE $ B.drop 2 str
    --"\254\255" -> T.decodeUtf16BE $ B.drop 2 str
    --_ -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
-   "\255\254" -> decodeLE (B.drop 2 str) (B.length str - 2) 0
-   "\254\255" -> decodeBE (B.drop 2 str) (B.length str - 2) 0
+   "\255\254" -> decodeLE (B.drop 2 str) (B.length str - 3) 0
+   "\254\255" -> decodeBE (B.drop 2 str) (B.length str - 3) 0
    _ -> if countZeroAlt 0 str >= countZeroAlt 1 str 
-      then decodeBE str (B.length str) 0
-      else decodeLE str (B.length str) 0
+      then decodeLE str (B.length str - 1) 0
+      else decodeBE str (B.length str - 1) 0
 
-decodeLE str l x | x < l = cons (chr (fromIntegral (str !! x) + fromIntegral (str !! (x+1)) * 0x100)) (decodeLE str (x+2) l)
+decodeLE str l x | x < l = cons (chr (fromIntegral (str !! x) + fromIntegral (str !! (x+1)) * 0x100)) (decodeLE str l (x+2))
 decodeLE str l x = empty            
 
-decodeBE str l x | x < l = cons (chr (fromIntegral (str !! x) * 0x100 + fromIntegral (str !! (x+1)))) (decodeBE str (x+2) l)
+decodeBE str l x | x < l = cons (chr (fromIntegral (str !! x) * 0x100 + fromIntegral (str !! (x+1)))) (decodeBE str l (x+2))
 decodeBE str l x = empty         
 
 countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off, off + 2 .. length s - 1]
