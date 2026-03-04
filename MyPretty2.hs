@@ -307,8 +307,8 @@ colWidthsFloating width cellLengthCols =
 
    in map (mult *) colWidths
 
-colWidthsIntegral width cellLengthCols =
-   let
+colWidthsIntegral width cellLengthCols =  let
+   
       colWidths = map (sqrt . realToFrac . sum) cellLengthCols
       mult = realToFrac width / sum colWidths
 
@@ -321,8 +321,8 @@ colWidthsIntegral width cellLengthCols =
 colWidths1 width cellLengthCols = gridDriver width (colWidths1A width cellLengthCols)
 
 colWidths1A :: (Integral a) => a -> [[a]] -> ((a, a, [a], [a]) -> (a, a, [a], [a]), (a, a, [a], [a]), (a, a, [a], [a]) -> [a])
-colWidths1A width cellLengthCols =
-   let
+colWidths1A width cellLengthCols = let
+
       colwsF = map maximum $ checkNoNulls cellLengthCols
       colwsV = colWidthsIntegral width cellLengthCols
 
@@ -1754,9 +1754,9 @@ showCol col =
 -- showGridF f width tab = showGrid1 (f (width - length tab) tab) tab
 showGrid tab = showGridF colWidths7 showGrid1 width tab
 
-showGridWrap = showGridF colWidths1 showGridWrap1 width
+showGridWrap = showGridF colWidths7 showGridWrap1 width
 
-showGridW = showGridF colWidths1 showGrid1
+showGridW = showGridF colWidths7 showGrid1
 
 showGridF f g width tab = let
    cellLengthCols = map2 length tab
@@ -1767,14 +1767,12 @@ showGridF f g width tab = let
 colWidths12D f g width1 tab =
    let
       cellLengthCols = map2 length tab
-      colWidths2 = f width2 cellLengthCols
+      colWidths = f width2 cellLengthCols
       width2 = width1 - length tab
       
-   in if sum colWidths2 < width2
-            then colWidths2
+   in if sum colWidths < width2
+            then colWidths
             else forceLessD (fromIntegral width2) $ g width cellLengthCols
-
-
 
 showTerms (cw, rh, b, a, l, _) d =
    case fromDynamic d :: Maybe String of
@@ -2019,7 +2017,7 @@ editGrid tab = do
    --let (width, height) = (50, 50)
    let cellLengthCols = map2 length tab
    let cellLengthRows = transpose cellLengthCols
-   colWidths <- colWidths12D (fromIntegral width) tab
+   let colWidths = colWidths12D colWidths1 colWidths7 (fromIntegral width) tab
    let rowHeights1 = rowHeights colWidths cellLengthRows
 
    editGrid1 width (height-5) colWidths rowHeights1 tab cellLengthRows 0 0 0 0 0 0 Select

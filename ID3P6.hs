@@ -360,7 +360,7 @@ getField id meta = M.lookup id $ fields2 meta
 
 fields2 meta = M.fromList $ fields1 meta
 
-setField1 id val meta = meta{byId = M.alter (const $ Just $ toDyn val) id $ byId meta}
+setField1 id val meta = meta { byId = M.alter (const $ Just $ toDyn val) id $ byId meta }
 
 setField id val meta = case id of
    Bisdir      -> meta { isDir       = fromDyn1 val }
@@ -645,19 +645,6 @@ matchMetaFS db meta | isDir meta = let
    subPs = concatMap (matchMetaFS db . snd) $ M.toList $ subNodes db $ path meta
    parts = split "/" $ path meta
    depth = L.length parts - 1
-{-}
-   lasts = map (\(m, p) -> (m, last p)) subPs
-   (singles, multis) = L.partition (\(m, p) -> length p == 1) lasts
-   singlevotes = counts2 $ map (head . snd) singles
-   singlechoices = map (\(m, p) -> (m, head p)) singles
-   multichoices = map (\(m, p) -> let
-      (p2, c) = maximum $ mapMaybe 
-         (\p1 -> case M.lookup p1 singlevotes of
-            Just j -> Just (p1, j)
-            Nothing -> Nothing) p
-      in (m, p2)) multis
-   choices = singlechoices ++ multichoices
--}
    (singles, multis) = L.partition (\(m, p) -> all ((== 1) . length) (drop depth p)) subPs
    singlechoices = map (map head . drop depth . snd) singles
    singlevotes = counts2 singlechoices
@@ -672,6 +659,19 @@ matchMetaFS db meta | isDir meta = let
                   | otherwise -> p)) multis
    in singles ++ multichoices
 matchMetaFS db meta = [(meta, matchMetaPath meta)]
+{-
+   lasts = map (\(m, p) -> (m, last p)) subPs
+   (singles, multis) = L.partition (\(m, p) -> length p == 1) lasts
+   singlevotes = counts2 $ map (head . snd) singles
+   singlechoices = map (\(m, p) -> (m, head p)) singles
+   multichoices = map (\(m, p) -> let
+      (p2, c) = maximum $ mapMaybe 
+         (\p1 -> case M.lookup p1 singlevotes of
+            Just j -> Just (p1, j)
+            Nothing -> Nothing) p
+      in (m, p2)) multis
+   choices = singlechoices ++ multichoices
+-}
 
 -- if there are multiple options for any file/dir
 -- take the option that is most common single option in the closest files/dirs ie. sibling files/dirs
@@ -1833,6 +1833,7 @@ instance P.FrameD FrameID Meta where
       Genre       -> frame { genre       = fromDyn1 value }
       Btimes      -> frame { times       = fromDyn1 value }
       Borig       -> frame { orig        = fromDyn1 value }
+      _           -> frame { byId = M.insert name value $ byId frame }
 
 instance P.Frame FrameID String Meta where
    myget1 name frame = case name of
@@ -2021,9 +2022,9 @@ instance P.FrameD Var Frame where
       FrameBytes   -> toDyn $ frameBytes   frame
       Value        -> case frame of
          FPriv       {} -> toDyn ("" :: Text)
-         FPicture    {} -> toDyn ("" :: Text)
+         FPicture    {} -> toDyn ("LOL" :: Text)
          FrameHeader {} -> toDyn ("" :: Text)
-         _                -> toDyn $ value        frame
+         _              -> toDyn $ value   frame
       TextEncoding -> toDyn $ textEncoding frame
       Language     -> toDyn $ language     frame
       Description  -> toDyn $ description  frame

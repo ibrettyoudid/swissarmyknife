@@ -1373,23 +1373,23 @@ showHyper2 xn yn a = let
    yd = select yn $ dims a
    xs = indices xd
    ys = indices yd
-   d = xn ++ yn
+   d  = xn ++ yn
    ip = inversePerm d
-   in
-   (
-      map (show . dimName) xd, 
-      map (show . dimName) yd, 
-      map (zipWith showLabel xd) xs,
-      map (zipWith showLabel yd) ys,
-      crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
-   )
+   
+   in (
+         map (show . dimName) xd, 
+         map (show . dimName) yd, 
+         map (zipWith showLabel xd) xs,
+         map (zipWith showLabel yd) ys,
+         crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
+      )
 
 stringHyper2 xn yn a = let
    xd = select xn $ dims a
    yd = select yn $ dims a
    xs = indices xd
    ys = indices yd
-   d = xn ++ yn
+   d  = xn ++ yn
    ip = inversePerm d
 
    in (  
