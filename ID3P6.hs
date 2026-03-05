@@ -164,6 +164,7 @@ showMeta map1 = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "
 
 test3 = showMeta1 . map readMeta . fileTree
 
+{-# NOINLINE test4 #-}
 test4 = unsafePerformIO $ showMeta <$> readDB newDB dbroots
 
 {-}
@@ -653,7 +654,7 @@ matchMetaFS db meta | isDir meta = let
          (\p1 -> case M.lookup (drop depth p1) singlevotes of
                      Just j -> Just (j, p1)
                      Nothing -> Nothing) $ crossList p
-                     
+
       in (m, if   -- | length ch >= 2 && fst (ch !! 0) > fst (ch !! 1) * 5 -> [snd (ch !! 0)]
                   | not $ null ch -> map snd ch
                   | otherwise -> p)) multis
@@ -976,7 +977,7 @@ readFileU2 = unsafePerformIO . readFile
 
 parseTag str = case parse tag str of
    Done _ _ res -> res
-   Fail i f m -> 
+   Fail i f m ->
       case m of
          "No ID3v2" -> emptyTag
          _          -> error $ m ++ " input="++show (take 100 i)
@@ -1259,18 +1260,18 @@ unsync2 [] = []
 unsync2 ('\255' : rest) = '\255' : '\0' : unsync2 rest
 unsync2 (a : rest) = a : unsync2 rest
 
-resync3 str x l = if x < l 
-   then 
-      if str !! x == 255 && str !! (x+1) == 0 
-         then resync3 (deleteIndex (x+1) str) (x+1) l 
-         else resync3 str (x+1) l 
+resync3 str x l = if x < l
+   then
+      if str !! x == 255 && str !! (x+1) == 0
+         then resync3 (deleteIndex (x+1) str) (x+1) l
+         else resync3 str (x+1) l
    else str
 
-unsync3 str x l = if x < l 
-   then 
+unsync3 str x l = if x < l
+   then
       if str !! x == 255
-         then unsync3 (insertIndex (x+1) 32 str) (x+1) l 
-         else unsync3 str (x+1) l 
+         then unsync3 (insertIndex (x+1) 32 str) (x+1) l
+         else unsync3 str (x+1) l
    else str
 
 isync1 True  = total resync desync
@@ -1305,8 +1306,8 @@ tag = Build emptyTag (
    (UnsyncK :- ExtHdrK :- ExperiK :- FooterK :- ZK :- ZK :- ZK :- ZK :- ()) <== Apply tuple8 (bits 8) :/
    TagSizeK  <-- int4 0x80 :/
    -- only resync/unsync if VerMajorK == 3
-   TagBytesK <-- ((UnsyncK :- VerMajorK :- ()) ==> 
-                     (\(u :- (v :: Int) :- ()) -> 
+   TagBytesK <-- ((UnsyncK :- VerMajorK :- ()) ==>
+                     (\(u :- (v :: Int) :- ()) ->
                         Apply (isync1 (u && v == 3)) (Get TagSizeK >>== tokens))) :/
    FramesK   <-- Redo TagBytesK body)
 
@@ -1437,15 +1438,15 @@ decodeUCS2 str = case B.take 2 str of
    --_ -> if countZeroAlt 0 str >= countZeroAlt 1 str then T.decodeUtf16BE str else T.decodeUtf16LE str
    "\255\254" -> decodeLE (B.drop 2 str) (B.length str - 3) 0
    "\254\255" -> decodeBE (B.drop 2 str) (B.length str - 3) 0
-   _ -> if countZeroAlt 0 str >= countZeroAlt 1 str 
+   _ -> if countZeroAlt 0 str >= countZeroAlt 1 str
       then decodeLE str (B.length str - 1) 0
       else decodeBE str (B.length str - 1) 0
 
 decodeLE str l x | x < l = cons (chr (fromIntegral (str !! x) + fromIntegral (str !! (x+1)) * 0x100)) (decodeLE str l (x+2))
-decodeLE str l x = empty            
+decodeLE str l x = empty
 
 decodeBE str l x | x < l = cons (chr (fromIntegral (str !! x) * 0x100 + fromIntegral (str !! (x+1)))) (decodeBE str l (x+2))
-decodeBE str l x = empty         
+decodeBE str l x = empty
 
 countZeroAlt off s = length $ filter (/= 0) $ map (s !!) [off, off + 2 .. length s - 1]
 

@@ -1848,7 +1848,7 @@ showGridD f width1 tab1 =
          return $ map2 (\(cw, rh, _, _, _, s) -> map (take cw . padr cw) $ take rh $ padRWith1 "" rh $ groupN cw s) rows11
 
    in if | null tab1 -> error "grid is entirely empty"
-         | any null tab1 -> "grid contains null columns"
+         | any null tab1 -> error "grid contains null columns"
          | otherwise -> unlines $ concat $ map2 (intercalate "|") $ map transpose rows12
 
 showGridD1 f g width1 tab =
