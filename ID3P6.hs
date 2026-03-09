@@ -160,7 +160,7 @@ showMeta1 :: [Meta] -> SubArrayD Dynamic String
 showMeta1 ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
 
 showMeta :: M.Map a Meta -> SubArrayD Dynamic String
-showMeta map1 = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\(file, meta) -> map (\(field, value) -> ([toDyn (show field), toDyn (convertString (path meta) :: String)], value)) $ fields1 meta) $ M.toList map1
+showMeta map1 = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\(file, meta) -> map (\(field, value) -> ([toDyn (descOfFrameID field), toDyn (convertString (path meta) :: String)], value)) $ fields1 meta) $ M.toList map1
 
 test3 = showMeta1 . map readMeta . fileTree
 
@@ -773,6 +773,7 @@ dbpath = baseDir / "haskelldb.bin"
 
 -- dbroots = map (baseDir ++) ["Artists/Paradise Lost/2015 - The Plague Within"]
 dbroots = map (artistd /) ["Paradise Lost", "Isis"] :: [NiceText]
+--dbroots = [artistd :: NiceText] 
 
 type DB = M.Map NiceText Meta
 type FS = Meta
@@ -2128,6 +2129,10 @@ descOfStringID stringID = fromMaybe (error "stringID " ++ stringID ++ " not foun
 
 descOfStringIDMap = M.fromList $ map (applyT (stringID1, desc)) frameIDList
 
+descOfFrameID :: FrameID -> String
+descOfFrameID frameID = convertString $ fromMaybe (error $ "frameID " ++ show frameID ++ " not found") $ M.lookup frameID descOfFrameIDMap
+
+descOfFrameIDMap = M.fromList $ map (applyT (frameID1, desc)) frameIDList
 --frameIDMap = M.fromList $ map (applyT (stringID
 
 textFrames = [Album, Tbpm, Tcom, Genre, Tcop, Tdat, Tdly, Tenc, Text, Tflt, Time, Tit1, Song, Tit3, Tkey, Tlan, Tlen, Tmed, Toal, Tofn, Toly, Tope, Tory, Town, Artist, AlbumArtist, Tpe3, Tpe4, Tpos, Tpub, Track, Trda, Trsn, Trso, Tsiz, Tsrc, Tsse, Year]
@@ -2307,5 +2312,12 @@ frameIDList =
    , FT "4.3.1" Wcop        "WCP" "Copyright/Legal information" ""
    , FT "4.3.1" Wpub        "WPB" "Publishers official webpage" ""
    , FT "4.3.2" Wxxx        "WXX" "User defined URL link frame" ""
+
+   , FT ""      Bpath       ""    "Path" ""
+   , FT ""      Btimes      ""    "Path" ""
+   , FT ""      Borig       ""    "Path" ""
+   , FT ""      Bisdir      ""    "Path" ""
+   , FT ""      Baudio      ""    "Path" ""
+   , FT ""      Unknown     ""    "Path" ""
    ]
 

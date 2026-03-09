@@ -27,7 +27,7 @@ where
 import MyPretty2
 import Favs
 import Numeric
-import NewTuple
+import NewTuple hiding (delete)
 import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP
@@ -1188,7 +1188,7 @@ fromAssocsDA f zeroel dnames as = let
    
    in if null as
          then error "no assocs in fromAssocsDA, can't figure out dimension information"
-         else SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
+         else SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ (zip [0..len - 1] (repeat zeroel)++) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
 checkRectilinear as = let
    lens = map length as
@@ -1368,7 +1368,7 @@ showQuarters (xn, yn, xh, yh, a) = let
 --transpose $ map concat $ transpose [a, b] == zipWith (++) a b
 
 
-showHyper2 xn yn a = let
+showHyper2 f xn yn a = let
    xd = select xn $ dims a
    yd = select yn $ dims a
    xs = indices xd
@@ -1381,39 +1381,23 @@ showHyper2 xn yn a = let
          map (show . dimName) yd, 
          map (zipWith showLabel xd) xs,
          map (zipWith showLabel yd) ys,
-         crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
+         crossWith (\x y -> f $ getElem (select ip $ x ++ y) a) xs ys
       )
 
-stringHyper2 xn yn a = let
-   xd = select xn $ dims a
-   yd = select yn $ dims a
-   xs = indices xd
-   ys = indices yd
-   d  = xn ++ yn
-   ip = inversePerm d
-
-   in (  
-         map (show . dimName) xd,
-         map (show . dimName) yd,
-         map (zipWith showLabel xd) xs,
-         map (zipWith showLabel yd) ys,
-         crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
-      )
-
-showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 xn yn a
+showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
 
 showHyper a = let
    n = length $ dims a
    hn = div n 2
    
-   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] $ mapEE show a
+   in showGrid $ showQuarters $ showHyper2 show [hn .. n - 1] [0 .. hn - 1] a
    --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
 stringHyper a = let
    n = length $ dims a
    hn = div n 2
    
-   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] a
+   in showGrid $ showQuarters $ showHyper2 id [hn .. n - 1] [0 .. hn - 1] a
 
 
 showLabel (DimInt{}) i = show i

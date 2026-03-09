@@ -27,7 +27,7 @@ where
 import MyPretty2
 import Favs
 import Numeric
-import NewTuple
+import NewTuple hiding (delete)
 import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP

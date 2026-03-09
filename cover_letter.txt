@@ -1,18 +1,287 @@
 
 Why are you interested in a Software Development apprenticeship at Google?
 Google is a company with a great worldwide reputation and presence and I would like to be part of their journey in the future. I have a great passion and drive to explore the endless possibilities in software development and want to build on my skills in this area. 
-more stuff. I like to explore the endless possibilities in coding in my free time
 
 What are you most excited about in the Software Engineering space? Why?
-AI is a extremely interesting field, of course AGI is the holy grail. I'm into functional programming in Haskell. I did my final year project on partial evaluation. I am interested in similar things to that such as compiler optimisation and even supercompilation
+AI is a extremely interesting field, of course AGI is the holy grail. Design of programming languages (I really liked Paul Graham's idea of a 50 year language), the possibility of graphical languages where you connect parts together like a circuit, I think that would go well with automated refactoring, functional languages (because the algorithm is more directly expressed, although the lack of side effects can be frustrating), optimisation including partial evaluation and supercompilation (it's just cool) and neural networks (because only they can deal with the fuzziness of real problems)
 
 Tell us about your background and experiences (e.g. volunteer work/club participation/extracurricular activities) and how they make you unique.
-I play guitar and keyboard and spend time trying (not very successfully) to compose electronic music. I like my photography and reading about history and science on Wikipedia
-+more work experience +education
+I enjoy playing a little guitar and keyboard and spend time composing electronic music. My music is an acquired taste! I have 40,000 mp3s. I like my photography and reading about history and science on Wikipedia
 
 How have you learned about the tech space?
-An Oric-1 computer when I was 10, an Acorn Electron, a BBC Model B, an Atari ST, an Acorn Archimedes, and several PCs, The Register, Haskell blogs, Personal Computer World magazine in the 1990s, C++ websites (there used to be loads), C++ books (Gang of 4, Andrei Alexandrescu)
+An Oric-1 computer when I was 10, an Acorn Electron, a BBC Model B, an Atari ST, an Acorn Archimedes, and several PCs, The Register, Haskell blogs, Personal Computer World magazine in the 1990s, C++ websites (there used to be loads), C++ books (Design Patterns, books by Andrei Alexandrescu). I have written 50,000 lines of Haskell over the last 3 years
 
-Step 2: Click on the “Apply Now” button on this page to provide the following required materials:
-In the “Resume Section” attach a resume, motivational letter, and answers to the short questions.
-In the “Education Section” attach a current unofficial or official transcript if applicable.
+You asked for A-levels in the apprenticeship listing, I have 4
+Further Maths, grade A
+Maths, grade A
+Physics, grade A
+Chemistry, grade C
+
+This is the README.md from my Haskell library at https://github.com/ibrettyoudid/swissarmyknife:
+
+# swissarmyknife
+
+This is written in Haskell.
+To get the Haskell tool chain, I used ghcup at https://www.haskell.org/ghcup/.
+Linux is required for some parts. I use EndeavourOS.
+
+Download cabal, ghc version 9.6.7 and whatever else you want.
+Use cabal to compile this, it's fairly automatic. It will first download assorted libraries that are required for my code to work.
+
+```
+git clone https://github.com/ibrettyoudid/swissarmyknife
+cabal build
+```
+
+It's being updated regularly so it's possible some bugs may slip in with the features
+
+## FuzzyMatch
+
+Edit distance (aka Levenshtein distance) between two strings / many strings / best matching pairs of strings.
+
+The idea was to use it for joining Wikipedia tables together, SQL style.
+I thought I could get good performance by using A* search over the whole problem, such that the closest matches would be found first, due to the way A* works.
+
+Uses lazy evaluation creatively, I would say.
+
+## Wiki/Wiki1
+
+Uses the HTMLB module to scrape data tables from Wikipedia into tables held by TableB, join them up and writes to disk.
+Caches them in a directory `.cache` so that they may be edited if errors occur.
+Seems to work fine now without editing though.
+Works on the Lists of countries and dependencies page, but presumably can be adapted to work on any of the Lists of lists pages.
+Currently saves each page as a CSV file, but can also do HTML, and the code is there to make one big table.
+
+To run:
+
+```
+cabal repl
+:mod + Wiki HTMLB
+m <- nm
+wc m
+```
+
+## Favs
+
+Functions that have proven useful to me.
+
+## MHash
+
+An interpreter for a language with Haskell-like syntax but dynamic.
+
+Uses type Dynamic for values.
+
+It has two parsing/printing systems.
+
+The one currently in use uses a single specification for both parsing and printing,
+using an idea from invertible-syntax and partial-isomorphisms on hackage.com.
+This system is in Parser7 and Iso.
+
+There is also an older one where the spec is separate, this is in MHash.
+
+## MHashDynamic3
+
+An extended version of `Dynamic` from base, with multimethods and automatic conversion, and Eq, Ord and Show instances.
+
+Also contains a multidimensional array type `SubArrayD e`
+
+`SubArrayD` can transpose dimensions in O(1) time. This makes it useful for complex maps and folds across dimensions.
+
+Each dimension can optionally have a `Dynamic` index (ie. making that dimension work like a Map).
+
+Uses putGrid to display `SubArrayD`s with as many dimensions as you like.
+
+Lots of stuff in one file due to cyclic dependencies which Haskell doesn't do so well.
+
+## Matrix2
+
+Matrix arithmetic and some solvers for simultaneous linear equations.
+
+## MyPretty2
+
+A pretty printer. `putGrid` can adjust column widths of tables (ie. values of type `[[String]]`) automatically to get the best use of space.
+
+Got way to deep into this, due to the desire to answer the question, can there be multiple minima?
+
+Trying to find something to impress people like you with I think.
+
+I think I found a general law:
+No column A with less total text than B can end up wider than B.
+I can't think of a counterexample that would make sense.
+
+Is that true for rows as well?
+
+Also, colWidths7 finds the ideal ratio for any two columns.
+It calculates the ratio of corresponding cells in each column.
+And then finds the ratio that has equal amounts of text in the limiting cells above and below that ratio.
+With three columns you want equal amounts of text in all the limiting cells of each column.
+If you put the columns together in order of total text, would that be ideal?
+
+I think I found an analogy:
+Gas makes no sense, text is more like incompressible liquid.
+
+Liquid in a compartmentalised tank where the walls can move left or right or up or down.
+according to whether theyre vertical or horizontal (without friction).
+Somehow the vertical can move through the horizontal and vice versa.
+
+No gravity, no air pressure.
+
+the width has a fixed maximum ie. the thing is between four planes of infinite strength
+that do not move.
+
+and the other two planes (horizontal) have some non-zero force pushing them together and
+are able to move.
+
+And then... equalise the forces?
+
+
+## Parser
+
+An Earley parser
+I would say these parsers are pretty powerful, although they need work.
+
+## Parser3
+
+An evolution of Parser, with operations like Many and Monads
+
+## Parser4
+
+A parser/printer ie. same spec can both parse and print back out
+It uses the Dynamic type from MHashDynamic
+
+## ID3
+
+Uses attoparsec to read the metadata in MP3 files and standard IO to write them out
+
+## ID3P4
+
+A parser using the above module to read and write mp3 files
+
+## Parser6
+
+Another parser/printer. This uses GADTs to be type safe
+
+## ID3P6
+
+A parser using the above module to read and write mp3 files
+
+## Parser7
+
+A different attempt at an Earley parser/printer extended with operations like Many, Not, Monads
+
+## Prolog
+
+A very basic Prolog interpreter, can be parallelised I think
+
+## Prolog1
+
+A more complex Prolog interpreter that can be parallelised to a greater extent but nowhere near working
+
+## Prolog3
+
+A very basic Prolog interpreter using the logict package
+
+## Table/TableB
+
+An in memory database. Uses a `Tree` for each record to join records in constant time. Can do fuzzy joins. Can do maps and folds (such as sum) over 
+`Table`s. The folds follow the structure of the index, so that an index on two fields has subtotals as well as totals
+
+## Tree
+
+A container indexed by Int (ie. like an array) with O(log n) lookup and insert (ie. shifting ranges of indices to other places).
+Due to the fact that it's a tree, multiple slightly different versions can share common values
+
+Possible future extension: Use `Tree` as the behind the scenes store for `SubArrayD`, therefore giving it the same properties
+
+## HTML
+
+read/write HTML from the web/a filesystem
+
+## HTMLB
+
+HTML with ByteStrings
+
+## Chess
+
+The start of a chess engine
+
+## Dataflow2
+
+The start of a programming language which the user can edit graphically
+
+## Atlas
+
+Written to overlay bitmap maps on each other, changing the projection and other parameters
+
+## Anagram
+
+Anagrams
+This actually works
+
+## Crossword
+
+Crosswords.
+This actually works.
+Solves crosswords.
+Can also create Sator squares and variations as in the film Tenet.
+A Sator square is an interlocking square of words.
+
+```
+SATOR
+AREPO A city in Ukraine
+TENET A principle or belief
+OPERA
+ROTAS
+```
+
+This is the famous example from the film, I believe some of the words are Latin, though.
+
+```
+STANG A forked staff
+TENON A type of saw
+ANANA A pineapple!
+NONET A group of nine
+GNATS Insects
+```
+
+This is English (I swear) and was found with this code. I never managed to find a larger one that's the same backwards and forwards like the original.
+
+But this is a 9x9 one with less symmetry I found with this code:
+
+```
+NECESSISM extreme determinism
+EXISTENCE shared reality
+CIRCUMFER to carry around
+ESCARPING to form a steep slope
+STURNIDAE starling family
+SEMPITERN eternal
+INFIDELIC of an infidel
+SCENARISE to create a scenario
+MERGENCES the act of merging, plural
+```
+
+I've improved the code a bit, since. I might try for a 10x10 one
+
+## Poker
+
+Poker bot for Facebook
+Uses a replacement Javascript file `bundle.min.js` that you set up in your browser, to make the browser talk to the Haskell code via a socket
+
+
+
+
+
+
+
+Why are you interested in a Software Development apprenticeship at Google?
+Software Development is my dream. In 2003 I was diagnosed with schizoaffective disorder and have not worked since. Lately I have been of the opinion that I was misdiagnosed and that my problem is really more about autism. I have never stopped coding and I believe I can do great things if given the opportunity that was not around in 2003. This is why I said I was disabled
+
+What are you most excited about in the Software Engineering space? Why?
+Design of programming languages (I really liked Paul Graham's idea of a 50 year language), the possibility of graphical languages where you connect parts together like a circuit, I think that would go well with automated refactoring, functional languages (because the algorithm is more directly expressed, although the lack of side effects can be frustrating), optimisation including partial evaluation and supercompilation (it's just cool) and neural networks (because only they can deal with the fuzziness of real problems)
+
+Tell us about your background and experiences (e.g. volunteer work/club participation/extracurricular activities) and how they make you unique.
+I am a member of Mensa. I play keyboard and guitar. I'm experimenting with new ways of producing metal using only keyboards and computers. I have 40,000 mp3s
+
+How have you learned about the tech space?
+Books (I used to have the Design Patterns book, and books by Andrei Alexandrescu, I still have The C++ Programming Language), University (I specialised in AI though there was no neural network course, we also learnt Gofer, a dialect of Haskell), websites (C++ and Haskell), The Register, Lambda the Ultimate
+

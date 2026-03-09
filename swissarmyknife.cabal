@@ -119,6 +119,8 @@ library
     exposed-modules:  
         Anagram,
         ApplyTuple,
+        Array2,
+        Array3,
         -- ArrayVinyl,
         Atlas,
         Atto,
@@ -196,6 +198,7 @@ library
         TableB,
         TableT,
         TableTuple,
+        Terror,
         TestBoomerang,
         Tree, 
         Wiki,

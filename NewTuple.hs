@@ -10,7 +10,7 @@ import Show1
 import Data.Typeable
 import Data.List
 
-data a :- b = a :- b deriving (Eq, Show, Typeable)
+data a :- b = (:-) { fstT::a, sndT::b } deriving (Eq, Show, Typeable)
 
 infixr 1 :-
 
@@ -44,13 +44,21 @@ instance NamedTuple n (n :- ns) (v :- vs) v where
    lookup n (n1 :- ns) (v :- vs) = v
    update n v (n1 :- ns) (v1 :- vs) = v :- vs
 
+class Delete n ns ns2 vs vs2 | n ns vs -> ns2 vs2 where
+   delete :: n -> ns -> vs -> (ns2, vs2)
+
+instance Delete n (n :- ns) ns (v :- vs) vs where
+   delete n (n1 :- ns) (v1 :- vs) = (ns, vs)
+
+instance Delete n ns ns2 vs vs2 => Delete n (n1 :- ns) (n1 :- ns2) (v1 :- vs) (v1 :- vs2) where
+   delete n (n1 :- ns) (v1 :- vs) = let (ns2, vs2) = NewTuple.delete n ns vs in (n1 :- ns2, v1 :- vs2)
+
 data A = A deriving (Eq, Ord, Show)
 data B = B deriving (Eq, Ord, Show)
 data C = C deriving (Eq, Ord, Show)
 data D = D deriving (Eq, Ord, Show)
 
 nt = (A :- "hello") :- (B :- "there") :- (C :- "jim") :- ()
-
 
 class ShowNewTuple a where
    showNewT :: a -> [String]
@@ -82,10 +90,10 @@ instance (ProperTuple a, Append a bs cs, Concat as bs) => Concat (a :- as) cs wh
 
 concatT xs = foldrT (appendT :: Append a b c => a -> b -> c) () xs
 
-class (ProperTuple a, ProperTuple b, ProperTuple c) => Append a b c | a b -> c, a c -> b where
+class Append a b c | a b -> c, a c -> b where
    appendT :: a -> b -> c
 
-instance ProperTuple b => Append () b b where
+instance Append () b b where
    appendT () b = b
 
 instance Append as bs cs => Append (a :- as) bs (a :- cs) where
@@ -112,6 +120,18 @@ instance Index () (a :- b) a where
 instance Index b d e => Index (a :- b) (c :- d) e where
    indexT (a :- b) (c :- d) = indexT b d
 
+class SplitAt a b c d | a b -> c d where
+   splitAtT :: a -> b -> (c, d)
+
+instance SplitAt () b () b where
+   splitAtT () b = ((), b)
+
+instance SplitAt as bs cs ds => SplitAt (a :- as) (b :- bs) (a :- cs) ds where
+   splitAtT (a :- as) (b :- bs) = let (cs, ds) = splitAtT as bs in (a :- cs, ds)
+
+dropT a b = snd $ splitAtT a b
+takeT a b = fst $ splitAtT a b
+
 type I0 = ()
 type I1 = () :- ()
 type I2 = () :- () :- ()
@@ -136,6 +156,42 @@ i8 = () :- () :- () :- () :- () :- () :- () :- () :- () :: I8
 i9 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :: I9
 i10 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :- () :: I10
 
+class Mult10 a b | a -> b, b -> a where
+   mult10T :: a -> b
+
+instance Mult10 () () where
+   mult10T () = ()
+
+instance Mult10 as bs => Mult10 (a :- as) (a :- a :- a :- a :- a :- a :- a :- a :- a :- a :- bs) where
+   mult10T (a :- as) = let bs = mult10T as in a :- a :- a :- a :- a :- a :- a :- a :- a :- a :- bs
+
+class Digits a b | a -> b where
+   digits :: a -> b
+
+instance Digits () () where
+   digits () = ()
+
+class Power10 a b | a -> b where
+   power10T :: a -> b
+
+instance Power10 () (() :- ()) where
+   power10T () = () :- ()
+
+instance (Mult10 bs cs, Power10 as bs) => Power10 (a :- as) cs where
+   power10T (a :- as) = mult10T $ power10T as
+
+class Mult a b c | a b -> c where
+   multT :: a -> b -> c
+
+instance Mult a () () where
+   multT a () = ()
+
+instance (Append a c d, Mult a bs c) => Mult a (b :- bs) d where
+   multT a (b :- bs) = appendT a $ multT a bs
+
+instance (Power10 as bs, Mult a bs cs, Digits as ds, Append ds cs es) => Digits (a :- as) es where
+   digits (a :- as) = appendT (digits as) $ multT a $ power10T as
+
 class Map f a b where
    mapT :: f -> a -> b
 
@@ -151,17 +207,44 @@ instance Apply (a -> b) a b where
 instance (Apply f a b, Map f as bs) => Map f (a :- as) (b :- bs) where
    mapT f (a :- as) = applyC f a :- mapT f as
 
-class TofN a b where
-   tofn :: a -> b
+class Zip a b c | a b -> c, c -> a b where
+   zipT :: a -> b -> c
 
-class NofT a b where
-   noft :: a -> b
+instance Zip () () () where
+   zipT () () = ()
+
+instance (Zip as bs cs) => Zip (a :- as) (b :- bs) ((a, b) :- cs) where
+   zipT (a :- as) (b :- bs) = (a, b) :- zipT as bs
+
+class ZipWith f a b c where
+   zipWithT :: f -> a -> b -> c
+
+instance ZipWith f () () () where
+   zipWithT f () () = ()
+
+instance (Apply2 f a b c, ZipWith f as bs cs) => ZipWith f (a :- as) (b :- bs) (c :- cs) where
+   zipWithT f (a :- as) (b :- bs) = applyC2 f a b :- zipWithT f as bs
+
+class Zip3 f a b c d where
+   zipWith3T :: f -> a -> b -> c -> d
+
+instance Zip3 f () () () () where
+   zipWith3T f () () () = ()
+
+instance (Apply3 f a b c d, Zip3 f as bs cs ds) => Zip3 f (a :- as) (b :- bs) (c :- cs) (d :- ds) where
+   zipWith3T f (a :- as) (b :- bs) (c :- cs) = applyC3 f a b c :- zipWith3T f as bs cs
 
 class Apply2 f a b c | f a b -> c, f a c -> b where
    applyC2 :: f -> a -> b -> c
 
 instance Apply2 (a -> b -> c) a b c where
    applyC2 f = f
+
+class Apply3 f a b c d | f a b c -> d, f a b d -> c where
+   applyC3 :: f -> a -> b -> c -> d
+
+instance Apply3 (a -> b -> c -> d) a b c d where
+   applyC3 f = f
 
 class FoldR f z xs y where
    foldrT :: f -> z -> xs -> y
@@ -180,6 +263,12 @@ instance Apply2 Flatten [a] [a] [a] where
 
 instance Apply2 Flatten a [a] [a] where
    applyC2 Flatten = (:)
+
+class TofN a b where
+   tofn :: a -> b
+
+class NofT a b where
+   noft :: a -> b
 
 instance NofT (a, b) (a :- b) where noft (a, b) = a :- b
 instance NofT (a, b, c) (a :- b :- c) where noft (a, b, c) = a :- b :- c
