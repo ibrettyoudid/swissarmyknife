@@ -710,7 +710,7 @@ matchMetaString meta str = let
       ok = not $ or $ zipWith (/=) inField (tail inField)
 
       in ifJust ok strs) . catMaybes . zipWith (\f m -> (f, ) <$> m) fs)
-      $ crossList $ map (\(f, s) -> (Nothing :) $ map Just $ L.findIndices (isPrefixOf s) $ tails str) fss
+            $ crossList $ map (\(f, s) -> (Nothing :) $ map Just $ L.findIndices (isPrefixOf s) $ tails str) fss
 
 parserFromMatch :: [Either String FrameID] -> [Rule String Char Meta String]
 parserFromMatch [] = []

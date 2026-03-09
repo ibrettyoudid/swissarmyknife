@@ -14,6 +14,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{- HLINT ignore "Use map with tuple-section" -}
 
 module MHashDynamic3 (
    module MHashDynamic3,
@@ -778,7 +779,7 @@ showl =
    , toDyn (show :: Person -> String)
    , toDyn (show :: Field -> String)
    , toDyn (show :: TC -> String)
-   , toDyn (showDate)
+   , toDyn showDate
    , toDyn (show :: Expr -> String)
    , toDyn (show :: Closure -> String)
    , toDyn (fromJust . fp expr)
@@ -819,7 +820,7 @@ showl1 =
    , toDyn (show :: Person -> String)
    , toDyn (show :: Field -> String)
    , toDyn (show :: TC -> String)
-   , toDyn (showDate)
+   , toDyn showDate
    , toDyn (show :: Expr -> String)
    , toDyn (show :: Closure -> String)
    , toDyn (fromJust . fp expr)
@@ -1178,8 +1179,8 @@ fromAssocsD dnames as = let
    (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectilinear $ map fst as
    (len : muls) = scanr (*) 1 lens
    dims = zipWith5 toDim2 dnames mins maxs muls vals
-   in
-   SubArrayD dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
+   
+   in SubArrayD dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
 fromAssocsDA f zeroel dnames as = let
    (mins, maxs, lens, vals) = unzip4 $ map toDimD $ transpose $ checkRectilinear $ map fst as
@@ -1188,7 +1189,7 @@ fromAssocsDA f zeroel dnames as = let
    
    in if null as
          then error "no assocs in fromAssocsDA, can't figure out dimension information"
-         else SubArrayD dims 0 $ A.accumArray f z (0, len - 1) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
+         else SubArrayD dims 0 $ A.accumArray f zeroel (0, len - 1) $ (zip [0..len-1] (repeat zeroel) ++) $ map (\(i, e) -> (elemOffsetDyn i dims, e)) as
 
 checkRectilinear as = let
    lens = map length as
@@ -1368,7 +1369,7 @@ showQuarters (xn, yn, xh, yh, a) = let
 --transpose $ map concat $ transpose [a, b] == zipWith (++) a b
 
 
-showHyper2 xn yn a = let
+showHyper2 f xn yn a = let
    xd = select xn $ dims a
    yd = select yn $ dims a
    xs = indices xd
@@ -1381,47 +1382,35 @@ showHyper2 xn yn a = let
          map (show . dimName) yd, 
          map (zipWith showLabel xd) xs,
          map (zipWith showLabel yd) ys,
-         crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
+         crossWith (\x y -> f $ getElem (select ip $ x ++ y) a) xs ys
       )
 
-stringHyper2 xn yn a = let
-   xd = select xn $ dims a
-   yd = select yn $ dims a
-   xs = indices xd
-   ys = indices yd
-   d  = xn ++ yn
-   ip = inversePerm d
-
-   in (  
-         map (show . dimName) xd,
-         map (show . dimName) yd,
-         map (zipWith showLabel xd) xs,
-         map (zipWith showLabel yd) ys,
-         crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
-      )
-
-showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 xn yn a
+showHyperD xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
 
 showHyper a = let
    n = length $ dims a
    hn = div n 2
    
-   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] $ mapEE show a
+   in showGrid $ showQuarters $ showHyper2 show1 [hn .. n - 1] [0 .. hn - 1] a
+   --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
+
+showHyper1 a = let
+   n = length $ dims a
+   hn = div n 2
+   
+   in showGrid $ showQuarters $ showHyper2 show1 [hn .. n - 1] [0 .. hn - 1] a
    --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
 stringHyper a = let
    n = length $ dims a
    hn = div n 2
    
-   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] a
+   in showGrid $ showQuarters $ showHyper2 id [hn .. n - 1] [0 .. hn - 1] a
 
-
-showLabel (DimInt{}) i = show i
-showLabel (DimMap dn _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1
+showLabel (DimInt{}) i = show1 i
+showLabel (DimMap dn _ _ _ dm1 _) i = show1 $ fromJust $ M.lookup i dm1
 
 test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt "" 0 2 1
-
--- printa a = putTableF $ arrayToElemList a
 
 {-
 instance SubArray (SubArray3 b) (SubArray2 b)  where
@@ -1431,7 +1420,7 @@ unionAA f z a1 a2 = fromAssocsDA f z $ toAssocsD a1 ++ toAssocsD a2
 unionsAA f z as = fromAssocsDA f z $ concatMap toAssocsD as
 joinAAAdd f z dn dv a1 a2 = fromAssocsDA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocsD a1) ++ toAssocsD a2
 
-ignore = const id
+ignore = const  id
 
 insertAt n v l = let
    (b, a) = splitAt n l
