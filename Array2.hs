@@ -16,16 +16,13 @@ import Data.Array.IArray hiding ((!), assocs, index, indices)
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Array.IArray as A
-import GHC.TypeLits
-import GHC.TypeNats
-import GHC.LanguageExtensions (Extension(DisambiguateRecordFields))
 
 infixr 0 :-
 data a :- b = (:-) { fstT::a, sndT::b } deriving Show
 
 data Nil = Nil deriving Show
 
-data DimInt = DimInt { diLower::Int, diUpper::Int, diMult::Int } deriving (Eq, Ord, Show)
+data DimInt   = DimInt { diLower::Int, diUpper::Int, diMult::Int } deriving (Eq, Ord, Show)
 data DimMap i = DimMap { dmLower::Int, dmUpper::Int, dmMult::Int, dmMap1::M.Map Int i, dmMap2::M.Map i Int } deriving (Eq, Ord, Show)
 
 data SubArray dimList e = SubArray { dims::dimList, offset::Int, payload::Array Int e }
@@ -98,7 +95,7 @@ dimRange (DimInt dl du _) = [dl..du]
 dimRanges = map dimRange
 
 indicesA a = indices $ dims a
-indices = foldr cartesian [[]]
+indices ds = crossList $ dimRanges ds
 
 listFromTuple t = foldRT FCons [] t
 
@@ -127,7 +124,7 @@ toGrid3 yn xn da a = let
 
 --toGrid :: (FoldRT FCons [(Int, Int, Int)] as1, FoldRT FCons [([Int], M.Map Int String)] as2, MapT FGetDim dimList as1,  MapT FShowDim dimList as2) => [Int] -> [Int] -> SubArray dimList b2 -> [[b2]]
 toGrid2 yn xn a = let
-   da = listFromTuple $ mapT FShowDim $ dims a :: [([Int], M.Map Int String)]
+   da = listFromTuple $ mapT FShowDim $ dims a
    xd = select xn da
    yd = select yn da
    xs = indices $ map fst xd
@@ -156,7 +153,7 @@ showHyper1 yn xn da a = showGrid $ toGrid1 yn xn da a
 
 --showHyperA1 :: (Show1 e, MapT FShowDim dimList a, MapT FGetDim dimList b, FoldRT FCons [([Int], M.Map Int [Char])] a, FoldRT FCons [(Int, Int, Int)] b) => SubArray dimList e -> String
 showHyper a = let
-   da = listFromTuple $ mapT FShowDim $ dims a :: [([Int], M.Map Int String)]
+   da = listFromTuple $ mapT FShowDim $ dims a
    n = length da
    hn = div n 2
    in showHyper1 [0..hn-1] [hn..n-1] da a
@@ -194,7 +191,7 @@ instance DimList dl => DimList (DimInt :- dl)
 instance DimList dl => DimList (DimMap i :- dl)
 
 --instance (Show1 e, MapT FShowDim dl a, MapT FGetDim dl b, MapT FShowDim dl c, FoldRT FCons [([Int], M.Map Int [Char])] a, FoldRT FCons [(Int, Int, Int)] b, FoldRT FCons [([Int], M.Map Int String)] c) => Show (SubArray dl e) where
-instance (Show1 e, MapT FShowDim dl a, MapT FGetDim dl b, FoldRT FCons [([Int], M.Map Int [Char])] a, FoldRT FCons [(Int, Int, Int)] b) => Show (SubArray dl e) where
+instance (Show1 e, MapT FShowDim dl a, MapT FGetDim dl b, FoldRT FCons [(DimInt, M.Map Int [Char])] a, FoldRT FCons [(Int, Int, Int)] b) => Show (SubArray dl e) where
    show = showHyper
 
 class Show1 a where

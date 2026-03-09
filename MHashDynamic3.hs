@@ -28,7 +28,7 @@ where
 import MyPretty2
 import Favs
 import Numeric
-import NewTuple
+import NewTuple hiding (delete)
 import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP
@@ -1382,23 +1382,32 @@ showHyper2 f xn yn a = let
          map (show . dimName) yd, 
          map (zipWith showLabel xd) xs,
          map (zipWith showLabel yd) ys,
-         crossWith (\x y -> f $ getElem (select ip $ x ++ y) a) xs ys
+         crossWith (\x y -> show $ getElem (select ip $ x ++ y) a) xs ys
       )
 
-showHyperD xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
+stringHyper2 xn yn a = let
+   xd = select xn $ dims a
+   yd = select yn $ dims a
+   xs = indices xd
+   ys = indices yd
+   d  = xn ++ yn
+   ip = inversePerm d
 
-showHyper a = let
-   n = length $ dims a
-   hn = div n 2
-   
-   in showGrid $ showQuarters $ showHyper2 show1 [hn .. n - 1] [0 .. hn - 1] a
-   --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
+   in (  
+         map (show . dimName) xd,
+         map (show . dimName) yd,
+         map (zipWith showLabel xd) xs,
+         map (zipWith showLabel yd) ys,
+         crossWith (\x y -> getElem (select ip $ x ++ y) a) xs ys
+      )
+
+showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 xn yn a
 
 showHyper1 a = let
    n = length $ dims a
    hn = div n 2
    
-   in showGrid $ showQuarters $ showHyper2 show1 [hn .. n - 1] [0 .. hn - 1] a
+   in showGrid $ showQuarters $ stringHyper2 [hn .. n - 1] [0 .. hn - 1] $ mapEE show a
    --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
 stringHyper a = let
