@@ -53,6 +53,15 @@ instance Delete n (n :- ns) ns (v :- vs) vs where
 instance Delete n ns ns2 vs vs2 => Delete n (n1 :- ns) (n1 :- ns2) (v1 :- vs) (v1 :- vs2) where
    delete n (n1 :- ns) (v1 :- vs) = let (ns2, vs2) = NewTuple.delete n ns vs in (n1 :- ns2, v1 :- vs2)
 
+class DeleteIndex i vs vs2 | i vs -> vs2 where
+   deleteIndex :: i -> vs -> vs2
+
+instance DeleteIndex () (v :- vs) vs where
+   deleteIndex () (v :- vs) = vs
+
+instance DeleteIndex is vs vs2 => DeleteIndex (i :- is) (v1 :- vs) (v1 :- vs2) where
+   deleteIndex (i :- is) (v1 :- vs) = i :- NewTuple.deleteIndex is vs
+
 data A = A deriving (Eq, Ord, Show)
 data B = B deriving (Eq, Ord, Show)
 data C = C deriving (Eq, Ord, Show)
@@ -111,7 +120,7 @@ instance Length () () where
 instance Length b bl => Length (a :- b) (() :- bl) where
    lengthT (a :- b) = () :- lengthT b
 
-class Index a b c where
+class Index a b c | a b -> c where
    indexT :: a -> b -> c
 
 instance Index () (a :- b) a where

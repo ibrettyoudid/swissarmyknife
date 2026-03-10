@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Array3 where
-{-}
+
 import MyPretty2
 import Favs
 import Numeric
@@ -53,20 +53,28 @@ instance Dimension DimInt where
    dimLower = diLower
    dimUpper = diUpper
    dimMult  = diMult
+   dimRange d = [diLower d..diUpper d]
 
 instance Dimension (DimMap typ) where
    dimLower = dmLower
    dimUpper = dmUpper
    dimMult  = dmMult
+   dimRange d = [dmLower d..dmUpper d]
 
 class DimMapping i d | d -> i where
-   elemOffset1 :: i -> d -> Int
+   mapIndex :: i -> d -> Int
+   mapRange :: Int -> d -> i
 
 instance DimMapping Int DimInt where
-   elemOffset1 i d = (i - diLower d) * diMult d
+   mapIndex i d = i
+   mapRange i d = i
 
 instance DimMapping typ (DimMap typ) where
-   elemOffset1 i d = ((fromMaybe (error "not found in index") $ M.lookup i $ dimMap2 d) - dmLower d) * dmMult d
+   mapIndex i d = fromMaybe (error "not found in index") $ M.lookup i $ dimMap2 d
+   mapRange i d = fromMaybe (error "not found in range") $ M.lookup i $ dimMap1 d
+
+elemOffset1 i d = (mapIndex i d - dimLower d) * dimMult d
+
 {-
 class DimName d n where
    dimName :: d -> n
@@ -166,6 +174,16 @@ getSubDimI dn i a = SubArray (appendT nbefore nafter) (appendT dbefore dafter) (
       (dbefore, d :- dafter) = splitAtT dn $ dims a
       (nbefore, n :- nafter) = splitAtT dn $ dimNames a
 
+getSubDim1 :: (Dimension d, DimMapping i d,
+   Index name listIn d,
+   DeleteIndex name namesIn namesOut, DeleteIndex name listIn listOut)
+      => name -> i -> SubArray listIn e namesIn -> SubArray listOut e namesOut
+getSubDim1 dn i a = SubArray nafter dafter (offset a + elemOffset1 i d) (payload a)
+   where
+      d = NewTuple.lookup dn (dimNames a) (dims a)
+      nafter = NewTuple.deleteIndex dn (dimNames a)
+      dafter = NewTuple.deleteIndex dn (dims a)
+
 class SubDim dn i ain aout | dn i ain -> aout where
    getSubDim :: dn -> i -> ain -> aout
 
@@ -231,10 +249,10 @@ mapAA f t a = let
    s = [0 .. length (dims a) - 1] \\ sort t
    ist = inversePerm $ s ++ t
    indices1 = indicesD $ select s $ dims a
-   example = f $ getSubDimsDyn (zip s (head indices1)) a
-   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocsD $ f $ getSubDimsDyn (zip s i1) a) indices1
+   example = f $ getSubDims2 s indices1 a
+   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocsD $ f $ getSubDims2 s i1 a) indices1
 
-   in fromAssocsD (select ist $ dimNames (dims a) ++ dimNames (dims example)) assocs1
+   in fromAssocs (select ist $ dimNames (dims a) ++ dimNames (dims example)) assocs1
 
 foldE f a = f $ map snd $ toAssocs a
 
@@ -302,7 +320,7 @@ instance DimRanges () () where
 instance (Dimension a, DimRanges as bs) => DimRanges (a :- as) ([Int] :- bs) where
    dimRanges (a :- as) = dimRange a :- dimRanges as
 
-class CrossList a b where
+class CrossList a b | a -> b, b -> a where
    crossListT :: a -> b
 
 instance CrossList () [()] where
@@ -316,7 +334,7 @@ dimRangesD = map dimRangeD
 --dimNames = map dimName
 
 indicesA a = indices $ dims a
-indices :: (CrossList a1 b, DimRanges a2 a1) => a2 -> b
+indices :: (DimRanges a b, CrossList b c) => a -> c
 indices ds = crossListT $ dimRanges ds
 indicesD ds = crossList $ dimRangesD ds
 
@@ -438,7 +456,7 @@ toAssocs :: SubArray e -> [([Int], e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indices a
 -}
 --select indices from = map (from !!) indices
-class Select a b c where
+class Select a b c | a b -> c where
    select :: a -> b -> c
 
 instance Select () b () where
@@ -574,4 +592,3 @@ insertAt n v l = let
    (b, a) = splitAt n l
 
    in b ++ v : a
--}
