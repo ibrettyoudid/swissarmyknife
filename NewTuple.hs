@@ -70,16 +70,16 @@ instance Difference () ns ns vs vs where
 
 instance (Delete i ns ns2 vs vs2, Difference is ns2 ns3 vs2 vs3) => Difference (i :- is) ns ns3 vs vs3 where
    difference (i :- is) ns vs = let (ns2, vs2) = NewTuple.delete i ns vs in difference is ns2 vs2
-
+{-}
 class Sort a b | a -> b where
    sortT :: a -> b
 
 instance Sort () () where
    sortT () = ()
 
-instance (Insert a bs cs, Sort as bs) => Sort (a :- as) cs where
+instance (Sort as bs, Insert a bs cs) => Sort (a :- as) cs where
    sortT (a :- as) = insertT a (sortT as :: bs)
-
+-}
 class Insert a b c | a b -> c where
    insertT :: a -> b -> c
 
@@ -89,31 +89,22 @@ instance Insert a () (a :- ()) where
 instance (Greater a b, Insert a bs cs) => Insert a (b :- bs) (b :- cs) where
    insertT a (b :- bs) = b :- insertT a bs 
 
-instance GreaterEqual b a => Insert a (b :- bs) (a :- b :- bs) where
-   insertT a bs = a :- bs
+instance Greater b a => Insert a (b :- bs) (a :- b :- bs) where
+   insertT a (b :- bs) = a :- b :- bs
 
-xyz a = insertT i2 ()
+qqq a = insertT i9 (S (S Z) :- ())
 
 class Greater a b where
-   greaterT :: a -> b
 
-instance Greater (() :- as) () where
-   greaterT (() :- as) = ()
+instance Greater (S a) a where
 
-instance Greater as bs => Greater (() :- as) (() :- bs) where
-   greaterT (() :- as) = () :- greaterT as
+instance Greater a b => Greater (S a) b where
 
 class GreaterEqual a b where
-   greaterEqualT :: a -> b
 
-instance GreaterEqual () () where
-   greaterEqualT () = ()
+instance GreaterEqual a a where
 
-instance GreaterEqual (() :- as) () where
-   greaterEqualT (() :- as) = ()
-
-instance GreaterEqual as bs => GreaterEqual (() :- as) (() :- bs) where
-   greaterEqualT (() :- as) = () :- greaterEqualT as
+instance GreaterEqual a b => GreaterEqual (S a) b where
 
 class Number a b c | a b -> c, c -> a where
    numberT :: a -> b -> c
@@ -205,65 +196,96 @@ tailT (a :- b) = b
 class Length a b where
    lengthT :: a -> b
 
-instance Length () () where
-   lengthT () = ()
+instance Length () Z where
+   lengthT () = Z
 
-instance Length b bl => Length (a :- b) (() :- bl) where
-   lengthT (a :- b) = () :- lengthT b
+instance Length b bl => Length (a :- b) (S bl) where
+   lengthT (a :- b) = S $ lengthT b
 
 class Index a b c | a b -> c where
    indexT :: a -> b -> c
 
-instance Index () (a :- b) a where
-   indexT () (a :- b) = a
+instance Index Z (a :- b) a where
+   indexT Z (a :- b) = a
 
-instance Index b d e => Index (a :- b) (c :- d) e where
-   indexT (a :- b) (c :- d) = indexT b d
+instance Index b d e => Index (S b) (c :- d) e where
+   indexT (S b) (c :- d) = indexT b d
 
 class SplitAt a b c d | a b -> c d where
    splitAtT :: a -> b -> (c, d)
 
-instance SplitAt () b () b where
-   splitAtT () b = ((), b)
+instance SplitAt Z b () b where
+   splitAtT Z b = ((), b)
 
-instance SplitAt as bs cs ds => SplitAt (a :- as) (b :- bs) (a :- cs) ds where
-   splitAtT (a :- as) (b :- bs) = let (cs, ds) = splitAtT as bs in (a :- cs, ds)
+instance SplitAt as bs cs ds => SplitAt (S as) (b :- bs) (b :- cs) ds where
+   splitAtT (S as) (b :- bs) = let (cs, ds) = splitAtT as bs in (b :- cs, ds)
 
 dropT a b = snd $ splitAtT a b
 takeT a b = fst $ splitAtT a b
 
-type I0 = ()
-type I1 = () :- ()
-type I2 = () :- () :- ()
-type I3 = () :- () :- () :- ()
-type I4 = () :- () :- () :- () :- ()
-type I5 = () :- () :- () :- () :- () :- ()
-type I6 = () :- () :- () :- () :- () :- () :- ()
-type I7 = () :- () :- () :- () :- () :- () :- () :- ()
-type I8 = () :- () :- () :- () :- () :- () :- () :- () :- ()
-type I9 = () :- () :- () :- () :- () :- () :- () :- () :- () :- ()
-type I10 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :- ()
+data Z = Z
 
-i0 = () :: I0
-i1 = () :- () :: I1
-i2 = () :- () :- () :: I2
-i3 = () :- () :- () :- () :: I3
-i4 = () :- () :- () :- () :- () :: I4
-i5 = () :- () :- () :- () :- () :- () :: I5
-i6 = () :- () :- () :- () :- () :- () :- () :: I6
-i7 = () :- () :- () :- () :- () :- () :- () :- () :: I7
-i8 = () :- () :- () :- () :- () :- () :- () :- () :- () :: I8
-i9 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :: I9
-i10 = () :- () :- () :- () :- () :- () :- () :- () :- () :- () :- () :: I10
+newtype S s = S s
+
+type I0 = Z
+type I1 = S Z
+type I2 = S (S Z)
+type I3 = S (S (S Z))
+type I4 = S (S (S (S Z)))
+type I5 = S (S (S (S (S Z))))
+type I6 = S (S (S (S (S (S Z)))))
+type I7 = S (S (S (S (S (S (S Z))))))
+type I8 = S (S (S (S (S (S (S (S Z)))))))
+type I9 = S (S (S (S (S (S (S (S (S Z))))))))
+type I10 = S (S (S (S (S (S (S (S (S (S Z)))))))))
+
+i0 = Z :: I0
+i1 = S Z :: I1
+i2 = S (S Z) :: I2
+i3 = S (S (S Z)) :: I3
+i4 = S (S (S (S Z))) :: I4
+i5 = S (S (S (S (S Z)))) :: I5
+i6 = S (S (S (S (S (S Z))))) :: I6
+i7 = S (S (S (S (S (S (S Z)))))) :: I7
+i8 = S (S (S (S (S (S (S (S Z))))))) :: I8
+i9 = S (S (S (S (S (S (S (S (S Z)))))))) :: I9
+i10 = S (S (S (S (S (S (S (S (S (S Z))))))))) :: I10
 
 class Mult10 a b | a -> b, b -> a where
    mult10T :: a -> b
 
-instance Mult10 () () where
-   mult10T () = ()
+instance Mult10 Z Z where
+   mult10T Z = Z
 
-instance Mult10 as bs => Mult10 (a :- as) (a :- a :- a :- a :- a :- a :- a :- a :- a :- a :- bs) where
-   mult10T (a :- as) = let bs = mult10T as in a :- a :- a :- a :- a :- a :- a :- a :- a :- a :- bs
+instance Mult10 s t => Mult10 (S s) (S (S (S (S (S (S (S (S (S (S t)))))))))) where
+   mult10T (S s) = let t = mult10T s in S (S (S (S (S (S (S (S (S (S t)))))))))
+
+class Power10 a b | a -> b where
+   power10T :: a -> b
+
+instance Power10 Z (S Z) where
+   power10T Z = S Z
+
+instance (Power10 s t, Mult10 t u) => Power10 (S s) u where
+   power10T (S s) = mult10T $ power10T s
+
+class Mult a b c | a b -> c where
+   multT :: a -> b -> c
+
+instance Mult a Z Z where
+   multT a Z = Z
+
+instance (Mult a b c, Plus a c d) => Mult a (S b) d where
+   multT a (S b) = plusT a $ multT a b
+
+class Plus a b c | a b -> c, b c -> a where
+   plusT :: a -> b -> c
+
+instance Plus a Z a where
+   plusT a Z = a
+
+instance Plus a b c => Plus a (S b) (S c) where
+   plusT a (S b) = S $ plusT a b
 
 class Digits a b | a -> b where
    digits :: a -> b
@@ -271,26 +293,8 @@ class Digits a b | a -> b where
 instance Digits () () where
    digits () = ()
 
-class Power10 a b | a -> b where
-   power10T :: a -> b
-
-instance Power10 () (() :- ()) where
-   power10T () = () :- ()
-
-instance (Mult10 bs cs, Power10 as bs) => Power10 (a :- as) cs where
-   power10T (a :- as) = mult10T $ power10T as
-
-class Mult a b c | a b -> c where
-   multT :: a -> b -> c
-
-instance Mult a () () where
-   multT a () = ()
-
-instance (Append a c d, Mult a bs c) => Mult a (b :- bs) d where
-   multT a (b :- bs) = appendT a $ multT a bs
-
-instance (Power10 as bs, Mult a bs cs, Digits as ds, Append ds cs es) => Digits (a :- as) es where
-   digits (a :- as) = appendT (digits as) $ multT a $ power10T as
+instance (Power10 as bs, Mult a bs cs, Digits as ds, Plus ds cs es) => Digits (a :- as) es where
+   digits (a :- as) = plusT (digits as) $ multT a $ power10T as
 
 class Map f a b where
    mapT :: f -> a -> b
