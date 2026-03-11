@@ -53,6 +53,97 @@ instance Delete n (n :- ns) ns (v :- vs) vs where
 instance Delete n ns ns2 vs vs2 => Delete n (n1 :- ns) (n1 :- ns2) (v1 :- vs) (v1 :- vs2) where
    delete n (n1 :- ns) (v1 :- vs) = let (ns2, vs2) = NewTuple.delete n ns vs in (n1 :- ns2, v1 :- vs2)
 
+class DeleteIndex i ns ns2 vs vs2 | i vs -> vs2 where
+   deleteIndex :: i -> ns -> vs -> (ns2, vs2)
+
+instance DeleteIndex () (n :- ns) ns (v :- vs) vs where
+   deleteIndex () (n :- ns) (v :- vs) = (ns, vs)
+
+instance DeleteIndex is ns ns2 vs vs2 => DeleteIndex (i :- is) (n :- ns) (n :- ns2) (v :- vs) (v :- vs2) where
+   deleteIndex (i :- is) (n :- ns) (v :- vs) = let (ns1, vs1) = NewTuple.deleteIndex is ns vs in (n :- ns1, v :- vs1)
+
+class Difference is ns ns2 vs vs2 | is ns vs -> ns2 vs2 where
+   difference :: is -> ns -> vs -> (ns2, vs2)
+
+instance Difference () ns ns vs vs where
+   difference () ns vs = (ns, vs)
+
+instance (Delete i ns ns2 vs vs2, Difference is ns2 ns3 vs2 vs3) => Difference (i :- is) ns ns3 vs vs3 where
+   difference (i :- is) ns vs = let (ns2, vs2) = NewTuple.delete i ns vs in difference is ns2 vs2
+
+class Sort a b | a -> b where
+   sortT :: a -> b
+
+instance Sort () () where
+   sortT () = ()
+
+instance (Insert a bs cs, Sort as bs) => Sort (a :- as) cs where
+   sortT (a :- as) = insertT a (sortT as :: bs)
+
+class Insert a b c | a b -> c where
+   insertT :: a -> b -> c
+
+instance Insert a () (a :- ()) where
+   insertT a () = a :- ()
+
+instance (Greater a b, Insert a bs cs) => Insert a (b :- bs) (b :- cs) where
+   insertT a (b :- bs) = b :- insertT a bs 
+
+instance GreaterEqual b a => Insert a (b :- bs) (a :- b :- bs) where
+   insertT a bs = a :- bs
+
+xyz a = insertT i2 ()
+
+class Greater a b where
+   greaterT :: a -> b
+
+instance Greater (() :- as) () where
+   greaterT (() :- as) = ()
+
+instance Greater as bs => Greater (() :- as) (() :- bs) where
+   greaterT (() :- as) = () :- greaterT as
+
+class GreaterEqual a b where
+   greaterEqualT :: a -> b
+
+instance GreaterEqual () () where
+   greaterEqualT () = ()
+
+instance GreaterEqual (() :- as) () where
+   greaterEqualT (() :- as) = ()
+
+instance GreaterEqual as bs => GreaterEqual (() :- as) (() :- bs) where
+   greaterEqualT (() :- as) = () :- greaterEqualT as
+
+class Number a b c | a b -> c, c -> a where
+   numberT :: a -> b -> c
+
+instance Number () b () where
+   numberT () _ = ()
+
+instance Number as (() :- b) cs => Number (a :- as) b ((a, b) :- cs) where
+   numberT (a :- as) b = (a, b) :- numberT as (() :- b)
+
+class MapSnd a b | a -> b where
+   mapSndT :: a -> b
+
+instance MapSnd () () where
+   mapSndT () = ()
+
+instance MapSnd as bs => MapSnd ((a, b) :- as) (b :- bs) where
+   mapSndT ((a, b) :- as) = b :- mapSndT as
+
+class FindIndex a b c where
+   findIndexT :: a -> b -> c
+
+instance FindIndex a (a :- as) () where
+   findIndexT a (a1 :- as) = ()
+
+instance FindIndex a bs c => FindIndex a (b :- bs) (() :- c) where
+   findIndexT a (b :- bs) = () :- findIndexT a bs
+
+--instance Insert 
+{-
 class DeleteIndex i vs vs2 | i vs -> vs2 where
    deleteIndex :: i -> vs -> vs2
 
@@ -60,8 +151,8 @@ instance DeleteIndex () (v :- vs) vs where
    deleteIndex () (v :- vs) = vs
 
 instance DeleteIndex is vs vs2 => DeleteIndex (i :- is) (v1 :- vs) (v1 :- vs2) where
-   deleteIndex (i :- is) (v1 :- vs) = i :- NewTuple.deleteIndex is vs
-
+   deleteIndex (i :- is) (v :- vs) = v :- NewTuple.deleteIndex is vs
+-}
 data A = A deriving (Eq, Ord, Show)
 data B = B deriving (Eq, Ord, Show)
 data C = C deriving (Eq, Ord, Show)

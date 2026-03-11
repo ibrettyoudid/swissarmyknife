@@ -22,7 +22,7 @@
 module ID3P6 where
 
 import ApplyTuple
-import NewTuple
+import NewTuple hiding (deleteIndex)
 import BString
 import Favs hiding (range, split, split1With, splitWith)
 import Iso hiding (ignore, (!!))

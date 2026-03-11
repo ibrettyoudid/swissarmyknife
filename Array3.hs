@@ -69,7 +69,7 @@ instance DimMapping Int DimInt where
    mapIndex i d = i
    mapRange i d = i
 
-instance DimMapping typ (DimMap typ) where
+instance Ord typ => DimMapping typ (DimMap typ) where
    mapIndex i d = fromMaybe (error "not found in index") $ M.lookup i $ dimMap2 d
    mapRange i d = fromMaybe (error "not found in range") $ M.lookup i $ dimMap1 d
 
@@ -105,7 +105,7 @@ instance CreateDim Int DimInt where
 
       in (DimInt mi ma m, m * le)
 
-instance CreateDim typ (DimMap typ) where
+instance Ord typ => CreateDim typ (DimMap typ) where
    create is m = let
       is1 = nubSet is
       le = length is1
@@ -120,8 +120,12 @@ class CreateDims is ds where
 instance CreateDims () () where
    creates [] = ((), 1)
 
-instance CreateDims (i :- is) (d :- ds) where
-   creates iis = let (ds, m) = creates (map sndT iis) in create (map fstT iis) m
+instance (Ord i, CreateDim i d, CreateDims is ds) => CreateDims (i :- is) (d :- ds) where
+   creates iis = let 
+      (ds, m) = creates (map sndT iis) :: (ds, Int)
+      (d, le) = create (map fstT iis) m :: (d, Int)
+
+      in (d :- ds, le)
 
 data DimInt     = DimInt { diLower :: Int, diUpper :: Int, diMult :: Int } deriving (Show)
 data DimMap typ = DimMap { dmLower :: Int, dmUpper :: Int, dmMult :: Int, dimMap1 :: M.Map Int typ, dimMap2 :: M.Map typ Int } deriving (Show)
@@ -142,7 +146,7 @@ refold1 f z xs = snd $ foldr (\i (z, o) -> let (a, b) = f z i in (b, a : o)) (z,
 class DimMappings is ds | ds -> is where
    elemOffset :: is -> ds -> Int
 
-instance (DimMapping i d, DimMappings is ds) => DimMappings (i :- is) (d :- ds) where
+instance (Dimension d, DimMapping i d, DimMappings is ds) => DimMappings (i :- is) (d :- ds) where
    elemOffset (i :- is) (d :- ds) = elemOffset1 i d + elemOffset is ds
 
 instance DimMappings () () where
@@ -174,15 +178,14 @@ getSubDimI dn i a = SubArray (appendT nbefore nafter) (appendT dbefore dafter) (
       (dbefore, d :- dafter) = splitAtT dn $ dims a
       (nbefore, n :- nafter) = splitAtT dn $ dimNames a
 
-getSubDim1 :: (Dimension d, DimMapping i d,
+getSubDim1 :: forall e d i name listIn namesIn namesOut listOut. (Dimension d, DimMapping i d,
    Index name listIn d,
-   DeleteIndex name namesIn namesOut, DeleteIndex name listIn listOut)
+   DeleteIndex name namesIn namesOut listIn listOut)
       => name -> i -> SubArray listIn e namesIn -> SubArray listOut e namesOut
 getSubDim1 dn i a = SubArray nafter dafter (offset a + elemOffset1 i d) (payload a)
    where
-      d = NewTuple.lookup dn (dimNames a) (dims a)
-      nafter = NewTuple.deleteIndex dn (dimNames a)
-      dafter = NewTuple.deleteIndex dn (dims a)
+      d = NewTuple.indexT dn (dims a) :: d
+      (nafter, dafter) = NewTuple.deleteIndex dn (dimNames a) (dims a) :: (namesOut, listOut)
 
 class SubDim dn i ain aout | dn i ain -> aout where
    getSubDim :: dn -> i -> ain -> aout
@@ -231,9 +234,13 @@ zipWitha f a b = fromAssocs $ zipWith (\i j -> ([i], f (getSub i a) (getSub j b)
 
 mapEE f a = a { payload = A.amap f $ payload a }
 
-mapEA :: forall is e1 ds1 ns1 e2 ds2 ns2 ds ns. (DimMappings is ds, CreateDims is ds, Append ds1 ds2 ds) => (e1 -> SubArray ds2 e2 ns2) -> SubArray ds1 e1 ns1 -> SubArray ds e2 ns
+mapEA :: forall e is ds ns e1 is1 ds1 ns1 rs1 is2 ds2 ns2 rs2. 
+   (Append is1 is2 is, Append ds1 ds2 ds, Append ns1 ns2 ns, 
+   DimMappings is ds, CreateDims is ds, 
+   DimRanges ds1 rs1, CrossList rs1 is1, DimMappings is1 ds1, 
+   DimRanges ds2 rs2, CrossList rs2 is2, DimMappings is2 ds2) => (e1 -> SubArray ds2 e ns2) -> SubArray ds1 e1 ns1 -> SubArray ds e ns
 mapEA f a = let
-   assocs1 = toAssocs a
+   assocs1 = toAssocs a :: [(is1, e1)]
    (i, e) = head assocs1
    example = f e
 
@@ -246,13 +253,57 @@ mapAE f s a = let
    in fromAssocs (dimNames a) assocs1
 
 mapAA f t a = let
-   s = [0 .. length (dims a) - 1] \\ sort t
-   ist = inversePerm $ s ++ t
-   indices1 = indicesD $ select s $ dims a
+   s = difference t (dimNames a) (dims a)
+   ist = appendT s t
+   indices1 = indices $ select s $ dims a
    example = f $ getSubDims2 s indices1 a
-   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocsD $ f $ getSubDims2 s i1 a) indices1
+   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocs $ f $ getSubDims2 s i1 a) indices1
 
-   in fromAssocs (select ist $ dimNames (dims a) ++ dimNames (dims example)) assocs1
+   in fromAssocs (select ist $ appendT (dimNames a) (dimNames example)) assocs1
+
+inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
+inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
+
+fromAssocs :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => dimNames -> [(is, e)] -> SubArray dimList e dimNames
+fromAssocs dnames as = let
+   (dims :: dimList, len) = creates (map fst as)
+
+   in SubArray dnames dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffset i dims, e)) as
+
+toAssocs :: (DimMappings is a1, CrossList a2 is, DimRanges a1 a2) => SubArray a1 e dimNames -> [(is, e)]
+toAssocs a = map (\i -> (i, getElem i a)) $ indicesA a
+
+class DimRanges a b | a -> b where
+   dimRanges :: a -> b
+
+instance DimRanges () () where
+   dimRanges () = ()
+
+instance (Dimension a, DimRanges as bs) => DimRanges (a :- as) ([Int] :- bs) where
+   dimRanges (a :- as) = dimRange a :- dimRanges as
+
+class CrossList a b | a -> b, b -> a where
+   crossListT :: a -> [b]
+
+instance CrossList () () where
+   crossListT () = [()]
+
+instance CrossList as bs => CrossList ([a] :- as) (a :- bs) where
+   crossListT (a :- as) = concatMap (\xs -> map (:- xs) a) $ crossListT as
+
+indicesA a = indices $ dims a
+indices ds = crossListT $ dimRanges ds
+
+class Select a b c | a b -> c where
+   select :: a -> b -> c
+
+instance Select () b () where
+   select () b = ()
+
+instance (Index i from found, Select indices from done) => Select (i :- indices) from (found :- done) where
+   select (i :- indices) from = indexT i from :- select indices from
+
+{-
 
 foldE f a = f $ map snd $ toAssocs a
 
@@ -302,12 +353,6 @@ transposeA d1 d2 a = let
 
    in SubArray n (replaceIndex d2 e1 $ replaceIndex d1 e2 ds) (offset a) (payload a)
 
-{-
-toAssocs :: SubArray e -> [(Int, e)]
-toAssocs a = let
-   (d:ds) = dims a
-   in map (\i -> (i, getElem [i] a)) [dimLower d..dimUpper d]
--}
 -- cartesian [1,2,3] [[4],[5],[6]] = [[1,4],[2,4],[3,4],[1,5],[2,5],[3,5],[1,6],[2,6],[3,6]]
 dimRangeD (DimMap dl du _ dm1 _) = map (dm1 M.!) [dl .. du]
 
@@ -326,7 +371,7 @@ class CrossList a b | a -> b, b -> a where
 instance CrossList () [()] where
    crossListT () = [()]
 
-instance CrossList as bs => CrossList ([a] :- as) [a :- bs] where
+instance CrossList as bs => CrossList ([a] :- [as]) [a :- bs] where
    crossListT (a :- as) = concatMap (\xs -> map (:- xs) a) $ crossListT as
 
 --dimRanges = map dimRange
@@ -352,12 +397,6 @@ toDim is = let
    le = ma - mi + 1
 
    in (mi, ma, le)
-
-fromAssocs :: forall {is} {dimList} {e} {ns} {dimName}. (DimMappings is dimList, CreateDims is dimList) => ns -> [(is, e)] -> SubArray dimList e dimName
-fromAssocs dnames as = let
-   (dims, len) = creates dnames (map fst as)
-
-   in SubArray dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffset i dims, e)) as
 
 fromAssocsA :: forall is dimList e ns dimName. (DimMappings is dimList, CreateDims is dimList) => (e -> e -> e) -> e -> ns -> [(is, e)] -> SubArray dimList e dimName
 fromAssocsA f zeroel dnames as = let
@@ -417,7 +456,7 @@ fromList2z zero ess = let
    d0 = length ess
    d1 = maximum $ map length ess
 
-   in SubArray [DimInt "" 0 (d0 - 1) d1, DimInt "" 0 (d1 - 1) 1] 0 $ A.listArray (0, d0 * d1 - 1) $ concatMap (padRWith1 zero d1) ess
+   in SubArray (DimInt 0 (d0 - 1) d1 :- DimInt 0 (d1 - 1) 1 :- ()) 0 $ A.listArray (0, d0 * d1 - 1) $ concatMap (padRWith1 zero d1) ess
 
 fromList2 = fromList2z undefined
 
@@ -426,7 +465,7 @@ fromList3 zero esss = let
    d1 = maximum $ map length esss
    d2 = maximum $ map (maximum . map length) esss
 
-   in SubArray [DimInt "" 0 (d0 - 1) (d1 * d2), DimInt "" 0 (d1 - 1) d2, DimInt "" 0 (d2 - 1) 1] 0 $ A.listArray (0, d0 * d1 * d2 - 1) $ concatMap (padRWith1 zero (d1 * d2) . concatMap (padRWith1 zero d2)) esss
+   in SubArray (DimInt 0 (d0 - 1) (d1 * d2) :- DimInt 0 (d1 - 1) d2 :- DimInt 0 (d2 - 1) 1 :- ()) 0 $ A.listArray (0, d0 * d1 * d2 - 1) $ concatMap (padRWith1 zero (d1 * d2) . concatMap (padRWith1 zero d2)) esss
 
 toList1 a = map (`getElem` a) $ indicesA a
 
@@ -456,17 +495,8 @@ toAssocs :: SubArray e -> [([Int], e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indices a
 -}
 --select indices from = map (from !!) indices
-class Select a b c | a b -> c where
-   select :: a -> b -> c
-
-instance Select () b () where
-   select () b = ()
-
-instance (Index i from found, Select indices from done) => Select (i :- indices) from (found :- done) where
-   select (i :- indices) from = indexT i from :- select indices from
-
 -- if indices and from are the same length then select indices (select (inversePerm indices) from)) == from
-inversePerm indices = map snd $ sort $ zip indices [0 ..]
+--inversePerm indices = map snd $ sort $ zip indices [0 ..]
 
 splitAt2 major minor ls = (unzip $ map (splitAt minor) $ take major ls, unzip $ map (splitAt minor) $ drop major ls)
 
@@ -592,3 +622,4 @@ insertAt n v l = let
    (b, a) = splitAt n l
 
    in b ++ v : a
+-}
