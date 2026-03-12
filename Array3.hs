@@ -178,7 +178,8 @@ getSubDimI dn i a = SubArray (appendT nbefore nafter) (appendT dbefore dafter) (
       (dbefore, d :- dafter) = splitAtT dn $ dims a
       (nbefore, n :- nafter) = splitAtT dn $ dimNames a
 
-getSubDim1 :: forall e d i name listIn namesIn namesOut listOut. (Dimension d, DimMapping i d,
+getSubDim1 :: forall e d i name listIn namesIn namesOut listOut. 
+   (Dimension d, DimMapping i d,
    Index name listIn d,
    DeleteIndex name namesIn namesOut listIn listOut)
       => name -> i -> SubArray listIn e namesIn -> SubArray listOut e namesOut
@@ -252,17 +253,17 @@ mapAE f s a = let
 
    in fromAssocs (dimNames a) assocs1
 
-mapAA f t a = let
-   s = difference t (dimNames a) (dims a)
-   ist = appendT s t
-   indices1 = indices $ select s $ dims a
-   example = f $ getSubDims2 s indices1 a
-   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (select ist $ i1 ++ i2, e2)) $ toAssocs $ f $ getSubDims2 s i1 a) indices1
+mapAA f rNames a = let
+   (lNames, lDims) = difference rNames (dimNames a) (dims a)
+   lrNames = appendT lNames rNames
+   indices1 = indices lDims
+   example = f $ getSubDims2 lDims indices1 a
+   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (lookupList (dimNames a) lrNames $ appendT i1 i2, e2)) $ toAssocs $ f $ getSubDims2 s i1 a) indices1
 
-   in fromAssocs (select ist $ appendT (dimNames a) (dimNames example)) assocs1
+   in fromAssocs (lookupList  $ appendT (dimNames a) (dimNames example)) assocs1
 
-inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
-inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
+--inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
+--inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
 
 fromAssocs :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => dimNames -> [(is, e)] -> SubArray dimList e dimNames
 fromAssocs dnames as = let

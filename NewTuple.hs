@@ -40,7 +40,7 @@ instance NamedTuple n ns vs v => NamedTuple n (m :- ns) (u :- vs) v where
    lookup n (m :- ns) (u :- vs) = NewTuple.lookup n ns vs
    update n v (m :- ns) (u :- vs) = u :- NewTuple.update n v ns vs
 
-instance NamedTuple n (n :- ns) (v :- vs) v where
+instance {-# OVERLAPPING #-} NamedTuple n (n :- ns) (v :- vs) v where
    lookup n (n1 :- ns) (v :- vs) = v
    update n v (n1 :- ns) (v1 :- vs) = v :- vs
 
@@ -56,11 +56,11 @@ instance Delete n ns ns2 vs vs2 => Delete n (n1 :- ns) (n1 :- ns2) (v1 :- vs) (v
 class DeleteIndex i ns ns2 vs vs2 | i vs -> vs2 where
    deleteIndex :: i -> ns -> vs -> (ns2, vs2)
 
-instance DeleteIndex () (n :- ns) ns (v :- vs) vs where
-   deleteIndex () (n :- ns) (v :- vs) = (ns, vs)
+instance DeleteIndex Z (n :- ns) ns (v :- vs) vs where
+   deleteIndex Z (n :- ns) (v :- vs) = (ns, vs)
 
-instance DeleteIndex is ns ns2 vs vs2 => DeleteIndex (i :- is) (n :- ns) (n :- ns2) (v :- vs) (v :- vs2) where
-   deleteIndex (i :- is) (n :- ns) (v :- vs) = let (ns1, vs1) = NewTuple.deleteIndex is ns vs in (n :- ns1, v :- vs1)
+instance DeleteIndex i ns ns2 vs vs2 => DeleteIndex (S i) (n :- ns) (n :- ns2) (v :- vs) (v :- vs2) where
+   deleteIndex (S i) (n :- ns) (v :- vs) = let (ns1, vs1) = NewTuple.deleteIndex i ns vs in (n :- ns1, v :- vs1)
 
 class Difference is ns ns2 vs vs2 | is ns vs -> ns2 vs2 where
    difference :: is -> ns -> vs -> (ns2, vs2)
@@ -70,6 +70,18 @@ instance Difference () ns ns vs vs where
 
 instance (Delete i ns ns2 vs vs2, Difference is ns2 ns3 vs2 vs3) => Difference (i :- is) ns ns3 vs vs3 where
    difference (i :- is) ns vs = let (ns2, vs2) = NewTuple.delete i ns vs in difference is ns2 vs2
+
+class LookupList ns1 ns2 vs1 vs2 | ns1 ns2 vs1 -> vs2 where
+   lookupList :: ns1 -> ns2 -> vs1 -> vs2
+
+instance LookupList () a b () where
+   lookupList () a b = ()
+
+instance (NamedTuple n ns2 vs1 v, LookupList ns1 ns2 vs1 vs2) => LookupList (n :- ns1) ns2 vs1 (v :- vs2) where
+   lookupList (n :- ns1) ns2 vs1 = NewTuple.lookup n ns2 vs1 :- lookupList ns1 ns2 vs1
+
+j k = lookupList (A :- B :- C :- ()) (C :- B :- A :- ()) (D :- C :- B :- ())
+
 {-}
 class Sort a b | a -> b where
    sortT :: a -> b
@@ -92,7 +104,7 @@ instance (Greater a b, Insert a bs cs) => Insert a (b :- bs) (b :- cs) where
 instance Greater b a => Insert a (b :- bs) (a :- b :- bs) where
    insertT a (b :- bs) = a :- b :- bs
 
-qqq a = insertT i9 (S (S Z) :- ())
+--qqq a = insertT i9 (S (S Z) :- ())
 
 class Greater a b where
 
