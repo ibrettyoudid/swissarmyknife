@@ -2,6 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module NewTuple where
 
@@ -70,17 +71,39 @@ instance Difference () ns ns vs vs where
 
 instance (Delete i ns ns2 vs vs2, Difference is ns2 ns3 vs2 vs3) => Difference (i :- is) ns ns3 vs vs3 where
    difference (i :- is) ns vs = let (ns2, vs2) = NewTuple.delete i ns vs in difference is ns2 vs2
+{-}
+class LookupList ns1 ns2 vs1 vs2 vs3 | ns1 ns2 vs1 -> vs2 where
+   lookupList :: ns1 -> ns2 -> vs1 -> (vs2, vs3)
 
-class LookupList ns1 ns2 vs1 vs2 | ns1 ns2 vs1 -> vs2 where
-   lookupList :: ns1 -> ns2 -> vs1 -> vs2
+instance LookupList () a b () b where
+   lookupList () a b = ((), b)
 
-instance LookupList () a b () where
-   lookupList () a b = ()
+instance (NamedTuple n ns2 vs1 v, LookupList ns1 ns2 vs1 vs2 vs3) => LookupList (n :- ns1) ns2 vs1 (v :- vs2) vs4 where
+   lookupList (n :- ns1) ns2 vs1 = let (vs2, vs3) = lookupList ns1 ns2 vs1 in (NewTuple.lookup n ns2 vs1 :- vs2, vs3)
+-}
+class Delete1 n ninc vinc v ndel vdel | n ninc -> ndel, v vinc -> vdel, vinc vdel -> v, n ninc vinc -> v vdel where
+   delete1 :: n -> ninc -> vinc -> (v, ndel, vdel)
 
-instance (NamedTuple n ns2 vs1 v, LookupList ns1 ns2 vs1 vs2) => LookupList (n :- ns1) ns2 vs1 (v :- vs2) where
-   lookupList (n :- ns1) ns2 vs1 = NewTuple.lookup n ns2 vs1 :- lookupList ns1 ns2 vs1
+instance {-# OVERLAPPING #-} Delete1 n (n :- ns) (v :- vs) v ns vs where
+   delete1 n (n1 :- ns) (v :- vs) = (v, ns, vs)
 
-j k = lookupList (A :- B :- C :- ()) (C :- B :- A :- ()) (D :- C :- B :- ())
+instance Delete1 n ninc vinc v ndel vdel => Delete1 n (n1 :- ninc) (v1 :- vinc) v (n1 :- ndel) (v1 :- vdel) where
+   delete1 n (n1 :- ninc) (v1 :- vinc) = let (v, ndel, vdel) = NewTuple.delete1 n ninc vinc in (v, n1 :- ndel, v1 :- vdel)
+
+class Select nsel nall vall vsel nleft vleft | nsel nall vall -> vsel nleft vleft where
+   selectT :: nsel -> nall -> vall -> (vsel, nleft, vleft)
+
+instance {-# OVERLAPPING #-} Select () nleft vleft () nleft vleft where
+   selectT () nleft vleft = ((), nleft, vleft)
+
+instance (Delete1 n nall vall v ndel vdel, Select nsel ndel vdel vsel nleft vleft) => Select (n :- nsel) nall vall (v :- vsel) nleft vleft where
+   selectT (n :- ns0) ns1 vs0 = let 
+      (v, nsdel, vsdel) = delete1 n ns1 vs0 
+      (vs8, ns8, vs9) = selectT ns0 nsdel vsdel
+
+      in (v :- vs8, ns8, vs9)
+
+--j k = selectT (A :- B :- ()) (A :- B :- C :- ()) (D :- C :- B :- ())
 
 {-}
 class Sort a b | a -> b where

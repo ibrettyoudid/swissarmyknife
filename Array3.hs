@@ -247,20 +247,21 @@ mapEA f a = let
 
    in fromAssocs (appendT (dimNames a) (dimNames example)) $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (appendT i1 i2, e2)) $ toAssocs $ f e1) assocs1
 
-mapAE f s a = let
-   indices1 = indices $ select s $ dims a
-   assocs1 = map (\i -> (i, f $ getSubDims2 s i a)) indices1
+mapAE f nsel a = let
+   (vsel, nleft, vleft) = selectT nsel (dimNames a) (dims a)
+   assocs1 = map (\i -> (i, f $ getSubDims2 nsel i a)) $ indices vsel
 
-   in fromAssocs (dimNames a) assocs1
+   in fromAssocs nsel assocs1
 
-mapAA f rNames a = let
-   (lNames, lDims) = difference rNames (dimNames a) (dims a)
-   lrNames = appendT lNames rNames
+mapAA f lNames a = let
+   --(lNames, lDims) = difference rNames (dimNames a) (dims a)
+   --lrNames = appendT lNames rNames
+   lDims = select lNames (dims a)
    indices1 = indices lDims
-   example = f $ getSubDims2 lDims indices1 a
-   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (lookupList (dimNames a) lrNames $ appendT i1 i2, e2)) $ toAssocs $ f $ getSubDims2 s i1 a) indices1
+   example = f $ getSubDims2 lDims (head indices1) a
+   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (appendT i1 i2, e2)) $ toAssocs $ f $ getSubDims2 lDims i1 a) indices1
 
-   in fromAssocs (lookupList  $ appendT (dimNames a) (dimNames example)) assocs1
+   in fromAssocs (appendT lNames (dimNames example)) assocs1
 
 --inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
 --inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
@@ -295,6 +296,7 @@ instance CrossList as bs => CrossList ([a] :- as) (a :- bs) where
 indicesA a = indices $ dims a
 indices ds = crossListT $ dimRanges ds
 
+{-}
 class Select a b c | a b -> c where
    select :: a -> b -> c
 
@@ -303,7 +305,7 @@ instance Select () b () where
 
 instance (Index i from found, Select indices from done) => Select (i :- indices) from (found :- done) where
    select (i :- indices) from = indexT i from :- select indices from
-
+-}
 {-
 
 foldE f a = f $ map snd $ toAssocs a
@@ -528,6 +530,7 @@ readUniqueHyper xhn yhn a = let
    d = readHyper9 (map length xh) (map length yh) $ fromList1 a2
 
    in d
+-}
 
 readHyper2 xh yh a = concat $ zipWith zip (crossWith (++) xh yh) a
 
@@ -605,7 +608,7 @@ instance ShowLabel DimInt where
 instance ShowLabel (DimMap typ) where
    showLabel (DimMap _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1
 
-test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt "" 0 2 1
+test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt 0 2 1
 
 -- printa a = putTableF $ arrayToElemList a
 
@@ -623,4 +626,3 @@ insertAt n v l = let
    (b, a) = splitAt n l
 
    in b ++ v : a
--}
