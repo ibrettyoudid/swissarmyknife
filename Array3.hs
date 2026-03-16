@@ -260,7 +260,7 @@ mapAA f rNames a = let
    example = f $ getSubDims2 lDims indices1 a
    assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (lookupList (dimNames a) lrNames $ appendT i1 i2, e2)) $ toAssocs $ f $ getSubDims2 s i1 a) indices1
 
-   in fromAssocs (lookupList  $ appendT (dimNames a) (dimNames example)) assocs1
+   in fromAssocs (lookupList $ appendT (dimNames a) (dimNames example)) assocs1
 
 --inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
 --inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
