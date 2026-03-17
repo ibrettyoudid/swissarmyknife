@@ -242,7 +242,7 @@ mapEA :: forall e is ds ns e1 is1 ds1 ns1 rs1 is2 ds2 ns2 rs2.
    DimRanges ds2 rs2, CrossList rs2 is2, DimMappings is2 ds2) => (e1 -> SubArray ds2 e ns2) -> SubArray ds1 e1 ns1 -> SubArray ds e ns
 mapEA f a = let
    assocs1 = toAssocs a :: [(is1, e1)]
-   (i, e) = head assocs1
+   (i, e)  = head assocs1
    example = f e
 
    in fromAssocs (appendT (dimNames a) (dimNames example)) $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (appendT i1 i2, e2)) $ toAssocs $ f e1) assocs1
@@ -253,16 +253,16 @@ mapAE f nsel a = let
 
    in fromAssocs nsel assocs1
 
-mapAA f lNames a = let
+mapAA f nsel a = let
    --(lNames, lDims) = difference rNames (dimNames a) (dims a)
    --lrNames = appendT lNames rNames
-   lDims = select lNames (dims a)
-   indices1 = indices lDims
-   example = f $ getSubDims2 lDims (head indices1) a
-   assocs1 = concatMap (\i1 -> map (\(i2, e2) -> (appendT i1 i2, e2)) $ toAssocs $ f $ getSubDims2 lDims i1 a) indices1
+   (vsel, _, _) = selectT nsel (dimNames a) (dims a)
+   indices1     = indices vsel
+   example      = f $ getSubDims2 vsel (head indices1) a
+   assocs1      = concatMap (\i1 -> map (\(i2, e2) -> (appendT i1 i2, e2)) $ toAssocs $ f $ getSubDims2 vsel i1 a) indices1
 
-   in fromAssocs (appendT lNames (dimNames example)) assocs1
-   in fromAssocs (lookupList $ appendT (dimNames a) (dimNames example)) assocs1
+   in fromAssocs (appendT nsel (dimNames example)) assocs1
+   --in fromAssocs (lookupList $ appendT (dimNames a) (dimNames example)) assocs1
 
 --inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
 --inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
@@ -272,6 +272,12 @@ fromAssocs dnames as = let
    (dims :: dimList, len) = creates (map fst as)
 
    in SubArray dnames dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffset i dims, e)) as
+
+fromAssocsA :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => (e -> e -> e) -> e -> dimNames -> [(is, e)] -> SubArray dimList e dimNames
+fromAssocsA f zeroel dnames as = let
+   (dims :: dimList, len) = creates (map fst as)
+
+   in SubArray dnames dims 0 $ A.accumArray f zeroel (0, len - 1) $ (map (, zeroel) [0..len-1]++) $ map (\(i, e) -> (elemOffset i dims, e)) as
 
 toAssocs :: (DimMappings is a1, CrossList a2 is, DimRanges a1 a2) => SubArray a1 e dimNames -> [(is, e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indicesA a
@@ -570,19 +576,18 @@ showQuarters (xn, yn, xh, yh, a) = let
 
 
 showHyper2 f xn yn a = let
-   xd = select xn $ dims a
-   yd = select yn $ dims a
+   (xd, _, _) = selectT xn (dimNames a) (dims a)
+   (yd, _, _) = selectT yn (dimNames a) (dims a)
    xs = indices xd
    ys = indices yd
-   d  = xn ++ yn
-   ip = inversePerm d
+   n = appendT xn yn
 
    in (
-         map (show . dimName) xd,
-         map (show . dimName) yd,
+         showNewT xn,
+         showNewT yn,
          map (zipWith showLabel xd) xs,
          map (zipWith showLabel yd) ys,
-         crossWith (\x y -> f $ getElem (select ip $ x ++ y) a) xs ys
+         crossWith (\x y -> f $ getElem (selectT (dimNames a) n $ appendT x y) a) xs ys
       )
 
 showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
@@ -617,9 +622,9 @@ test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices 
 instance SubArray (SubArray3 b) (SubArray2 b)  where
    SubArray3 a ! i = SubArray2 $ getSub i a
 -}
-unionAA f z a1 a2 = fromAssocsDA f z $ toAssocsD a1 ++ toAssocsD a2
-unionsAA f z as = fromAssocsDA f z $ concatMap toAssocsD as
-joinAAAdd f z dn dv a1 a2 = fromAssocsDA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocsD a1) ++ toAssocsD a2
+unionAA f z a1 a2 = fromAssocsA f z $ toAssocs a1 ++ toAssocs a2
+unionsAA f z as = fromAssocsA f z $ concatMap toAssocs as
+joinAAAdd f z dn dv a1 a2 = fromAssocsA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocs a1) ++ toAssocs a2
 
 ignore = const id
 
