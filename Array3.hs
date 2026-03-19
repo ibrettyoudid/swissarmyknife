@@ -18,13 +18,12 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Array3 where
-
+{-
 import MyPretty2
 import Favs
 import Numeric
 import NewTuple
 import qualified BString as B
---import qualified NumberParsers as NP
 import Show1
 
 import Data.List
@@ -34,14 +33,7 @@ import qualified Data.Set as S
 import Data.IORef
 import qualified Data.Array.IArray as A
 
-
 import GHC.Stack
-import Parser5 (d1)
-import Graphics.UI.Gtk (afterOutput)
---import Control.Exception
-
---import Syntax3 hiding (foldl, foldr, print, right)
---import Syntax3 qualified as S3
 
 class Dimension d where
    dimLower :: d -> Int
@@ -572,7 +564,7 @@ showQuarters (xn, yn, xh, yh, a) = let
       --zipWith (++) (nw ++ yh) (transpose (map (["£"]++) xh) ++ transpose a)
       zipWith (++) (nw ++ yh) (transpose xh ++ map ("£":) (transpose a))
 
---transpose $ map concat $ transpose [a, b] == zipWith (++) a b
+--transpose $ map concat $ transpose [a, b] == zipWith (++) a e1
 
 
 showHyper2 f xn yn a = let
@@ -585,9 +577,9 @@ showHyper2 f xn yn a = let
    in (
          showNewT xn,
          showNewT yn,
-         map (zipWith showLabel xd) xs,
-         map (zipWith showLabel yd) ys,
-         crossWith (\x y -> f $ getElem (selectT (dimNames a) n $ appendT x y) a) xs ys
+         map (showLabels xd) xs,
+         map (showLabels yd) ys,
+         crossWith (\x y -> f $ getElem (let (dapp, _, _) = selectT (dimNames a) n $ appendT x y in dapp) a) xs ys
       )
 
 showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
@@ -611,8 +603,17 @@ class ShowLabel d where
 instance ShowLabel DimInt where
    showLabel d i = show i
 
-instance ShowLabel (DimMap typ) where
+instance Show typ => ShowLabel (DimMap typ) where
    showLabel (DimMap _ _ _ dm1 _) i = show $ fromJust $ M.lookup i dm1
+
+class ShowLabels ds is where
+   showLabels :: ds -> is -> [String]
+
+instance ShowLabels () () where
+   showLabels () () = []
+
+instance (ShowLabel d, ShowLabels ds is) => ShowLabels (d :- ds) (Int :- is) where
+   showLabels (d :- ds) (i :- is) = showLabel d i : showLabels ds is
 
 test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt 0 2 1
 
@@ -632,3 +633,4 @@ insertAt n v l = let
    (b, a) = splitAt n l
 
    in b ++ v : a
+   -}
