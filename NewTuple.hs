@@ -228,7 +228,7 @@ instance Append as bs cs => Append (a :- as) bs (a :- cs) where
 headT (a :- b) = a
 tailT (a :- b) = b
 
-class Length a b where
+class Length a b | a -> b where
    lengthT :: a -> b
 
 instance Length () Z where
@@ -285,6 +285,18 @@ i7 = S (S (S (S (S (S (S Z)))))) :: I7
 i8 = S (S (S (S (S (S (S (S Z))))))) :: I8
 i9 = S (S (S (S (S (S (S (S (S Z)))))))) :: I9
 i10 = S (S (S (S (S (S (S (S (S (S Z))))))))) :: I10
+
+class Div2 a b | a -> b where
+   div2 :: a -> b
+
+instance Div2 Z Z where
+   div2 Z = Z
+
+instance Div2 (S Z) Z where
+   div2 (S Z) = Z
+
+instance Div2 a b => Div2 (S (S a)) (S b) where
+   div2 (S (S a)) = S $ div2 a
 
 class Mult10 a b | a -> b, b -> a where
    mult10T :: a -> b

@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Array3 where
-{-
+
 import MyPretty2
 import Favs
 import Numeric
@@ -567,6 +567,14 @@ showQuarters (xn, yn, xh, yh, a) = let
 --transpose $ map concat $ transpose [a, b] == zipWith (++) a e1
 
 
+showHyper2 :: (ShowNewTuple xn, ShowNewTuple yn, 
+   ShowLabels xd xi, ShowLabels yd yi, 
+   DimMappings is ds, 
+   CrossList a4 yi, CrossList a5 xi, 
+   DimRanges yd a4, DimRanges xd a5, 
+   Select yn dimNames ds yd nleft1 vleft1, Select xn dimNames ds xd nleft2 vleft2, Select dimNames n iall is nleft3 vleft3, 
+   Append xn yn n, Append xi yi iall) 
+   => (e1 -> e2) -> xn -> yn -> SubArray ds e1 dimNames -> ([String], [String], [[String]], [[String]], [[e2]])
 showHyper2 f xn yn a = let
    (xd, _, _) = selectT xn (dimNames a) (dims a)
    (yd, _, _) = selectT yn (dimNames a) (dims a)
@@ -585,18 +593,21 @@ showHyper2 f xn yn a = let
 showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
 
 showHyper a = let
-   n = length $ dims a
-   hn = div n 2
+   n = lengthT $ dims a
+   hn = div2 n
+   (xn, yn) = splitAtT hn $ dimNames a
 
-   in showGrid $ showQuarters $ showHyper2 show [hn .. n - 1] [0 .. hn - 1] a
+   in showGrid $ showQuarters $ showHyper2 show xn yn a
    --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
 stringHyper a = let
-   n = length $ dims a
-   hn = div n 2
+   n = lengthT $ dims a
+   hn = div2 n
 
-   in showGrid $ showQuarters $ showHyper2 id [hn .. n - 1] [0 .. hn - 1] a
+   (xn, yn) = splitAtT hn $ dimNames a
 
+   in showGrid $ showQuarters $ showHyper2 id xn yn a
+   
 class ShowLabel d where
    showLabel :: d -> Int -> String
 
@@ -615,7 +626,7 @@ instance ShowLabels () () where
 instance (ShowLabel d, ShowLabels ds is) => ShowLabels (d :- ds) (Int :- is) where
    showLabels (d :- ds) (i :- is) = showLabel d i : showLabels ds is
 
-test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt 0 2 1
+--test d = fromAssocs (map (\x -> "dim"++ show x) [0..d-1]) $ mapxfx id $ indices $ replicate d $ DimInt 0 2 1
 
 -- printa a = putTableF $ arrayToElemList a
 
@@ -627,10 +638,10 @@ unionAA f z a1 a2 = fromAssocsA f z $ toAssocs a1 ++ toAssocs a2
 unionsAA f z as = fromAssocsA f z $ concatMap toAssocs as
 joinAAAdd f z dn dv a1 a2 = fromAssocsA f z $ map (\(i, e) -> (insertAt dn dv i, e)) (toAssocs a1) ++ toAssocs a2
 
-ignore = const id
+replaceElem a b = b
 
 insertAt n v l = let
    (b, a) = splitAt n l
 
    in b ++ v : a
-   -}
+
