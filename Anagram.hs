@@ -64,6 +64,8 @@ vocabr v = let forwards  = S.fromList v
                backwards = S.fromList $ map reverse v
             in  S.toList $ S.intersection forwards backwards
 
+isPalindrome x = x == reverse x
+
 vocab0 = voc 100
 
 vocab1 = filter (notElem '\'') $ words $ map toLower $ readFileU "d:/code/bcb/anagram/words/english-words.50"

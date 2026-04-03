@@ -1274,7 +1274,7 @@ fromArrayList2 dl du as = let
             (zipWith (\x (y, e) -> (x * leny + elemOffset y dimy, e)) [0 ..] $ concatMap toAssocs as))
 
 fromAOA a = fromAssocs $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (i1 ++ i2, e2)) $ toAssocs e1) $ toAssocs a
-
+{-}
 newtype SubArray1 b dimName = SubArray1 (SubArrayD b dimName)
 newtype SubArray2 b dimName = SubArray2 (SubArrayD b dimName)
 newtype SubArray3 b dimName = SubArray3 (SubArrayD b dimName)
@@ -1290,7 +1290,7 @@ instance SubArray (SubArray1 b dimName) b where
 instance SubArray (SubArray2 b dimName) (SubArray1 b dimName) where
    SubArray2 a ! i = SubArray1 $ getSub i a
    SubArray2 a ? i = SubArray1 $ getSubDyn i a
-
+-}
 instance (Show dimName, Show e) => Show (SubArrayD e dimName) where
    show = showHyper
 

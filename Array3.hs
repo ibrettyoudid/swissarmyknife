@@ -124,7 +124,7 @@ data DimMap typ = DimMap { dmLower :: Int, dmUpper :: Int, dmMult :: Int, dimMap
 --            | DimCat { dimDim::Dimension, dimDiv::[Int], dimMult1::[Int] }
 
 
-data SubArray dimList e dimNames = SubArray { dimNames :: dimNames, dims :: dimList, offset :: Int, payload :: A.Array Int e}
+data SubArray dimNames dimList e = SubArray { dimNames :: dimNames, dims :: dimList, offset :: Int, payload :: A.Array Int e}
 
 -- main = print $ Main.transpose 0 1 $ fromList2z 0 [[1,2,3],[4,5,6],[7,8,9]]
 
@@ -163,7 +163,7 @@ getSubDimI :: forall dimNamesIn dimNameOut dimNamesOut1 dimNamesOut2 dimNamesOut
     Dimension d,
     SplitAt p dimNamesIn dimNamesOut1 (dimNameOut :- dimNamesOut2),
     SplitAt p dimListIn dimListOut1 (d :- dimListOut2))
-      => p -> Int -> SubArray dimListIn e dimNamesIn -> SubArray dimListOut e dimNamesOut
+      => p -> Int -> SubArray dimNamesIn dimListIn e -> SubArray dimNamesOut dimListOut e 
 
 getSubDimI dn i a = SubArray (appendT nbefore nafter) (appendT dbefore dafter) (offset a + (i - dimLower d) * dimMult d) (payload a)
    where
@@ -174,7 +174,7 @@ getSubDim1 :: forall e d i name listIn namesIn namesOut listOut.
    (Dimension d, DimMapping i d,
    Index name listIn d,
    DeleteIndex name namesIn namesOut listIn listOut)
-      => name -> i -> SubArray listIn e namesIn -> SubArray listOut e namesOut
+      => name -> i -> SubArray namesIn listIn e -> SubArray namesOut listOut e 
 getSubDim1 dn i a = SubArray nafter dafter (offset a + elemOffset1 i d) (payload a)
    where
       d = NewTuple.indexT dn (dims a) :: d
@@ -186,12 +186,12 @@ class SubDim dn i ain aout | dn i ain -> aout where
 -- undecidable instance
 instance (Dimension d, DimMapping i d,
     NamedTuple name namesIn listIn d,
-    Delete name namesIn namesOut listIn listOut)
-      => SubDim name i (SubArray listIn e namesIn) (SubArray listOut e namesOut) where
+    Delete2 name namesIn namesOut listIn listOut)
+      => SubDim name i (SubArray namesIn listIn e) (SubArray namesOut listOut e) where
    getSubDim dn i a = SubArray nafter dafter (offset a + elemOffset1 i d) (payload a)
       where
          d = NewTuple.lookup dn (dimNames a) (dims a)
-         (nafter, dafter) = NewTuple.delete dn (dimNames a) (dims a)
+         (nafter, dafter) = NewTuple.delete2 dn (dimNames a) (dims a)
 
 class SubDims ds ain aout where
    getSubDims :: ds -> ain -> aout
@@ -231,7 +231,7 @@ mapEA :: forall e is ds ns e1 is1 ds1 ns1 rs1 is2 ds2 ns2 rs2.
    (Append is1 is2 is, Append ds1 ds2 ds, Append ns1 ns2 ns, 
    DimMappings is ds, CreateDims is ds, 
    DimRanges ds1 rs1, CrossList rs1 is1, DimMappings is1 ds1, 
-   DimRanges ds2 rs2, CrossList rs2 is2, DimMappings is2 ds2) => (e1 -> SubArray ds2 e ns2) -> SubArray ds1 e1 ns1 -> SubArray ds e ns
+   DimRanges ds2 rs2, CrossList rs2 is2, DimMappings is2 ds2) => (e1 -> SubArray ns2 ds2 e) -> SubArray ns1 ds1 e1 -> SubArray ns ds e
 mapEA f a = let
    assocs1 = toAssocs a :: [(is1, e1)]
    (i, e)  = head assocs1
@@ -240,7 +240,7 @@ mapEA f a = let
    in fromAssocs (appendT (dimNames a) (dimNames example)) $ concatMap (\(i1, e1) -> map (\(i2, e2) -> (appendT i1 i2, e2)) $ toAssocs $ f e1) assocs1
 
 mapAE f nsel a = let
-   (vsel, nleft, vleft) = selectT nsel (dimNames a) (dims a)
+   vsel = selectT nsel (dimNames a) (dims a)
    assocs1 = map (\i -> (i, f $ getSubDims2 nsel i a)) $ indices vsel
 
    in fromAssocs nsel assocs1
@@ -259,19 +259,19 @@ mapAA f nsel a = let
 --inversePerm :: forall a b c d. (Number a () b, Sort b c, MapSnd c d) => a -> d
 --inversePerm a = mapSndT (sortT (numberT a () :: b) :: c) :: d
 
-fromAssocs :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => dimNames -> [(is, e)] -> SubArray dimList e dimNames
+fromAssocs :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => dimNames -> [(is, e)] -> SubArray dimNames dimList e 
 fromAssocs dnames as = let
    (dims :: dimList, len) = creates (map fst as)
 
    in SubArray dnames dims 0 $ A.array (0, len - 1) $ map (\(i, e) -> (elemOffset i dims, e)) as
 
-fromAssocsA :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => (e -> e -> e) -> e -> dimNames -> [(is, e)] -> SubArray dimList e dimNames
+fromAssocsA :: forall is dimList e dimNames. (DimMappings is dimList, CreateDims is dimList) => (e -> e -> e) -> e -> dimNames -> [(is, e)] -> SubArray dimNames dimList e 
 fromAssocsA f zeroel dnames as = let
    (dims :: dimList, len) = creates (map fst as)
 
    in SubArray dnames dims 0 $ A.accumArray f zeroel (0, len - 1) $ (map (, zeroel) [0..len-1]++) $ map (\(i, e) -> (elemOffset i dims, e)) as
 
-toAssocs :: (DimMappings is a1, CrossList a2 is, DimRanges a1 a2) => SubArray a1 e dimNames -> [(is, e)]
+toAssocs :: (DimMappings is a1, CrossList a2 is, DimRanges a1 a2) => SubArray dimNames a1 e -> [(is, e)]
 toAssocs a = map (\i -> (i, getElem i a)) $ indicesA a
 
 class DimRanges a b | a -> b where
@@ -289,7 +289,7 @@ class CrossList a b | a -> b, b -> a where
 instance CrossList () () where
    crossListT () = [()]
 
-instance CrossList as bs => CrossList ([a] :- as) (a :- bs) where
+instance CrossList as bs => CrossList ([i] :- as) (i :- bs) where
    crossListT (a :- as) = concatMap (\xs -> map (:- xs) a) $ crossListT as
 
 indicesA a = indices $ dims a
@@ -567,17 +567,26 @@ showQuarters (xn, yn, xh, yh, a) = let
 --transpose $ map concat $ transpose [a, b] == zipWith (++) a e1
 
 
-showHyper2 :: (ShowNewTuple xn, ShowNewTuple yn, 
-   ShowLabels xd xi, ShowLabels yd yi, 
-   DimMappings is ds, 
-   CrossList a4 yi, CrossList a5 xi, 
-   DimRanges yd a4, DimRanges xd a5, 
-   Select yn dimNames ds yd nleft1 vleft1, Select xn dimNames ds xd nleft2 vleft2, Select dimNames n iall is nleft3 vleft3, 
-   Append xn yn n, Append xi yi iall) 
-   => (e1 -> e2) -> xn -> yn -> SubArray ds e1 dimNames -> ([String], [String], [[String]], [[String]], [[e2]])
+showHyper2 :: (
+   SplitAtSubArray nin d iin r xn xd yn yd e1 p l,
+   Length nin l,
+   ShowNewTuple xn,     
+   Select xn nin d xd, 
+   ShowLabels xd xi,    
+   DimRanges xd xr,     
+   CrossList xr xi,     
+   ShowNewTuple yn,     
+   Select yn nin d yd, 
+   ShowLabels yd yi,    
+   DimRanges yd yr,     
+   CrossList yr yi,     
+   DimMappings iin d, 
+   Select nin nout iout iin, 
+   Append xn yn nout, Append xi yi iout) 
+   => (e1 -> e2) -> xn -> yn -> SubArray nin d e1 -> ([String], [String], [[String]], [[String]], [[e2]])
 showHyper2 f xn yn a = let
-   (xd, _, _) = selectT xn (dimNames a) (dims a)
-   (yd, _, _) = selectT yn (dimNames a) (dims a)
+   xd = selectT xn (dimNames a) (dims a)
+   yd = selectT yn (dimNames a) (dims a)
    xs = indices xd
    ys = indices yd
    n = appendT xn yn
@@ -587,19 +596,106 @@ showHyper2 f xn yn a = let
          showNewT yn,
          map (showLabels xd) xs,
          map (showLabels yd) ys,
-         crossWith (\x y -> f $ getElem (let (dapp, _, _) = selectT (dimNames a) n $ appendT x y in dapp) a) xs ys
+         crossWith (\x y -> f $ getElem (selectT (dimNames a) n $ appendT x y) a) xs ys
       )
 
 showHyper1 xn yn a = showGrid $ showQuarters $ showHyper2 show xn yn a
-
+{-
+showHyper :: (ShowNewTuple xn, ShowNewTuple yn, 
+   ShowLabels xd xi, ShowLabels yd yi, 
+   DimRanges xd xr, DimRanges yd yr, 
+   CrossList xr xi, CrossList yr yi, 
+   Select xn nin ds xd, Select yn nin ds yd, Select nin nout iout iin, 
+   Append xn yn nout, Append xi yi iout, 
+   DimMappings iin ds, Show e, Length ds b1, Div2 b1 b2, SplitAt b2 nin xn yn) => SubArray nin ds e -> String
+-}
+showHyper :: forall n d i r xn xd xi xr yn yd yi yr nout iout e p l. (ShowNewTuple n, 
+   Length d l,
+   Div2 l p,
+   Length n p,
+   ShowLabels xd xi,
+   ShowNewTuple xn,
+   DimRanges xd xr,
+   CrossList xr xi,
+   ShowLabels yd yi,
+   ShowNewTuple yn,
+   DimRanges yd yr,
+   CrossList yr yi,
+   Append xn yn nout, 
+   Append xi yi iout,
+   Select n nout iout i,
+   Show e,
+   SplitAtSubArray n d i r xn xd yn yd e p l) => SubArray n d e -> String
 showHyper a = let
    n = lengthT $ dims a
    hn = div2 n
-   (xn, yn) = splitAtT hn $ dimNames a
+   (xn, yn) = splitAtSubArray a hn
 
    in showGrid $ showQuarters $ showHyper2 show xn yn a
    --showGrid $ showQuarters $ showHyper2 [hn .. n - 1] [0 .. hn - 1] a
 
+{-}
+instance (ShowNewTuple nin, 
+   ShowLabel d, ShowLabels din iin,
+   DimMapping i d, DimMappings iin din, 
+   Dimension d, DimRanges din rin,
+   CrossList rin iin,
+   NamedTuple n nout iout i, Select nin nout iout iin, 
+   Show e,
+   Show n, SplitAtSubArray nin nout iin iout xn yn din rin e p) => SplitAtSubArray (n :- nin) nout (i :- iin) (i :- iout) (n :- xn) yn (d :- din) ([Int] :- rin) e (S p) where
+   --splitAtTS (SubArray (n :- nin) (d :- din) off pay) (S p) = let (xn, yn, nout, iout) = splitAtTS (SubArray nin din off pay) p in (n :- xn, yn, nout, undefined :- iout)
+-}
+class (
+   Length n l,
+   Div2 l p,
+   ShowNewTuple n, 
+   ShowLabels d i,
+   DimMappings i d, 
+   DimRanges d r,
+   CrossList r i,
+   Select xn n d xd,
+   Select yn n d yd,
+   Show e) => SplitAtSubArray n d i r xn xd yn yd e p l | n p -> xn yn where
+   splitAtSubArray :: SubArray n d e -> p -> (xn, yn)
+{-
+instance SplitAtSubArray nin nout i iout () nin d r e Z where
+   splitAtTS (SubArray nin d _ _) Z = ((), nin, undefined, undefined)
+-}
+
+instance (ShowNewTuple n, 
+   ShowLabels d i,
+   DimMappings i d, 
+   DimRanges d r,
+   CrossList r i,
+   Select n n d d,
+   Show e) => SplitAtSubArray n d i r () () n d e Z l where
+      splitAtSubArray (SubArray n d _ _) Z = ((), n)
+
+instance forall nin din iin rin n d i xn xd yn yd e p l. 
+   (ProperTuple nin, 
+   ShowNewTuple (n :- nin), 
+   ShowLabels (d :- din) (i :- iin),
+   DimMappings (i :- iin) (d :- din), 
+   DimRanges (d :- din) ([Int] :- rin),
+   CrossList ([Int] :- rin) (i :- iin),
+   Select (n :- xn) (n :- nin) (d :- din) (d :- xd),
+   Select yn (n :- nin) (d :- din) yd,
+   Show e,
+   Show n, 
+   SplitAtSubArray nin din iin rin xn xd yn yd e p l) => SplitAtSubArray (n :- nin) (d :- din) (i :- iin) ([Int] :- rin) (n :- xn) (d :- xd) yn yd e (S p) (S (S l)) where
+      splitAtSubArray (SubArray (n :- nin) (d :- din) off pay) (S p) = let (xn, yn) = (splitAtSubArray :: SplitAtSubArray nin din iin rin xn xd yn yd e p l => SubArray nin din e -> p -> (xn, yn)) (SubArray nin din off pay) p in (n :- xn, yn)
+   --splitAtTS (SubArray (n :- nin) (d :- din) off pay) (S p) = let (xn, yn, nout, iout) = splitAtTS (SubArray nin din off pay) p in (n :- xn, yn, nout, undefined :- iout)
+{-}
+instance (ShowNewTuple nin, 
+   ShowLabel d, ShowLabels din iin,
+   DimMapping i d, DimMappings iin din, 
+   Dimension d, DimRanges din rin,
+   CrossList rin iin,
+   NamedTuple n nout iout i, Select nin nout iout iin, 
+   Show e,
+   Show n, SplitAtSubArray nin nout iin iout xn yn din rin e p) => SplitAtSubArray (n :- nin) nout (i :- iin) (i :- iout) (n :- xn) yn (d :- din) ([Int] :- rin) e (S p) where
+   --splitAtTS (SubArray (n :- nin) (d :- din) off pay) (S p) = let (xn, yn, nout, iout) = splitAtTS (SubArray nin din off pay) p in (n :- xn, yn, nout, undefined :- iout)
+-}
 stringHyper a = let
    n = lengthT $ dims a
    hn = div2 n
@@ -607,7 +703,24 @@ stringHyper a = let
    (xn, yn) = splitAtT hn $ dimNames a
 
    in showGrid $ showQuarters $ showHyper2 id xn yn a
-   
+{-  
+instance (ShowNewTuple xn, ShowNewTuple yn, 
+   ShowLabels xd xi, ShowLabels yd yi, 
+   DimMappings iin d, 
+   DimRanges yd a4, DimRanges xd a5, 
+   CrossList a4 yi, CrossList a5 xi, 
+   Select xn nin d xd, Select yn nin d yd, Select nin nout iout iin, 
+   Append xn yn nout, Append xi yi iout, 
+   Show e, Length d b1, Div2 b1 b2, SplitAt b2 nin xn yn) => Show (SubArray nin d e) where
+-}
+instance (ProperTuple nin, ShowNewTuple nin,
+   ShowLabels d i,
+   DimMappings i d, 
+   DimRanges d r,
+   CrossList r i,
+   Show e) => Show (SubArray nin d e) where
+         show = showHyper
+
 class ShowLabel d where
    showLabel :: d -> Int -> String
 

@@ -45,14 +45,104 @@ instance {-# OVERLAPPING #-} NamedTuple n (n :- ns) (v :- vs) v where
    lookup n (n1 :- ns) (v :- vs) = v
    update n v (n1 :- ns) (v1 :- vs) = v :- vs
 
-class Delete n ns ns2 vs vs2 | n ns vs -> ns2 vs2 where
-   delete :: n -> ns -> vs -> (ns2, vs2)
+class ShowNewTuple a where
+   showNewT :: a -> [String]
 
-instance Delete n (n :- ns) ns (v :- vs) vs where
-   delete n (n1 :- ns) (v1 :- vs) = (ns, vs)
+instance ShowNewTuple () where
+   showNewT () = []
 
-instance Delete n ns ns2 vs vs2 => Delete n (n1 :- ns) (n1 :- ns2) (v1 :- vs) (v1 :- vs2) where
-   delete n (n1 :- ns) (v1 :- vs) = let (ns2, vs2) = NewTuple.delete n ns vs in (n1 :- ns2, v1 :- vs2)
+instance (Show1 a, ProperTuple b, ShowNewTuple b) => ShowNewTuple (a :- b) where
+   showNewT (a :- b) = show1 a : showNewT b
+
+class ReadNewTuple a where
+   readNewT :: [String] -> a
+
+instance ReadNewTuple () where
+   readNewT [] = ()
+
+instance (Read1 a, ProperTuple b, ReadNewTuple b) => ReadNewTuple (a :- b) where
+   readNewT (a : b) = read1 a :- readNewT b
+
+class (ElemsProperTuple a) => Concat a b where
+   concat2 :: a -> b
+--using AllowAmbiguousTypes
+
+instance Concat () () where
+   concat2 () = ()
+
+instance (ProperTuple a, Append a bs cs, Concat as bs) => Concat (a :- as) cs where
+   concat2 (a :- as) = appendT a (concat2 as)
+
+concatT xs = foldrT (appendT :: Append a b c => a -> b -> c) () xs
+
+class Append a b c | a b -> c, a c -> b where
+   appendT :: a -> b -> c
+
+instance Append () b b where
+   appendT () b = b
+
+instance Append as bs cs => Append (a :- as) bs (a :- cs) where
+   appendT (a :- as) bs = a :- appendT as bs
+
+headT (a :- b) = a
+tailT (a :- b) = b
+
+class Length a b | a -> b where
+   lengthT :: a -> b
+
+instance Length () Z where
+   lengthT () = Z
+
+instance Length b bl => Length (a :- b) (S bl) where
+   lengthT (a :- b) = S $ lengthT b
+
+class Index a b c | a b -> c where
+   indexT :: a -> b -> c
+
+instance Index Z (a :- b) a where
+   indexT Z (a :- b) = a
+
+instance Index b d e => Index (S b) (c :- d) e where
+   indexT (S b) (c :- d) = indexT b d
+
+class SplitAt a b c d | a b -> c d where
+   splitAtT :: a -> b -> (c, d)
+
+instance SplitAt Z b () b where
+   splitAtT Z b = ((), b)
+
+instance SplitAt as bs cs ds => SplitAt (S as) (b :- bs) (b :- cs) ds where
+   splitAtT (S as) (b :- bs) = let (cs, ds) = splitAtT as bs in (b :- cs, ds)
+
+dropT a b = snd $ splitAtT a b
+takeT a b = fst $ splitAtT a b
+
+class Delete n ns ns2 | n ns -> ns2, ns ns2 -> n where
+   delete :: n -> ns -> ns2
+
+instance Delete n (n :- ns) ns where
+   delete n (n1 :- ns) = ns
+
+instance Delete n ns ns2 => Delete n (n1 :- ns) (n1 :- ns2) where
+   delete n (n1 :- ns) = n1 :- NewTuple.delete n ns 
+
+class Difference is ns ns2 | is ns -> ns2 where
+   difference :: is -> ns -> ns2
+
+instance Difference () ns ns where
+   difference () ns = ns
+
+instance (Delete i ns ns2, Difference is ns2 ns3) => Difference (i :- is) ns ns3 where
+   difference (i :- is) ns = let ns2 = NewTuple.delete i ns in difference is ns2
+
+class Delete2 n ns ns2 vs vs2 | n ns vs -> ns2 vs2 where
+   delete2 :: n -> ns -> vs -> (ns2, vs2)
+
+instance Delete2 n (n :- ns) ns (v :- vs) vs where
+   delete2 n (n1 :- ns) (v1 :- vs) = (ns, vs)
+
+instance Delete2 n ns ns2 vs vs2 => Delete2 n (n1 :- ns) (n1 :- ns2) (v1 :- vs) (v1 :- vs2) where
+   delete2 n (n1 :- ns) (v1 :- vs) = let (ns2, vs2) = NewTuple.delete2 n ns vs in (n1 :- ns2, v1 :- vs2)
 
 class DeleteIndex i ns ns2 vs vs2 | i vs -> vs2 where
    deleteIndex :: i -> ns -> vs -> (ns2, vs2)
@@ -63,24 +153,36 @@ instance DeleteIndex Z (n :- ns) ns (v :- vs) vs where
 instance DeleteIndex i ns ns2 vs vs2 => DeleteIndex (S i) (n :- ns) (n :- ns2) (v :- vs) (v :- vs2) where
    deleteIndex (S i) (n :- ns) (v :- vs) = let (ns1, vs1) = NewTuple.deleteIndex i ns vs in (n :- ns1, v :- vs1)
 
-class Difference is ns ns2 vs vs2 | is ns vs -> ns2 vs2 where
-   difference :: is -> ns -> vs -> (ns2, vs2)
+class Difference2 is ns ns2 vs vs2 | is ns vs -> ns2 vs2 where
+   difference2 :: is -> ns -> vs -> (ns2, vs2)
 
-instance Difference () ns ns vs vs where
-   difference () ns vs = (ns, vs)
+instance Difference2 () ns ns vs vs where
+   difference2 () ns vs = (ns, vs)
 
-instance (Delete i ns ns2 vs vs2, Difference is ns2 ns3 vs2 vs3) => Difference (i :- is) ns ns3 vs vs3 where
-   difference (i :- is) ns vs = let (ns2, vs2) = NewTuple.delete i ns vs in difference is ns2 vs2
-{-}
-class LookupList ns1 ns2 vs1 vs2 vs3 | ns1 ns2 vs1 -> vs2 where
-   lookupList :: ns1 -> ns2 -> vs1 -> (vs2, vs3)
+instance (Delete2 i ns ns2 vs vs2, Difference2 is ns2 ns3 vs2 vs3) => Difference2 (i :- is) ns ns3 vs vs3 where
+   difference2 (i :- is) ns vs = let (ns2, vs2) = NewTuple.delete2 i ns vs in difference2 is ns2 vs2
 
-instance LookupList () a b () b where
-   lookupList () a b = ((), b)
+class Select ns1 ns2 vs1 vs2 | ns1 ns2 vs1 -> vs2 where
+   selectT :: ns1 -> ns2 -> vs1 -> vs2
 
-instance (NamedTuple n ns2 vs1 v, LookupList ns1 ns2 vs1 vs2 vs3) => LookupList (n :- ns1) ns2 vs1 (v :- vs2) vs4 where
-   lookupList (n :- ns1) ns2 vs1 = let (vs2, vs3) = lookupList ns1 ns2 vs1 in (NewTuple.lookup n ns2 vs1 :- vs2, vs3)
--}
+instance Select () a b () where
+   selectT () a b = ()
+
+instance (NamedTuple n ns2 vs1 v, Select ns1 ns2 vs1 vs2) => Select (n :- ns1) ns2 vs1 (v :- vs2) where
+   selectT (n :- ns1) ns2 vs1 = NewTuple.lookup n ns2 vs1 :- selectT ns1 ns2 vs1
+
+class Subset a b
+
+instance Subset a a
+
+instance (In a bs, Subset as bs) => Subset (a :- as) bs
+
+class In a b
+
+instance In () a
+
+instance In a (a :- b)
+
 class Delete1 n ninc vinc v ndel vdel | n ninc -> ndel, v vinc -> vdel, vinc vdel -> v, n ninc vinc -> v vdel where
    delete1 :: n -> ninc -> vinc -> (v, ndel, vdel)
 
@@ -90,20 +192,20 @@ instance {-# OVERLAPPING #-} Delete1 n (n :- ns) (v :- vs) v ns vs where
 instance Delete1 n ninc vinc v ndel vdel => Delete1 n (n1 :- ninc) (v1 :- vinc) v (n1 :- ndel) (v1 :- vdel) where
    delete1 n (n1 :- ninc) (v1 :- vinc) = let (v, ndel, vdel) = NewTuple.delete1 n ninc vinc in (v, n1 :- ndel, v1 :- vdel)
 
-class Select nsel nall vall vsel nleft vleft | nsel nall vall -> vsel nleft vleft where
-   selectT :: nsel -> nall -> vall -> (vsel, nleft, vleft)
+class SelectDel nsel nall vall vsel nleft vleft | nsel nall vall -> vsel nleft vleft where
+   selectDelT :: nsel -> nall -> vall -> (vsel, nleft, vleft)
 
-instance {-# OVERLAPPING #-} Select () nleft vleft () nleft vleft where
-   selectT () nleft vleft = ((), nleft, vleft)
+instance {-# OVERLAPPING #-} SelectDel () nleft vleft () nleft vleft where
+   selectDelT () nleft vleft = ((), nleft, vleft)
 
-instance (Delete1 n nall vall v ndel vdel, Select nsel ndel vdel vsel nleft vleft) => Select (n :- nsel) nall vall (v :- vsel) nleft vleft where
-   selectT (n :- ns0) ns1 vs0 = let 
+instance (Delete1 n nall vall v ndel vdel, SelectDel nsel ndel vdel vsel nleft vleft) => SelectDel (n :- nsel) nall vall (v :- vsel) nleft vleft where
+   selectDelT (n :- ns0) ns1 vs0 = let 
       (v, nsdel, vsdel) = delete1 n ns1 vs0 
-      (vs8, ns8, vs9) = selectT ns0 nsdel vsdel
+      (vs8, ns8, vs9) = selectDelT ns0 nsdel vsdel
 
       in (v :- vs8, ns8, vs9)
 
---j k = selectT (A :- B :- ()) (A :- B :- C :- ()) (D :- C :- B :- ())
+j k = selectT (C :- B :- ()) (A :- B :- C :- ()) (D :- C :- B :- ())
 
 {-}
 class Sort a b | a -> b where
@@ -185,78 +287,6 @@ data C = C deriving (Eq, Ord, Show)
 data D = D deriving (Eq, Ord, Show)
 
 nt = (A :- "hello") :- (B :- "there") :- (C :- "jim") :- ()
-
-class ShowNewTuple a where
-   showNewT :: a -> [String]
-
-instance ShowNewTuple () where
-   showNewT () = []
-
-instance (Show1 a, ProperTuple b, ShowNewTuple b) => ShowNewTuple (a :- b) where
-   showNewT (a :- b) = show1 a : showNewT b
-
-class ReadNewTuple a where
-   readNewT :: [String] -> a
-
-instance ReadNewTuple () where
-   readNewT [] = ()
-
-instance (Read1 a, ProperTuple b, ReadNewTuple b) => ReadNewTuple (a :- b) where
-   readNewT (a : b) = read1 a :- readNewT b
-
-class (ElemsProperTuple a) => Concat a b where
-   concat2 :: a -> b
---using AllowAmbiguousTypes
-
-instance Concat () () where
-   concat2 () = ()
-
-instance (ProperTuple a, Append a bs cs, Concat as bs) => Concat (a :- as) cs where
-   concat2 (a :- as) = appendT a (concat2 as)
-
-concatT xs = foldrT (appendT :: Append a b c => a -> b -> c) () xs
-
-class Append a b c | a b -> c, a c -> b where
-   appendT :: a -> b -> c
-
-instance Append () b b where
-   appendT () b = b
-
-instance Append as bs cs => Append (a :- as) bs (a :- cs) where
-   appendT (a :- as) bs = a :- appendT as bs
-
-headT (a :- b) = a
-tailT (a :- b) = b
-
-class Length a b | a -> b where
-   lengthT :: a -> b
-
-instance Length () Z where
-   lengthT () = Z
-
-instance Length b bl => Length (a :- b) (S bl) where
-   lengthT (a :- b) = S $ lengthT b
-
-class Index a b c | a b -> c where
-   indexT :: a -> b -> c
-
-instance Index Z (a :- b) a where
-   indexT Z (a :- b) = a
-
-instance Index b d e => Index (S b) (c :- d) e where
-   indexT (S b) (c :- d) = indexT b d
-
-class SplitAt a b c d | a b -> c d where
-   splitAtT :: a -> b -> (c, d)
-
-instance SplitAt Z b () b where
-   splitAtT Z b = ((), b)
-
-instance SplitAt as bs cs ds => SplitAt (S as) (b :- bs) (b :- cs) ds where
-   splitAtT (S as) (b :- bs) = let (cs, ds) = splitAtT as bs in (b :- cs, ds)
-
-dropT a b = snd $ splitAtT a b
-takeT a b = fst $ splitAtT a b
 
 data Z = Z
 

@@ -27,6 +27,7 @@ import BString
 import Favs hiding (range, split, split1With, splitWith)
 import Iso hiding (ignore, (!!))
 import MHashDynamic3 hiding (Apply, Frame, name, tl, value, Value, (!), (==))
+import Array3
 import qualified MyPretty2
 import Parser6 hiding (Frame, Range, int, low, text)
 import Parser6 qualified as P
@@ -158,6 +159,8 @@ artistmp3s a = mp3s $ artistd ++ a
 
 showMeta1 :: [Meta] -> SubArrayD Dynamic String
 showMeta1 ms = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\m -> map (\(f, v) -> ([toDyn (show f), toDyn (convertString (path m) :: String)], v)) $ fields1 m) ms
+
+--showMeta2 map1 = fromAssocsA ignore (toDyn ("" :: NiceText)) (FrameIDK :- PathK :- ()) $ concatMap (\(file, meta) -> map (\(field, value) -> (descOfFrameID field :- (convertString (path meta) :: String) :- (), value)) $ fields1 meta) $ M.toList map1
 
 showMeta :: M.Map a Meta -> SubArrayD Dynamic String
 showMeta map1 = fromAssocsDA ignore (toDyn ("" :: NiceText)) ["field", "file", "value"] $ concatMap (\(file, meta) -> map (\(field, value) -> ([toDyn (descOfFrameID field), toDyn (convertString (path meta) :: String)], value)) $ fields1 meta) $ M.toList map1
