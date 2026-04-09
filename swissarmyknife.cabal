@@ -145,6 +145,8 @@ library
         ID3,
         ID3P4,
         ID3P6,
+        ID3P6A,
+        ID3P6C,
         ID3P7,
         Iso,
         Iso2,

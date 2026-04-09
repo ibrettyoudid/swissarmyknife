@@ -2,10 +2,11 @@
 
 This is written in Haskell.
 To get the Haskell tool chain, I used ghcup at https://www.haskell.org/ghcup/.
-Linux is required for some parts. I use EndeavourOS.
+Linux is required for some parts. I use CachyOS.
 
 Download cabal, ghc version 9.6.7 and whatever else you want.
 Use cabal to compile this, it's fairly automatic. It will first download assorted libraries that are required for my code to work.
+You also need haskell-gi, see https://github.com/haskell-gi/haskell-gi
 
 ```
 git clone https://github.com/ibrettyoudid/swissarmyknife

@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Array3 where
-
+{-}
 import MyPretty2
 import Favs
 import Numeric
@@ -758,3 +758,4 @@ insertAt n v l = let
 
    in b ++ v : a
 
+-}
