@@ -17,6 +17,7 @@ import HTML
 import MHashDynamic2 hiding (toList2, (?))
 import MyPretty2
 import NumberParsers
+import Show1
 import ShowTuple
 import Tree qualified as T
 import HTML
@@ -251,11 +252,11 @@ instance UniqueList String where
    uniquify = foldl (flip insertWith4) M.empty
    showField x = [x]
 
-instance (Ord a, Ord b, Ord c, Ord d, Show a, Show b, Show c, Show d) => UniqueList (a, b, c, d) where
+instance (Ord a, Ord b, Ord c, Ord d, Show1 a, Show1 b, Show1 c, Show1 d) => UniqueList (a, b, c, d) where
    uniquify = M.fromList
    showField = showT
 
-instance (Ord a, Ord b, Ord c, Ord d, Ord e, Show a, Show b, Show c, Show d, Show e) => UniqueList (a, b, c, d, e) where
+instance (Ord a, Ord b, Ord c, Ord d, Ord e, Show1 a, Show1 b, Show1 c, Show1 d, Show1 e) => UniqueList (a, b, c, d, e) where
    uniquify = M.fromList
    showField = showT
 

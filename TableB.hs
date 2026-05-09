@@ -263,9 +263,6 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance {-# OVERLAPPING #-} Show1 ByteString where
-   show1 = convertString
-
 instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
    show = showGrid . showTable2
 

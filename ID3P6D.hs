@@ -19,7 +19,7 @@
 {- HLINT ignore "Use maybe" -}
 {- HLINT ignore "Fuse mapM/map" -}
 
-module ID3P6C where
+module ID3P6D where
 
 import ApplyTuple
 import NewTuple hiding (deleteIndex, Z)
@@ -733,6 +733,24 @@ parserFromMatch ms@(m:_) = case m of
                   [] -> Rest
                   (Left  l:_) -> AnyTill (String l)
                   (Right r:_) -> error "cannot handle two consecutive fields") :/ parserFromMatch (tail ms)
+
+data Exp = EApply (String -> Bool) FrameID
+         | EAnd [Exp]
+         | EOr  [Exp]
+{-
+eval :: Meta -> FrameID -> Maybe Bool
+eval meta (EApply f frameID) = f <$> P.myget1 frameID meta
+eval meta (EAnd xs) = let
+   ys = map (eval meta) xs 
+   in if | all ($= Just True ) ys -> Just True
+         | any ($= Just False) ys -> Just False
+         | otherwise -> Nothing
+eval meta (EOr xs) = let
+   ys = map (eval meta) xs 
+   in if | any ($= Just True ) ys -> Just True
+         | all ($= Just False) ys -> Just False
+         | otherwise -> Nothing
+-}
 
 fieldsFromString fields delims str = M.fromList $ zip fields $ map toDyn $ infoFromString delims str
 

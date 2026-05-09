@@ -29,15 +29,17 @@ import System.Directory
 import System.Process
 
 import GI.Gtk
-{-}
+
 import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo qualified as Cairo
 import Atlas (refToPure)
+
+{-
 data TermType = Input | Output | Internal deriving (Eq, Ord, Show, Read)
 
 data Object = Term { parent :: IORef Object, tat :: [Double] , selected :: Bool, ttype :: TermType, wires :: [IORef Object] }
             | Wire { parent :: IORef Object,                   selected :: Bool,                 kids :: [IORef Object] }
-            | Box  { parent :: IORef Object, at :: [[Double]], selected :: Bool, text :: String, kids :: [IORef Object] }
+            | Circ { parent :: IORef Object, at :: [[Double]], selected :: Bool, text :: String, kids :: [IORef Object] }
             | Null { selected :: Bool }
 
 movTo [x, y] = moveTo x y
@@ -64,7 +66,7 @@ data Recurse obj = Recurse obj (obj -> Recurse obj)
 
 kids1 Term {} = []
 kids1 wire@(Wire {}) = kids wire
-kids1 box@(Box {}) = kids box
+kids1 box@(Circ {}) = kids box
 
 addKid parentRef childRef = do
    --child <- readIORef childRef
@@ -112,7 +114,7 @@ main = do
    popupMenu <- menuNew
    menuSetTitle popupMenu "Menu"
    newTerm <- menuItemNewWithLabel "New Terminal"
-   newBox  <- menuItemNewWithLabel "New Box"
+   newBox  <- menuItemNewWithLabel "New Circ"
    menuShellAppend popupMenu newTerm
    menuShellAppend popupMenu newBox
 
@@ -121,9 +123,9 @@ main = do
 
    null1    <- newIORef $ Null False
    term     <- newIORef $ Term null1 [300, 500] False Internal []
-   box      <- newIORef $ Box  null1 [[ 800,  500], [ 900,  600]] False "" []
-   boxMain  <- newIORef $ Box  null1 [[   0,    0], [1000, 1000]] False "" []
-   wiresBox <- newIORef $ Box  null1 [[   0,    0], [   0,    0]] False "" []
+   box      <- newIORef $ Circ  null1 [[ 800,  500], [ 900,  600]] False "" []
+   boxMain  <- newIORef $ Circ  null1 [[   0,    0], [1000, 1000]] False "" []
+   wiresBox <- newIORef $ Circ  null1 [[   0,    0], [   0,    0]] False "" []
    addKid boxMain box
    addKid boxMain term
    guiMode <- newIORef Waiting
@@ -154,7 +156,7 @@ main = do
          stroke
          --mapM_ drawTerm $ wterms w
 
-      drawObject box@(Box {}) = do
+      drawObject box@(Circ {}) = do
          if selected box
             then setSourceRGB 1 0 0
             else setSourceRGB 0.5 0.5 0.5
@@ -201,7 +203,7 @@ main = do
                               term@(Term {}) | ttype term == Internal -> move          hitAt
                                              | True                   -> startWires    hitAt
                               wire@(Wire {})                          -> retargetWires hitAt
-                              box@(Box {})                            -> move          hitAt
+                              box@(Circ {})                            -> move          hitAt
                            return False
                   else
                      when (button == LeftButton && notElem Control modifiers) $ liftIO $ selectNone boxMain
@@ -224,7 +226,7 @@ main = do
          return False
 
       startWires from = liftIO $ do
-         writeIORef wiresBox $ Box null1 [[0, 0], [0, 0]] False "" []
+         writeIORef wiresBox $ Circ null1 [[0, 0], [0, 0]] False "" []
          visitPre2 startWires1 boxMain
          writeIORef guiMode $ Move from
          return False
@@ -245,7 +247,7 @@ main = do
             _ -> return ()
 
       retargetWires from = liftIO $ do
-         writeIORef wiresBox $ Box null1 [[0, 0], [0, 0]] False "" []
+         writeIORef wiresBox $ Circ null1 [[0, 0], [0, 0]] False "" []
          visitPre2 retargetWires1 boxMain
          writeIORef guiMode $ Move from
          return False
@@ -281,7 +283,7 @@ main = do
          hit hitAt ref object
 
       hit :: [Double] -> IORef Object -> Object -> IO [(Double, IORef Object, IORef Object)]
-      hit hitAt ref box@(Box {}) = do
+      hit hitAt ref box@(Circ {}) = do
          h <- mapM (hitRef hitAt) $ kids box
          if null h
                then if hitAt `inRect` at box
@@ -344,7 +346,7 @@ main = do
             then Recurse (moveObject by obj) (moveSelected1 by True)
             else Recurse                obj  (moveSelected1 by all )
 
-      moveObject by  box@(Box  {}) = box  {  at = map (by <+>) (at box) }
+      moveObject by  box@(Circ  {}) = box  {  at = map (by <+>) (at box) }
       moveObject by term@(Term {}) = term { tat =      by <+>  tat term }
       moveObject by wire@(Wire {}) = wire
 

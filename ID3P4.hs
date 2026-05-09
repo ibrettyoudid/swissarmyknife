@@ -67,7 +67,6 @@ import Data.Word qualified as W
 import GHC.Generics hiding (Meta)
 
 -- things to try
-t1 db = putt $ artists db
 t2 = p fta
 t3 = filtree [inli "apc"] artistd
 t4 = filtree [inis $= "dt", ininis "iaw"] artistd

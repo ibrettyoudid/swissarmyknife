@@ -11,7 +11,7 @@ import Show1
 import Data.Typeable
 import Data.List
 
-data a :- b = (:-) { fstT::a, sndT::b } deriving (Eq, Show, Typeable)
+data a :- b = (:-) { fstT::a, sndT::b } deriving (Eq, Typeable)
 
 infixr 1 :-
 
@@ -33,6 +33,9 @@ instance (Ord a, Ord b) => Ord (a :- b) where
 instance (Show1 a, Show1 b) => Show1 (a :- b) where
    show1 (a :- b) = show1 a ++ " :- " ++ show1 b
 
+instance (Show a, Show b) => Show (a :- b) where
+   show (a :- b) = show a ++ " :- " ++ show b
+
 class NamedTuple n ns vs v | n ns vs -> v where
    lookup :: n -> ns -> vs -> v
    update :: n -> v -> ns -> vs -> vs
@@ -51,8 +54,17 @@ class ShowNewTuple a where
 instance ShowNewTuple () where
    showNewT () = []
 
-instance (Show1 a, ProperTuple b, ShowNewTuple b) => ShowNewTuple (a :- b) where
-   showNewT (a :- b) = show1 a : showNewT b
+instance (Show a, ProperTuple b, ShowNewTuple b) => ShowNewTuple (a :- b) where
+   showNewT (a :- b) = show a : showNewT b
+
+class ShowNewTuple1 a where
+   showNewT1 :: a -> [String]
+
+instance ShowNewTuple1 () where
+   showNewT1 () = []
+
+instance (Show1 a, ProperTuple b, ShowNewTuple1 b) => ShowNewTuple1 (a :- b) where
+   showNewT1 (a :- b) = show1 a : showNewT1 b
 
 class ReadNewTuple a where
    readNewT :: [String] -> a

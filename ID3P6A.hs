@@ -74,7 +74,7 @@ import Prelude hiding (concat, drop, elem, head, last, length, notElem, null, pu
 import Prelude qualified
 
 -- things to try
-t1 db = putt $ artists db
+--t1 db = putt $ artists db
 
 t2 = p fta
 

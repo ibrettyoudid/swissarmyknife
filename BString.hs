@@ -14,6 +14,7 @@ module BString
 where
 
 import qualified Favs as F
+import Show1
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
@@ -416,6 +417,18 @@ instance ConvertChar Word8 Char where
 
 instance ConvertChar a a where
    convertChar = id
+
+instance Show1 T.Text where
+   show1 = convertString
+
+instance Show1 LT.Text where
+   show1 = convertString
+
+instance Show1 B.ByteString where
+   show1 = convertString
+
+instance Show1 LB.ByteString where
+   show1 = convertString
 
 toLower :: (ConvertChar a Char, ConvertChar Char a) => a -> a
 toLower = convertChar . C.toLower . convertChar

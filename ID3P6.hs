@@ -77,7 +77,7 @@ import System.IO (hFileSize, hGetChar, hPutStr, hSeek, openBinaryFile, hClose, S
 import System.IO.Unsafe
 
 -- things to try
-t1 db = putt $ artists db
+--t1 db = putt $ artists db
 t2 = p fta
 t3 = filtree [inli "apc"] artistd
 t4 = filtree [inis $= "dt", ininis "iaw"] artistd
