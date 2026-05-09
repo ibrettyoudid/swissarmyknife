@@ -30,8 +30,8 @@ import MHashDynamic3 hiding (Apply, Frame, name, tl, value, Value, (!), (==))
 import Array3
 import qualified MyPretty2
 import Parser6 hiding (Frame, Range, int, low, text)
-import Parser6 qualified as P
-import Parser6Types qualified as P
+import qualified Parser6 as P
+import qualified Parser6Types as P
 import Shell hiding (contents, fields, main, year, (@))
 import Show1
 import ShowTuple
