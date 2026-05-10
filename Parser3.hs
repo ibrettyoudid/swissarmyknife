@@ -21,25 +21,26 @@ where
 -- import Syntax3 hiding (foldl, foldr)
 -- import Shell (ch)
 
-import Control.Monad
-import Control.Monad.State qualified as St
-import Data.IntMap qualified as I
-import Data.List
-import Data.Map qualified as M
-import Data.Set qualified as S
-import Data.Typeable
-import Debug
-import Debug.Trace
 import Favs hiding (indent1, indent2)
-import GHC.Stack
 import Iso2 hiding (foldl, (!!))
 import {-# SOURCE #-} MHashDynamic3 hiding (Apply, expr)
-import MyPretty2 qualified
+import qualified MyPretty2
 import NewTuple hiding (apply)
 import Parser3Types
 import qualified SetList as SL
 import qualified States
 import qualified StateSeq as SS
+
+import Control.Monad
+import qualified Control.Monad.State as St
+import qualified Data.IntMap as I
+import Data.List
+import qualified Data.Map as M
+import qualified Data.Set as S
+import Data.Typeable
+import Debug
+import Debug.Trace
+import GHC.Stack
 import System.Random (RandomGen(next))
 
 infix 2 <=>

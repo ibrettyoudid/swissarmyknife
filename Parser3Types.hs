@@ -195,7 +195,7 @@ instance State StateFT where
 instance StateTo StateFT where
   to = tot
 
-data StateF tok = StateF {fromf :: Int, itemf :: Item tok} deriving (Eq, Ord)
+data StateF  tok = StateF  {fromf :: Int,             itemf :: Item tok} deriving (Eq, Ord)
 
 data StateFT tok = StateFT {fromt :: Int, tot :: Int, itemt :: Item tok} deriving (Eq, Ord)
 

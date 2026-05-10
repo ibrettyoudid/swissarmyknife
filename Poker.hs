@@ -42,6 +42,7 @@ import GHC.Generics (Generic, Generic1)
 import MyPretty2
 import Numeric hiding (readInt)
 import Prob
+import Show1
 import ShowTuple
 import System.IO
 import System.Random.Stateful hiding (split)
@@ -72,6 +73,9 @@ data HandDesc = HandDesc !HandCat ![Int] deriving (Eq, Ord, Generic)
 
 newtype HandRank = HandRank Int32 deriving (Eq, Ord, Show)
 
+instance Show1 HandRank where
+   show1 = show
+
 {-
                         High  [Int]
                   | Pair Int [Int]
@@ -88,6 +92,9 @@ instance Show HandDesc where
    show = showHandVal
 
 data HandCat = Invalid | High | Pair | Pairs | Three | Straight | Flush | FullHouse | Four | StraightFlush deriving (Eq, Ord, Enum, Read, Generic)
+
+instance Show1 HandCat where
+   show1 = show
 
 instance NFData HandCat
 
@@ -910,7 +917,7 @@ testAccuracyX tablecards = do
    let yxd = handDescX yourcards tablecards
    let correct = zipWith (==) yid yld
    let f o = mapFromList (+) 0 . map (\(a, b) -> ((handCat a, take 0 $ handNums a), fromIntegral b / fromIntegral o))
-   let results = map (\(a, (b, c)) -> (a, b, c)) $ M.toList $ joinMapsOuter (f ni yid) (f nx yxd)
+   let results = map (\(a, (b, c)) -> (a, b::Maybe Double, c::Maybe Double)) $ M.toList $ joinMapsOuter (f ni yid) (f nx yxd)
    putGrid $ transpose $ map showT results
    putStrLn $ "out of " ++ show (comb (52 - length tablecards) (7 - length tablecards))
 
@@ -1014,18 +1021,18 @@ calchisstratp yourstrat =
       yourcardprobs = map (\yourbet -> map (\yourcard -> yourstrat !! yourcard !! yourbet * cardprob / yourbetprobs !! yourbet) yourbets) yourcards
       in
       map
-         ( \yourbet ->
-               map
-                  ( \hiscard ->
-                        minel $
-                           map
-                              ( \hisbet ->
-                                    sum $
-                                       map (\yourcard -> yourcardprobs !! yourbet !! yourcard * fromIntegral (payoff yourcard yourbet hiscard hisbet)) yourcards
-                              )
-                              hisbets
-                  )
-                  hiscards
+         (\yourbet ->
+            map
+               (\hiscard ->
+                  minel $
+                     map
+                        (\hisbet ->
+                           sum $
+                              map (\yourcard -> yourcardprobs !! yourbet !! yourcard * fromIntegral (payoff yourcard yourbet hiscard hisbet)) yourcards
+                        )
+                        hisbets
+               )
+               hiscards
          )
          yourbets
 
@@ -1154,9 +1161,6 @@ the comment continues below but here is this equation in Haskell
 -}
 expvalue chips pot nplayers winprob raise = (fromIntegral chips + fromIntegral pot + fromIntegral nplayers * raise) ** winprob * (fromIntegral chips - raise) ** (1 - winprob)
 {-
-
-if x is totalChipsBeforeThisHand - yourpreviousbetsthihand + pot, then y is totalChipsBeforeThisHand - yourpreviousbetsthishand
-
 x = totalChipsNow + pot
 y = totalChipsNow
 r = raise 
@@ -1164,34 +1168,9 @@ n = number of players
 
 (x+nr)^p*(y-r)^(1-p)     
 
-NOT SURE ABOUT THIS BIT:
-to maximise differentiate and set = 0
-
-n(py-r)  + (p-1)x = 0
-npy - nr + (p-1)x = 0
-nr = npy + (p-1)x
-r = py + (p-1)x/n
-npy
-NOT SURE ABOUT THE BIT ABOVE
-
 substitute
 a=p
 b=1-p
-
-                  (    chipsNow + pot + n*raise )^a*(chipsNow - raise)^b  >  chipsBefore^(a+b)
-                                                                 c^a*d^b  >  e^(a+b)
-
-x = totalChipsNow + pot
-y = totalChipsNow
-r = raise 
-n = number of players
-
-if p = 0.5
-      r = 1.5x/n+0.5y
-
-if p = 0.25
-      r = 1.25x/n+0.25y
-
 
 (x+nr)^a*(y-r)^b                                           maximise this
 
@@ -1215,10 +1194,12 @@ b     ny - nr     1 - p
 basically, pot odds. PROOF AT LAST                                
                                                         
                                                        
-any - anr - bx - bnr   = 0      (note: any is a * n * y)                  
-(-an-bn)r + any - bx   = 0                                    
-                  any - bx   = (a+b)nr                                      
-                         r   = (any - bx) / n(a + b)                             
+any - anr - bx - bnr  = 0      (note: any is a * n * y)                  
+(-a-b)nr + any - bx   = 0                                    
+           any - bx   = (a+b)nr                                      
+           any - bx   = nr            a + b = 1
+                  r   = (any - bx) / n
+                  r   = ay - bx/n                           
                                                                                 
                         *****************************                     
                         *r   = (any - bx) / n(a + b)*                       
@@ -1444,6 +1425,12 @@ and they may know ours (although ours may be probabilistic)
 so after the river
 
 (x+nr)^p*(y-r)^(1-p)
+
+leftism makes the rich feel better about being rich
+brings in cheap labour for the super rich
+makes the poor/unemployed better off but also replaces them
+what could go wrong?
+unsustainability
 -}
 
 draw c = do cl <- lift get; lift $ put $ delete c cl
