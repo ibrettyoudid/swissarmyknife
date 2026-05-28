@@ -10,6 +10,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{- HLINT ignore "Use elem" -}
 {- HLINT ignore "Redundant multi-way if" -}
 {- HLINT ignore "Avoid lambda using `infix`" -}
 
@@ -737,20 +738,20 @@ parserFromMatch ms@(m:_) = case m of
 data Exp = EApply (String -> Bool) FrameID
          | EAnd [Exp]
          | EOr  [Exp]
-{-
-eval :: Meta -> FrameID -> Maybe Bool
-eval meta (EApply f frameID) = f <$> P.myget1 frameID meta
+
+eval :: Meta -> Exp -> Maybe Bool
+eval meta (EApply f frameID) = Just $ f $ P.myget1 frameID meta
 eval meta (EAnd xs) = let
    ys = map (eval meta) xs 
-   in if | all ($= Just True ) ys -> Just True
-         | any ($= Just False) ys -> Just False
+   in if | all (== Just True ) ys -> Just True
+         | any (== Just False) ys -> Just False
          | otherwise -> Nothing
 eval meta (EOr xs) = let
    ys = map (eval meta) xs 
-   in if | any ($= Just True ) ys -> Just True
-         | all ($= Just False) ys -> Just False
+   in if | any (== Just True ) ys -> Just True
+         | all (== Just False) ys -> Just False
          | otherwise -> Nothing
--}
+
 
 fieldsFromString fields delims str = M.fromList $ zip fields $ map toDyn $ infoFromString delims str
 

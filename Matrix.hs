@@ -18,8 +18,8 @@ import Prelude hiding ((<*>))
 -- import Prelude qualified
 
 {- matrices are [[a11, a21, a31], [a12, a22, a32]] = | a11 a12 |
--                                                   | a21 a22 |
--                                                   | a31 a32 |
+-                                                    | a21 a22 |
+-                                                    | a31 a32 |
    this is a 3 x 2 matrix in mathematical terminology
    the sublists are column vectors
 
