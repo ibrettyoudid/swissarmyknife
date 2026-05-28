@@ -66,6 +66,7 @@ import MPoly hiding (replaceIndices, showm)
 import Colour
 
 import Data.Functor
+import Data.Char
 import Prelude hiding (maximum)
 import Data.List hiding (maximum)
 import Maximum
@@ -92,7 +93,6 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
 import GHC.Stack
-import Colour (recolourStr)
 
 width1 = 412
 
@@ -296,7 +296,7 @@ instance Divisible Int where
 instance Divisible Double where
    (//) = (/)
 
-checkNoNulls cellwcols = if not $ null $ filter null cellwcols then error "some columns are []" else cellwcols
+checkNoNulls cellwcols = if any null cellwcols then error "some columns are []" else cellwcols
 
 colWidthsF cellLengthCols = map maximum $ checkNoNulls cellLengthCols
 
@@ -308,7 +308,7 @@ colWidthsFloating width cellLengthCols =
    in map (mult *) colWidths
 
 colWidthsIntegral width cellLengthCols =  let
-   
+
       colWidths = map (sqrt . realToFrac . sum) cellLengthCols
       mult = realToFrac width / sum colWidths
 
@@ -551,7 +551,7 @@ rowHeights cellFactorCols2 colWidths = let
 
 -- choose column widths one by one, not counting row heights for columns not yet done
 
-colWidths4Y colWidths rowHeights cellLengthCols changeCol = 
+colWidths4Y colWidths rowHeights cellLengthCols changeCol =
    if changeCol < length cellLengthCols then let
       cellLengthsCol   = cellLengthCols !! changeCol
 
@@ -919,7 +919,7 @@ colWidths5M width tab cellLengthRows cellLengthCols widenCol narrowCol stepWidth
    cellLengthRows6   = map deleteFunc cellLengthRows
    rowHeights6       = map (rowHeight colWidths6) cellLengthRows6
    cellHeightCols    = transpose cellHeightRows1
-   
+
    sumw   = colFullLength1 rowHeights   widenWidth6 (cellHeightCols !!  widenCol6) (cellLengthCols !!  widenCol6)
    sumn   = colFullLength1 rowHeights  narrowWidth6 (cellHeightCols !! narrowCol6) (cellLengthCols !! narrowCol6)
    sumw6  = colFullLength1 rowHeights6  widenWidth6 (cellHeightCols !!  widenCol6) (cellLengthCols !!  widenCol6)
@@ -1102,7 +1102,7 @@ foldl2AD f xs = do
       r <- f x y
       return (r : rest, x, y)) xs1
    let (rest1, x, y) = minimum xs2
-   putStrLn "merging" 
+   putStrLn "merging"
    putStrLn $ "x="++show x
    putStrLn $ "y="++show y
    putStrLn $ "result="++show (head rest1)
@@ -1120,7 +1120,7 @@ foldl2AD f xs = do
 foldl2BD :: (Column -> Column -> IO Column) -> [([Column], Column, Column)] -> IO [([Column], Column, Column)]
 foldl2BD f merges = do
    let (m : rest, prevm, y) = minimum merges
-   putStrLn "minimum selected, made from" 
+   putStrLn "minimum selected, made from"
    putStrLn $ "prev m="++show prevm
    putStrLn $ "y="++show y
    putStrLn $ "to make new m="++show m
@@ -1189,7 +1189,7 @@ colWidths7B colX1 colY1 = let
    ratiosT = sort $ zipWith (\x y -> [x / y, x, y]) (heights colX1) (heights colY1)
    [ratios, xs, ys] = transpose ratiosT
    as = scanr (+) 0 xs
-   bs = scanl (+) 0 ys 
+   bs = scanl (+) 0 ys
    width = 1
    -- no, a + b is not constant. a is the total area of cells where one side is higher and b where the other side is higher
    -- at the point where a row held up by one side becomes held up by the other side, the cells are equal heights
@@ -1201,20 +1201,20 @@ colWidths7B colX1 colY1 = let
       hs = zipWith (\x y -> a / x + b / y) xs ys
       in zipWith3 (\h x y -> if x >= 0 && y >= 0 && h >= 0
          then let
-#if 0
-            height = a / x + b / y
 
-            in (height, x, y, a, b, ratioMin, ratioMax, x / y, x, y, h, x / y, n)
-#else
+
+
+
+
             ratio = clamp ratioMin ratioMax (x / y)
 
             x2 = ratio * width / (ratio + 1)
             y2 = width - x2
-               
+
             height = a / x2 + b / y2
 
             in (height, x2, y2, a, b, ratioMin, ratioMax, x / y, x, y, h, ratio, n)
-#endif
+
          else (1/0, x, y, a, b, ratioMin, ratioMax, x / y, x, y, 1/0, sqrt (-1), n)) hs xs ys) as bs (0:ratios) (ratios++[1/0]) [(0::Int)..]
 
    --xyhr4 = map (\(x, y, h, r0, r1, r) -> (x, y, h, r0, r1, clamp r0 r1 r)) xyhr3
@@ -1233,7 +1233,7 @@ colWidths7BD colX1 colY1 = let
    ratiosT = sort $ zipWith (\x y -> [x / y, x, y]) (heights colX1) (heights colY1)
    [ratios, xs, ys] = transpose ratiosT
    as = scanr (+) 0 xs
-   bs = scanl (+) 0 ys 
+   bs = scanl (+) 0 ys
    width = 1
    -- no, a + b is not constant. a is the total area of cells where one side is higher and b where the other side is higher
    -- at the point where a row held up by one side becomes held up by the other side, the cells are equal heights
@@ -1303,20 +1303,20 @@ x = ratio * width / (ratio + 1)
       hs = zipWith (\x y -> a / x + b / y) xs ys
       in zipWith3 (\h x y -> if x >= 0 && y >= 0 && h >= 0
          then let
-#if 0
-            height = a / x + b / y
 
-            in (height, x, y, a, b, ratioMin, ratioMax, x / y, x, y, h, x / y, n)
-#else
+
+
+
+
             ratio = clamp ratioMin ratioMax (x / y)
 
             x2 = ratio * width / (ratio + 1)
             y2 = width - x2
-               
+
             height = a / x2 + b / y2
 
             in (height, x2, y2, a, b, ratioMin, ratioMax, x / y, x, y, h, ratio, n)
-#endif
+
          else (1/0, x, y, a, b, ratioMin, ratioMax, x / y, x, y, 1/0, sqrt (-1), n)) hs xs ys) as bs (0:ratios) (ratios++[1/0]) [(0::Int)..]
 
    --xyhr4 = map (\(x, y, h, r0, r1, r) -> (x, y, h, r0, r1, clamp r0 r1 r)) xyhr3
@@ -1360,8 +1360,8 @@ colWidths7Z cellLengthCols =
       rowratios = sort $ map (\[x, y] -> [x / y, x, y]) cellLengthRows
       [r, x, y] = transpose rowratios
       a = scanr (+) 0 x
-      b = scanl (+) 0 y 
-      c = zipWith (+) a b 
+      b = scanl (+) 0 y
+      c = zipWith (+) a b
       -- no, a + b is not constant. a is the total area of cells where one side is higher and b where the other side is higher
       -- rowratios = M.fromList $ zip (map (\[x, y] -> x // y) celllrows) $ zip xacc yacc
       -- x = column A lengths
@@ -1417,8 +1417,8 @@ colWidths8 width tab =
    in counts2
 
 colWidths9 width cellLengthCols = let
-   cellLengthRows = transpose cellLengthCols
    colWidths1 = colWidthsFloating width cellLengthCols :: [Double]
+   cellLengthRows = transpose cellLengthCols
    rowHeights1 = rowHeights colWidths1 cellLengthRows
    cellsFullCols = map (zipWith (<=) rowHeights1) $ zipWith (\cw -> map (// cw)) colWidths1 cellLengthCols
    rowVarNames = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
@@ -1516,8 +1516,8 @@ What does the graph look like
 *****     |     *****
      **   |   ** 
 -------*--+--*-------> x
-        * | * \ 
-        * | *  this is the point
+        * | *         * | *  this is the point
+
          *|*
          *|*
          *|*
@@ -1655,15 +1655,35 @@ colWidths11AM width tab =
 
    in colWidths11M (fromIntegral width) tab cellLengthRows cellLengthCols colWidths (replicate (length colWidths) 0) 1 True True '\0'
 
+allEqual a = if not (null a) && and (zipWith (==) a (tail a)) then Just (head a) else Nothing
+
+changeRows changeCols cellPatternRows1 =
+   map (MyPretty2.allEqual . catMaybes . zipWith (\c p -> if p > 0 then Just c else Nothing) changeCols) cellPatternRows1
+
 colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> Char -> IO [Double]
 colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
    changeCol         = 0
+   changeCols        = [] :: [Bool]
    cellHeightRows1   = cellHeightRows colWidths cellLengthRows
    rowHeights        = map maximum cellHeightRows1
    cellPatternRows1  = cellPatternRows rowHeights cellHeightRows1
    cellPatternCols1  = transpose cellPatternRows1
-   colAdvantages1    = colAdvantages cellPatternCols1 cellLengthCols colWidths
-   colAdvantages2    = sort $ zip colAdvantages1 [0..]
+   -- remember we could run into problems if more than one cell in a row is full
+   colAreas          = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
+   colAreas1         = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colAreas
+   colAreasA         = M.lookup False colAreas1
+   colAreasB         = M.lookup True  colAreas1
+   colHeights1       = zipWith (//) colAreas colWidths
+   colHeights2       = sort $ zip colHeights1 [0..]
+   colHeights3       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colHeights1
+   colHeightsA       = M.lookup False colHeights3
+   colHeightsB       = M.lookup True  colHeights3
+   changeRows1       = changeRows changeCols cellPatternRows1
+   changeRows2       = map fromJust changeRows1
+   rowHeights1       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeRows2 rowHeights
+   rowHeightsA       = M.lookup False rowHeights1
+   rowHeightsB       = M.lookup True  rowHeights1
+   totalWidth        = sum colWidths
 
    change = 0
 
@@ -1678,8 +1698,8 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
          ["cellHeightRows"    , show cellHeightRows1  ],
          ["rowHeights"        , show rowHeights       ],
          ["sum rowHeights"    , show $ sum rowHeights ],
-         ["colAdvantages1"    , show colAdvantages1   ],
-         ["colAdvantages2"    , show colAdvantages2   ],
+         ["colHeights1"       , show colHeights1      ],
+         ["colHeights2"       , show colHeights2      ],
          ["change"            , show change           ],
          ["changeCol"         , show changeCol7       ],
          ["changeWidth"       , show changeWidth7     ],
@@ -1706,13 +1726,12 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
             gen <- initStdGen
             let cols = runStateGen_ gen (replicateM n . uniformRM (1::Double, 1000))
             return (changeCol7, stepWidth7, map fromIntegral $ forceLess (round width) (map round cols))
-         {-
-         ' ' -> let
-            sum1 = if | all (== 0) colRates -> 
-
-            return (widenCol8, narrowCol8, stepWidth8, replaceIndices [widenCol8, narrowCol8] [widenWidth8 + change, narrowWidth8 - change] colWidths)
-         -}
          _   -> return (changeCol7, stepWidth7, colWidths)
+      let
+         flipCol = ord c - ord '0'
+         changeCols1 = if isDigit c
+            then replaceIndex flipCol (not (changeCols !! flipCol)) changeCols
+            else changeCols
       let chooseColMode1  = if c == 'c' then not chooseColMode  else chooseColMode
       let chooseStepMode1 = if c == 's' then not chooseStepMode else chooseStepMode
 
@@ -1769,7 +1788,7 @@ colWidths12D f g width1 tab =
       cellLengthCols = map2 length tab
       colWidths = f width2 cellLengthCols
       width2 = width1 - length tab
-      
+
    in if sum colWidths < width2
             then colWidths
             else forceLessD (fromIntegral width2) $ g width cellLengthCols
@@ -2067,9 +2086,9 @@ editGrid1 width height colWidths rowHeights1 tab cellLengthRows scrX scrY scrCha
    height1 = length grid3
    grid4 = map showColour $ map (take width) $ map (drop scrCharX) $ take height $ drop scrCharY grid3
 
-   height2 = length grid4 
+   height2 = length grid4
    grid5 = map (++"\27[0m") grid4
-   
+
    stepsY = scanl (+) 1 $ map (+1) rowHeights2
    in do
       putStr "\27?25l"
@@ -2767,7 +2786,7 @@ colWidths99B width colWidths cellAreaCols cellAreaRows colFullAreas colFullProps
    colAdvantages1   = colAdvantages cellPatternCols1 cellAreaCols colWidths
 
    colWidths = zipWith3 (\a p h -> a / (p * h)) colFullAreas colFullProps colFullHeights
-   
+
    -- ok but we need to break this up into single rows
 
    --imagine a 2 x 2 grid, areas a00 a01 a10 a11 widths w0 w1 height h0 h1
@@ -2792,8 +2811,8 @@ chooseFullCells cellAreaCols = let
             then (setv xv yv vars, cell:cellsOut)
             else (vars, cellsOut)) (M.empty, []) cellAreas
 
-    
-      
+
+
 {-}
    fullCells1 = refoldMaybe (\(xys, yxs, set) ca@(x, y, a) -> let
       xymatches = fromMaybe [] $ M.lookup x xys
