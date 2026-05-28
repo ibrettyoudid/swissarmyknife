@@ -36,7 +36,16 @@ instance Show1 a => Show1 [a] where
 
 instance (Show1 a, Show1 b) => Show1 (a, b) where
    show1 (a, b) = "(" ++ show1 a ++ ", " ++ show1 b ++ ")"
+
+instance (Show1 a, Show1 b, Show1 c) => Show1 (a, b, c) where
+   show1 (a, b, c) = "(" ++ show1 a ++ ", " ++ show1 b ++ ", " ++ show1 c ++ ")"
+
+instance Show1 a => Show1 (Maybe a) where
+   show1 (Just a) = "Just "++show1 a
+   show1 Nothing  = "Nothing"
 #endif
+
+
 
 class Read1 a where
    read1 :: String -> a
