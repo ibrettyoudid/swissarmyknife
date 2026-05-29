@@ -1662,37 +1662,51 @@ changeRows changeCols cellPatternRows1 =
 
 colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> Char -> IO [Double]
 colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
-   changeCol         = 0
-   changeCols        = [] :: [Bool]
-   cellHeightRows1   = cellHeightRows colWidths cellLengthRows
-   rowHeights        = map maximum cellHeightRows1
-   cellPatternRows1  = cellPatternRows rowHeights cellHeightRows1
-   cellPatternCols1  = transpose cellPatternRows1
-   -- remember we could run into problems if more than one cell in a row is full
-   colAreas          = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
-   colAreas1         = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colAreas
-   colAreasA         = M.lookup False colAreas1
-   colAreasB         = M.lookup True  colAreas1
-   colHeights1       = zipWith (//) colAreas colWidths
-   colHeights2       = sort $ zip colHeights1 [0..]
-   colHeights3       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colHeights1
-   colHeightsA       = M.lookup False colHeights3
-   colHeightsB       = M.lookup True  colHeights3
-   changeRows1       = changeRows changeCols cellPatternRows1
-   changeRows2       = map fromJust changeRows1
-   rowHeights1       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeRows2 rowHeights
-   rowHeightsA       = M.lookup False rowHeights1
-   rowHeightsB       = M.lookup True  rowHeights1
-   totalWidth        = sum colWidths
+   changeCol        = 0
+   changeCols       = [] :: [Bool]
+   cellHeightRows1  = cellHeightRows colWidths cellLengthRows
+   rowHeights       = map maximum cellHeightRows1
+   cellPatternRows1 = cellPatternRows rowHeights cellHeightRows1
+   cellPatternCols1 = transpose cellPatternRows1
+   -- remember we could run into problems if cells in same row but different areas are full
+   colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
+   colHeights1      = zipWith (//) colAreas colWidths
+   colHeights2      = sort $ zip colHeights1 [0..]
+   colHeights3      = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colHeights1
+   colAreas3        = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colAreas
+   colWidths3       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colWidths
+   colHeights4      = M.intersectionWith (/) colAreas3 colWidths3
+   totalArea        = sum colAreas
+   totalWidth       = sum colWidths
+   totalHeight      = sum colHeights1
+   colWidths1       = zipWith (\cw ch -> cw * colHeights3 M.! ch / totalHeight) colWidths changeCols
 
-   change = 0
-
+   change       = 0
    stepWidth7   = if chooseStepMode then stepWidth else change
    changeCol7   = changeCol
    changeWidth7 = colWidths !! changeCol
 
    in do
       putGrid $ transpose [
+         ["changeCols", show changeCols],
+         ["cellPatternRows1", show cellPatternRows1],
+         ["cellPatternCols1", show cellPatternCols1],
+         ["colAreas", show colAreas],
+         {-
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],-}
          ["colWidths"         , show colWidths        ],
          ["cellLengthRows"    , show cellLengthRows   ],
          ["cellHeightRows"    , show cellHeightRows1  ],
