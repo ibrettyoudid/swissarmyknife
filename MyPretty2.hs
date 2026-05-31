@@ -485,6 +485,16 @@ rowWideningPressure colWidths cellLengthsRow = let
 
    in zipWith (cellWideningPressure rowHeight) colWidths cellHeightsRow1
 
+rowWideningPressure1 colWidths cellPatternsRow1 = let
+   rowWidths = zipWith (*) colWidths cellPatternsRow1
+   pressure = 1 / sum rowWidths
+
+   in map (pressure *) cellPatternsRow1
+   --in zipWith (cellWideningPressure rowHeight) colWidths cellHeightsRow1
+cellWideningForce pressure height = pressure * height
+
+colWideningForce rowHeights cellPressuresCol = sum $ zipWith cellWideningForce cellPressuresCol rowHeights
+--cellWideningPressure1 colWidth rowHeight cellLength cellHeight = if cellHeight >= rowHeight then cellHeight // colWidth else 0
 --cellWideningPressure1 colWidth rowHeight cellLength cellHeight = if cellHeight >= rowHeight then cellHeight // colWidth else 0
 colAdvantages cellPatternCols cellLengthCols colWidths = zipWith (//) (map sum $ zipWith (zipWith (*)) cellPatternCols cellLengthCols) colWidths
 
@@ -1663,11 +1673,56 @@ changeRows changeCols cellPatternRows1 =
 colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> Char -> IO [Double]
 colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
    changeCol        = 0
-   changeCols       = [] :: [Bool]
+   changeCols       = [] :: [Int]
    cellHeightRows1  = cellHeightRows colWidths cellLengthRows
    rowHeights       = map maximum cellHeightRows1
    cellPatternRows1 = cellPatternRows rowHeights cellHeightRows1
    cellPatternCols1 = transpose cellPatternRows1
+   cellPressureRows = map (rowWideningPressure1 colWidths) cellPatternRows1
+   cellPressureCols = transpose cellPressureRows
+   colForces        = map (colWideningForce rowHeights) cellPressureCols
+   colHeightsW = colHeights3 M.! 0
+   colHeightsE = colHeights3 M.! 1
+   {-
+   cellForce = pattern * rowheight / colMult / sum (zipWith (*) colWidths colMults)
+
+   (patNW * heightN / (widthNW * multW + widthNE * multE) + patSW * heightS / (widthSW * multW + widthSE * multE)) / multW 
+   = (patNE * heightN / (widthNW * multW + widthNE * multE) + patSE * heightS / (widthSW * multW + widthSE * multE)) / multE
+   aNW = patNW * heightN
+   aNW / (wNW + wNE * mE / mW) + aSW / (wSW + wSe * mE / mW) = aNE / (wNW * mW / mE + wNE) + aSE / (wSW * mW / mE + wSE)
+   m = mW / mE
+   aNW / (wNW + wNE / m) + aSW / (wSW + wSE / m) = aNE / (wNW * m + wNE) + aSE / (wSW * m + wSE)
+   m * aNW / (wNW * m + wNE) + m * aSW / (m * wSW + wSE) = aNE / (wNW * m + wNE) + aSE / (wSW * m + wSE)
+   m * aNW / (wNW * m + wNE) - aNE / (wNW * m + wNE) = aSE / (wSW * m + wSE) - m * aSW / (m * wSW + wSE)
+   (aNW * m - aNE) / (wNW * m + wNE) = (aSE - m * aSW) / (wSW * m + wSE)
+   (aNW * m - aNE) * (wSW * m + wSE) = (aSE - m * aSW) * (wNW * m + wNE)
+   (aNW * wSW) * m^2 + (aNW * wSE - aNE * wSW) * m - aNE * wSE = (- aSW * wNW) * m^2 + (aSE * wNW - aSW * wNE) * m + aSE * wNE
+   (aNW * wSW + aSW * wNW) * m^2 + (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE) * m = aNE * wSE + aSE * wNE
+   m = (+- sqrt (b^2 - 4ac) - b) / 2a
+   b^2 = (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)(aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)
+   b^2 = (aNW*wSE)^2 + (aNE*wSW)^2 + (aSE*wNW)^2 + (aSW*wNE)^2 - 2*aNW*wSE * aNE*wSW - 2* aNW*wSE * aSE*wNW + 2* aNW*wSE * aSW*wNE + 2* aNE*wSW * aSE*wNW - 2* aNE*wSW * aSW*wNE - 2* aSE*wNW * aSW*wNE
+
+   aNW / (wNW + wNE * mE / mW) + aSW / (wSW + wSe * mE / mW) = aNE / (wNW * mW / mE + wNE) + aSE / (wSW * mW / mE + wSE)
+   m = mW / mE
+   aNW / (wNW + wNE / m) + aMW / (wMW + wME / m) + aSW / (wSW + wSE / m) = aNE / (wNW * m + wNE) + aME / (wMW * m + wME) + aSE / (wSW * m + wSE)
+   m * aNW / (wNW * m + wNE) + m * aMW / (m * wMW + wME) + m * aSW / (m * wSW + wSE) = aNE / (wNW * m + wNE) + aME / (wMW * m + wME) + aSE / (wSW * m + wSE)
+   (aNW * m - aNE) / (wNW * m + wNE) + (aMW * m - aME) / (m * wMW + wME) + (aSW * m - aSE) / (m * wSW + wSE) = 0
+   (aNW * m - aNE) + (aMW * m - aME)(wNW * m + wNE) / (m * wMW + wME) + (aSW * m - aSE)(wNW * m + wNE) / (m * wSW + wSE) = 0
+   (aNW * m - aNE)(wMW * m + wME)(wSW * m + wSE) + (aMW * m - aME)(wNW * m + wNE)(wSW * m + wSE) + (aSW * m - aSE)(wNW * m + wNE)(wMW * m + wME) = 0
+
+   m * aNW / (wNW * m + wNE) - aNE / (wNW * m + wNE) = aSE / (wSW * m + wSE) - m * aSW / (m * wSW + wSE)
+   (aNW * m - aNE) / (wNW * m + wNE) = (aSE - m * aSW) / (wSW * m + wSE)
+   (aNW * m - aNE) * (wSW * m + wSE) = (aSE - m * aSW) * (wNW * m + wNE)
+   (aNW * wSW) * m^2 + (aNW * wSE - aNE * wSW) * m - aNE * wSE = (- aSW * wNW) * m^2 + (aSE * wNW - aSW * wNE) * m + aSE * wNE
+   (aNW * wSW + aSW * wNW) * m^2 + (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE) * m = aNE * wSE + aSE * wNE
+   m = (+- sqrt (b^2 - 4ac) - b) / 2a
+   b^2 = (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)(aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)
+   b^2 = (aNW*wSE)^2 + (aNE*wSW)^2 + (aSE*wNW)^2 + (aSW*wNE)^2 - 2*aNW*wSE * aNE*wSW - 2* aNW*wSE * aSE*wNW + 2* aNW*wSE * aSW*wNE + 2* aNE*wSW * aSE*wNW - 2* aNE*wSW * aSW*wNE - 2* aSE*wNW * aSW*wNE
+
+   -}
+   colGrow = 0
+   colShrink = 1
+   aRows = zipWith (\rh -> map (rh *)) rowHeights cellPatternRows1 
    -- remember we could run into problems if cells in same row but different areas are full
    colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
    colHeights1      = zipWith (//) colAreas colWidths
@@ -1744,7 +1799,7 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
       let
          flipCol = ord c - ord '0'
          changeCols1 = if isDigit c
-            then replaceIndex flipCol (not (changeCols !! flipCol)) changeCols
+            then replaceIndex flipCol (1 - changeCols !! flipCol) changeCols
             else changeCols
       let chooseColMode1  = if c == 'c' then not chooseColMode  else chooseColMode
       let chooseStepMode1 = if c == 's' then not chooseStepMode else chooseStepMode
