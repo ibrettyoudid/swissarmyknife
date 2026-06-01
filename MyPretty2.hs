@@ -5,6 +5,7 @@
 {-# HLINT ignore "Replace case with maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE CPP #-}
+{- HLINT ignore "Fuse foldr/map" -}
 {- HLINT ignore "Eta reduce" -}
 {- HLINT ignore "Use all" -}
 {- HLINT ignore "Move filter" -}
@@ -63,7 +64,7 @@ import ShowTuple
 import {-# SOURCE #-} MHashDynamic3
 import MSolve hiding (list, number)
 import MPoly hiding (replaceIndices, showm)
---import Poly
+import Poly
 import Colour
 
 import Data.Functor
@@ -94,7 +95,7 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
 import GHC.Stack
-import MHashDynamic2 (MType(MType))
+import {-# SOURCE #-} MHashDynamic2 (MType(MType))
 
 width1 = 412
 
@@ -122,7 +123,7 @@ instance Show1 a => Show (GridV a) where
    show (GridV es) = showGrid $ map2 show1 es
 
 instance Show1 a => Show (GridH a) where
-   show g = showGrid $ map2 show1 es where GridV es = v g
+   show g = showGrid $ map2 show1 es where GridV es = MyPretty2.v g
 
 data Term
    = Int1 Int
@@ -1676,6 +1677,7 @@ colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> 
 colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
    changeCol        = 0
    changeCols       = [] :: [Int]
+   colGroups        = [] :: [Int]
    cellHeightRows1  = cellHeightRows colWidths cellLengthRows
    rowHeights       = map maximum cellHeightRows1
    cellPatternRows1 = cellPatternRows rowHeights cellHeightRows1
@@ -1688,48 +1690,73 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    {-
    cellForce = pattern * rowheight / colMult / sum (zipWith3 (*) pattern colWidths colMults)
 
-   (patNW * heightN / (widthNW * multW + widthNE * multE) + patSW * heightS / (widthSW * multW + widthSE * multE)) / multW 
-   = (patNE * heightN / (widthNW * multW + widthNE * multE) + patSE * heightS / (widthSW * multW + widthSE * multE)) / multE
+   (patNW * heightN / (widthNW * multW + widthNR * multR) + patSW * heightS / (widthSW * multW + widthSR * multR)) / multW 
+   = (patNR * heightN / (widthNW * multW + widthNR * multR) + patSR * heightS / (widthSW * multW + widthSR * multR)) / multR
    aNW = patNW * heightN
-   aNW / (wNW + wNE * mE / mW) + aSW / (wSW + wSe * mE / mW) = aNE / (wNW * mW / mE + wNE) + aSE / (wSW * mW / mE + wSE)
-   m = mW / mE
-   aNW / (wNW + wNE / m) + aSW / (wSW + wSE / m) = aNE / (wNW * m + wNE) + aSE / (wSW * m + wSE)
-   m * aNW / (wNW * m + wNE) + m * aSW / (m * wSW + wSE) = aNE / (wNW * m + wNE) + aSE / (wSW * m + wSE)
-   m * aNW / (wNW * m + wNE) - aNE / (wNW * m + wNE) = aSE / (wSW * m + wSE) - m * aSW / (m * wSW + wSE)
-   (aNW * m - aNE) / (wNW * m + wNE) = (aSE - m * aSW) / (wSW * m + wSE)
-   (aNW * m - aNE) * (wSW * m + wSE) = (aSE - m * aSW) * (wNW * m + wNE)
-   (aNW * wSW) * m^2 + (aNW * wSE - aNE * wSW) * m - aNE * wSE = (- aSW * wNW) * m^2 + (aSE * wNW - aSW * wNE) * m + aSE * wNE
-   (aNW * wSW + aSW * wNW) * m^2 + (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE) * m = aNE * wSE + aSE * wNE
+   aNW / (wNW + wNR * mR / mW) + aSW / (wSW + wSR * mR / mW) = aNR / (wNW * mW / mR + wNR) + aSR / (wSW * mW / mR + wSR)
+   m = mW / mR
+   aNW / (wNW + wNR / m) + aSW / (wSW + wSR / m) = aNR / (wNW * m + wNR) + aSR / (wSW * m + wSR)
+   m * aNW / (wNW * m + wNR) + m * aSW / (m * wSW + wSR) = aNR / (wNW * m + wNR) + aSR / (wSW * m + wSR)
+   m * aNW / (wNW * m + wNR) - aNR / (wNW * m + wNR) = aSR / (wSW * m + wSR) - m * aSW / (m * wSW + wSR)
+   (aNW * m - aNR) / (wNW * m + wNR) = (aSR - m * aSW) / (wSW * m + wSR)
+   (aNW * m - aNR) * (wSW * m + wSR) = (aSR - m * aSW) * (wNW * m + wNR)
+   (aNW * wSW) * m^2 + (aNW * wSR - aNR * wSW) * m - aNR * wSR = (- aSW * wNW) * m^2 + (aSR * wNW - aSW * wNR) * m + aSR * wNR
+   (aNW * wSW + aSW * wNW) * m^2 + (aNW * wSR - aNR * wSW - aSR * wNW + aSW * wNR) * m = aNR * wSR + aSR * wNR
    m = (+- sqrt (b^2 - 4ac) - b) / 2a
-   b^2 = (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)(aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)
-   b^2 = (aNW*wSE)^2 + (aNE*wSW)^2 + (aSE*wNW)^2 + (aSW*wNE)^2 - 2*aNW*wSE * aNE*wSW - 2* aNW*wSE * aSE*wNW + 2* aNW*wSE * aSW*wNE + 2* aNE*wSW * aSE*wNW - 2* aNE*wSW * aSW*wNE - 2* aSE*wNW * aSW*wNE
+   b^2 = (aNW * wSR - aNR * wSW - aSR * wNW + aSW * wNR)(aNW * wSR - aNR * wSW - aSR * wNW + aSW * wNR)
+   b^2 = (aNW*wSR)^2 + (aNR*wSW)^2 + (aSR*wNW)^2 + (aSW*wNR)^2 - 2*aNW*wSR * aNR*wSW - 2* aNW*wSR * aSR*wNW + 2* aNW*wSR * aSW*wNR + 2* aNR*wSW * aSR*wNW - 2* aNR*wSW * aSW*wNR - 2* aSR*wNW * aSW*wNR
 
-   aNW / (wNW + wNE * mE / mW) + aSW / (wSW + wSe * mE / mW) = aNE / (wNW * mW / mE + wNE) + aSE / (wSW * mW / mE + wSE)
-   m = mW / mE
-   aNW / (wNW + wNE / m) + aMW / (wMW + wME / m) + aSW / (wSW + wSE / m) = aNE / (wNW * m + wNE) + aME / (wMW * m + wME) + aSE / (wSW * m + wSE)
-   m * aNW / (wNW * m + wNE) + m * aMW / (m * wMW + wME) + m * aSW / (m * wSW + wSE) = aNE / (wNW * m + wNE) + aME / (wMW * m + wME) + aSE / (wSW * m + wSE)
-   (aNW * m - aNE) / (wNW * m + wNE) + (aMW * m - aME) / (m * wMW + wME) + (aSW * m - aSE) / (m * wSW + wSE) = 0
-   (aNW * m - aNE) + (aMW * m - aME)(wNW * m + wNE) / (m * wMW + wME) + (aSW * m - aSE)(wNW * m + wNE) / (m * wSW + wSE) = 0
-   (aNW * m - aNE)(wMW * m + wME)(wSW * m + wSE) + (aMW * m - aME)(wNW * m + wNE)(wSW * m + wSE) + (aSW * m - aSE)(wNW * m + wNE)(wMW * m + wME) = 0
+   aNW / (wNW + wNR * mR / mW) + aSW / (wSW + wSe * mR / mW) = aNR / (wNW * mW / mR + wNR) + aSR / (wSW * mW / mR + wSR)
+   m = mW / mR
+   aNW / (wNW + wNR / m) + aMW / (wMW + wMR / m) + aSW / (wSW + wSR / m) = aNR / (wNW * m + wNR) + aMR / (wMW * m + wMR) + aSR / (wSW * m + wSR)
+   m * aNW / (wNW * m + wNR) + m * aMW / (m * wMW + wMR) + m * aSW / (m * wSW + wSR) = aNR / (wNW * m + wNR) + aMR / (wMW * m + wMR) + aSR / (wSW * m + wSR)
+   (aNW * m - aNR) / (wNW * m + wNR) + (aMW * m - aMR) / (m * wMW + wMR) + (aSW * m - aSR) / (m * wSW + wSR) = 0
+   (aNW * m - aNR) + (aMW * m - aMR)(wNW * m + wNR) / (m * wMW + wMR) + (aSW * m - aSR)(wNW * m + wNR) / (m * wSW + wSR) = 0
+   (aNW * m - aNR)(wMW * m + wMR)(wSW * m + wSR) + (aMW * m - aMR)(wNW * m + wNR)(wSW * m + wSR) + (aSW * m - aSR)(wNW * m + wNR)(wMW * m + wMR) = 0
 
 
    -}
    colGrow = 0
    colShrink = 1
-   aRows = zipWith (\rh -> map (rh *)) rowHeights cellPatternRows1 
-   wRows = transpose $ zipWith (\cw -> map (cw *)) colWidths cellPatternCols1 
-   z = product $ zipWith (\arow wrows -> Poly [we, ww]) aRows $ map (\x -> deleteIndex x wRows) [0..length wRows - 1]
+   aRows  = zipWith (\rh -> map (rh *)) rowHeights cellPatternRows1 
+   wCols  = zipWith (\cw -> map (cw *)) colWidths  cellPatternCols1 
+   aCols  = transpose aRows
+   wRows  = transpose wCols
+   wRows3 = map (sums . zip colGroups) wRows
+   aRows3 = map (sums . zip colGroups) aRows
+   aws    = map (M.! 0) aRows3
+   wws    = map (M.! 0) wRows3
+   wrs    = map (M.! 1) wRows3
+   ws     = zip wws wrs
+   z      = map 
+               (\colForce -> let ars = aCols !! colForce in 
+                  sum $ zipWith3 (\aw ar -> foldr (*) (Poly [ar, aw]) . map (\(ww, wr) -> Poly [wr, ww])) aws ars
+                     $ map (\x -> deleteIndex x ws) [0..length ws - 1])
+               [0..length aCols - 1]
+   m      = concatMap aberth z
+   {-
+   totalWidth = totalWidthW * mw + totalWidthR * mr
+   totalWidth = totalWidthW * mw + totalWidthR * mw / m
+   totalWidth * m = totalWidthW * mw * m + totalWidthR * mw
+   totalWidth * m = (totalWidthW * m + totalWidthR) * mw
+   totalWidth * m / (totalWidthW * m + totalWidthR) = mw
+   mw = totalWidth * m / (totalWidthW * m + totalWidthR)
+   -}
+   mw      = map (\m -> totalWidth * m / (totalWidthW * m + totalWidthR)) m
+
    -- remember we could run into problems if cells in same row but different areas are full
    colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
    colHeights1      = zipWith (//) colAreas colWidths
    colHeights2      = sort $ zip colHeights1 [0..]
    colHeights3      = sums $ zip changeCols colHeights1
-   colAreas3        = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colAreas
-   colWidths3       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colWidths
+   colAreas3        = sums $ zip changeCols colAreas
+   colWidths3       = sums $ zip changeCols colWidths
    colHeights4      = M.intersectionWith (/) colAreas3 colWidths3
    totalArea        = sum colAreas
    totalWidth       = sum colWidths
    totalHeight      = sum colHeights1
+   totalWidthW      = colWidths3 M.! 0
+   totalWidthR      = colWidths3 M.! 1
    colWidths1       = zipWith (\cw ch -> cw * colHeights3 M.! ch / totalHeight) colWidths changeCols
 
    change       = 0

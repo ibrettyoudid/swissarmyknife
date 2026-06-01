@@ -86,7 +86,7 @@ mode = snd . maximum . counts0
 mean xs = sum xs / fromIntegral (length xs)
 imean xs = fromIntegral (sum xs) / fromIntegral (length xs)
 
-sums = combine (+) 0
+sums = mapFromList (+) 0
 
 refold f z [] = []
 refold f z (x : xs) = let (a, b) = f z x in a : refold f b xs
