@@ -63,6 +63,7 @@ import ShowTuple
 import {-# SOURCE #-} MHashDynamic3
 import MSolve hiding (list, number)
 import MPoly hiding (replaceIndices, showm)
+--import Poly
 import Colour
 
 import Data.Functor
@@ -93,6 +94,7 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
 import GHC.Stack
+import MHashDynamic2 (MType(MType))
 
 width1 = 412
 
@@ -1684,7 +1686,7 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    colHeightsW = colHeights3 M.! 0
    colHeightsE = colHeights3 M.! 1
    {-
-   cellForce = pattern * rowheight / colMult / sum (zipWith (*) colWidths colMults)
+   cellForce = pattern * rowheight / colMult / sum (zipWith3 (*) pattern colWidths colMults)
 
    (patNW * heightN / (widthNW * multW + widthNE * multE) + patSW * heightS / (widthSW * multW + widthSE * multE)) / multW 
    = (patNE * heightN / (widthNW * multW + widthNE * multE) + patSE * heightS / (widthSW * multW + widthSE * multE)) / multE
@@ -1710,24 +1712,18 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    (aNW * m - aNE) + (aMW * m - aME)(wNW * m + wNE) / (m * wMW + wME) + (aSW * m - aSE)(wNW * m + wNE) / (m * wSW + wSE) = 0
    (aNW * m - aNE)(wMW * m + wME)(wSW * m + wSE) + (aMW * m - aME)(wNW * m + wNE)(wSW * m + wSE) + (aSW * m - aSE)(wNW * m + wNE)(wMW * m + wME) = 0
 
-   m * aNW / (wNW * m + wNE) - aNE / (wNW * m + wNE) = aSE / (wSW * m + wSE) - m * aSW / (m * wSW + wSE)
-   (aNW * m - aNE) / (wNW * m + wNE) = (aSE - m * aSW) / (wSW * m + wSE)
-   (aNW * m - aNE) * (wSW * m + wSE) = (aSE - m * aSW) * (wNW * m + wNE)
-   (aNW * wSW) * m^2 + (aNW * wSE - aNE * wSW) * m - aNE * wSE = (- aSW * wNW) * m^2 + (aSE * wNW - aSW * wNE) * m + aSE * wNE
-   (aNW * wSW + aSW * wNW) * m^2 + (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE) * m = aNE * wSE + aSE * wNE
-   m = (+- sqrt (b^2 - 4ac) - b) / 2a
-   b^2 = (aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)(aNW * wSE - aNE * wSW - aSE * wNW + aSW * wNE)
-   b^2 = (aNW*wSE)^2 + (aNE*wSW)^2 + (aSE*wNW)^2 + (aSW*wNE)^2 - 2*aNW*wSE * aNE*wSW - 2* aNW*wSE * aSE*wNW + 2* aNW*wSE * aSW*wNE + 2* aNE*wSW * aSE*wNW - 2* aNE*wSW * aSW*wNE - 2* aSE*wNW * aSW*wNE
 
    -}
    colGrow = 0
    colShrink = 1
    aRows = zipWith (\rh -> map (rh *)) rowHeights cellPatternRows1 
+   wRows = transpose $ zipWith (\cw -> map (cw *)) colWidths cellPatternCols1 
+   z = product $ zipWith (\arow wrows -> Poly [we, ww]) aRows $ map (\x -> deleteIndex x wRows) [0..length wRows - 1]
    -- remember we could run into problems if cells in same row but different areas are full
    colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
    colHeights1      = zipWith (//) colAreas colWidths
    colHeights2      = sort $ zip colHeights1 [0..]
-   colHeights3      = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colHeights1
+   colHeights3      = sums $ zip changeCols colHeights1
    colAreas3        = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colAreas
    colWidths3       = foldr (uncurry (M.insertWith (+))) M.empty $ zip changeCols colWidths
    colHeights4      = M.intersectionWith (/) colAreas3 colWidths3
@@ -2210,7 +2206,7 @@ editGrid1 width height colWidths rowHeights1 tab cellLengthRows scrX scrY scrCha
 
 iterateM mf x = do
    mf_x <- mf x
-   loop <- iterateM mf mf_x
+   loop <- MyPretty2.iterateM mf mf_x
    return (x : loop)
 
 whileM f mf x = do

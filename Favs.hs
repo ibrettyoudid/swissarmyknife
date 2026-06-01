@@ -76,6 +76,18 @@ combine f zero list = M.toList $ mapFromList f zero list
 multimap = mapFromList (:) []
 multimapOn f = multimap . mapfxx f
 
+countUnique l = S.size $ S.fromList l
+
+counts = rsort . counts0
+counts0 = map tflip . counts1
+counts1 = M.toList . counts2
+counts2 = foldr (\key -> M.insertWith (+) key 1) M.empty
+mode = snd . maximum . counts0
+mean xs = sum xs / fromIntegral (length xs)
+imean xs = fromIntegral (sum xs) / fromIntegral (length xs)
+
+sums = combine (+) 0
+
 refold f z [] = []
 refold f z (x : xs) = let (a, b) = f z x in a : refold f b xs
 
@@ -644,27 +656,6 @@ nubSet = S.toList . S.fromList
 -- nub (kind of) using a map
 -- Ord k => [(k, a)] -> [(k, [a])]
 nubMulti = M.toList . multiMapFromList
-
-{-
-counts :: (Ord a) => [a] -> [(Int, a)]
-counts = rsort . map tflip . counts1
-
-counts1 :: Ord a => [a] -> [(a, Int)]
-counts1 = combine (+) 0 . map (, 1)
-
-counts1 = mapFromList (+) 0 . map (, 1)
--}
-countUnique l = S.size $ S.fromList l
-
-counts = rsort . counts0
-counts0 = map tflip . counts1
-counts1 = M.toList . counts2
-counts2 = foldr (\key -> M.insertWith (+) key 1) M.empty
-sums = foldr (\(key, val) -> M.insertWith (+) key val) M.empty
-sumss = foldr (\(key, vals) -> M.insertWith (zipWith (+)) key vals) M.empty
-mode = snd . maximum . counts0
-mean xs = sum xs / fromIntegral (length xs)
-imean xs = fromIntegral (sum xs) / fromIntegral (length xs)
 
 -- keys that are in both (inner join)
 -- Map k a -> Map k b -> Map k (a, b)
