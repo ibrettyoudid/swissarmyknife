@@ -1741,8 +1741,15 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    totalWidth * m = (totalWidthW * m + totalWidthR) * mw
    totalWidth * m / (totalWidthW * m + totalWidthR) = mw
    mw = totalWidth * m / (totalWidthW * m + totalWidthR)
+   mr = 1 / mw = (totalWidthW * m + totalWidthR) / totalWidth * m
+   mr = (totalWidthW + totalWidthR / m) / totalWidth
+
+   totalWidth = totalWidthW * mw + totalWidthR * mr
    -}
    mw      = map (\m -> totalWidth * m / (totalWidthW * m + totalWidthR)) m
+
+   fullest = maximum $ zipWith (\cg chc -> if cg == 1 then maximum $ zipWith (/) chc rowHeights else 0) colGroups $ transpose cellHeightRows1
+   
 
    -- remember we could run into problems if cells in same row but different areas are full
    colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
