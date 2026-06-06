@@ -1,3 +1,4 @@
+{-# LANGUAGE LexicalNegation #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Fuse foldr/map" #-}
 {-# HLINT ignore "Eta reduce" #-}
@@ -45,13 +46,30 @@ replaceIndices vp list = let
 
    in foldr (uncurry replaceIndex) list indicesSorted
 
+type Mono coeff = ([Int], coeff)
+
+data MPoly coeff = MPoly { vars :: [String], terms :: [Mono coeff] }
 
 mono :: coeff -> [(Int, Int)] -> Int -> ([Int], coeff)
 mono c vp nv = (replaceIndices vp $ replicate nv 0, c)
 
-type Mono coeff = ([Int], coeff)
+mnum n = MPoly [] [([], n)]
 
-data MPoly coeff = MPoly { vars :: [String], terms :: [Mono coeff] }
+var v = MPoly [v] [([1], 1)]
+
+transm vsto vsfrom (ps, c) = let
+   vp = zipWith (\power vname -> (fromJust (error "var not found") $ S.lookupIndex vname vsto, power)) ps vsfrom
+   in mono c vp $ S.size vsto
+
+transp vsto (MPoly vsfrom ms) = MPoly (S.toList vsto) $ map (transm vsto vsfrom) ms
+
+collate ms = let
+   vsto = S.unions $ map (S.fromList . vars) ms
+   in map (transp vsto) ms
+
+collate2 f a b = let
+   [a1, b1] = if vars a == vars b then [a, b] else collate [a, b]
+   in f a1 b1
 
 instance (Show coeff, Num coeff, Ord coeff, Real coeff) => Show (MPoly coeff) where
    show p@(MPoly z ms) = if p == zero then "0" else concatMap (showm z "") ms
@@ -78,6 +96,23 @@ test1 = solvepolys [
             MPoly ["p","x","r","w","a","b","c","d"] [([1,1,0,0,0,0,0,0], 2), ([0,0,1,1,0,0,0,0],  2), ([0,0,0,0,0,0,1,0], 1)],
             MPoly ["p","x","r","w","a","b","c","d"] [([0,1,0,0,0,0,0,0], 1), ([0,0,0,1,0,0,0,0],  1), ([0,0,0,0,0,0,0,1], 1::Ratio Integer)]
         ]
+
+test2 = let
+   [p, x, r, w, a, b, c, d] = map (var . singleton) "pxrwabcd"
+
+   in [
+      mnum -4 * p^3*x + mnum -4 * r^3*w + a,
+      mnum  4 * p^2*x + mnum  4 * r^2*w + b,
+      mnum  2 * p  *x + mnum  2 * r  *w + c,
+                    x +               w + d]
+
+iii a b = a ^ b
+
+instance (Eq a, Num a) => Num (MPoly a) where
+   (*) = collate2 mulpp
+   (+) = collate2 addpp
+   (-) = collate2 subpp
+   fromInteger a = mnum (fromInteger a)
 
 lcmm (pi, ci) (pj, cj) = (zipWith max pi pj, 1)
 
@@ -117,13 +152,13 @@ zero = MPoly [] []
 leading order (MPoly _ p) = minimumBy order p
 
 mvd order fi fj = let
-   gi = leading order fi
-   gj = leading order fj
+   gi  = leading order fi
+   gj  = leading order fj
    aij = lcmm gi gj
-   mi = divm aij gi
-   mj = divm aij gj
-   hi = sortp order $ mulpm fi mi
-   hj = sortp order $ mulpm fj mj
+   mi  = divm aij gi
+   mj  = divm aij gj
+   hi  = sortp order $ mulpm fi mi
+   hj  = sortp order $ mulpm fj mj
    sij = sortp order $ subpp hi hj
    in sij
 
