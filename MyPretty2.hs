@@ -5,6 +5,7 @@
 {-# HLINT ignore "Replace case with maybe" #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LexicalNegation #-}
 {- HLINT ignore "Fuse foldr/map" -}
 {- HLINT ignore "Eta reduce" -}
 {- HLINT ignore "Use all" -}
@@ -1209,7 +1210,7 @@ colWidths7B colX1 colY1 = let
    --(heights1, xws, yws, ratioMins, ratioMaxes, ratios1) 
    hxyr3n = concat $ zipWith5 (\a b ratioMin ratioMax n -> let
       c = a / (b - a)
-      xs = [width * (sqrt (c^2 + c) - c), width * (-sqrt (c^2 + c) - c)]
+      xs = [width * (sqrt (c^2 + c) - c), width * (-1 * sqrt (c^2 + c) - c)]
       ys = map (width -) xs
       hs = zipWith (\x y -> a / x + b / y) xs ys
       in zipWith3 (\h x y -> if x >= 0 && y >= 0 && h >= 0
@@ -1311,7 +1312,7 @@ x = ratio * width / (ratio + 1)
 
 -}
       c = a / (b - a)
-      xs = [width * (sqrt (c^2 + c) - c), width * (-sqrt (c^2 + c) - c)]
+      xs = [width * (sqrt (c^2 + c) - c), width * (-1 * sqrt (c^2 + c) - c)]
       ys = map (width -) xs
       hs = zipWith (\x y -> a / x + b / y) xs ys
       in zipWith3 (\h x y -> if x >= 0 && y >= 0 && h >= 0
@@ -1437,9 +1438,9 @@ colWidths9 width cellLengthCols = let
    rowVarNames = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
    colVarNames = map (\n -> "col" ++ show n) [0..length colWidths1  - 1]
    varNames = rowVarNames ++ colVarNames
-   rowVars = [0..length rowHeights1 - 1]
-   colVars = [length rowHeights1 .. nVars - 1]
-   nVars = length rowHeights1 + length colWidths1
+   rowVars = [0 .. length rowVarNames - 1]
+   colVars = [length rowVarNames .. length colVarNames - 1]
+   nVars = length varNames
 
    mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ MPoly varNames [mono 1 [(cv, 1), (rv, 1)] nVars, ([], clc)] else Nothing) rowVars) colVars cellsFullCols cellLengthCols
    area = MPoly varNames $ concat $ crossWith (\cv rv -> mono 1 [(cv, 1), (rv, 1)] nVars) colVars rowVars
@@ -1670,8 +1671,8 @@ colWidths11AM width tab =
 
 allEqual a = if not (null a) && and (zipWith (==) a (tail a)) then Just (head a) else Nothing
 
-changeRows changeCols cellPatternRows1 =
-   map (MyPretty2.allEqual . catMaybes . zipWith (\c p -> if p > 0 then Just c else Nothing) changeCols) cellPatternRows1
+rowGroups colGroups cellPatternRows1 =
+   map (MyPretty2.allEqual . catMaybes . zipWith (\c p -> if p > 0 then Just c else Nothing) colGroups) cellPatternRows1
 
 colWidths11M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> Char -> IO [Double]
 colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
@@ -1695,26 +1696,11 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    aNW = patNW * heightN
    aNW / (wNW + wNR * mR / mW) + aSW / (wSW + wSR * mR / mW) = aNR / (wNW * mW / mR + wNR) + aSR / (wSW * mW / mR + wSR)
    m = mW / mR
-   aNW / (wNW + wNR / m) + aSW / (wSW + wSR / m) = aNR / (wNW * m + wNR) + aSR / (wSW * m + wSR)
-   m * aNW / (wNW * m + wNR) + m * aSW / (m * wSW + wSR) = aNR / (wNW * m + wNR) + aSR / (wSW * m + wSR)
-   m * aNW / (wNW * m + wNR) - aNR / (wNW * m + wNR) = aSR / (wSW * m + wSR) - m * aSW / (m * wSW + wSR)
-   (aNW * m - aNR) / (wNW * m + wNR) = (aSR - m * aSW) / (wSW * m + wSR)
-   (aNW * m - aNR) * (wSW * m + wSR) = (aSR - m * aSW) * (wNW * m + wNR)
-   (aNW * wSW) * m^2 + (aNW * wSR - aNR * wSW) * m - aNR * wSR = (- aSW * wNW) * m^2 + (aSR * wNW - aSW * wNR) * m + aSR * wNR
-   (aNW * wSW + aSW * wNW) * m^2 + (aNW * wSR - aNR * wSW - aSR * wNW + aSW * wNR) * m = aNR * wSR + aSR * wNR
-   m = (+- sqrt (b^2 - 4ac) - b) / 2a
-   b^2 = (aNW * wSR - aNR * wSW - aSR * wNW + aSW * wNR)(aNW * wSR - aNR * wSW - aSR * wNW + aSW * wNR)
-   b^2 = (aNW*wSR)^2 + (aNR*wSW)^2 + (aSR*wNW)^2 + (aSW*wNR)^2 - 2*aNW*wSR * aNR*wSW - 2* aNW*wSR * aSR*wNW + 2* aNW*wSR * aSW*wNR + 2* aNR*wSW * aSR*wNW - 2* aNR*wSW * aSW*wNR - 2* aSR*wNW * aSW*wNR
-
-   aNW / (wNW + wNR * mR / mW) + aSW / (wSW + wSe * mR / mW) = aNR / (wNW * mW / mR + wNR) + aSR / (wSW * mW / mR + wSR)
-   m = mW / mR
    aNW / (wNW + wNR / m) + aMW / (wMW + wMR / m) + aSW / (wSW + wSR / m) = aNR / (wNW * m + wNR) + aMR / (wMW * m + wMR) + aSR / (wSW * m + wSR)
    m * aNW / (wNW * m + wNR) + m * aMW / (m * wMW + wMR) + m * aSW / (m * wSW + wSR) = aNR / (wNW * m + wNR) + aMR / (wMW * m + wMR) + aSR / (wSW * m + wSR)
    (aNW * m - aNR) / (wNW * m + wNR) + (aMW * m - aMR) / (m * wMW + wMR) + (aSW * m - aSR) / (m * wSW + wSR) = 0
    (aNW * m - aNR) + (aMW * m - aMR)(wNW * m + wNR) / (m * wMW + wMR) + (aSW * m - aSR)(wNW * m + wNR) / (m * wSW + wSR) = 0
    (aNW * m - aNR)(wMW * m + wMR)(wSW * m + wSR) + (aMW * m - aMR)(wNW * m + wNR)(wSW * m + wSR) + (aSW * m - aSR)(wNW * m + wNR)(wMW * m + wMR) = 0
-
-
    -}
    colGrow = 0
    colShrink = 1
@@ -1741,15 +1727,19 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    totalWidth * m = (totalWidthW * m + totalWidthR) * mw
    totalWidth * m / (totalWidthW * m + totalWidthR) = mw
    mw = totalWidth * m / (totalWidthW * m + totalWidthR)
-   mr = 1 / mw = (totalWidthW * m + totalWidthR) / totalWidth * m
-   mr = (totalWidthW + totalWidthR / m) / totalWidth
-
-   totalWidth = totalWidthW * mw + totalWidthR * mr
+   m = mw/mr
+   m * mr = mw
+   maxmwmr = mw * mr = mw / m = totalWidth / (totalWidthW * m + totalWidthR)
+   (totalWidthW * maxm + totalWidthR) = totalWidth / maxmwmr
+   totalWidthW * maxm = totalWidth / maxmwmr - totalWidthR
+   maxm = (totalWidth / maxmwmr - totalWidthR) / totalWidthW
    -}
+   rowGroups1 = rowGroups colGroups cellPatternRows1
    mw      = map (\m -> totalWidth * m / (totalWidthW * m + totalWidthR)) m
 
-   fullest = maximum $ zipWith (\cg chc -> if cg == 1 then maximum $ zipWith (/) chc rowHeights else 0) colGroups $ transpose cellHeightRows1
+   maxmwmr = maximum $ zipWith (\cg chc -> if cg == 1 then maximum $ zipWith (/) rowHeights chc else 0) colGroups $ transpose cellHeightRows1
    
+   maxm    = (totalWidth / maxmwmr - totalWidthR) / totalWidthW
 
    -- remember we could run into problems if cells in same row but different areas are full
    colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
@@ -1762,8 +1752,8 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
    totalArea        = sum colAreas
    totalWidth       = sum colWidths
    totalHeight      = sum colHeights1
-   totalWidthW      = colWidths3 M.! 0
-   totalWidthR      = colWidths3 M.! 1
+   totalWidthW      = colWidths3 M.! 1
+   totalWidthR      = colWidths3 M.! -1
    colWidths1       = zipWith (\cw ch -> cw * colHeights3 M.! ch / totalHeight) colWidths changeCols
 
    change       = 0
@@ -1835,6 +1825,158 @@ colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidt
       let chooseStepMode1 = if c == 's' then not chooseStepMode else chooseStepMode
 
       colWidths11M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth1 chooseColMode1 chooseStepMode1 c
+
+colWidths12M :: Double -> [[String]] -> [[Double]] -> [[Double]] -> [Double] -> [Double] -> Double -> Bool -> Bool -> Char -> IO [Double]
+colWidths12M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth chooseColMode chooseStepMode lastChar = let
+   changeCol        = 0
+   changeCols       = [] :: [Int]
+   colGroups        = [] :: [Int]
+   cellHeightRows1  = cellHeightRows colWidths cellLengthRows
+   rowHeights       = map maximum cellHeightRows1
+   cellPatternRows1 = cellPatternRows rowHeights cellHeightRows1
+   cellPatternCols1 = transpose cellPatternRows1
+   cellPressureRows = map (rowWideningPressure1 colWidths) cellPatternRows1
+   cellPressureCols = transpose cellPressureRows
+   colForces        = map (colWideningForce rowHeights) cellPressureCols
+   colHeightsW = colHeights3 M.! 0
+   colHeightsE = colHeights3 M.! 1
+   {-
+   cellForce = pattern * rowheight / colMult / sum (zipWith3 (*) pattern colWidths colMults)
+
+   (patNW * heightN / (widthNW * multW + widthNR * multR) + patSW * heightS / (widthSW * multW + widthSR * multR)) / multW 
+   = (patNR * heightN / (widthNW * multW + widthNR * multR) + patSR * heightS / (widthSW * multW + widthSR * multR)) / multR
+   aNW = patNW * heightN
+   aNW / (wNW + wNR * mR / mW) + aSW / (wSW + wSR * mR / mW) = aNR / (wNW * mW / mR + wNR) + aSR / (wSW * mW / mR + wSR)
+   m = mW / mR
+   aNW / (wNW + wNR / m) + aMW / (wMW + wMR / m) + aSW / (wSW + wSR / m) = aNR / (wNW * m + wNR) + aMR / (wMW * m + wMR) + aSR / (wSW * m + wSR)
+   m * aNW / (wNW * m + wNR) + m * aMW / (m * wMW + wMR) + m * aSW / (m * wSW + wSR) = aNR / (wNW * m + wNR) + aMR / (wMW * m + wMR) + aSR / (wSW * m + wSR)
+   (aNW * m - aNR) / (wNW * m + wNR) + (aMW * m - aMR) / (m * wMW + wMR) + (aSW * m - aSR) / (m * wSW + wSR) = 0
+   (aNW * m - aNR) + (aMW * m - aMR)(wNW * m + wNR) / (m * wMW + wMR) + (aSW * m - aSR)(wNW * m + wNR) / (m * wSW + wSR) = 0
+   (aNW * m - aNR)(wMW * m + wMR)(wSW * m + wSR) + (aMW * m - aMR)(wNW * m + wNR)(wSW * m + wSR) + (aSW * m - aSR)(wNW * m + wNR)(wMW * m + wMR) = 0
+   -}
+   colGrow = 0
+   colShrink = 1
+   aRows  = zipWith (\rh -> map (rh *)) rowHeights cellPatternRows1 
+   wCols  = zipWith (\cw -> map (cw *)) colWidths  cellPatternCols1 
+   aCols  = transpose aRows
+   wRows  = transpose wCols
+   wRows3 = map (sums . zip colGroups) wRows
+   aRows3 = map (sums . zip colGroups) aRows
+   aws    = map (M.! 0) aRows3
+   wws    = map (M.! 0) wRows3
+   wrs    = map (M.! 1) wRows3
+   ws     = zip wws wrs
+   z      = map 
+               (\colForce -> let ars = aCols !! colForce in 
+                  sum $ zipWith3 (\aw ar -> foldr (*) (Poly [ar, aw]) . map (\(ww, wr) -> Poly [wr, ww])) aws ars
+                     $ map (\x -> deleteIndex x ws) [0..length ws - 1])
+               [0..length aCols - 1]
+   m      = concatMap aberth z
+   {-
+   totalWidth = totalWidthW * mw + totalWidthR * mr
+   totalWidth = totalWidthW * mw + totalWidthR * mw / m
+   totalWidth * m = totalWidthW * mw * m + totalWidthR * mw
+   totalWidth * m = (totalWidthW * m + totalWidthR) * mw
+   totalWidth * m / (totalWidthW * m + totalWidthR) = mw
+   mw = totalWidth * m / (totalWidthW * m + totalWidthR)
+   m = mw/mr
+   m * mr = mw
+   maxmwmr = mw * mr = mw / m = totalWidth / (totalWidthW * m + totalWidthR)
+   (totalWidthW * maxm + totalWidthR) = totalWidth / maxmwmr
+   totalWidthW * maxm = totalWidth / maxmwmr - totalWidthR
+   maxm = (totalWidth / maxmwmr - totalWidthR) / totalWidthW
+   -}
+   rowGroups1 = rowGroups colGroups cellPatternRows1
+   mw      = map (\m -> totalWidth * m / (totalWidthW * m + totalWidthR)) m
+
+   maxmwmr = maximum $ zipWith (\cg chc -> if cg == 1 then maximum $ zipWith (/) rowHeights chc else 0) colGroups $ transpose cellHeightRows1
+   
+   maxm    = (totalWidth / maxmwmr - totalWidthR) / totalWidthW
+
+   -- remember we could run into problems if cells in same row but different areas are full
+   colAreas         = map sum $ zipWith (zipWith (*)) cellPatternCols1 cellLengthCols
+   colHeights1      = zipWith (//) colAreas colWidths
+   colHeights2      = sort $ zip colHeights1 [0..]
+   colHeights3      = sums $ zip changeCols colHeights1
+   colAreas3        = sums $ zip changeCols colAreas
+   colWidths3       = sums $ zip changeCols colWidths
+   colHeights4      = M.intersectionWith (/) colAreas3 colWidths3
+   totalArea        = sum colAreas
+   totalWidth       = sum colWidths
+   totalHeight      = sum colHeights1
+   totalWidthW      = colWidths3 M.! 1
+   totalWidthR      = colWidths3 M.! -1
+   colWidths1       = zipWith (\cw ch -> cw * colHeights3 M.! ch / totalHeight) colWidths changeCols
+
+   change       = 0
+   stepWidth7   = if chooseStepMode then stepWidth else change
+   changeCol7   = changeCol
+   changeWidth7 = colWidths !! changeCol
+
+   in do
+      putGrid $ transpose [
+         ["changeCols", show changeCols],
+         ["cellPatternRows1", show cellPatternRows1],
+         ["cellPatternCols1", show cellPatternCols1],
+         ["colAreas", show colAreas],
+         {-
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],
+         [", show ],-}
+         ["colWidths"         , show colWidths        ],
+         ["cellLengthRows"    , show cellLengthRows   ],
+         ["cellHeightRows"    , show cellHeightRows1  ],
+         ["rowHeights"        , show rowHeights       ],
+         ["sum rowHeights"    , show $ sum rowHeights ],
+         ["colHeights1"       , show colHeights1      ],
+         ["colHeights2"       , show colHeights2      ],
+         ["change"            , show change           ],
+         ["changeCol"         , show changeCol7       ],
+         ["changeWidth"       , show changeWidth7     ],
+         ["stepWidth"         , show stepWidth7       ]]
+      putStrLn $ showGridColour1 (map round colWidths) (map2 round cellPatternCols1) (map2 round cellLengthCols) tab
+      --putStrLn $ showGridColour (map round colWidths) (map2 round cellLengthCols) tab
+      --putStrLn $ unlines graph
+      c <- getChar
+      let n = length colWidths
+      (changeCol1, stepWidth1, colWidths1) <- case c of
+         '\27' -> do
+            c1 <- getChar
+            c2 <- getChar
+            case c2 of
+               'D' -> return (changeCol7 - 1, stepWidth7, colWidths)
+               'C' -> return (changeCol7 + 1, stepWidth7, colWidths)
+         '+' -> return (changeCol7, stepWidth7     , replaceIndex changeCol7 (changeWidth7 + stepWidth7) colWidths)
+         '-' -> return (changeCol7, stepWidth7     , replaceIndex changeCol7 (changeWidth7 - stepWidth7) colWidths)
+         '*' -> return (changeCol7, stepWidth7 * 10, colWidths)
+         '/' -> return (changeCol7, stepWidth7 / 10, colWidths)
+         --'a' -> return (widenCol6, narrowCol6    , change, colWidths)
+         'e' -> return (changeCol7, stepWidth7, replicate n (width // fromIntegral n))
+         'r' -> do
+            gen <- initStdGen
+            let cols = runStateGen_ gen (replicateM n . uniformRM (1::Double, 1000))
+            return (changeCol7, stepWidth7, map fromIntegral $ forceLess (round width) (map round cols))
+         _   -> return (changeCol7, stepWidth7, colWidths)
+      let
+         flipCol = ord c - ord '0'
+         changeCols1 = if isDigit c
+            then replaceIndex flipCol (1 - changeCols !! flipCol) changeCols
+            else changeCols
+      let chooseColMode1  = if c == 'c' then not chooseColMode  else chooseColMode
+      let chooseStepMode1 = if c == 's' then not chooseStepMode else chooseStepMode
+
+      colWidths12M width tab cellLengthRows cellLengthCols colWidths colRates stepWidth1 chooseColMode1 chooseStepMode1 c
 
 showTerm1 (String1 s) = (0, 0, length s, s)
 showTerm1 (Int1 i) = (length $ show i, 0, 0, show i)
