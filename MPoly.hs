@@ -55,7 +55,9 @@ mono c vp nv = (replaceIndices vp $ replicate nv 0, c)
 
 mnum n = MPoly [] [([], n)]
 
-var v = MPoly [v] [([1], 1)]
+mvar v = MPoly [v] [([1], 1)]
+
+mvarn vars n = MPoly vars [(replaceIndex n 0 $ replicate (length vars) 0, 1)]
 
 transm vsto vsfrom (ps, c) = let
    vp = zipWith (\power vname -> (fromJust (error "var not found") $ S.lookupIndex vname vsto, power)) ps vsfrom
@@ -63,12 +65,18 @@ transm vsto vsfrom (ps, c) = let
 
 transp vsto (MPoly vsfrom ms) = MPoly (S.toList vsto) $ map (transm vsto vsfrom) ms
 
-collate ms = let
+collate vsto ms = map (transp vsto) ms
+
+collate1 ms = let
    vsto = S.unions $ map (S.fromList . vars) ms
-   in map (transp vsto) ms
+   in collate vsto ms
 
 collate2 f a b = let
-   [a1, b1] = if vars a == vars b then [a, b] else collate [a, b]
+   vsto = S.union (S.fromList $ vars a) (S.fromList $ vars b)
+   in if vars a == vars b then f a b else f (transp vsto a) (transp vsto b)
+
+collate2A f a b = let
+   [a1, b1] = if vars a == vars b then [a, b] else collate1 [a, b]
    in f a1 b1
 
 instance (Show coeff, Num coeff, Ord coeff, Real coeff) => Show (MPoly coeff) where
@@ -98,7 +106,7 @@ test1 = solvepolys [
         ]
 
 test2 = let
-   [p, x, r, w, a, b, c, d] = map (var . singleton) "pxrwabcd"
+   [p, x, r, w, a, b, c, d] = map (mvar . singleton) "pxrwabcd"
 
    in [
       mnum -4 * p^3*x + mnum -4 * r^3*w + a,
@@ -130,6 +138,20 @@ mulpp p (MPoly z xs) = foldr addpp (MPoly z []) $ map (mulpm p) xs
 addpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (+) (M.fromList hi) (M.fromList hj)
 
 subpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
+
+divpm d@(pd, cd) (MPoly w n) = MPoly w $ map (\n1@(pn, cn) -> if any (> 0) $ zipWith (*) pn pd then divm n1 d else n1) n
+
+subst pcij = let
+   [([], ci), (pj, cj)] = sortOn (length . fst) pcij
+
+   in (pj, cj/ci)
+
+
+diffm wrt (pi, ci) = let
+   p = pi !! wrt
+   in (replaceIndex wrt (p-1) pi, ci * fromIntegral p)
+
+diffp wrt (MPoly v hi) = MPoly v $ rinse $ map (diffm wrt) hi
 {-}
 redpp fi fj = let
    mj = negm $ divm gi gj

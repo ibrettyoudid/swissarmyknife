@@ -57,7 +57,7 @@ msolveOutput = do
    lexeme $ char ':'
    return items
 
-msolve mpolys = do
+msolveR mpolys = do
    writeFile "/tmp/msolve_input.ms" $ 
       intercalate "," (vars $ head mpolys) ++ "\n" ++
       "0\n" ++
@@ -69,3 +69,6 @@ msolve mpolys = do
       Right r -> return r
 --   createProcess (proc "msolve -f /tmp/msolve_input.ms -o /tmp/msolve_output" [])
    
+msolve mpolys = do
+   s3 <- msolveR mpolys
+   return $ map (map (map fromRational)) s3

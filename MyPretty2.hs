@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LexicalNegation #-}
+{- HLINT ignore "Move catMaybes" -}
 {- HLINT ignore "Fuse foldr/map" -}
 {- HLINT ignore "Eta reduce" -}
 {- HLINT ignore "Use all" -}
@@ -1429,23 +1430,58 @@ colWidths8 width tab =
       colWidths = replicate ncols 1 -- do putStr $ showGrid 420 $ transpose $ map2 show celllsrows
 
    in counts2
+{- 
+find full cells, then eliminate variables based on the pattern
+for each full cell, the area A=Wc*Hr is fixed, this links the widths and heights of various columns & rows and eliminates variables
+will get equation like
+
+A is the area
+x and y are column widths and 'top level variables'
+a is total of heights of non full cells in columns connected to column x, multiplied (separately) by each linking factor
+b is total of widths  of non full cells in rows    connected to column x, multiplied (separately) by each linking factor
+the linking factor for a column with its own variable is 1
+the linking factors for rows directly linked to that column are each the area of the full cell that links that row and column
+the linking factors for columns linked to those first level rows are the linking factor of the row divided by the area of the full cell that links that row and column (the new column, not the top-level one)
+
+if a column links back to itself, either the linking factor is 1 or we have made a mistake on which cells are full
+
+A = ax/y + bx/z + cy/x + dy/z + ez/x + fz/y
+dA/dx = a/y   + b/z   - cy/x^2 - ez/x^2 = 0
+        azx^2 + byx^2 - cy^2z  - eyz^2  = 0
+dA/dy = c/x   + d/z   - ax/y^2 - fz/y^2 = 0
+        czy^2 + dxy^2 - ax^2z  - fxz^2  = 0
+dA/dz = e/x   + f/y   - bx/z^2 - dy/z^2 = 0
+        eyz^2 + fxz^2 - bx^2y  - dxy^2  = 0
+plug the column widths back in and see if the pattern of full cells has changed
+if it hasn't, we have finished
+
+if it has, 
+   do we need to interpolate between the old column widths and new column widths to find the point where it changed?
+   see which cell has overshot the most and recalculate from there?
+   or do we just start again from the new values?
+-}
 
 colWidths9 width cellLengthCols = let
    colWidths1 = colWidthsFloating width cellLengthCols :: [Double]
    cellLengthRows = transpose cellLengthCols
    rowHeights1 = rowHeights colWidths1 cellLengthRows
-   cellsFullCols = map (zipWith (<=) rowHeights1) $ zipWith (\cw -> map (// cw)) colWidths1 cellLengthCols
-   rowVarNames = map (\n -> "row" ++ show n) [0..length rowHeights1 - 1]
-   colVarNames = map (\n -> "col" ++ show n) [0..length colWidths1  - 1]
-   varNames = rowVarNames ++ colVarNames
-   rowVars = [0 .. length rowVarNames - 1]
-   colVars = [length rowVarNames .. length colVarNames - 1]
-   nVars = length varNames
+   cellFullCols = map (zipWith (<=) rowHeights1) $ zipWith (\cw -> map (// cw)) colWidths1 cellLengthCols
+   cellFullLengthCols = zipWith (zipWith (\full length -> if full then length else 0)) cellFullCols cellLengthCols
+   colVarNames = map (("col" ++) . show) [0..length colWidths1  - 1] 
+   rowVarNames = map (("row" ++) . show) [0..length rowHeights1 - 1]
+   varNames = colVarNames ++ rowVarNames
+   colVars = map (mvarn varNames) [0..length colWidths1 - 1]
+   rowVars = map (mvarn varNames) [length colWidths1..length varNames - 1]
+   vars = colVars ++ rowVars
+   nVars = length vars
 
-   mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ MPoly varNames [mono 1 [(cv, 1), (rv, 1)] nVars, ([], clc)] else Nothing) rowVars) colVars cellsFullCols cellLengthCols
-   area = MPoly varNames $ concat $ crossWith (\cv rv -> mono 1 [(cv, 1), (rv, 1)] nVars) colVars rowVars
-   colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellsFullCols cellLengthCols
-   in colWidths
+   -- mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv * rv - mnum clc else Nothing) rowVars) colVars cellFullCols cellLengthCols
+   full = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv * rv * mnum (recip clc) else Nothing) rowVars) colVars cellFullCols cellLengthCols
+   area = sum $ concat $ crossWith (*) colVars rowVars
+   diffarea = map (\cv -> diffp cv area) [0 .. length colWidths1 - 1]
+
+   in msolve $ full ++ diffarea
+   --colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellFullCols cellLengthCols
 
 {-
 A = area
@@ -1489,94 +1525,87 @@ the thing I'm missing is that there's no minimum (except when a cell bottoms out
 clearly you can have a situation where making one row/column smaller allows others to be wider
 some of the variables are eliminated (substituted ) but the rows and columns are still there
 
-decrease a variable until a cell bottoms out (choose things so that this is the biggest cell in the grid)
+decrease a variable until a cell c,r bottoms out (choose things so that this is the biggest cell in the grid)
 the row and column become linked
 we then change the width and height simultaneously, they're linked!
+
+c is the column of the full cell
+r is the row of the full cell
+Ae is the area of the non full cells in that ceolumn & row in a + shape, ie. the bit thats changing
 
 Afcr=Hr*Wc
 Wc=Afcr/Hr
 Hr=Afcr/Wc
-Ae=Hr*sum We+Wc*sum He
-Ae=Afcr/Wc*sum We+Wc*sum He
-dAe/Wc=sum He-Afcr*sum We/Wc^2
+Ae=Hr*sum Wer+Wc*sum Hec
+Ae=Afcr/Wc*sum Wer+Wc*sum Hec
+dAe/dWc=-Afcr*sum Wer/Wc^2+sum Hec
 this can be 0 so there is a minimum
-sum We-sum He/Hr^2=0
-sum We=sum He/Hr^2
-Hr^2*sum We=sum He
+-Afcr*sum Wer/Wc^2+sum Hec=0
+Afcr*sum Wer/Wc^2=sum Hec
+Afcr*sum Wer=sum Hec*Wc^2
+Wc=sqrt(Afcr*sum Wer/sum Hec)
 
-also, at either end of the range, another cell will become full, so there will be a minimum due to an inequality, so you have to choose
-this happens when A = W * H for any cell
-see which end has less total area for the grid
+area of the whole grid, changing all the columns and rows at once
 
-so now you have two rows or columns linked to each other and a column or row respectively
-if the two cells share a variable, eg. a column c with cells in row r & s. so column c still changes. we can eliminate any two of the three variables
-Wc=Afcr/Hr=Afcs/Hs
-Hr=Afcr/Wc
-Hs=Afcs/Wc
-Hs*Afcr = Hr*Afcs
-A=Wc*sum Hec+Hr*sum Wer+Hs*sum Wes -- Wer = Wes might not be true
-A=Wc*sum Hec+(Afcr/Wc)*sum Wer+(Afcs/Wc)*sum Wes
-A=Wc*sum Hec+(Afcr*sum Wer+Afcs*sum Wes)/Wc
-dAe/dWc=sum He-(Afcr*sum Wer+Afcs*sum Wes)/Wc^2=0
-sum He-(Afcr*sum Wer+Afcs*sum Wes)/Wc^2=0
-sum He=(Afcr*sum Wer+Afcs*sum Wes)/Wc^2
-Wc^2*sum He=(Afcr*sum Wer+Afcs*sum Wes)
-Wc^2=(Afcr*sum Wer+Afcs*sum Wes)/sum We
-Wc=sqrt((Afcr*sum Wer+Afcs*sum Wes)/sum We)
-This gives the value of Wc for the minimum area, perhaps we should check it IS the minimum by differentiating again?
-What does the graph look like
-          ^ y
-          |
-*****     |     *****
-     **   |   ** 
--------*--+--*-------> x
-        * | *         * | *  this is the point
+c is any column
+r is any row
 
-         *|*
-         *|*
-         *|*
-         *|*
-         *|*
-We have to check the column and both rows for the largest non-full cell in each
-Note that as the column widens the rows get lower
-Wn * Hn >= An must be true simultaneously for all three next cells, but which gives the least total area?
-Which row with Wn * Hn = An implies Wn * Hn > An for the other, that tells you which row is ALLOWED
-Then work out what is LEAST area, either end of the range allowed, or the true minimum found by differentiation
-If it's the minimum, we've finished these rows & columns. Do all the others too (separately)
-Otherwise link the row and column of the cell we've just found
-
-We could have 3 rows and one column or 2 rows and 2 columns
-2 rows and 2 columns
-Afds=Wd*Hs
-Afds=Afcs*Wd/Wc
-Wd=Afds/Hs
-Wd=Wc*Afds/Afcs
-A=Wc*sum Hec+Wd*sum Hed+(Afcr*sum Wer+Afcs*sum Wes)/Wc
-A=Wc*(sum Hec+Afds/Afcs*sum Hed)+(Afcr*sum Wer+Afcs*sum Wes)/Wc
-dAe=(sum Hec+Afds/Afcs*sum Hed)-(Afcr*sum Wer+Afcs*sum Wes)/Wc^2
-
-what vars do we need
-(Num a) =>
-{-
-w :: a = width
-wcs :: [a] = column widths
-hrs :: [a] = row heights
-afcrs :: [[a]] = cell areas
-crs :: [(Int, Int)] = column #s+row #s for each row/column linked
+A=sum r Hr*sum c Wc
+A=H0*W0+H0*W1+H1*W0+H1*W1
+A=Af+Ae
+A=Af+sum c,r Wc*Hr
 -}
+{- 
+THIS WONT WORK, THE EMPTY CELLS ARE CHANGING WIDTH AND HEIGHT 
+
+find full cells, then eliminate variables based on the pattern
+for each full cell, the area A=Wc*Hr is fixed, this links the widths and heights of various columns & rows and eliminates variables
+will get equation like
+
+A is the area
+x and y are column widths and 'top level variables'
+a is total of heights of non full cells in columns connected to column x, multiplied (separately) by each linking factor
+b is total of widths  of non full cells in rows    connected to column x, multiplied (separately) by each linking factor
+the linking factor for a column with its own variable is 1
+the linking factors for rows directly linked to that column are each the area of the full cell that links that row and column
+the linking factors for columns linked to those first level rows are the linking factor of the row divided by the area of the full cell that links that row and column (the new column, not the top-level one)
+
+if a column links back to itself, either the linking factor is 1 or we have made a mistake on which cells are full
+
+A = a*x + b/x + c*y + d/y
+dA/dx = a - b/x^2 = 0 => ax^2 = b => x^2 = b / a => x = sqrt (b/a)
+dA/dy = c - d/y^2 = 0 => cy^2 = d => y^2 = d / c => y = sqrt (d/c)
+
+plug the column widths back in and see if the pattern of full cells has changed
+if it hasn't, we have finished
+
+if it has, 
+   do we need to interpolate between the old column widths and new column widths to find the point where it changed?
+   see which cell has overshot the most and recalculate from there?
+   or do we just start again from the new values?
 -}
-colWidths0 w wcs hrs areas crs = let
-   areasT = transpose areas
-   row = 0
-   col = 0
-   -- find highest cells in the new row
-   (hnc, nr) = maximum $ zip (zipWith (//) (areasT !! row) wcs) [0..]
-   -- find highest cells in the new column
-   (hnr, nc) = maximum $ zip (zipWith (//) (areas  !! col) hrs) [0..]
+
+
+colWidths0 w acrs = let
+   vcs link = sum $ map sum $ zipWith (zipWith3 (\hr full a -> if full then vrs (link * a) else link * hr) hrs) fcrs acrs
+   vrs link = sum $ map sum $ zipWith (zipWith3 (\wc full a -> if full then vcs (link / a) else link * wc) wcs) frcs arcs
+   wcs  = colWidthsFloating w acrs :: [Double]
+   arcs = transpose acrs
+   hrs  = rowHeights wcs arcs
+   fcrs = map (zipWith (<=) hrs) $ zipWith (\cw -> map (// cw)) wcs acrs
+   frcs = transpose fcrs
+   aecs = map (sum . zipWith (\hr full -> if full then 0 else hr) hrs) fcrs
+   aers = map (sum . zipWith (\wc full -> if full then 0 else wc) wcs) frcs
+   rowVars = map (mvar . ("row" ++) . show) [0..length hrs - 1] :: [MPoly Double]
+   colVars = map (mvar . ("col" ++) . show) [0..length wcs - 1] :: [MPoly Double]
+   vars = rowVars ++ colVars
+   nVars = length vars
+
+   -- mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv * rv - mnum clc else Nothing) rowVars) colVars cellFullCols cellLengthCols
+   in wcs
 
 
 
-   in 0
 {-
 k     :: a = sum Hec+Afds/Afcs*sum Hed
 coeff :: a = Afcr*sum Wer+Afcs*sum Wes
