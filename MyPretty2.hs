@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LexicalNegation #-}
+{-# LANGUAGE LambdaCase #-}
 {- HLINT ignore "Move catMaybes" -}
 {- HLINT ignore "Fuse foldr/map" -}
 {- HLINT ignore "Eta reduce" -}
@@ -1478,9 +1479,10 @@ colWidths9 width cellLengthCols = let
    -- mpolys = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv * rv - mnum clc else Nothing) rowVars) colVars cellFullCols cellLengthCols
    full = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv * rv * mnum (recip clc) else Nothing) rowVars) colVars cellFullCols cellLengthCols
    area = sum $ concat $ crossWith (*) colVars rowVars
-   diffarea = map (\cv -> diffp cv area) [0 .. length colWidths1 - 1]
+   [areasubst] = until ((== 1) . length) (\(x:xs) -> map (subst x) xs) $ full ++ [area]
+   diffareas = map (\cv -> diffp cv areasubst) [0 .. length colWidths1 - 1]
 
-   in msolve $ full ++ diffarea
+   in msolve diffareas
    --colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellFullCols cellLengthCols
 
 {-

@@ -139,12 +139,13 @@ addpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (+) (
 
 subpp (MPoly z hi) (MPoly _ hj) = MPoly z $ rinse $ M.toList $ M.unionWith (-) (M.fromList hi) (M.fromList hj)
 
-divpm d@(pd, cd) (MPoly w n) = MPoly w $ map (\n1@(pn, cn) -> if any (> 0) $ zipWith (*) pn pd then divm n1 d else n1) n
-
-subst pcij = let
+subst (MPoly vars pcij) (MPoly w n) = let 
    [([], ci), (pj, cj)] = sortOn (length . fst) pcij
 
-   in (pj, cj/ci)
+   mon = (pj, cj/ci)
+   vs  = tail $ findIndices (/= 0) pj -- list variables in the first argument, dropping the head
+
+   in MPoly w $ map (\n1@(pn, cn) -> if any ((/= 0) . (pn !!)) vs then divm n1 mon else n1) n
 
 
 diffm wrt (pi, ci) = let
