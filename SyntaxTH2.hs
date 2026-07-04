@@ -41,20 +41,20 @@ data DecInfo flag = DecInfo Type [TyVarBndr flag] [Con]
 
 -- | Extract data or newtype declaration information
 
-decInfo :: Dec -> Q (DecInfo BndrVis)
+decInfo :: Dec -> Q (DecInfo ())
 decInfo (DataD    _ name tyVars _ cs _) =  return $ DecInfo (ConT name) tyVars cs
 decInfo (NewtypeD _ name tyVars _ c  _) =  return $ DecInfo (ConT name) tyVars [c]
 decInfo _ = fail "partial isomorphisms can only be derived for constructors of data type or newtype declarations."
 
 -- | Convert tyVarBndr to type
 
-tyVarBndrToType :: TyVarBndr BndrVis -> Type
+tyVarBndrToType :: TyVarBndr () -> Type
 tyVarBndrToType (PlainTV n _)   = VarT n
 tyVarBndrToType (KindedTV n _ k) = SigT (VarT n) k
 
 -- | Create Iso type for specified type and conctructor fields (Iso (a, b) (CustomType a b c))
 
-isoType :: Type -> [TyVarBndr BndrVis] -> [Type] -> Q Type
+isoType :: Type -> [TyVarBndr ()] -> [Type] -> Q Type
 isoType typ tyVarBndrs fields = do
       isoCon <- [t| Iso |]
       return $ ForallT (map specified tyVarBndrs) [] $ isoCon `AppT` (isoArgs fields) `AppT` (applyAll typ $ map tyVarBndrToType tyVarBndrs)
@@ -116,7 +116,7 @@ defineIsomorphisms d = do
 
 --   letter.
 
-defFromCon :: [MatchQ] -> Type -> [TyVarBndr BndrVis] -> Con -> DecsQ
+defFromCon :: [MatchQ] -> Type -> [TyVarBndr ()] -> Con -> DecsQ
 defFromCon matches t tyVarBndrs con = do
       let funName = rename $ conName con
       sig <- SigD funName `fmap` isoType t tyVarBndrs (conFields con)

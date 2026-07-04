@@ -22,6 +22,20 @@ data Expr
    | Exprs   {etype :: MType, exprs1 :: [Expr]}
    | Keyword String
 
+data Closure = Closure Constr Expr Env 
+
+type Env = [Frame]
+
+data Frame = Frame {fconstr :: Constr, items :: [HashDyn]}
+
+data PartApply = PartApply [HashDyn] Constr Expr Env
+
+data TC = Trans | Cum
+
+data Person = Tyrone | Danny | James | David
+
+data Field = Borrowed | Profit | Owed
+
 instance Eq Expr
 
 instance Eq HashDyn

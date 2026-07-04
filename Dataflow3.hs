@@ -28,7 +28,7 @@ import Control.Monad
 import System.Directory
 import System.Process
 
-import GI.Gtk
+--import GI.Gtk
 
 import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo qualified as Cairo

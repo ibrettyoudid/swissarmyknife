@@ -7,7 +7,7 @@ import Data.Typeable
 import Favs
 import GHC.Stack
 import Iso2 hiding (foldl, (!!))
-import {-# SOURCE #-} MHashDynamic3 hiding (Apply, expr)
+import {-# SOURCE #-} HashDyn hiding (Apply, expr)
 import NewTuple hiding (apply)
 
 data Rule tok
@@ -21,10 +21,10 @@ data Rule tok
   | Range tok tok
   | Many (Rule tok)
   | ManyTill (Rule tok) (Rule tok)
-  | Apply {iso :: Iso Dynamic Dynamic, subrule :: Rule tok}
-  | Bind (Rule tok) (Dynamic -> Rule tok, Dynamic -> Dynamic) -- parsing, the first func turns the result of the nested rule into a new rule. printing, we have the result of the new rule but not the new rule itself. we need to use the nested rule and the result to recreate it
-  | Return Dynamic
-  | StrRes String Dynamic
+  | Apply {iso :: Iso HashDyn HashDyn, subrule :: Rule tok}
+  | Bind (Rule tok) (HashDyn -> Rule tok, HashDyn -> HashDyn) -- parsing, the first func turns the result of the nested rule into a new rule. printing, we have the result of the new rule but not the new rule itself. we need to use the nested rule and the result to recreate it
+  | Return HashDyn
+  | StrRes String HashDyn
   | Not (Rule tok)
   | And [Rule tok]
   | Set String (Rule tok)
@@ -37,9 +37,9 @@ data IgnoreMe a = IgnoreMe a
 data RuleR t r where
   BindR :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> a) -> RuleR t b
   ApplyR :: (Typeable a, Typeable b) => Iso a b -> RuleR t a -> RuleR t b
-  OptionR :: (Typeable a, Typeable (Maybe a)) => RuleR t a -> RuleR t (Maybe a)
-  EithR :: (Typeable a, Typeable b, Typeable (Either a b)) => RuleR t a -> RuleR t b -> RuleR t (Either a s)
-  ThenR :: (Typeable a, Typeable b, Typeable (a :- b)) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
+  OptionR :: (Typeable a) => RuleR t a -> RuleR t (Maybe a)
+  EithR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (Either a s)
+  ThenR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
   (:/) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
   (://) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t a
   ManyTillR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t [a]
@@ -62,7 +62,7 @@ data RuleR t r where
   RangeR :: (Typeable t) => t -> t -> RuleR t t
   AnyTokenR :: (Typeable t) => RuleR t t
   StringR :: (Typeable t) => [t] -> RuleR t [t]
-  RestR :: (Typeable [t]) => RuleR t [t]
+  RestR :: (Typeable t) => RuleR t [t]
   PosR :: RuleR t (Int, Int)
 
 -- GetR      :: Frame      n v f      =>       n              -> RuleR t v
@@ -171,41 +171,41 @@ instance Show tok => Show (Rule tok) where
    show (Return  a) = "Return " ++ show a
 -}
 
-class State s where
+class PosItem s where
   from :: s t -> Int
   item :: s t -> Item t
   make :: Int -> Item t -> s t
   maket :: Int -> Int -> Item t -> s t
 
-class (State s) => StateTo s where
+class (PosItem s) => PosItemTo s where
   to :: s t -> Int
 
-instance State StateF where
+instance PosItem PosItemF where
   from = fromf
   item = itemf
-  make = StateF
-  maket f t = StateF f
+  make = PosItemF
+  maket f t = PosItemF f
 
-instance State StateFT where
+instance PosItem PosItemFT where
   from = fromt
   item = itemt
-  make f = StateFT f f
-  maket = StateFT
+  make f = PosItemFT f f
+  maket = PosItemFT
 
-instance StateTo StateFT where
+instance PosItemTo PosItemFT where
   to = tot
 
-data StateF  tok = StateF  {fromf :: Int,             itemf :: Item tok} deriving (Eq, Ord)
+data PosItemF  tok = PosItemF  {fromf :: Int,             itemf :: Item tok} deriving (Eq, Ord)
 
-data StateFT tok = StateFT {fromt :: Int, tot :: Int, itemt :: Item tok} deriving (Eq, Ord)
+data PosItemFT tok = PosItemFT {fromt :: Int, tot :: Int, itemt :: Item tok} deriving (Eq, Ord)
 
-instance (Show z) => Show (StateFT z) where
-  show (StateFT f t i) = show i ++ " " ++ unwords (map show [f, t])
+instance (Show z) => Show (PosItemFT z) where
+  show (PosItemFT f t i) = show i ++ " " ++ unwords (map show [f, t])
 
-instance (Show z) => Show (StateF z) where
-  show (StateF f i) = show i ++ " " ++ show f
+instance (Show z) => Show (PosItemF z) where
+  show (PosItemF f i) = show i ++ " " ++ show f
 
--- data Result = Running | Fail | Pass { asts :: [Dynamic] } deriving (Eq, Ord, Show)
+-- data Result = Running | Fail | Pass { asts :: [HashDyn] } deriving (Eq, Ord, Show)
 
 data Item tok = Item {rule :: Rule tok, istate :: IState} deriving (Eq)
 
@@ -213,14 +213,14 @@ instance (Ord tok) => Ord (Item tok) where
   compare a b = compare (rule a, istate a) (rule b, istate b)
 
 data IState
-  = Pass {asts :: [Dynamic]}
+  = Pass {asts :: [HashDyn]}
   | Fail
   | Running
   | ISeq Int
   | IAlt Int -- Int is how many have finished
   | IName
   | ITerm -- used for all terminal level ops
-  | IMany [Dynamic]
+  | IMany [HashDyn]
   | INot
   | IAnd
   | IGet

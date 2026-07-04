@@ -20,7 +20,7 @@
 module Hash where
 
 import Favs hiding (ifP)
-import Dyn hiding (toDyn, fromDyn, fromDynamic)
+import Dyn hiding (toDyn, fromDyn, fromDyn1, fromDyn2, fromDynamic)
 import HashDyn
 
 import NewTuple

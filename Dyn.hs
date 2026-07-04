@@ -7,6 +7,7 @@ module Dyn (
    Dynamic,
    SomeTypeRep,
    Typeable,
+   typeOf,
    typeRepTyCon
 ) where
 

@@ -3,7 +3,7 @@
 module HashDyn where
 
 import Favs 
-import Dyn hiding (toDyn, fromDyn, fromDynamic)
+import Dyn hiding (toDyn, fromDyn, fromDyn1, fromDynamic)
 import qualified Dyn
 import Show1
 import NewTuple
@@ -22,6 +22,8 @@ import qualified Data.Map as M
 
 import Prelude hiding ((++), length, putStr, putStrLn)
 
+import GHC.Stack
+
 newtype HashDyn = HashDyn Dynamic
 
 hashDyn (HashDyn d) = d
@@ -34,6 +36,16 @@ fromDyn d e = Dyn.fromDyn d e
 
 fromDynamic :: Typeable a => HashDyn -> Maybe a
 fromDynamic d = Dyn.fromDynamic d
+
+fromDyn1 :: (Typeable a) => HashDyn -> a
+fromDyn1 d = case fromDynamic d of
+   Just j -> j
+   n@Nothing -> error ("fromDyn1: expected " ++ show (typeOf n) ++ " got " ++ show (dynTypeRep d))
+
+fromDyn2 :: (Typeable a, HasCallStack) => String -> HashDyn -> a
+fromDyn2 e d = case fromDynamic d of
+   Just j -> j
+   Nothing -> error $ e ++ ", is " ++ show d
 
 instance Dyn HashDyn where
    dtoDyn = HashDyn

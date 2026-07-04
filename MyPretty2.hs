@@ -70,7 +70,7 @@ import MPoly hiding (replaceIndices, showm)
 import Poly
 import Colour
 
-import Data.Functor
+import Data.Functor hiding (unzip)
 import Data.Char
 import Prelude hiding (maximum)
 import Data.List hiding (maximum)
