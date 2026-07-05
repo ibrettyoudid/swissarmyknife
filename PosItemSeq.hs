@@ -93,7 +93,9 @@ lookupNI n i (PosItemSeq m) = do
    s <- I.lookup n m
    M.lookup i (PI.imap s)
 
-range from to (PosItemSeq i) = PosItemSeq $ I.takeWhileAntitone (<= to) $ I.dropWhileAntitone (< from) i
+domain (PosItemSeq i) = (fst $ fromJust $ I.lookupMin i, fst $ fromJust $ I.lookupMax i)
+
+range (from, to) (PosItemSeq i) = PosItemSeq $ I.takeWhileAntitone (<= to) $ I.dropWhileAntitone (< from) i
 
 fromElems l = PosItemSeq $ I.fromList $ zip [0..] l
 

@@ -376,7 +376,7 @@ sexpr = Name "sexpr" $ Alt [Seq [sexpr, Token '+', sexpr], Token 'a']
 
 test = parseE sexpr "a+a+a"
 
-mintest = parseE (Seq [Token 'a', Token 'b']) "ab"
+mintest = parseEE (Seq [Token 'a', Token 'b']) "ab"
 
 linePos = M.fromList . zip [(0 :: Int) ..] . (0 :) . map (+ 1) . findIndices (== '\n')
 
@@ -551,14 +551,16 @@ parseEE r t = do
                ) $ SL.list $ ((piseq PIS.! subfrom) PI.! subrule))
             ) $ active)
       predictE2 n active = do
-         piseq <- get :: StateT (PIS.PosItemSeq tok positem) IO (PIS.PosItemSeq tok positem)
-         return []
+         concat . concat <$> (mapM (\mainpositem -> do
+            let subitems = predict1 n mainpositem 
+            mapM (PIS.insertP mainpositem) subitems) active)
 
    positemseq <- execStateT (do
       comppredE 0 active
       mapM_ (\n -> do
+         piseq <- get :: StateT (PIS.PosItemSeq tok positem) IO (PIS.PosItemSeq tok positem)
          liftIO $ putStrLn $ "SCAN " ++ take 75 (cycle "/\\")
-         let scanned = scanA n t $ SL.fromList active
+         let scanned = mapMaybe (scan1 n (t !! n)) $ SL.list $ PI.setlist $ piseq PIS.! (n-1)
          liftIO $ putStrLn $ "scanned=" ++ show scanned
          comppredE n scanned) [1..length t]
       ) init
@@ -1016,10 +1018,10 @@ combinescans c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
 -- how kernels are compared for equality defines what sort of parser it is
 -- some record little context, some account for a lot, if it accounts for all context it can't do recursive grammars
 
-table str stateseq = tableFT str stateseq 0 (PIS.size stateseq - 1)
+table str stateseq = tableFT str stateseq $ PIS.domain stateseq
 
-tableFT str stateseq from to = let
-   range = PIS.toList $ PIS.range from to stateseq
+tableFT str stateseq (from, to) = let
+   range = PIS.toList $ PIS.range (from, to) stateseq
    shown = map show range
    nums  = map show [from .. to]
    numls = 0 : map length nums
@@ -1028,7 +1030,7 @@ tableFT str stateseq from to = let
    ends  = 0 : map (\n -> maximum $ zipWith (taux1D ends numls from n) shown range) [from .. to]
    --ends  = 0 : map (\n -> maximum $ zipWith (taux1D ends numls from n) shown $ SL.toList $ PIS.setlist $ fromJust $ PIS.lookup n stateslist) [from .. to]
    show1 = zipWith (taux2D ends numls from) shown range
-   nums1 = map     (taux3D ends nums  from) [from .. to]
+   nums1 = map     (taux3D ends nums  from) [from .. to - 1]
    toks  = map     (taux4D ends str   from) [from .. to - 1]
    axis  = foldr Parser3.mergeStrs "" (nums1 ++ toks)
 
