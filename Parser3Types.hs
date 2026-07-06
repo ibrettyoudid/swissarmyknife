@@ -230,8 +230,7 @@ data IState
 
 pos2 :: (HasCallStack) => IState -> Int
 pos2 (ISeq n) = n
-pos2 (IAlt n) = n
-pos2 x = error $ show x
+pos2 x = -100 --error $ show x
 
 pos :: (HasCallStack) => Item tok -> Int
 pos (Item r i) = pos2 i
@@ -268,6 +267,7 @@ instance (Show tok) => Show (Rule tok) where
       Many      a -> showString "Many " . showsPrec 11 a
       Then    a b -> showParen (p > 6) $ showsPrec 6 a . showString " <*> " . showsPrec 6 b
       Pos         -> showString "Pos"
+      Name    a b -> showString a
 
 
 --foldl (showsPrec 5 a) [b, c, d, e]

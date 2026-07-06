@@ -372,9 +372,9 @@ op = Alt [Token '+', Token '-', Token '*', Token '/']
 -- ident = Name "ident" $ cons (Alt [alpha, under]) ident1
 -- ident1 = Many (Alt [alpha, under, digit])
 
-sexpr = Name "sexpr" $ Alt [Seq [sexpr, Token '+', sexpr], Token 'a']
+sexpr = Name "sexpr" $ Alt [Seq [sexpr, Token '+', sexpr], Range 'a' 'z']
 
-test = parseE sexpr "a+a+a"
+test = parseEE sexpr "a+b+c+d"
 
 mintest = parseEE (Seq [Token 'a', Token 'b']) "ab"
 
@@ -474,26 +474,40 @@ parseEE r t = do
    let
       lps = linePos t
       positem = maket 0 0 $ start r :: PosItemFT Char
-      active = [positem]
+      active = SL.singleton positem
       init = PIS.singleton $ positem :: PIS.PosItemSeq Char (PosItemFT Char)
 
       comppredE n active = do
-         completed <- completeE2 n active
-         predicted <- predictE2 n completed
+         completed <- completeE2 n SL.empty active
+         predicted <- predictE2 n SL.empty completed
          completeE1 n predicted
 
-      completeE1 n [    ] = return []
-      completeE1 n active = do
-         completed <- completeE2 n active
-         predictE1 n completed
+      completeE1 n active 
+         | SL.null active = return SL.empty
+         | otherwise = do
+            completed <- completeE2 n SL.empty active
+            predictE1 n completed
 
-      predictE1 n [    ] = return []
-      predictE1 n active = do
-         predicted <- predictE2 n active
-         completeE1 n predicted
+      predictE1 n active 
+         | SL.null active = return SL.empty
+         | otherwise = do
+            predicted <- predictE2 n SL.empty active
+            completeE1 n predicted
 
-      completeE2 n active = do
-         concat <$> (mapM (\subpositem -> do
+      completeE2 n collect active 
+         | SL.null active = return collect
+         | otherwise = do
+            completed <- completeE3 n active
+            completeE2 n (SL.concat [collect, completed]) completed
+
+      predictE2 n collect active
+         | SL.null active = return collect
+         | otherwise = do
+            predicted <- predictE3 n active
+            predictE2 n (SL.concat [collect, predicted]) predicted
+
+      completeE3 n active = do
+         SL.concat <$> (SL.mapM (\subpositem -> do
             liftIO $ putStrLn $ "completeE2 sub="++show subpositem
             piseq <- get
             let
@@ -501,7 +515,7 @@ parseEE r t = do
                subitem    = item   subpositem
                subistate  = istate subitem
                subrule    = rule   subitem
-            concat <$> (mapM (\mainpositem -> do
+            SL.fromList . concat <$> (SL.mapM (\mainpositem -> do
                liftIO $ putStrLn $ "completeE2    main="++show mainpositem
                let
                   mainfrom   = from   mainpositem
@@ -513,7 +527,7 @@ parseEE r t = do
                   g i  = PIS.insertC (maket mainfrom n i) subpositem
                if not (finished mainistate) && finished subistate
                   then do
-                     liftIO $ putStrLn $ show (mainrule, mainistate)
+                     --liftIO $ putStrLn $ show (mainrule, mainistate)
                      case (mainrule, mainistate) of
                         (Seq as, ISeq x) -> if
                            | subistate == Fail  -> f $ Fail
@@ -522,8 +536,9 @@ parseEE r t = do
                                  then do
                                     let
                                        ret = retrieveE piseq mainpositem
-                                       newasts = concat $ map reverse $ concat $ crossWith (:) (asts subistate) $ retrieveE piseq mainpositem
-                                    liftIO $ putStrLn $ "ret="++show ret++" newasts="++show newasts
+                                       cret = crossList ret
+                                       newasts = map toDyn $ map reverse $ concat $ crossWith (:) (asts subistate) cret
+                                    liftIO $ putStrLn $ "ret="++show ret++" crossed="++show cret++" pass="++show (asts subistate)++" newasts="++show newasts
                                     f $ Pass newasts
                               else
                                  f $ Fail
@@ -558,14 +573,16 @@ parseEE r t = do
                         _ -> error $ "no entry for in case for "++show mainrule ++ " " ++ show mainistate
                   else
                      return []
-               ) $ SL.list $ ((piseq PIS.! subfrom) PI.! subrule))
+               ) $ ((piseq PIS.! subfrom) PI.! subrule))
             ) $ active)
-      predictE2 n active = do
-         concat . concat <$> (mapM (\mainpositem -> do
+
+      predictE3 n active = do
+         SL.concat <$> (SL.mapM (\mainpositem -> do
             liftIO $ putStrLn $ "predict mainpositem="++show mainpositem
             let subitems = predict1 n mainpositem 
             liftIO $ putStrLn $ "subitems="++show subitems
-            mapM (PIS.insertP mainpositem) subitems) active)
+            r <- mapM (PIS.insertP mainpositem) subitems
+            return $ (SL.fromList $ (concat r :: [PosItemFT Char]))) active)
 
    positemseq <- execStateT (do
       active <- predictE1 0 active
@@ -578,11 +595,11 @@ parseEE r t = do
          let scanned = mapMaybe (scan1 n (t !! (n-1))) $ SL.list $ PI.setlist $ piseq PIS.! (n-1)
          mapM (\main -> PIS.insertC main main) scanned
          liftIO $ putStrLn $ "scanned=" ++ show scanned
-         comppredE n scanned) [1..length t]
+         comppredE n $ SL.fromList scanned) [1..length t]
       ) init
    
    putStrLn (table t positemseq)
-   return $ concat $ mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (asts $ istate (item s))) (SL.list $ positemseq PIS.! length t PI.! r)
+   return $ concat $ mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (asts $ istate (item s))) (SL.list $ PI.setlist $ positemseq PIS.! length t)
 
 --data Main = Main { lps :: [(Int, Int)], stateseq :: PosItemSeq state tok }
 
@@ -940,7 +957,7 @@ childrenE positemseq next = do
    sub <- SL.list $ PI.setlist $ positemseq PIS.! to next
    if anysubitem (item next) (item sub) && pass (istate $ item sub)
       then siblingsE positemseq next sub
-      else [[]]
+      else []
 
 siblingsE positemseq next sub = do
    main <- SL.list $ PI.setlist $ positemseq PIS.! from sub
@@ -950,7 +967,7 @@ siblingsE positemseq next sub = do
             then childrenE positemseq main
             else [[]]
          [sub : more]
-      else [[]]
+      else []
 
 children stateslist parent = do
    s1 <- SL.list $ stateslist !! to parent
@@ -968,7 +985,7 @@ siblings stateslist parent s1 = do
                return $ s1 : more
             else
                [[]]
-      else [[]]
+      else []
 
 -- parents
 

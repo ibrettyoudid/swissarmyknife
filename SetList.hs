@@ -25,12 +25,16 @@ member v setlist = S.member v $ set setlist
 
 map f sl = fromList $ L.map f $ list sl
 
-concat sls = foldl union empty sls
+mapM f sl = fromList <$> (Prelude.mapM f $ list sl)
 
 union a b = let
    s = S.union (set a) (set b)
    l = list a ++ filter (\x -> not $ S.member x $ set a) (list b)
    in SetList s l
+
+unions as = foldr union empty as
+
+concat as = foldr union empty as
 
 delete x sl = SetList (S.delete x $ set sl) (filter (/= x) $ list sl)
 
@@ -56,7 +60,10 @@ instance Foldable SetList where
    foldl f z xs = foldl f z $ list xs
    foldr f z xs = foldr f z $ list xs
 
-{- cant do functor as our map requires an Ord instance, and it would need to be ANY type, because Functor is not parametrised by the 'element' type of fmap
+{- cant do functor as our map requires an Ord instance, and it would need to be ANY type, because Functor is not parameterised by the 'element' type of fmap
 instance Functor SetList where
    fmap f xs = SetList.map f xs
-   -}
+
+instance Traversable SetList where
+   mapM f sl = fromList <$> (mapM f $ list sl)
+-}
