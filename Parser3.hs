@@ -535,10 +535,12 @@ parseEE r t = do
                               if pass subistate
                                  then do
                                     let
-                                       ret = retrieveE piseq mainpositem
-                                       cret = crossList ret
+                                       seqs = childrenE piseq mainpositem
+                                       oldasts = map2 (asts . istate . item) seqs
+                                       ret = map crossList oldasts
+                                       cret = concat ret
                                        newasts = map toDyn $ map reverse $ concat $ crossWith (:) (asts subistate) cret
-                                    liftIO $ putStrLn $ "ret="++show ret++" crossed="++show cret++" pass="++show (asts subistate)++" newasts="++show newasts
+                                    liftIO $ putStrLn $ "seqs="++show seqs++" oldasts="++show oldasts++" ret="++show ret++" cret="++show cret++" pass="++show (asts subistate)++" newasts="++show newasts
                                     f $ Pass newasts
                               else
                                  f $ Fail
@@ -965,7 +967,9 @@ siblingsE positemseq next sub = do
       then do
          more <- if pos (item main) > 0
             then childrenE positemseq main
-            else [[]]
+            else if from sub == from main 
+               then [[]]
+               else []
          [sub : more]
       else []
 
