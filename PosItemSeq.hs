@@ -33,6 +33,7 @@ insert st m = let
    in I.insert n m1new m
 
 insertP main sub = do
+   liftIO $ putStrLn $ "insertP called main="++show main++" sub="++show sub
    PosItemSeq m <- get
    let
       n = to main
@@ -42,20 +43,22 @@ insertP main sub = do
                Just  j -> j
       m1r = PI.imap m1
       m1s = PI.setlist m1
+
       m2r = case M.lookup r m1r of
                Nothing -> SL.empty
                Just  j -> j
-      needsAddingr = SL.member main m2r
+      needsAddingr = not $ SL.member main m2r
       m1rnew = if needsAddingr
          then M.insert r (SL.insert main m2r) m1r
          else m1r
-      needsAddings = SL.member sub m1s
+      needsAddings = not $ SL.member sub m1s
       m1snew = if needsAddings
          then SL.insert sub m1s
          else m1s
+   liftIO $ putStrLn $ "m1r="++show m1r++" m1s="++show m1s
    if needsAddingr || needsAddings
       then do
-         liftIO $ putStrLn $ show "Predict "++show main++" --> "++show sub++if needsAddingr then " new connection" else ""
+         liftIO $ putStrLn $ "Predict "++show main++" --> "++show sub++if needsAddingr then " new connection" else ""
          put $ PosItemSeq $ I.insert n (PI.PosItems m1rnew m1snew) m
          return [sub]
       else
@@ -71,13 +74,13 @@ insertC main sub = do
                Just  j -> j
       m1r = PI.imap m1
       m1s = PI.setlist m1
-      needsAddings = SL.member sub m1s
+      needsAddings = not $ SL.member main m1s
       m1snew = if needsAddings
-         then SL.insert sub m1s
+         then SL.insert main m1s
          else m1s
    if needsAddings
       then do
-         liftIO $ putStrLn $ show "Complete "++show main++" <-- "++show sub
+         liftIO $ putStrLn $ "Complete "++show main++" <-- "++show sub
          put $ PosItemSeq $ I.insert n (PI.PosItems m1r m1snew) m
          return [main]
       else
