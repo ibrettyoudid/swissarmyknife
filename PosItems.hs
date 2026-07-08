@@ -42,7 +42,7 @@ fromList l = PosItems (mapFromList SL.insert SL.empty $ mapfxx (rule . item) l) 
 
 fromSL sl = PosItems (mapFromList SL.insert SL.empty $ mapfxx (rule . item) $ SL.toList sl) sl
 
-singleton e = PosItems (M.singleton (rule $ item e) (SL.singleton e)) (SL.singleton e)
+singleton e = PosItems M.empty (SL.singleton e)
 
 empty = PosItems M.empty SL.empty
 

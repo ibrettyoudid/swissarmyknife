@@ -19,8 +19,9 @@ data Rule tok
    | AnyToken
    | Token tok
    | Range tok tok
-   | Many (Rule tok)
-   | ManyTill (Rule tok) (Rule tok)
+   | Many Int Int (Rule tok)
+   | ManyTill Int Int (Rule tok) (Rule tok)
+   | AnyTill Int Int (Rule tok)
    | Apply {iso :: Iso HashDyn HashDyn, subrule :: Rule tok}
    | Bind (Rule tok) (HashDyn -> Rule tok, HashDyn -> HashDyn) -- parsing Bind a (b,c), b turns the result of a into a new rule. printing, we have the result of b but not b itself. c turns the result of b back into b for printing
    | Return HashDyn
@@ -31,6 +32,7 @@ data Rule tok
    | Get String
    | Pos
    | Ignore (Rule tok)
+   | Null
 
 data IgnoreMe a = IgnoreMe a
 
@@ -42,15 +44,15 @@ data RuleR t r where
    ThenR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
    (:/) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
    (://) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t a
-   ManyTillR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t [a]
+   ManyTillR :: (Typeable a, Typeable b) => Int -> Int -> RuleR t a -> RuleR t b -> RuleR t [a]
    CountR :: (Typeable b) => RuleR t Int -> RuleR t b -> RuleR t [b]
-   ManyR :: (Typeable a) => RuleR t a -> RuleR t [a]
+   ManyR :: (Typeable a) => Int -> Int -> RuleR t a -> RuleR t [a]
    SeqR :: (Typeable a) => [RuleR t a] -> RuleR t [a]
    AltR :: (Typeable a) => [RuleR t a] -> RuleR t a
    AndR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
    NotR :: (Typeable a) => RuleR t a -> RuleR t a
    IgnoreR :: (Typeable a) => RuleR t a -> RuleR t (IgnoreMe a)
-   AnyTillR :: (Typeable a) => RuleR t a -> RuleR t [t]
+   AnyTillR :: (Typeable a) => Int -> Int -> RuleR t a -> RuleR t [t]
    TryR :: (Typeable a) => RuleR t a -> RuleR t a
    BuildR :: (Typeable a) => f -> RuleR t a -> RuleR t f
    LambdaR :: (Typeable a) => f -> RuleR t a -> RuleR t a
@@ -80,7 +82,10 @@ instance (Eq tok) => Eq (Rule tok) where
    Range a b == Range c d = (a, b) == (c, d)
    Not a == Not b = a == b
    Then a b == Then c d = (a, b) == (c, d)
-   Many a == Many b = a == b
+   Many a b c == Many d e f = (a, b, c) == (d, e, f)
+   ManyTill a b c d == ManyTill e f g h = (a, b, c, d) == (e, f, g, h)
+   AnyTill a b c == AnyTill d e f = (a, b, c) == (d, e, f)
+   Many a b c == Many d e f = (a, b, c) == (d, e, f)
    AnyToken == AnyToken = True
    Bind a b == Bind c d = a == c
    Apply a b == Apply c d = (a, b) == (c, d)
@@ -97,6 +102,9 @@ instance (Ord tok) => Ord (Rule tok) where
    compare AnyToken AnyToken = EQ
    compare (Bind a b) (Bind c d) = compare a c
    compare (Apply a b) (Apply c d) = compare (a, b) (c, d)
+   compare (Many a b c) (Many d e f) = compare (c, a, b) (f, d, e)
+   compare (ManyTill a b c d) (ManyTill e f g h) = compare (c, d, a, b) (g, h, e, f)
+   compare (AnyTill a b c) (AnyTill d e f) = compare (c, a, b) (f, d, e)
    compare (Name {}) _ = LT
    compare (Seq {}) (Name {}) = GT
    compare (Seq {}) _ = LT
@@ -213,14 +221,13 @@ instance (Ord tok) => Ord (Item tok) where
    compare a b = compare (rule a, istate a) (rule b, istate b)
 
 data IState
-   = Pass {asts :: [HashDyn]}
+   = Pass { asts :: [HashDyn] }
    | Fail
    | Running
    | ISeq Int
    | IAlt Int -- Int is how many have finished
    | IName
-   | ITerm -- used for all terminal level ops
-   | IMany [HashDyn]
+   | IMany { masts :: [[HashDyn]] }
    | INot
    | IAnd
    | IGet
@@ -264,7 +271,9 @@ instance (Show tok) => Show (Rule tok) where
       Apply   a b -> showString "Apply " . shows a . showString " $ " . showsPrec 11 b
       Bind    a b -> showString "Bind " . showsPrec 11 a
       Return    a -> showString "Return " . shows a
-      Many      a -> showString "Many " . showsPrec 11 a
+      Many  a b c -> showString "Many " . shows a . showString ".." . shows b . showString " " . showsPrec 11 c
+      ManyTill a b c d -> showString "ManyTill " . shows a . showString ".." . shows b . showString " " . showsPrec 11 c . showString " " . showsPrec 11 d
+      AnyTill    a b c -> showString "AnyTill "  . shows a . showString ".." . shows b . showString " " . showsPrec 11 c
       Then    a b -> showParen (p > 6) $ showsPrec 6 a . showString " <*> " . showsPrec 6 b
       Pos         -> showString "Pos"
       Name    a b -> showString a
@@ -319,7 +328,6 @@ showPrec p i = showsPrec p i ""
 -- showItem (Seq as) (ISeq n) = \p rest -> unwords $ insertIndex n "." $ map (\x -> showsPrec p x "") as
 showItem (Seq as) (ISeq   n) = enclose True $ intercalate "," $ insertIndex n "o" $ map show as
 showItem (Alt as) (IAlt   n) = enclose True $ (++ ' ' : show n) $ intercalate " | " $ map show as
-showItem (Many a) (IMany as) = "Many " ++ show a ++ "=" ++ enclose True (intercalate "," $ map show as)
 showItem rule is = enclose True $ showPrec 1 rule ++ " " ++ show is
 
 enclose flag str = if flag then "(" ++ str ++ ")" else str
