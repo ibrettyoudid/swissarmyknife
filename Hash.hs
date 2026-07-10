@@ -96,7 +96,7 @@ repl1 env = do
    let ex = fromDyn1 $ head exd
    -}
    --let ex = Value u 0
-   ex <- P.parseT num li2
+   ex <- P.parseT expr li2
    putStrLn "doing vars"
    ex1 <- case ex of
       [] -> do

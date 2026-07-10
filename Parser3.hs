@@ -302,11 +302,11 @@ chars = totald "strOfChars" strOfChars charsOfStr
 
 -- repl1 r = do n <- get; return $ Seq $ replicate (fromDyn n 0 :: Int) r
 
-replParse rule n = SeqR $ replicate n rule
+repParse rule n = SeqR $ replicate n rule
 
-replPrint rule res = length res
+repPrint rule res = length res
 
-repl rule = (replParse rule, replPrint rule)
+rep rule = (repParse rule, repPrint rule)
 
 intiso :: Iso String Int
 intiso = total "intiso" read show
@@ -592,7 +592,7 @@ parseEE r t = do
                         _ -> error $ "no entry in case for "++show mainrule ++ " " ++ show mainistate
                   else
                      return []
-               ) ((piseq PIS.! subfrom) PI.! subrule))
+               ) (fromMaybe SL.empty $ PI.lookup subrule (piseq PIS.! subfrom)))
             ) $ active)
 
       predictE3 n active = do
@@ -1145,7 +1145,7 @@ fp p e = format <$> print1 p e
 fp2 :: (Typeable a, Show (Rule Char)) => RuleR Char a -> HashDyn -> Maybe [Char]
 fp2 p e = format <$> print2 (translate p) e
 
-print1 :: RuleR t a -> a -> Maybe (Doc [t])
+print1 :: Ord t => RuleR t a -> a -> Maybe (Doc [t])
 print1 (SeqR as) e = mergeSeq <$> zipWithM print1 as e
 print1 (AltR as) e = firstJust1 $ map (\a -> print1 a e) as
 print1 (ApplyR a b) e = unapply a e >>= print1 b
@@ -1154,8 +1154,13 @@ print1 (BindR p (g, h)) b = let a = h b in do t1 <- print1 p a; t2 <- print1 (g 
 print1 (NameR a b) e = print1 b e
 print1 (TokenR t) e = ifJust (t == e) $ DStr [t]
 print1 AnyTokenR e = Just $ DStr [e]
-
--- print1 other            e = error $ show other
+print1 PosR e = Just $ DStr []
+print1 (ThenR a b) (e :- f) = do ta <- print1 a e; tb <- print1 b f; return $ DSeq [ta, tb]
+print1 (a :/ b) f = do ta <- print1 a undefined; tb <- print1 b f; return $ DSeq [ta, tb]
+print1 (a :// b) e = do ta <- print1 a e; tb <- print1 b undefined; return $ DSeq [ta, tb]
+print1 (RangeR a b) e = ifJust (e >= a && e <= b) $ DStr [e]
+print1 (PureR a) e = Just $ DStr []
+--print1 other            e = error $ show other
 
 print2 :: Rule Char -> HashDyn -> Maybe (Doc [Char])
 print2 (Seq as) e = do m <- zipWithM print2 as (fromDyn1 e :: [HashDyn]); return $ mergeSeq m
