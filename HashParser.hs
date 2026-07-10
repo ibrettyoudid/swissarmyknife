@@ -124,7 +124,7 @@ ops = ["+", "-", "*", "/", "$", ".", "=", "=="]
 
 op = "op" <=> varIso >$< text "(" *< opc ops >* text ")"
 
-leftsec =
+leftsec = "leftsec" <=>
    Iso
       "leftsec"
       (\(a :- op) -> Just $ Lambda u (Co "lam" [Member u "b"]) (Apply u [VarRef1 u op, a, VarRef1 u "b"]))
@@ -134,7 +134,7 @@ leftsec =
       )
       >$< text "(" *< term >*< opc ops >* text ")"
 
-rightsec =
+rightsec = "rightsec" <=>
    Iso
       "rightsec"
       (\(op :- b) -> Just $ Lambda u (Co "lam" [Member u "a"]) (Apply u [VarRef1 u op, VarRef1 u "a", b]))
@@ -146,7 +146,7 @@ rightsec =
 
 parens = text "(" *< expr >* text ")"
 
-list = text "[" *< list2 >* text "]"
+list = "list" <=> text "[" *< list2 >* text "]"
 
 list3 = chainr1 expr (text ",")
 list2 = Iso "list" (Just . Apply u . (VarRef1 u "list" :)) (\(Apply _ (f : xs)) -> ifJust (f == VarRef1 u "list") xs) >$< expr `sepBy` text ","
@@ -186,11 +186,11 @@ expr5 = "expr5" <=> expr6
 
 expr4 = "expr4" <=> opiso ["<", "<=", "==", ">=", ">", "/="] >$< expr5 >*< opc ["<", "<=", "==", ">=", ">", "/="] >*< expr5 <|> expr5
 
-expr3 = "expr3" <=> opiso ["&&", "||"] >$< expr4 >*< opc["&&", "||"] >*< expr3 <|> expr4
+expr3 = "expr3" <=> opiso ["&&", "||"] >$< expr4 >*< opc ["&&", "||"] >*< expr3 <|> expr4
 
 expr0 = "expr0" <=> opiso ["$", "="] >$< expr3 >*< opc ["$", "="] >*< expr0 <|> expr3
 
-ifSyn =
+ifSyn = "ifSyn" <=>
    Iso
       "if"
       (Just . If u)

@@ -83,12 +83,12 @@ repl1 env = do
    hSetBinaryMode stdin True
    li <- getLine
    li2 <- if li == "\\"
-   then let
-      aux = do
-         l <- getLine
-         if null l then return [] else do r <- aux; return (l:r)
-      in unlines <$> aux
-   else return li
+      then let
+         aux = do
+            l <- getLine
+            if null l then return [] else do r <- aux; return (l:r)
+         in unlines <$> aux
+      else return li
    putStrLn li2
    putStrLn "parsing"
    {-}

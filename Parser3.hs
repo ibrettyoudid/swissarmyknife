@@ -103,11 +103,7 @@ many = ManyR 0 0
 many1 :: (Typeable a) => RuleR t a -> RuleR t [a]
 many1 = ManyR 1 0
 
-sepBy x sep =
-   Parser3.pure []
-      <|> icons
-      >$< x
-      >*< many (sep *< x)
+sepBy x sep = Parser3.pure [] <|> icons >$< x >*< many (sep *< x)
 
 lc = PosR
 
