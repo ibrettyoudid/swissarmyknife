@@ -257,7 +257,7 @@ doLookups2 other = return other
 state
 0       initial state, no expanded rules
 1       we have started expanding this rule
-2       we have finished expanding this rule, 3rd part is the istate
+2       we have finished expanding this rule, 3rd part is the dot
 3..    only triggered if we try to lookup a rule while currently expanding it
 -}
 {-
@@ -405,7 +405,7 @@ parseE r t =
       init     = SL.singleton $ maket 0 0 $ start r
       items    = predictA (0 :: Int, 0 :: Int) init
       stateslist = parseE0 lps [items] t items [1 .. length t] :: [SL.SetList (PosItemFT _)]
-      done     = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last stateslist)
+      done     = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (dot (item s))) (SL.list $ last stateslist)
    in if length stateslist == length t && done /= []
             then done
             else trace (table t $ PIS.fromElems $ map PI.fromSL stateslist) []
@@ -415,7 +415,7 @@ parseED r t = do
    let init = SL.singleton $ maket 0 0 $ start r :: SL.SetList (PosItemFT _)
    items <- comppredD lps [SL.singleton $ maket 0 0 (start r)] (SL.singleton $ maket 0 0 (start r))
    stateslist <- parseE0D lps [items] t items [1 .. length t] :: IO [SL.SetList (PosItemFT _)]
-   let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last stateslist)
+   let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (dot (item s))) (SL.list $ last stateslist)
    putStrLn (table t $ PIS.fromElems $ map PI.fromSL stateslist)
    return done
 {-
@@ -426,7 +426,7 @@ parseEM r t = do
    let initseq = PIS.fromList [(0, inits)]
    items <- comppredD lps [SL.singleton $ maket 0 0 (start r)] (SL.singleton $ maket 0 0 (start r))
    stateseq <- execPosItemT (zipWithM parseE0M [0 .. length t - 1] t) initseq :: IO [SL.SetList (PosItemFT _)]
-   let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (istate (item s))) (SL.list $ last stateslist)
+   let done = mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (dot (item s))) (SL.list $ last stateslist)
    putStrLn (table t stateseq)
    return done
 -}
@@ -516,47 +516,47 @@ parseEE r t = do
             liftIO $ putStrLn $ "         completeE3 sub="++show subpositem
             piseq <- get
             let
-               subfrom    = from   subpositem
-               subitem    = item   subpositem
-               subistate  = istate subitem
-               subrule    = rule   subitem
+               subfrom = from subpositem
+               subitem = item subpositem
+               subdot  = dot  subitem
+               subrule = rule subitem
             SL.fromList . concat <$> (SL.mapM (\mainpositem -> do
                liftIO $ putStrLn $ "         completeE3    main="++show mainpositem
                let
-                  mainfrom   = from   mainpositem
-                  mainitem   = item   mainpositem
-                  mainistate = istate mainitem
-                  mainrule   = rule   mainitem
+                  mainfrom = from mainpositem
+                  mainitem = item mainpositem
+                  maindot  = dot  mainitem
+                  mainrule = rule mainitem
                   
                   f is = g $ Item mainrule is
                   g i  = PIS.insertC (maket mainfrom n i) subpositem
-               if not (finished mainistate) && finished subistate && anysubitem mainitem subitem
+               if not (finished maindot) && finished subdot && anysubitem mainitem subitem
                   then do
-                     --liftIO $ putStrLn $ show (mainrule, mainistate)
-                     case (mainrule, mainistate) of
+                     --liftIO $ putStrLn $ show (mainrule, maindot)
+                     case (mainrule, maindot) of
                         (Seq as, ISeq x) -> if
-                           | subistate == Fail  -> f $ Fail
+                           | subdot == Fail  -> f $ Fail
                            | x + 1 == length as ->
-                              if pass subistate
+                              if pass subdot
                                  then do
                                     let
                                        seqs = childrenE piseq mainpositem
-                                       oldasts = map2 (asts . istate . item) seqs
+                                       oldasts = map2 (asts . dot . item) seqs
                                        ret = map crossList oldasts
                                        cret = concat ret
-                                       newasts = map toDyn $ map reverse $ concat $ crossWith (:) (asts subistate) cret
-                                    liftIO $ putStrLn $ "         seqs="++show seqs++" oldasts="++show oldasts++" ret="++show ret++" cret="++show cret++" pass="++show (asts subistate)++" newasts="++show newasts
+                                       newasts = map toDyn $ map reverse $ concat $ crossWith (:) (asts subdot) cret
+                                    liftIO $ putStrLn $ "         seqs="++show seqs++" oldasts="++show oldasts++" ret="++show ret++" cret="++show cret++" pass="++show (asts subdot)++" newasts="++show newasts
                                     f $ Pass newasts
                               else
                                  f $ Fail
                            | otherwise          -> f $ ISeq (x + 1)
                         (Alt as, IAlt x) -> f $ if
-                           | pass subistate -> subistate
+                           | pass subdot -> subdot
                            | x < length as  -> IAlt (x + 1)
                            | otherwise      -> Fail
-                        (Name {}, Running) -> f subistate
+                        (Name {}, Running) -> f subdot
                         (Apply {}, Running) -> 
-                           case subistate of
+                           case subdot of
                               Pass reslist -> do
                                  concat <$> mapM (\res -> f $ case mainrule of
                                     Apply iso _ ->
@@ -565,27 +565,27 @@ parseEE r t = do
                                           Nothing -> Fail) reslist
                               Fail -> f Fail
                         (Not {}, Running) -> f $
-                           case subistate of 
+                           case subdot of 
                               Pass p -> Fail
                               Fail   -> Pass [toDyn ()]
                         (Bind i (j, k), Running) -> 
-                           case subistate of
+                           case subdot of
                               Pass reslist -> concat <$> mapM (\res -> g $ start $ j res) reslist
                               Fail -> f Fail
                         (Many minn maxn sr, IMany oldasts) ->
-                              if pass subistate
+                              if pass subdot
                                  then do
                                     let
-                                       newasts = concat $ crossWith (:) (asts subistate) oldasts
+                                       newasts = concat $ crossWith (:) (asts subdot) oldasts
                                        maxok = if maxn == 0 then newasts else filter ((<= maxn) . length) newasts
                                        minok = filter ((>= minn) . length) maxok
-                                    liftIO $ putStrLn $ "         oldasts="++show oldasts++" pass="++show (asts subistate)++" newasts="++show newasts
+                                    liftIO $ putStrLn $ "         oldasts="++show oldasts++" pass="++show (asts subdot)++" newasts="++show newasts
                                     r1 <- if not (null maxok) then f $ IMany maxok                        else return []
                                     r2 <- if not (null minok) then f $ Pass $ map (toDyn . reverse) minok else return []
                                     return $ r1++r2
                               else
                                  f $ Fail
-                        _ -> error $ "no entry in case for "++show mainrule ++ " " ++ show mainistate
+                        _ -> error $ "no entry in case for "++show mainrule ++ " " ++ show maindot
                   else
                      return []
                ) (fromMaybe SL.empty $ PI.lookup subrule (piseq PIS.! subfrom)))
@@ -616,7 +616,7 @@ parseEE r t = do
       ) init
    
    putStrLn (table t positemseq)
-   return $ concat $ mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (asts $ istate (item s))) (SL.list $ PI.setlist $ positemseq PIS.! length t)
+   return $ concat $ mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (asts $ dot (item s))) (SL.list $ PI.setlist $ positemseq PIS.! length t)
 
 --data Main = Main { lps :: [(Int, Int)], stateseq :: PosItemSeq state tok }
 
@@ -747,8 +747,8 @@ complete2 stateslist substate mainstate = let
    subitem1 = item substate
    main = item mainstate
 
-   in if istate subitem1 /= Running && istate main == Running && subitem main subitem1
-            then map (maket (from mainstate) (to substate)) $ complete3 stateslist (rule main) (istate main) mainstate substate
+   in if dot subitem1 /= Running && dot main == Running && subitem main subitem1
+            then map (maket (from mainstate) (to substate)) $ complete3 stateslist (rule main) (dot main) mainstate substate
             else []
 
 complete1D stateslist substate = do
@@ -759,15 +759,15 @@ complete2D stateslist substate mainstate = do
    -- print (sub, main, subitem main subitem1)
    let subitem1 = item substate
    let main = item mainstate
-   if istate subitem1 /= Running && istate main == Running && subitem main subitem1
+   if dot subitem1 /= Running && dot main == Running && subitem main subitem1
       then do
-         let r = map (maket (from mainstate) (to substate)) $ complete3 stateslist (rule main) (istate main) mainstate substate
+         let r = map (maket (from mainstate) (to substate)) $ complete3 stateslist (rule main) (dot main) mainstate substate
          -- print (sub, main, r)
          return r
       else return []
 
 complete3 stateslist r@(Seq as) (ISeq n) mainstate substate
-   | istate sub == Fail = [Item r Fail]
+   | dot sub == Fail = [Item r Fail]
    | n + 1 == length as = [Item r res1]
    | otherwise          = [Item r (ISeq (n + 1))]
    where
@@ -775,18 +775,18 @@ complete3 stateslist r@(Seq as) (ISeq n) mainstate substate
       -- res1 = if passi sub then stateslist !! from substate
       res1 = if passi sub then Pass $ retrieve2 stateslist mainstate substate else Fail
 complete3 stateslist r@(Alt as) (IAlt n) mainstate substate
-   | passi sub     = [Item r (istate sub)]
+   | passi sub     = [Item r (dot sub)]
    | n < length as = [Item r (IAlt (n + 1))]
    | otherwise     = [Item r Fail]
    where
       sub  = item substate
       main = item mainstate
-complete3 stateslist r@(Name {}) Running mainstate substate = [Item r (istate sub)]
+complete3 stateslist r@(Name {}) Running mainstate substate = [Item r (dot sub)]
    where
       sub  = item substate
       main = item mainstate
 complete3 stateslist r@(Apply {}) Running mainstate substate =
-   case istate sub of
+   case dot sub of
       Pass reslist -> do
          res <- reslist
          case r of
@@ -799,14 +799,14 @@ complete3 stateslist r@(Apply {}) Running mainstate substate =
       sub  = item substate
       main = item mainstate
 complete3 stateslist r@(Not {}) Running mainstate substate = 
-   [Item r (case istate sub of 
+   [Item r (case dot sub of 
                Pass p -> Fail
                Fail   -> Pass [toDyn ()])]
       where
          sub  = item substate
          main = item mainstate
 complete3 stateslist r@(Bind i (j, k)) Running mainstate substate =
-   case istate sub of
+   case dot sub of
       Pass reslist -> do
          res <- reslist
          case j res of
@@ -817,7 +817,7 @@ complete3 stateslist r@(Bind i (j, k)) Running mainstate substate =
          main = item mainstate
 complete3 stateslist r@(Many a b sr) Running mainstate substate =
    --    Item x (Pass $ toDyn done) Item2 :
-   case istate sub of
+   case dot sub of
       Pass reslist -> do
          res <- reslist
          [Item r Running]
@@ -830,14 +830,14 @@ complete3 stateslist r@(Many a b sr) Running mainstate substate =
 retrieve stateslist mainseq n sub = reverse $ retrieve1 stateslist mainseq n sub
 
 retrieve1 stateslist mainseq n sub = let
-    prev1 = S.filter (\prevst -> pass (istate $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (stateslist !! from sub)
+    prev1 = S.filter (\prevst -> pass (dot $ item prevst) && rule (item prevst) == mainseq !! n) $ SL.set (stateslist !! from sub)
     prev   = only $ S.toList prev1
-   in ast (istate $ item sub) : if n > 0 then retrieve1 stateslist mainseq (n-1) prev else []
+   in ast (dot $ item sub) : if n > 0 then retrieve1 stateslist mainseq (n-1) prev else []
 -}
 retrieve2 stateslist mainstate substate = do
    seq <- siblings stateslist mainstate substate
    let seqf = reverse seq
-   asts1 <- map (asts . istate . item) seqf
+   asts1 <- map (asts . dot . item) seqf
    return $ toDyn asts1
 
 caux (Seq as) q y = as !! q == y
@@ -868,7 +868,7 @@ anysubitem (Item {            }) sub = False
 slength (Seq as) = length as
 slength _ = 1
 
-isCompleteZ state = istate (item state) /= Running
+isCompleteZ state = dot (item state) /= Running
 
 {-
 predict3 c (Item (Alt   as   ) 0) = [Item a 0 | a <- as]
@@ -956,7 +956,7 @@ scan4 c t = Nothing
 
 children stateslist (PosItem f t i) = do
     s1@(PosItem f1 t1 i1) <- S.toList $ stateslist !! t
-    if subitem i i1 && pass (istate i1)
+    if subitem i i1 && pass (dot i1)
              then do
                   s2@(PosItem f2 t2 i2) <- S.toList $ stateslist !! f1
                   if rule i2 == rule i && f2 == f && pos i2 == pos i - 1
@@ -967,12 +967,12 @@ children stateslist (PosItem f t i) = do
 -}
 retrieveE stateseq mainpositem = do
    seq <- childrenE stateseq mainpositem
-   map (asts . istate . item) seq
+   map (asts . dot . item) seq
 
 -- returns all children from the state you give it, back
 childrenE positemseq next = do
    sub <- SL.list $ PI.setlist $ positemseq PIS.! to next
-   if anysubitem (item next) (item sub) && pass (istate $ item sub)
+   if anysubitem (item next) (item sub) && pass (dot $ item sub)
       then siblingsE positemseq next sub
       else []
 
@@ -990,7 +990,7 @@ siblingsE positemseq next sub = do
 
 children stateslist parent = do
    s1 <- SL.list $ stateslist !! to parent
-   if subitem (item parent) (item s1) && pass (istate $ item s1)
+   if subitem (item parent) (item s1) && pass (dot $ item s1)
       then siblings stateslist parent s1
       else []
 

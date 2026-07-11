@@ -215,12 +215,12 @@ instance (Show z) => Show (PosItemF z) where
 
 -- data Result = Running | Fail | Pass { asts :: [HashDyn] } deriving (Eq, Ord, Show)
 
-data Item tok = Item {rule :: Rule tok, istate :: IState} deriving (Eq)
+data Item tok = Item {rule :: Rule tok, dot :: Dot} deriving (Eq)
 
 instance (Ord tok) => Ord (Item tok) where
-   compare a b = compare (rule a, istate a) (rule b, istate b)
+   compare a b = compare (rule a, dot a) (rule b, dot b)
 
-data IState
+data Dot
    = Pass { asts :: [HashDyn] }
    | Fail
    | Running
@@ -235,7 +235,7 @@ data IState
    | IApply
    deriving (Eq, Ord, Show)
 
-pos2 :: (HasCallStack) => IState -> Int
+pos2 :: (HasCallStack) => Dot -> Int
 pos2 (ISeq n) = n
 pos2 x = -100 --error $ show x
 
@@ -249,9 +249,9 @@ finished (Pass _) = True
 finished Fail = True
 finished _ = False
 
-passi = pass . istate
+passi = pass . dot
 
-fini = finished . istate
+fini = finished . dot
 
 type ItemSet tok = S.Set (Item tok)
 
