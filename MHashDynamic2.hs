@@ -90,10 +90,11 @@ instance Num Dynamic where
    a * b = am3 mulm [a, b]
    abs a = am3 absm [a]
    signum a = am3 signumm [a]
-   fromInteger a = toDyn (fromInteger a :: Double)
+   fromInteger a = toDyn a
 
 instance Fractional Dynamic where
    a / b = am3 divfracm [a, b]
+   fromRational a = toDyn a
 
 data NamedValue = NamedValue {nname :: String, nvalue :: Dynamic}
 

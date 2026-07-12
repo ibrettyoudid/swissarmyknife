@@ -67,7 +67,7 @@ instance Num HashDyn where
    a * b = am3 mulm [a, b]
    abs a = am3 absm [a]
    signum a = am3 signumm [a]
-   fromInteger a = toDyn (fromInteger a :: Double)
+   fromInteger = toDyn
 
 instance Fractional HashDyn where
    a / b = am3 divfracm [a, b]
