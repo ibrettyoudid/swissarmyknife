@@ -194,7 +194,7 @@ HHH     HHH     TT         TT     PPP
 simpleHTTP m req = httpLbs req m
 
 getRequest :: T.Text -> Request
-getRequest = addUserAgent . parseRequest_ . c
+getRequest = addUserAgent . unsafePerformIO . parseRequest . c
 --------------------------------------------------------------------------------
 getHTTP :: Manager -> T.Text -> T.Text
 getHTTP m url = c $ unsafePerformIO $ getHTTPIO m url
@@ -204,7 +204,7 @@ getHTTPIO :: Manager -> T.Text -> IO T.Text
 getHTTPIO m url = do
    let req = getRequest url
    -- print req
-   resp <- simpleHTTP m req
+   resp <- httpLbs req m
    -- print resp
    return $ c $ responseBody resp
 
@@ -265,15 +265,13 @@ mytrace x = unsafePerformIO (do print x; return x)
 --soflbs = map chr . filter (\x -> x == 10 || x == 13 || x >= 32 && x <= 127 || x >= 160 && x <= 255) . map fromIntegral . LT.unpack
 
 getHTTPRefr :: Manager -> T.Text -> T.Text -> IO T.Text
-getHTTPRefr m ref url = do
-   nsr <- simpleHTTP m (getRequestRefr (convertString ref) url)
-   return $ c $ responseBody nsr
+getHTTPRefr m ref url = getHTTPReq m (getRequestRefr (convertString ref) url)
 
 getHTTPReq :: Manager -> Request -> IO T.Text
 getHTTPReq m req = do
    let url = reqPath req
    putStrLn ("getting " ++ show url)
-   nsr <- simpleHTTP m req
+   nsr <- httpLbs req m
    return $ c $ responseBody nsr
 
 reqPath = Network.HTTP.Client.path
@@ -281,12 +279,19 @@ reqPath = Network.HTTP.Client.path
 reqURI = fromJust . parseURI . c . reqPath
 
 
-urlToFileName :: T.Text -> String
-urlToFileName url =
+urlToFileName = unsafePerformIO . urlToFileNameIO
+
+urlToFileNameIO :: T.Text -> IO String
+urlToFileNameIO url = do
+   r <- parseRequest $ convertString url
    let
-      s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
-   
-   in c $ ".cache/"++last s
+      p = reqPath r
+      s = split "/" $ replace "%20" " " p
+   mapM_ (createDirectory . c . intercalate "/") $ L.init $ inits s
+   return $ c p
+   -- let
+   --    s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
+   -- in c $ ".cache/"++last s
 
 writeHTTP m url = do
    let fileName = urlToFileName url
@@ -310,9 +315,7 @@ writeFileBinary name dat = do
    T.hPutStr handle dat
    hClose handle
 
-readHTTP m url = do
-   nsr <- simpleHTTP m (getRequest url)
-   return $ responseBody nsr
+readHTTP m url = unsafePerformIO $ getHTTPIO m url
 
 --------------------------------------------------------------------------------------------
 

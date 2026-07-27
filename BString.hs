@@ -2,6 +2,7 @@
 -- Copyright 2025 Brett Curtis
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TupleSections #-}
 --{-# LANGUAGE NamedDefaults #-}
 
@@ -27,6 +28,7 @@ import qualified Data.Text.Lazy.IO as LT
 import qualified Data.Text.Lazy.Encoding as LT
 import qualified Data.Text.Encoding.Error as TE
 import qualified Data.Char as C
+import qualified Data.String as S
 import Data.Maybe
 import System.IO
 import qualified Prelude as P
@@ -42,7 +44,7 @@ type LByteString = LB.ByteString
 
 type LText = LT.Text
 
-class BString s where
+class (S.IsString s, ConvertString s P.String, ConvertString P.String s, ConvertString B.ByteString s, ConvertString s B.ByteString, ConvertString LB.ByteString s, ConvertString s LB.ByteString, ConvertString T.Text s, ConvertString s T.Text, ConvertString LT.Text s, ConvertString s LT.Text) => BString s where
    empty :: s
    tail :: HasCallStack => s -> s
    (++) :: s -> s -> s
@@ -59,13 +61,45 @@ class BString s where
 --IO is separate because it only works for the String instance of lists
 
 class BStringIO s where
-   readFile :: FilePath -> IO s
-   writeFile :: FilePath -> s -> IO ()
-   appendFile :: FilePath -> s -> IO ()
    putStr :: s -> IO ()
+   putStr = BString.hPutStr stdout
    putStrLn :: s -> IO ()
+   hPutStr :: Handle -> s -> IO ()
+   hGetContents :: Handle -> IO s
+   readFile :: FilePath -> IO s
+   readFile f = do
+      h <- openFile f ReadMode
+      s <- BString.hGetContents h 
+      hClose h
+      return s
+   writeFile :: FilePath -> s -> IO ()
+   writeFile f s = do
+      h <- openFile f ReadMode
+      BString.hPutStr h s
+      hClose h
+   appendFile :: FilePath -> s -> IO ()
+   appendFile f s = do
+      h <- openFile f ReadMode
+      BString.hPutStr h s 
+      hClose h
+   readBinaryFile :: FilePath -> IO s
+   readBinaryFile f = do
+      h <- openBinaryFile f ReadMode
+      s <- BString.hGetContents h 
+      hClose h
+      return s
+   writeBinaryFile :: FilePath -> s -> IO ()
+   writeBinaryFile f s = do
+      h <- openBinaryFile f ReadMode
+      BString.hPutStr h s
+      hClose h
+   appendBinaryFile :: FilePath -> s -> IO ()
+   appendBinaryFile f s = do
+      h <- openBinaryFile f ReadMode
+      BString.hPutStr h s 
+      hClose h
 
-class BString s => BStringC c s | s -> c where
+class (BString s) => BStringC c s | s -> c where
    cons :: c -> s -> s
    head :: HasCallStack => s -> c
    last :: s -> c
@@ -90,7 +124,13 @@ class BString s => BStringC c s | s -> c where
    isSuffixOf :: Eq c => s -> s -> Bool
    isInfixOf :: Eq c => s -> s -> Bool
 
-instance BString [a] where
+   fromList :: [c] -> s
+
+class BChar c where
+   toLower :: c -> c
+   toUpper :: c -> c
+
+instance BString [Char] where
    empty = []
    tail = P.tail
    (++) = (P.++)
@@ -108,11 +148,13 @@ instance BString [a] where
 instance BStringIO P.String where
    putStr = P.putStr
    putStrLn = P.putStrLn
+   hPutStr = System.IO.hPutStr
+   hGetContents = System.IO.hGetContents
    readFile = P.readFile
    writeFile = P.writeFile
    appendFile = P.appendFile
 
-instance BStringC a [a] where
+instance BStringC Char [Char] where
    cons = (:)
    head = P.head
    last = P.last
@@ -135,6 +177,10 @@ instance BStringC a [a] where
    isSuffixOf = L.isSuffixOf
    isInfixOf = L.isInfixOf
 
+instance BChar Char where
+   toLower = C.toLower
+   toUpper = C.toUpper
+
 instance BString B.ByteString where
    empty = B.empty
    tail = B.tail
@@ -152,6 +198,8 @@ instance BString B.ByteString where
 instance BStringIO B.ByteString where
    putStr = B.putStr
    putStrLn = B.putStr . (++"\n")
+   hPutStr = B.hPutStr
+   hGetContents = B.hGetContents
    readFile = B.readFile
    writeFile = B.writeFile
    appendFile = B.appendFile
@@ -177,6 +225,10 @@ instance BStringC Word8 B.ByteString where
    isSuffixOf = B.isSuffixOf
    isInfixOf = B.isInfixOf
 
+instance BChar Word8 where
+   toLower x = if x >= 65 && x <=  90 then x + 32 else x
+   toUpper x = if x >= 97 && x <= 122 then x - 32 else x
+
 instance BString LB.ByteString where
    empty = LB.empty
    tail = LB.tail
@@ -194,6 +246,8 @@ instance BString LB.ByteString where
 instance BStringIO LB.ByteString where
    putStr = LB.putStr
    putStrLn = LB.putStr . (++"\n")
+   hPutStr = LB.hPutStr
+   hGetContents = LB.hGetContents
    readFile = LB.readFile
    writeFile = LB.writeFile
    appendFile = LB.appendFile
@@ -238,6 +292,8 @@ instance BString T.Text where
 instance BStringIO T.Text where
    putStr = T.putStr
    putStrLn = T.putStrLn
+   hPutStr = T.hPutStr
+   hGetContents = T.hGetContents
    readFile = T.readFile
    writeFile = T.writeFile
    appendFile = T.appendFile
@@ -279,6 +335,8 @@ instance BString LT.Text where
 instance BStringIO LT.Text where
    putStr = LT.putStr
    putStrLn = LT.putStrLn
+   hPutStr = LT.hPutStr
+   hGetContents = LT.hGetContents
    readFile = LT.readFile
    writeFile = LT.writeFile
    appendFile = LT.appendFile
@@ -331,8 +389,16 @@ replace from to lst =
 class ConvertString a b where
    convertString :: a -> b
 
-instance ConvertString P.String B.ByteString where
-   convertString = B.pack . L.map (fromIntegral . C.ord)
+instance {-# INCOHERENT #-} (BString s) => ConvertString P.String s where
+   convertString s = S.fromString s
+
+instance {-# OVERLAPS #-} BString a => ConvertString a a where
+   convertString = id
+
+-- instance {-# OVERLAPPABLE #-} (BString a, BString b) => ConvertString a b where
+--    convertString a = convertString (convertString a :: B.ByteString)
+
+--instance {-# OVERLAPPING #-} (ConvertString a b, ConvertString b c) => ConvertString a c where -- requires UndecidableInstances
 
 instance ConvertString B.ByteString P.String where
    convertString = L.map (C.chr . fromIntegral) . B.unpack
@@ -343,20 +409,11 @@ instance ConvertString B.ByteString LB.ByteString where
 instance ConvertString LB.ByteString B.ByteString where
    convertString = B.toStrict
 
-instance ConvertString P.String LB.ByteString where
-   convertString = LB.pack . L.map (fromIntegral . C.ord)
-
 instance ConvertString LB.ByteString P.String where
    convertString = L.map (C.chr . fromIntegral) . LB.unpack
 
-instance ConvertString P.String T.Text where
-   convertString = T.pack
-
 instance ConvertString T.Text P.String where
    convertString = T.unpack
-
-instance ConvertString a a where
-   convertString = id
 
 instance ConvertString T.Text B.ByteString where
    convertString = T.encodeUtf8
@@ -400,9 +457,6 @@ instance ConvertString T.Text LB.ByteString where
 instance ConvertString LB.ByteString T.Text where
    convertString = LT.toStrict . LT.decodeUtf8With TE.lenientDecode
 
-instance ConvertString P.String LT.Text where
-   convertString = LT.pack
-
 instance ConvertString LT.Text P.String where
    convertString = LT.unpack
 
@@ -429,10 +483,10 @@ instance Show1 B.ByteString where
 
 instance Show1 LB.ByteString where
    show1 = convertString
-
+{-}
 toLower :: (ConvertChar a Char, ConvertChar Char a) => a -> a
 toLower = convertChar . C.toLower . convertChar
-
+-}
 
 
 filename list = drop (length list - 1 - fromMaybe (length list - 1) (B.elemIndex (convertChar '/') (B.reverse list))) list

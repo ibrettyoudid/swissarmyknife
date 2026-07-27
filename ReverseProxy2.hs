@@ -7,7 +7,7 @@ module ReverseProxy2 where
 
 import Prelude hiding ((/))
 
-import HTML
+import HTMLS
 import HTTPTypes
 import HTTP
 import Parser4

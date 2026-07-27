@@ -2,7 +2,7 @@
 -- spreads as needed throughout the file system
 module Merge where
 
-import HTML
+import HTMLS
 
 import System.Directory
 import System.Process

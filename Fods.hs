@@ -7,7 +7,7 @@
 module Fods where
 
 import Favs
-import HTML
+import HTMLS
 import MyDynamic
 import MyPretty2
 import NumberParsers

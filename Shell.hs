@@ -33,7 +33,7 @@ import Data.Word
 import Favs
 import MyPretty2
 
--- import Html hiding (cd)
+-- import HTMLS hiding (cd)
 
 -- deleteFile = Win32.deleteFile
 linux = True

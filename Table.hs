@@ -13,14 +13,13 @@
 module Table where
 
 import Favs
-import HTML
+import HTMLS
 import MHashDynamic2 hiding (toList2, (?))
 import MyPretty2
 import NumberParsers
 import Show1
 import ShowTuple
 import Tree qualified as T
-import HTML
 import FuzzyMatch
 
 import Data.Char

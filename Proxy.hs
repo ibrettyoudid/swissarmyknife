@@ -28,7 +28,7 @@ import Data.Char
 import qualified Data.HashTable as H
 import Data.List
 import Favs hiding (split)
-import HTML hiding (bsofs, cache, sofbs)
+import HTMLS hiding (bsofs, cache, sofbs)
 import MyPretty2
 import Network.Socket
 import Network.Socket.ByteString

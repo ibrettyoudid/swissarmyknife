@@ -25,7 +25,7 @@ import ShowTuple hiding (mapT)
 import Show1
 import qualified Tree
 import BString
-import HTML
+import HTMLS
 import FuzzyMatch
 import Colour
 import Text.Parsec 

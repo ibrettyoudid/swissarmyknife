@@ -31,7 +31,7 @@ import ShowTuple
 import Control.Applicative hiding (empty)
 import Control.Monad
 import System.Directory
-import System.IO hiding (readFile, writeFile)
+import System.IO hiding (hGetContents, hPutStr, readFile, writeFile)
 import System.IO.Unsafe
 
 -- import System.IO.Extra
