@@ -32,7 +32,7 @@ infixr 7 |*|
 
 infixr 7 <*>
 
-a <.> b = sum $ zipWith (*) a b
+--a <.> b = sum $ zipWith (*) a b
 infixl 7 <.>
 
 a <+> b = zipWith (+) a b
@@ -76,25 +76,33 @@ instance Num a => MVC [[a]] [[a]] a where
    conc = id
    desc = id
 
-class Matrix a
+class Vector n v => Matrix n v m | m -> v n where
+   mmap :: (v -> v) -> m -> m
+   rmap :: (v -> n) -> m -> v
+   cmap :: (v -> n) -> m -> v
 
-instance Num a => Matrix [[a]]
+instance Num a => Matrix a [a] [[a]] where
+   mmap f m = transpose $ map f $ transpose m
+   rmap f m = map f $ transpose m
+   cmap f m = map f m
 
-class Vector a
+class Vector n v | v -> n where
+   (<.>) :: v -> v -> n 
 
-instance Num a => Vector [a]
+instance Num a => Vector a [a] where
+   a <.> b = sum $ zipWith (*) a b
 
-class Mult a b c where
+class Mult n a b c | a b c -> n where
    (<*>) :: a -> b -> c
 
-instance (Matrix [[a]], Num a) => Mult [[a]] [[a]] [[a]] where
-   a <*> b = transpose $ map (\arow -> map (arow <.>) b) $ transpose a
+instance (Num n, Vector n v, Matrix n v m, Mult n m v v) => Mult n m m m where
+   m1 <*> m2 = mmap (m1 <*>) m2
 
-instance (Matrix [[a]], Vector [a], Num a) => Mult [[a]] [a] [a] where
-   a <*> b = map (<.> b) $ transpose a
+instance (Num n, Vector n v, Matrix n v m) => Mult n m v v where
+   m <*> v = rmap (<.> v) m
 
-instance (Matrix [[a]], Vector [a], Num a) => Mult [a] [[a]] [a] where
-   a <*> b =  map (a <.>) b
+instance (Num n, Vector n v, Matrix n v m) => Mult n v m v where
+   v <*> m = cmap (v <.>) m
 {-
 instance Blah a where
 type M a = [[a]]
@@ -171,102 +179,96 @@ invMat m = drop x $ gaussElim $ m <++> identity (y, x)
 invMatD m = drop x <$> gaussElimDD (m <++> identity (y, x))
    where
       (y, x) = gethl m
-{-
+
 leftInv m = invMat (transpose m <*> m) <*> transpose m
 
 rightInv m = transpose m <*> invMat (m <*> transpose m)
 
 -- broyden :: Num a => ([[a]] -> [[a]]) -> a -> [[a]] -> [[a]] -> [[a]] -> [[a]]
 broyden f epsilon findy x0 x1 = loop (identity (k, k)) (f x0) (x1 <-> x0) x1
-where
-k = length x0
-jn1 = identity (k, k)
-alpha = 0.1
--- x0 = replicate k $ replicate 1 0
-x1 = [1] : tail x0
-loop jn1 fn1 dx1 x =
-   let
-      fn = f x
-      df = fn <-> fn1
-      jn = jn1 <+> (1 / dx1 <.> dx1) |*| (df <-> jn1 <*> dx1) <*> transpose dx1
-      dx = -(alpha |*| invMat jn1 <*> fn)
-   in
-      loop jn fn dx (x <+> dx)
-
-quasiNewton f x0 =
-let
+   where
+      k     = length x0
+      jn1   = identity (k, k)
+      alpha = 0.1
+      -- x0 = replicate k $ replicate 1 0
+      x1    = [1] : tail x0
+      loop jn1 fn1 dx1 x = let
+         fn = f x
+         df = fn <-> fn1
+         jn = jn1 <+> (1 / dx1 <.> dx1) |*| (df <-> jn1 <*> dx1) <*> transpose dx1
+         dx = -(alpha |*| invMat jn1 <*> fn)
+         
+         in loop jn fn dx (x <+> dx)
+{-}
+quasiNewton f x0 = let
    fx0 = f x0
    jac = quasiJacobi f fx0 x0
    ijac = invMat jac
    x1 = x0 <-> 0.01 |*| ijac <*> fx0
-   in
-   x1
-
-quasiNewtonR f x0 =
-let
-   fx0 = f x0
-   jac = quasiJacobi f fx0 x0
+   
+   in x1
+{-}
+quasiNewtonR f x0 = let
+   fx0    = f x0
+   jac    = quasiJacobi f fx0 x0
    (q, r) = householder jac
    (m, n) = gethl r
-   dx = gaussElim $ take n $ r <++> transpose q <*> fx0
-   x1 = x0 <-> dx
-   in
-   x1
-
+   dx     = gaussElim $ take n $ r <++> transpose q <*> fx0
+   x1     = x0 <-> dx
+   
+   in x1
+-}
 quasiNewtonD f x0 = do
-let fx0 = f x0
-let jac = quasiJacobi f fx0 x0
-putGrid $ transpose $ map2 show jac
-let ijac = invMat jac
-putGrid $ transpose $ map2 show ijac
-putStrLn ""
-let x1 = x0 <-> 0.01 |*| ijac <*> f x0
-return x1
+   let fx0 = f x0
+   let jac = quasiJacobi f fx0 x0
+   putGrid $ transpose $ map2 show jac
+   let ijac = invMat jac
+   putGrid $ transpose $ map2 show ijac
+   putStrLn ""
+   let x1 = x0 <-> 0.01 |*| ijac <*> f x0
+   return x1
 
-quasiNewton1 f x0 =
-let
+quasiNewton1 f x0 = let
    fx0 = f x0
    jac = quasiJacobi f fx0 x0
    (y, x) = gethl jac
    dx = map (drop x) $ gaussElim (jac <++> f x0)
-   in
-   x0 <+> dx
+   
+   in x0 <+> dx
 
 iterateD solve f x0 = do
-print $ x0 ++ f x0
-let x1 = solve f x0
-iterateD solve f x1
+   print $ x0 ++ f x0
+   let x1 = solve f x0
+   iterateD solve f x1
 
 iterateDD solve f x0 = do
-print $ x0 ++ f x0
-x1 <- solve f x0
-iterateDD solve f x1
+   print $ x0 ++ f x0
+   x1 <- solve f x0
+   iterateDD solve f x1
 
 epsilon = 1 + 2 ** -10
 
 epsilon1 = 2 ** -10
 
-quasiJacobi f fx0 x0 =
-let
+quasiJacobi f fx0 x0 = let
    k = length x0
    jac = foldr1 (<++>) $ map (diffAux f fx0 x0) [0 .. k - 1]
-   in
-   jac
+   
+   in jac
 
-diffAux f fx0 x0 i =
-let
+diffAux f fx0 x0 i = let
    a0 = entry i x0
    a1 = if abs a0 > 1e-10 then a0 * epsilon else epsilon1
    x1 = replaceIndex i a1 x0
    fx1 = f x1
    df = recip (a1 - a0) |*| (fx1 <-> fx0)
-   in
-   df
--}
+   
+   in df
+
 solveSimul m b = drop x $ gaussElim $ m <++> b
    where
       (y, x) = gethl m
-
+-}
 gaussElim m = gaussDoTrailingTerms $ gaussDoLeadTerms m
 
 gaussDoLeadTerms m = until (null . gaussLeadTerms) gaussZeroLeadTerms m

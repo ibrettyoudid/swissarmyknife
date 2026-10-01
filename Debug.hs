@@ -98,6 +98,8 @@ return r = Debug $ do
 -}
 mytrace m x = trace (m ++ show x) x
 
+mytrace0 m x = x
+
 debug x = evalStateT x 0
 
 dprint x = do

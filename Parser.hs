@@ -325,12 +325,12 @@ tree2 xs = map Trees xs
 
 only [x] = x
 
-instance Show Tree where
-   show tree = format1 1 $ conv tree
+-- instance Show Tree where
+--    show tree = format1 1 $ conv tree
 
 
-conv (Tree a b) = Data (show a) $ map conv b
-conv (Trees b) = Data "TREES" $ map conv b
+-- conv (Tree a b) = Data (show a) $ map conv b
+-- conv (Trees b) = Data "TREES" $ map conv b
 {-
 transeq :: Foldable t => S.Set ETrans -> t a -> Rule -> [[ETrans]]
 >>> p expr "a+a+a"

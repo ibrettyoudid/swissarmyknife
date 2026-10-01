@@ -18,7 +18,7 @@
 module TableTuple where
 
 import Favs hiding (levenshtein)
-import MHashDynamic3 hiding (toList2, (?))
+import HashDyn hiding (toList2, (?))
 import MyPretty2
 import NewTuple
 import ShowTuple hiding (mapT)
@@ -209,7 +209,7 @@ instance ShowNewTuple a => ShowField a where
 instance ShowFields () where
    showFields () = []
 
-instance (ShowField a, ProperTuple b, ShowFields b) => ShowFields (a :- b) where
+instance (ShowField a, ProperTuple b, ShowFields b) => ShowFields (a :- b)  where
    showFields (a :- b) = showField a : showFields b
 
 class ReadRec a where
@@ -669,30 +669,6 @@ groupBy f = combine (:) [] . mapfxx f
 
 applyL fs x = map ($ x) fs
 
-combine2 :: [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine2 fs ts rows = let
-   frows = map (applyL fs) rows
-
-   fcols = transpose frows
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
-
-combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine3 g fs ts rows = let
-   frows = map (applyL fs) rows
-   fcols = transpose frows
-   gcol = map g rows
-   gf = combine (:) [] $ zip gcol fcols
-   x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
-   blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   blah
 {-
 readfods = do
 Right r <- parseFromFile htmlP (importdir ++ "money.fods")

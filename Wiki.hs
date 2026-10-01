@@ -13,7 +13,7 @@ module Wiki where
 
 import Favs hiding (readNum, split, replace, ($<), trim)
 import HTMLT
-import MHashDynamic3 hiding ((?), toList2)
+import HashDyn hiding ((?), toList2)
 import MyPretty2
 import NumberParsersT
 import TableT hiding (intC, insertWith4)

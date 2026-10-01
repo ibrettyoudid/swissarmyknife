@@ -2,7 +2,7 @@ module ArrayDyn where
 
 import Favs
 import {-# SOURCE #-} Dyn
-import MyPretty2
+import {-# SOURCE #-} MyPretty2
 import Show1
 
 import Data.List

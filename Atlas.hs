@@ -30,6 +30,7 @@ import System.Process
 import Graphics.UI.Gtk
 import Graphics.Rendering.Cairo
 import Graphics.Rendering.Cairo qualified as Cairo
+import GHC.Base (returnIO)
 
 -- import Graphics.UI.Gtk.General.Structs
 
@@ -858,13 +859,13 @@ searchD f c r n =
    in
       fromAssocsD $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
 
-searchDD f c r n =
-   do
-      let xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
-      let xs = crossList xs1
-      fxxs <- mapfxxM f xs
-      let min = minimum fxxs
-      return $ fromAssocsDA (+) 0 $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
+searchDD f c r n = do
+   let 
+      xs1 = zipWith (\c1 r1 -> [c1 - r1 * n, c1 - r1 * (n - 1) .. c1 + r1 * n]) c r
+      xs  = crossList xs1
+   fxxs <- mapfxxM f xs
+   let min = minimum fxxs
+   returnIO $ fromAssocsDA (+) 0 $ map (\(fx, x) -> (map toDyn x, fx)) fxxs
 
 altx = sum $ map (4 ^) [0 .. 31]
 alty = altx * 2

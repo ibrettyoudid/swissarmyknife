@@ -1263,7 +1263,7 @@ if you fold, you get y
 -- expvalue chips pot nplayers winprob raise = (fromIntegral chips + fromIntegral pot + fromIntegral nplayers*raise)**winprob * (fromIntegral chips - raise)**(1-winprob)
 -- max amount to bet, otherwise fold
 
-call chips pot nplayers winprob = secantMethod 10 0 (fromIntegral chips) (expvalue chips pot nplayers winprob)
+call chips pot nplayers winprob = secantMethod 0.001 (expvalue chips pot nplayers winprob)
 
 {-
 maximin chipsnow pot yourcards tablecards opponents = maxOn (\yourbet -> minimax chipsnow pot yourbet yourcards tablecards opponents) $ take 10 $ iterate (*2) 10 --winprob 10 $ trygame yourcards tablecards opponents

@@ -15,7 +15,8 @@
 module TableB where
 
 import Favs hiding (levenshtein, trim, squash)
-import MHashDynamic3 hiding (toList2, (?))
+import Dyn hiding (toDyn, fromDyn1, fromDynamic)
+import HashDyn hiding (toList2, (?))
 import MyPretty2
 import NewTuple
 import ShowTuple
@@ -55,8 +56,6 @@ type Amount = Int
 
 ymd = YearMonthDay
 
-data Trans = Trans {day :: Day, amount :: Amount, person :: Person, typ :: Type}
-
 -- go = putGridF =<< readfods
 
 linux = True
@@ -64,15 +63,6 @@ linux = True
 importdir = if linux then "/home/brett/SOL/Office/" else "D:/Office/"
 
 names = ["Tyrone", "Danny", "James"]
-
-trans =
-   [ (ymd 2023 6 13, -20, Tyrone, M)
-   , (ymd 2023 6 13, -30, Tyrone, M)
-   , (ymd 2023 6 13, -20, James, M)
-   , (ymd 2023 6 13, -25, James, M)
-   , (ymd 2023 6 13, -3, James, To)
-   , (ymd 2023 6 13, -20, Danny, M)
-   ]
 
 -- counts :: (Ord a, Show a) => [a] -> String
 -- counts = show . rsort . mode1
@@ -82,30 +72,6 @@ groupBy f = combine (:) [] . mapfxx f
 
 applyL fs x = map ($ x) fs
 
-combine2 :: [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine2 fs ts rows = let
-   frows = map (applyL fs) rows
-
-   fcols = transpose frows
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
-
-combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine3 g fs ts rows = let
-   frows = map (applyL fs) rows
-   fcols = transpose frows
-   gcol = map g rows
-   gf = combine (:) [] $ zip gcol fcols
-   x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
-   blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   blah
 {-
 readfods = do
 Right r <- parseFromFile htmlP (importdir ++ "money.fods")
@@ -146,26 +112,6 @@ trimGrid2 = takeWhile (\x -> x !! 2 /= "")
 trimGrid2b :: [[String]] -> [[String]]
 trimGrid2b = reverse . dropWhile ((!! 2) $= "") . reverse . drop 2
 -}
-convertGrid1 = map2 (parse1 csvcell)
-{-
-convertGrid2 table =
-let
-   t = cTextGrid table
-   n = tagAttrib "table:name" table
-   l = maximum $ map length t
-   in
-   replicate l n : t
--}
-readcsvs = concat <$> mapM readCSVFile names
-
-readCSVFile fn = do
-   let fn1 = importdir ++ fn ++ ".csv"
-   f <- readFile fn1
-   return $ parse2 csv f
-
-csv = many csvline
-
-csvline = sepBy csvcell $ char ','
 
 txt = toDyn . bof <$> do char '"'; s <- many anyChar; char '"'; return s
 
@@ -177,7 +123,7 @@ csvcell  = choice [try (toDyn <$> dateExcel), try numberDyn, txt]
 
 wikicell = choice [try (toDyn <$> dateExcel), try numberDyn, txt]
 
-int = fromInteger <$> NP.integer
+int = fromInteger <$> NP.integer :: Parser Int
 
 numberDyn = choice [try (toDyn <$> NP.forceFloatingC), try (toDyn <$> intC)]
 
@@ -263,13 +209,10 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
+instance {-# OVERLAPPING #-} (Show a) => Show (Table String a HashDyn) where
    show = showGrid . showTable2
 
-instance (Show i, Show r) => Show (Table String i r) where
-   show = showTable1
-
-instance (ProperTuple a, ShowNewTuple a) => Show (Table a z Dynamic) where
+instance (ProperTuple a, ShowNewTuple a) => Show (Table a z HashDyn) where
    show = showTableNew
 
 showTable t =  showGridD colWidths1 width $ 
@@ -708,7 +651,7 @@ delField fieldName t = if head (fields t) == fieldName
 class LookupR a b c | a b -> c, c -> a where
    lookup :: a -> b -> c
 
-instance LookupR Dynamic (Table f Dynamic r) (Table f Dynamic r) where
+instance LookupR HashDyn (Table f HashDyn r) (Table f HashDyn r) where
    lookup = lookupgk
 
 instance LookupR Int (Table f i r) (Record f r) where

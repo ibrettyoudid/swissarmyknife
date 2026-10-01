@@ -43,3 +43,7 @@ instance Eq HashDyn
 instance Ord HashDyn
 
 instance Show HashDyn
+
+toDyn :: Typeable a => a -> HashDyn
+fromDyn :: Typeable a => HashDyn -> a -> a
+fromDynamic :: Typeable a => HashDyn -> Maybe a

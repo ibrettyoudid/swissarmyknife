@@ -78,8 +78,7 @@ countUnique l = S.size $ S.fromList l
 groupBy f = combine (:) [] . mapfxx f
 
 applyL fs x = map ($ x) fs
-
-combine2 :: [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
+{-
 combine2 fs ts rows =
    let
       frows = map (applyL fs) rows
@@ -92,7 +91,6 @@ combine2 fs ts rows =
 
       zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
 
-combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
 combine3 g fs ts rows =
    let
       frows = map (applyL fs) rows
@@ -107,6 +105,7 @@ combine3 g fs ts rows =
       -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
 
       blah
+-}
    {-
 readfods = do
 Right r <- parseFromFile htmlP (importdir ++ "money.fods")
@@ -146,7 +145,6 @@ trimGrid2 = takeWhile (\x -> x !! 2 /= "")
 trimGrid2b :: [[String]] -> [[String]]
 trimGrid2b = reverse . dropWhile ((!! 2) $= "") . reverse . drop 2
 
-convertGrid1 f = map2 (parse1 csvcell f)
 {-
 convertGrid2 table =
 let
@@ -156,37 +154,15 @@ let
    in
    replicate l n : t
 -}
-readcsvs = concat <$> mapM readCSVFile names
-
-readCSVFile fn = do
-   let fn1 = importdir ++ fn ++ ".csv"
-   f <- readFile fn1
-   case parse csv fn f of
-      Left l -> do print l; return []
-      Right r -> return $ map (String1 fn :) r
-
-csv :: Parsec String u [[Term]]
-csv = many csvline
-
-csvline = sepBy csvcell $ char ','
-
 
 dynCell  = parse1 (try (toDyn <$> dateExcel) <|> try numberDyn <|> toDyn <$> many anyChar) "dynCell"
 
-fodscell = try (Date <$> dateExcel) <|> try numberC <|> (String1 <$> many anyChar)
-
-csvcell  = try (Date <$> dateExcel) <|> try number <|> txt
-
-wikicell = try (Date <$> dateExcel) <|> try numberC <|> txt
-
-number = Int1 <$> int <|> (Double1 <$> floating)
-
+int :: Stream s m Char => ParsecT s u m Int
 int = fromInteger <$> integer
-
-numberC = Int1 <$> intC <|> (Double1 <$> floating)
 
 numberDyn = try (toDyn <$> forceFloating) <|> try (toDyn <$> intC)
 
+intC :: Stream s m Char => ParsecT s u m Int
 intC = fromInteger <$> integerC
 
 atleast n x r = do
@@ -234,7 +210,6 @@ moy = do
    return moy1
 
 
-txt = String1 <$> do char '"'; t <- manyTill anyChar $ char '"'; char '"'; return t
 
 data Table f i r = Table {fields :: M.Map f Int, tgroup :: Group i r} deriving (Generic, NFData)
 

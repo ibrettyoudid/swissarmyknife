@@ -8,7 +8,7 @@ import Data.List
 import Data.Ratio
 import Numeric
 import Debug.Trace
-
+import Matrix
 
 newtype Poly a = Poly [a]
 
@@ -113,7 +113,7 @@ num n = Poly [n]
 
 withRoots rs = product $ map root rs
 
-aberth p = (!! 20) $ iterate (aberth1 p (polyderiv p)) [1..fromIntegral $ plength p - 1]
+aberth p = (!! 20) $ iterate (aberth1 p (differential p)) [1..fromIntegral $ plength p - 1]
 
 aberth1 p d zs = let
    ws = map (\k -> let
@@ -144,7 +144,15 @@ solve p@(Poly [ee, dd, cc, bb, aa]) = let
 
 check solve poly = let roots = solve poly in trace (show (mapfxx (poly @) roots) ++ show poly) roots
 
-polyderiv (Poly as) = Poly $ zipWith (*) [1..] $ tail as
+differential (Poly (a:as)) = Poly $ zipWith (*) as [1..]
+
+integral (Poly as) = Poly $ 0 : zipWith (/) as [1..]
+
+taylor f xs = let
+   fxs = map f xs
+   [p] = invMat (crossWith (^) xs [0..length xs-1]) Matrix.<*> [fxs]
+
+   in Poly p
 {-
 x^2+x+1
 
@@ -185,3 +193,4 @@ instance RealFloat a => Floating (Complex a) where
 polar (Complex a b) = (sqrt (a*a + b*b), atan2 b a) 
 
 rect (rho, theta) = Complex (rho * cos theta) (rho * sin theta)
+

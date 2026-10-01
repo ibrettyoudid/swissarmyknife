@@ -632,11 +632,11 @@ tree2 xs = map Trees xs
 
 only [x] = x
 
-instance (Show z) => Show (Tree z) where
-   show tree = MyPretty2.format1 1 $ convTree tree
+-- instance (Show z) => Show (Tree z) where
+--    show tree = MyPretty2.format1 1 $ convTree tree
 
-convTree (Tree a b) = MyPretty2.Data (show a) $ map convTree b
-convTree (Trees b) = MyPretty2.Data "TREES" $ map convTree b
+-- convTree (Tree a b) = MyPretty2.Data (show a) $ map convTree b
+-- convTree (Trees b) = MyPretty2.Data "TREES" $ map convTree b
 
 {-
 transeq :: Foldable t => S.Set ETrans -> t a -> (Rule tok) -> [[ETrans]]
