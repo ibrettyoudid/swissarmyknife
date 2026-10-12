@@ -25,7 +25,7 @@ import Control.Applicative
 import Data.Array
 import Data.ByteString.Char8 qualified as B
 import Data.Char
-import Data.List
+import Data.List hiding (tails1)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Word
