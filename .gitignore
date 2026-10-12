@@ -3,6 +3,7 @@ tags
 *.o
 *.dyn_hi
 *.dyn_o
+gtk3-0.15.10
 dist-newstyle
 dist-newstyle/cache/*
 .cache/2009_swine_flu_pandemic_by_country
