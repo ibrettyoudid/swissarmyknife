@@ -260,7 +260,7 @@ library
         stm >= 2.5.1.0,
         template-haskell >= 2.19.0,
         terminal-size,
-        text >= 2.0.2 && < 2.1,
+        text,
         time >= 1.12.2 && < 1.13,
         transformers,
         unix,
