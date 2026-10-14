@@ -56,7 +56,6 @@ import GHC.Generics
 import GHC.Stack
 
 import Debug.Trace
-import Dataflow2 (TermType)
 
 type Parser a = Parsec TString () a
 

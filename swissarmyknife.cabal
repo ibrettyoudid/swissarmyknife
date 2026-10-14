@@ -123,7 +123,7 @@ library
         Array3,
         ArrayDyn,
         -- ArrayVinyl,
-        Atlas,
+        -- Atlas,
         Atto,
         AttoT,
         AttoLT,
@@ -131,8 +131,8 @@ library
         Chess,
         Colour,
         Crossword,
-        Dataflow2,
-        Dataflow3,
+        --Dataflow2,
+        --Dataflow3,
         Debug,
         Dyn,
         Favs,
@@ -150,14 +150,11 @@ library
         ID3,
         ID3P4,
         ID3P6,
-        ID3P6A,
-        ID3P6C,
-        ID3P6D,
         ID3P7,
         Iso,
         Iso2,
         KDTree,
-        Layout, 
+        --Layout, 
         MHashDynamic2,
         MHashDynamic3,
         --MHashDynamic4,
@@ -208,7 +205,7 @@ library
         TableT,
         TableTuple,
         Terror,
-        TestBoomerang,
+        --TestBoomerang,
         Tree, 
         Wiki,
         Zero
@@ -228,17 +225,15 @@ library
         async,
         attoparsec >= 0.14.4 && < 0.15,
         binary >= 0.8.9 && < 0.9,
-        boomerang,
-        bytestring >= 0.11.5 && < 0.12,
+        bytestring,
         cairo,
         concurrent-hashtable >= 0.1.8 && < 0.2,
         containers >= 0.6.7 && < 0.7,
         deepseq >= 1.4.8,
         directory >= 1.3.7 && < 1.4,
-        gtk3,
+        --gtk3,
         hashable,
         heap,
-        HList,
         http-client >= 0.7.18 && < 0.8,
         http-client-tls,
         http-reverse-proxy,
@@ -274,56 +269,6 @@ library
 
     -- Base language which the package is written in.
     default-language: GHC2021
-
-executable atlas
-    import:           warnings
-    build-depends:
-        base,
-        array,
-        astar,
-        attoparsec,
-        binary,
-        boomerang,
-        bytestring,
-        cairo,
-        concurrent-hashtable,
-        containers,
-        deepseq,
-        directory,
-        gtk3,
-        http-client,
-        http-client-tls,
-        http-types,
-        JuicyPixels,
-        mtl,
-        network,
-        network-uri,
-        parsec,
-        process,
-        random,
-        template-haskell,
-        text,
-        time,
-        transformers,
-        unix,
-        unordered-containers
-
-    other-modules:
-        Favs
-        HTML
-        MHashDynamic
-        Matrix
-        MyPretty2
-        NumberParsers
-        Syntax3
-        SyntaxCIPU
-        SyntaxTH
-
-    main-is:
-        Atlas.hs
-        
-    hs-source-dirs: 
-        .
 
 test-suite lib-test
     -- Import common warning flags.
