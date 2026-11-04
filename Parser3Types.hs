@@ -253,6 +253,10 @@ passi = pass . dot
 
 fini = finished . dot
 
+itemdot pi = dot $ item pi
+
+itemrule pi = rule $ item pi
+
 type ItemSet tok = S.Set (Item tok)
 
 puts a rest = a ++ rest

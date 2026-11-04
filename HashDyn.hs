@@ -20,6 +20,8 @@ import Data.Time.Calendar
 import Data.List hiding ((++), length, elemIndex)
 import qualified Data.Map as M
 
+import Data.IORef
+
 import Prelude hiding ((++), length, putStr, putStrLn)
 
 import GHC.Stack
@@ -80,24 +82,61 @@ instance {-# OVERLAPPING #-} Show1 HashDyn where
    show1 = showDyn1
 
 data Expr
-   = Value   {etype :: MType, value :: HashDyn}
-   | VarRef  {etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int}
-   | VarDef  {xtype :: Expr , name :: String, frameIndex :: Int, memIndex :: Int}
-   | VarRef1 {etype :: MType, name :: String}
-   | Lambda  {etype :: MType, econstr :: Constr,                     subexpr :: Expr}
-   | Let     {etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr}
-   | Block   {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
-   | Apply   {etype :: MType,                    subexprs :: [Expr]}
-   | If      {etype :: MType,                clauses :: [(Expr :- Expr)]}
-   | Case    {etype :: MType, case1 :: Expr, clauses :: [(Expr :- Expr)]}
+   = Value   { etype :: MType, value :: HashDyn }
+   | VarRef  { etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int }
+   | Let1    { etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int }
+   | VarDef  { xtype :: Expr , name :: String, frameIndex :: Int, memIndex :: Int }
+   | VarRef1 { etype :: MType, name :: String }
+   | Lambda  { etype :: MType, econstr :: Constr,                     subexpr :: Expr }
+   | Let     { etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr }
+   | Block   { etype :: MType, econstr :: Constr, subexprs :: [Expr] }
+   | Apply   { etype :: MType,                    subexprs :: [Expr] }
+   | Split   { etype :: MType,                    subexprs :: [Expr] }
+   | SplitJ  { etype :: MType,                    subexprs :: [Expr] }
+   | Exprs   { etype :: MType,                    subexprs :: [Expr] }
+   | If      { etype :: MType,                                  clauses :: [(Expr :- Expr)] }
+   | If1     { etype :: MType, then1 :: Expr,                   clauses :: [(Expr :- Expr)] }
+   | Case    { etype :: MType, of1   :: Expr,                   clauses :: [(Expr :- Expr)] }
+   | Case1   { etype :: MType,                                  clauses :: [(Expr :- Expr)] }
+   | Case2   { etype :: MType, of2   :: HashDyn,                clauses :: [(Expr :- Expr)] }
+   | Case3   { etype :: MType, of2   :: HashDyn, then1 :: Expr, clauses :: [(Expr :- Expr)] }
    | Else
-   | Exprs   {etype :: MType, exprs1 :: [Expr]}
-   | Keyword String
-   deriving (Typeable, Eq, Show)
+   | Keyword { key :: String }
+   | Join    { ejoiner :: Expr, eres :: Expr }
+   | Join1   { eres :: Expr }
+   | Join2   { joiner :: Joiner }    
+   | SetJ    { joiner :: Joiner }
+   | Apply2  { }
+   | CreateJ (IORef Int) (IORef HashDyn) [IORef HashDyn] 
+   deriving (Eq, Typeable)
+
+data Joiner = Joiner { arg :: HashDyn, counter :: IORef Int, resref :: IORef HashDyn, resrefs :: [IORef HashDyn] } deriving (Eq, Typeable)
+
+instance Show Joiner where
+   show j = "Joiner "++show (arg j)
+
+instance Show Expr where
+   show x = case x of
+      Value    {} -> "Value "++show (value x)
+      VarRef   {} -> "VarRef " ++name x++" "++show (frameIndex x)++" "++show (memIndex x)
+      VarDef   {} -> "VarDef " ++name x++" "++show (frameIndex x)++" "++show (memIndex x)
+      VarRef1  {} -> "VarRef1 "++name x
+      Lambda   {} -> "Lambda " ++show (econstr x)++" "++show (subexpr x)
+      Let      {} -> "Let "    ++show (econstr x)++" "++show (subexprs x)++" "++show (subexpr x)
+      Block    {} -> "Block "  ++show (econstr x)++" "++show (subexprs x)
+      Apply    {} -> "Apply "  ++show (subexprs x)
+      Exprs    {} -> "Exprs "  ++show (subexprs x)
+      If       {} -> "If "     ++show (clauses x)
+      Case     {} -> "Case "   ++show (of1 x)++" "++show (clauses x)
+      Else     {} -> "Else"
+      Keyword  {} -> "Keyword "++show (key x)
+      Join     {} -> "Join"
 
 data Closure = Closure Constr Expr Env deriving (Typeable, Show)
 
 type Env = [Frame]
+
+type EnvExpr = [(Env, Expr)]
 
 data Frame = Frame {fconstr :: Constr, items :: [HashDyn]} deriving (Show, Eq)
 

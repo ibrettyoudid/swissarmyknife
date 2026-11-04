@@ -41,7 +41,7 @@ import Favs hiding (mean)
 import GHC.Generics (Generic, Generic1)
 import MyPretty2
 import Numeric hiding (readInt)
-import Prob
+import Prob hiding (mean)
 import Show1
 import ShowTuple
 import System.IO
@@ -186,7 +186,7 @@ straightsF x = filter ((== 5) . length) $ map (take 5) $ groupByA (\x y -> x == 
 groupByA f (x : y : zs) =
    let
       (a : b) = groupByA f (y : zs)
-      in
+   in
       if f x y then (x : a) : b else [x] : a : b
 groupByA f x = [x]
 
@@ -214,6 +214,8 @@ flushesB = filter ((>= 5) . length) . group
 
 -- flushesC values pattern = zipWith (\v n -> ifJust (pattern .&. shift 1 n /= 0) values [0..6]
 
+notNull x = not $ null x
+
 handDescL hand =
    let
       values = rsort $ map value hand
@@ -230,32 +232,31 @@ handDescL hand =
       pairs2 = pairs $ deleteMulti (head threes1) values
       --   in (values, straightFlushes1, fours1, flushes3, straights1, threes1, pairs1)
       -- {-
-      in
+   in
       if
-         | flushes1 /= [] && straightFlushes1 /= [] ->
+         | notNull flushes1 && notNull straightFlushes1 ->
                HandDesc StraightFlush [head $ head straightFlushes1]
-         | fours1 /= [] ->
+         | notNull fours1 ->
                HandDesc Four [head $ head fours1, head $ deleteMulti (head fours1) values]
-         | threes1 /= [] && pairs2 /= [] ->
+         | notNull threes1 && notNull pairs2 ->
                HandDesc FullHouse [head $ head threes1, head $ head pairs2]
-         | flushes2 /= [] ->
+         | notNull flushes2 ->
                HandDesc Flush $ head flushes2
-         | straights1 /= [] ->
+         | notNull straights1 ->
                HandDesc Straight [head $ head straights1]
-         | threes1 /= [] ->
+         | notNull threes1 ->
                HandDesc Three ((head $ head threes1) : take 2 (deleteMulti (head threes1) values))
          | length pairs1 >= 2 ->
                HandDesc Pairs [head $ head pairs1, head $ pairs1 !! 1, head $ deleteMulti (concat $ take 2 pairs1) values]
-         | pairs1 /= [] ->
+         | notNull pairs1 ->
                HandDesc Pair ((head $ head pairs1) : (take 3 $ deleteMulti (head pairs1) values))
          | otherwise ->
                HandDesc High $ take 5 values
 
-handRank desc =
-   let
-      nums = handNums desc
-      in
-      HandRank $ fromIntegral $ case handCat desc of
+handRank desc = let
+   nums = handNums desc
+   
+   in HandRank $ fromIntegral $ case handCat desc of
          StraightFlush -> 2598900 + frank nums 0 * 4
          Four -> 2598296 + frank nums 1 * 4
          FullHouse -> 2594552 + frank nums 1 * 24
@@ -267,11 +268,10 @@ handRank desc =
          High -> frank nums 4 * 1020
          Invalid -> -1
 
-frank rs n =
-   let
-      v = frank1 (map (- 2) rs) []
-      in
-      sum $ zipWith (*) v $ scanr (*) 1 $ take n [12, 11 .. 1]
+frank rs n = let
+   v = frank1 (map (- 2) rs) []
+   
+   in sum $ zipWith (*) v $ scanr (*) 1 $ take n [12, 11 .. 1]
 
 frank1 [] _ = []
 frank1 (r : rs) zs = (r - length (filter (< r) zs)) : frank1 rs (r : zs)
@@ -290,11 +290,10 @@ bitsOfCard c = shift 1 $ numOfCard c
 bitsOfHand :: [Card] -> Int
 bitsOfHand = foldr (.|.) 0 . map bitsOfCard
 
-cardOfNum x =
-   let
-      (s, n) = divMod x 15
-      in
-      Card n s
+cardOfNum x = let
+   (s, n) = divMod x 15
+   
+   in Card n s
 
 handOfBits = filter (\c -> value c /= 1) . map cardOfNum . numsOfBits
 
@@ -338,7 +337,7 @@ straightsB hand =
       s0 = acesLowB hand
       s1 = s0 .&. shift s0 -1
       s2 = s1 .&. shift s1 -2
-      in
+   in
       s2 .&. shift hand -4
 
 flushB hand = ifJust (countBits hand1 >= 5) $ take 5 $ numsOfBits hand1 where hand1 = hand .&. wholeSuit
@@ -348,20 +347,20 @@ pairsB hand =
       pairs1 = hand .&. shift hand -15
       pairs2 = hand .&. shift hand -30
       pairs3 = hand .&. shift hand -45
-      in
+   in
       pairs1 .|. pairs2 .|. pairs3
 
 threesB pairs hand =
    let
       threes1 = pairs .&. shift hand -30
       threes2 = pairs .&. shift hand -45
-      in
+   in
       threes1 .|. threes2
 
 threesB1 hand =
    let
       pairs = pairsB hand
-      in
+   in
       threesB pairs hand
 
 threesB2 hand =
@@ -369,7 +368,7 @@ threesB2 hand =
       threes1 = hand .&. shift hand -15 .&. shift hand -30
       threes2 = hand .&. shift hand -15 .&. shift hand -45
       threes3 = hand .&. shift hand -30 .&. shift hand -45
-      in
+   in
       threes1 .|. threes2 .|. threes3
 
 handDescB hand =
@@ -408,7 +407,7 @@ handDescB hand =
       straight1 = straightsB $ (hand .|. shift hand -15 .|. shift hand -30 .|. shift hand -45) .&. wholeSuit
 
       flush = flushB hand <|> flushB (shift hand -15) <|> flushB (shift hand -30) <|> flushB (shift hand -45)
-      in
+   in
       if
          | straightFlush /= 0 -> HandDesc StraightFlush [straightFlushRank + 4]
          | four /= 0 -> HandDesc Four [fourRank, firstBitRank $ delRank fourRank hand]
@@ -441,7 +440,7 @@ binToInt s = binToInt (init s) * 2 + (if last s == '0' then 0 else 1)
 bstrb vb1 =
    let
       (vb2, vb4, vb5) = bstr $ binToInt vb1
-      in
+   in
       (intToBin vb2, intToBin vb4, intToBin vb5)
 
 handDescLT1 valuesu =
@@ -453,21 +452,21 @@ handDescLT1 valuesu =
       threes1 = threes values
       pairs1 = pairs values
       pairs2 = pairs $ deleteMulti (head threes1) values
-      in
+   in
       if
-         | invalid1 /= [] ->
+         | notNull invalid1 ->
                HandDesc Invalid values
-         | fours1 /= [] ->
+         | notNull fours1 ->
                HandDesc Four [head $ head fours1, head $ deleteMulti (head fours1) values]
-         | threes1 /= [] && pairs2 /= [] ->
+         | notNull threes1 && notNull pairs2 ->
                HandDesc FullHouse [head $ head threes1, head $ head pairs2]
-         | straights1 /= [] ->
+         | notNull straights1 ->
                HandDesc Straight [head $ head straights1]
-         | threes1 /= [] ->
+         | notNull threes1 ->
                HandDesc Three ((head $ head threes1) : take 2 (deleteMulti (head threes1) values))
          | length pairs1 >= 2 ->
                HandDesc Pairs [head $ head pairs1, head $ pairs1 !! 1, head $ deleteMulti (concat $ take 2 pairs1) values]
-         | pairs1 /= [] ->
+         | notNull pairs1 ->
                HandDesc Pair ((head $ head pairs1) : (take 3 $ deleteMulti (head pairs1) values))
          | otherwise ->
                HandDesc High $ take 5 values
@@ -476,9 +475,9 @@ handDescLT2 :: [Int] -> Int
 handDescLT2 suits =
    let
       flushes1 = flushesB suits
-      in
+   in
       if
-         | flushes1 /= [] ->
+         | notNull flushes1 ->
                let suit = head $ head flushes1 in sum $ zipWith (\s n -> shift 1 n) suits [0 .. 6]
          | otherwise ->
                0
@@ -548,7 +547,7 @@ straightFlushesX gotvaluesA yourhand nyourcards ntablecards n1 s1 =
       -- nyourcards is set to zero for their hands
       gotcards1 = gotvaluesA A.! (n1, s1) + gotvaluesA A.! (n1 - 1, s1) + gotvaluesA A.! (n1 - 2, s1) + gotvaluesA A.! (n1 - 3, s1) + gotvaluesA A.! (n1 - 4, s1)
       gotcardsextra = (if yourhand then nyourcards else 0) + ntablecards - gotcards1
-      in
+   in
       ( HandDesc Four [n1]
       , comb (52 - (if yourhand then 0 else nyourcards) - ntablecards) (2 - gotcardsextra)
       )
@@ -561,7 +560,7 @@ foursX takenvaluesA gotvaluesA yourhand nyourcards ntablecards n1 =
 
       takencards1 = takenvaluesA A.! n1
       takenvalues = 1 + gotcardsextra
-      in
+   in
       ( HandDesc Four [n1]
       , comb (4 - takencards1) (4 - gotcards1)
             * comb (52 - (if yourhand then 0 else nyourcards) - 4 * takenvalues) (3 - gotcardsextra)
@@ -596,7 +595,7 @@ fullhousesX1 takenvaluesA gotvaluesA yourhand nyourcards ntablecards n1 n2 =
       takencards1 = takenvaluesA A.! n1
       takencards2 = takenvaluesA A.! n2
       takenvalues = 2 + gotcardsextra
-      in
+   in
       ( HandDesc FullHouse [n1, n2]
       , comb (4 - takencards1) (3 - gotcards1)
             * comb (4 - takencards2) (3 - gotcards2)
@@ -616,7 +615,7 @@ fullhousesX2 takenvaluesA gotvaluesA yourhand nyourcards ntablecards n1 n2 n3 =
       takencards2 = takenvaluesA A.! n2
       takencards3 = takenvaluesA A.! n3
       takenvalues = 3 + gotcardsextra
-      in
+   in
       ( HandDesc FullHouse [n1, n2]
       , comb (4 - takencards1) (3 - gotcards1)
             * comb (4 - takencards2) (2 - gotcards2)
@@ -633,7 +632,7 @@ fullhousesX3 takenvaluesA gotvaluesA yourhand nyourcards ntablecards n1 n2 =
       takencards1 = takenvaluesA A.! n1
       takencards2 = takenvaluesA A.! n2
       takenvalues = 2 + gotcardsextra
-      in
+   in
       ( HandDesc FullHouse [n1, n2]
       , comb (4 - takencards1) (3 - gotcards1)
             * comb (4 - takencards2) (2 - gotcards2)
@@ -650,7 +649,7 @@ fullhousesX valsT vals left =
                   toget2 = max 0 (2 - got2)
                   toget = toget1 + toget2
                   extra = left - toget
-                  in
+               in
                   ( HandDesc FullHouse [n1, n2]
                   , if n1 /= n2 && toget <= left
                         then comb (45 + extra) extra * comb 4 toget1 * comb 4 toget2
@@ -668,7 +667,7 @@ fullhousesX1A valsT vals left =
                   toget2 = max 0 (3 - got2)
                   toget = toget1 + toget2
                   extra = left - toget
-                  in
+               in
                   ( HandDesc FullHouse $ rsort [n1, n2]
                   , if n1 /= n2 && toget <= left
                         then comb (43 + extra) extra * comb 4 toget1 * comb 4 toget2 -- the extra is chosen from two less than the usual 45 to avoid a four
@@ -688,7 +687,7 @@ fullhousesX2A valsT vals left =
                   toget3 = max 0 (2 - got3)
                   toget = toget1 + toget2
                   extra = left - toget
-                  in
+               in
                   ( HandDesc FullHouse [n1, max n2 n3]
                   , if n1 /= n2 && n2 /= n3 && n1 /= n3 && toget <= left
                         then comb 4 toget1 * comb 4 toget2 * comb 4 toget3
@@ -706,7 +705,7 @@ fullhousesX3A valsT vals left =
                   toget2 = max 0 (2 - got2)
                   toget = toget1 + toget2
                   extra = left - toget
-                  in
+               in
                   ( HandDesc FullHouse [n1, n2]
                   , if n1 /= n2 && toget <= left
                         then comb (9 + extra) extra * 4 ^ extra * comb 4 toget1 * comb 4 toget2
@@ -727,7 +726,7 @@ flushesX suitsT suits left =
                                  let
                                     toget = max 0 (total - got)
                                     extra = left - toget
-                                    in
+                                 in
                                     if toget <= left
                                        -- then sum $ map (\x -> comb 13 x * comb 39 (7-x)) [5..7]
                                        then comb 13 toget * comb 39 extra
@@ -806,7 +805,7 @@ pairsX takenvaluesA gotvaluesA yourhand nyourcards ntablecards n1 n2 n3 =
       takencards2 = takenvaluesA A.! n2
       takencards3 = takenvaluesA A.! n3
       takenvalues = 3 + gotcardsextra
-      in
+   in
       ( HandDesc Pairs [n1, n2]
       , if n1 > n2 && n2 > n3
             then
@@ -827,7 +826,7 @@ pairsX1 takenvaluesA gotvaluesA yourhand nyourcards ntablecards n1 n2 =
       takencards1 = takenvaluesA A.! n1
       takencards2 = takenvaluesA A.! n2
       takenvalues = 2 + gotcardsextra
-      in
+   in
       ( HandDesc Pairs [n1, n2]
       , if n1 > n2
             then
@@ -881,7 +880,7 @@ handDescX yourcards tablecards =
             , pairsX takenvalues gotvalues False (size yourcards) (size tablecards) <$> [2 .. 14] <*> [2 .. 14] <*> [2 .. 14]
             , pairsX1 takenvalues gotvalues False (size yourcards) (size tablecards) <$> [2 .. 14] <*> [2 .. 14]
             ]
-      in
+   in
       cats
 
 showDescX yourcards tablecards = putGrid $ transpose $ map showT $ groupC handRank $ handDescX yourcards tablecards
@@ -902,7 +901,7 @@ comparePlayers tablecards =
          )
             <$> left
             <*> left
-      in
+   in
       concat m
 
 testAccuracyX tablecards = do
@@ -1019,7 +1018,7 @@ calchisstratp yourstrat =
    let
       yourbetprobs = map (\yourbet -> sum $ map (\yourcard -> yourstrat !! yourcard !! yourbet * cardprob) yourcards) yourbets
       yourcardprobs = map (\yourbet -> map (\yourcard -> yourstrat !! yourcard !! yourbet * cardprob / yourbetprobs !! yourbet) yourbets) yourcards
-      in
+   in
       map
          (\yourbet ->
             map
@@ -1626,7 +1625,7 @@ stats0 x y =
    let
       l = M.toList y
       (d, (a, _)) = maxOn snd l
-      in
+   in
       (x, fst $ medianMap y, sum $ map snd $ M.toList y, a, d)
 
 stats1 xs = map (uncurry stats0) $ M.toList $ groupCount handCat xs
@@ -1681,7 +1680,7 @@ emptyPlayer = Player "" 0 "" 0 "" (YearMonthDay 0 0 0) 0 0 0 0 [] [] M.empty
 readCard xs =
    let
       [n, s] = split "of" xs
-      in
+   in
       Card (readInt n) (fromJust $ elemIndex (head s) "msck") -- m = spades, s = clubs, c = diamonds, k = hearts
 
 showPlayer (s, p) = [show s, pnameid p, showComma $ pchipsTotal p, showComma $ pchipsHand p, showComma $ pchipsTable p, showComma $ pamount p]

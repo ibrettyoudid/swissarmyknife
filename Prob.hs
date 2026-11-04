@@ -50,7 +50,7 @@ binomial n p k = toRational (comb n k) * p ^ k * (1 - p) ^ (n - k)
 -- binomial n p k = pascal n k * p**k * (1-p)**(n-k)
 
 -- normal distribution, probability density function, for continuous variable
--- result needs to be integrated to get probability
+-- function needs to be integrated to get probability
 normalstd x = exp (-0.5 * x ^ 2) / sqrt (2 * pi)
 normalpdf 0 1 x = normalstd x
 normalpdf mu sig x = exp (-0.5 * (x - mu) ^ 2 / sig ^ 2) / sqrt (2 * pi * sig ^ 2)
@@ -705,3 +705,42 @@ findyM f y x = do fx <- f x; return $ fx - y
 
 maybeSwap ((a, fa), (b, fb)) = if a < fa then ((a, fa), (b, fb)) else ((b, fb), (a, fa))
 
+firstace n = 4 * product [50 - n .. 48] / product [53 - n .. 52]
+
+expected f xs = expected1 $ mapxfx f xs
+
+expected1 xfxs = sum (map (uncurry (*)) xfxs) / sum (map snd xfxs)
+
+{-
+the first ace has a 1/4 chance of being a spade, in which case it can't also be next? True
+since that is true, the chance of AS still being available after the first ace is 3/4
+
+the first ace is on average 1/4 way through the deck, so there is 1/4 chance the two of clubs has already gone before it?
+if that were true, there would be 3/4 chance of 2C still being available
+
+it's not true, though
+firstly, how can the first ace be EXACTLY 1/4 of the way through? 51 is not divisible by 4
+
+we have to calculate the expected value of the card number of the first ace
+by working out the probabilities of it being any individual card, multiplying the probability by the card number, and adding it all up
+P(first ace is 1st card)=4/52
+P(first ace is 2nd card)=(48/52)*(4/51)
+P(first ace is 3rd card)=(48/52)*(47/51)*(4/50)
+P(first ace is 4th card)=(48/52)*(47/51)*(46/50)*(4/49)
+P(first ace is 5th card)=(48/52)*(47/51)*(46/50)*(45/49)*(4/48)
+P(first ace is nth card)=(52-n)!/(49-n)!(52*51*50*49)
+P(first ace is 47th card)=(48/52)*(47/51)*(46/50)*(45/49)*...*(3/7)*(4/6)
+P(first ace is 48th card)=(48/52)*(47/51)*(46/50)*(45/49)*...*(3/7)*(2/6)*(4/5)
+P(first ace is 49th card)=(48/52)*(47/51)*(46/50)*(45/49)*...*(3/7)*(2/6)*(1/5)*(4/4)=1/270725
+
+and the result is 10.6
+E[first ace card number]=53/5=10.6
+
+This is earlier than one might expect
+
+For the two of clubs to be still available, it only has to come after the 10.6th card
+1 - 10.6/52 = 207/260 = 0.7962
+
+The probability that the ace of spades is still there is 3/4=0.75
+The probability that the two of clubs is still there is 207/260=0.7961538461538461...
+-}
