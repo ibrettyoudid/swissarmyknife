@@ -39,23 +39,31 @@ data Lambda s t f i o where
    Lambda   :: Frame      n v f => n -> Rule s t f v o -> Lambda s t f v o 
    LambdaM  :: FrameTuple n v f => n -> Rule s t f v o -> Lambda s t f v o 
 
+-- ManyTill eats the Till as well and doesn't return it
+-- not sure that is a good idea
+
+-- s = string type
+-- t = token (character) type
+-- f = frame type
+-- i = input type
+-- o = output type
 data Rule s t f i o where
-   Many     ::                                                                   Rule s t f i  a  -> Rule s t f i [a]
-   Alt      ::                                                                  [Rule s t f i  a] -> Rule s t f i  a
-   And      ::                                                                  [Rule s t f i  a] -> Rule s t f i  a
+   AnyToken ::                                                                                       Rule s t f i  t  
+   Rest     ::                                                                                       Rule s t f i  s  
    Not      ::                                                                   Rule s t f i  a  -> Rule s t f i  a
    Ignore   ::                                                                   Rule s t f i  a  -> Rule s t f i  a
+   Try      ::                                                                   Rule s t f i  a  -> Rule s t f i  a
+   Inner    ::                                                                   Rule s t f i  a  -> Rule s t b i  f
+   Option   ::                                                                   Rule s t f i  a  -> Rule s t f i (Maybe a)
+   Alt      ::                                                                  [Rule s t f i  a] -> Rule s t f i  a
+   And      ::                                                                  [Rule s t f i  a] -> Rule s t f i  a
+   AnyTill  :: Int -> Int ->                                                     Rule s t f i  a  -> Rule s t f i  s
+   Many     :: Int -> Int ->                                                     Rule s t f i  a  -> Rule s t f i [a]
+   ManyTill :: Int -> Int ->                              Rule s t f i  a     -> Rule s t f i  b  -> Rule s t f i [a]
    Eith     ::                                            Rule s t f i  a     -> Rule s t f i  b  -> Rule s t f i (Either a b)
    (:+)     ::                                            Rule s t f i  a     -> Rule s t f i  b  -> Rule s t f i (a :- b)
    (:/)     ::                                            Rule s t f i  a     -> Rule s t f i  b  -> Rule s t f i  b
    (://)    ::                                            Rule s t f i  a     -> Rule s t f i  b  -> Rule s t f i  a
-   ManyTill ::                                            Rule s t f i  a     -> Rule s t f i  b  -> Rule s t f i [a]
-   Try      ::                                                                   Rule s t f i  a  -> Rule s t f i  a
-   AnyTill  ::                                                                   Rule s t f i  a  -> Rule s t f i  s
-   Option   ::                                                                   Rule s t f i  a  -> Rule s t f i (Maybe a)
-   Inner    ::                                                                   Rule s t f i  a  -> Rule s t b i  f
-   AnyToken ::                                                                                       Rule s t f i  t  
-   Rest     ::                                                                                       Rule s t f i  s  
    Tokens   ::                                            Int                                     -> Rule s t f i  s
    Token    ::                                            t                                       -> Rule s t f i  t
    String   ::                                            s                                       -> Rule s t f i  s
@@ -313,7 +321,7 @@ parse1 (Alt as) fs i =
             fail@Fail {} -> parse1 (Alt as1) fs i
       [] -> Fail i fs "no alternatives match"
 
-parse1 m@(Many a) fs i =
+parse1 m@(Many mi mx a) fs i =
    case parse1 a fs i of
       Done i1 fs1 ar ->
          case parse1 m fs1 i1 of
@@ -321,7 +329,7 @@ parse1 m@(Many a) fs i =
             Fail i2 fs2 em -> Done i1 fs1 [ar]
       Fail i1 fs1 em -> Done i fs [] --trace ("reached last repeat: "++em) $ Done i fs []
 
-parse1 m@(ManyTill a b) fs i =
+parse1 m@(ManyTill mi mx a b) fs i =
    case parse1 b fs i of
       Done i1 fs1 br  -> Done i fs []
       Fail i1 fs1 em ->
@@ -332,7 +340,7 @@ parse1 m@(ManyTill a b) fs i =
                   fail@Fail   {} -> fail
             Fail i2 fs2 em -> Done i fs []
 
-parse1 m@(AnyTill b) fs i =
+parse1 m@(AnyTill mi mx b) fs i =
    case parse1 b fs i of
       Done i1 fs1 br -> Done i fs empty
       Fail i1 fs1 em | null i -> Done i fs empty
@@ -557,7 +565,7 @@ format1 (Alt as) fs r =
                   fail@FFail {} -> fail
       [] -> FFail empty fs "no alternatives match"
 
-format1 m@(Many a) fs r =
+format1 m@(Many mi mx a) fs r =
    case r of
       (r1:rs) ->
          case format1 m fs rs of
@@ -568,7 +576,7 @@ format1 m@(Many a) fs r =
             fail@FFail{} -> fail
       [] -> FDone empty fs
 
-format1 m@(ManyTill a b) fs r =
+format1 m@(ManyTill mi mx a b) fs r =
    case r of
       (r1:rs) ->
          case format1 m fs rs of
@@ -579,7 +587,7 @@ format1 m@(ManyTill a b) fs r =
             fail@FFail{} -> fail
       [] -> FDone empty fs
 
-format1 m@(AnyTill b) fs r = FDone r fs
+format1 m@(AnyTill mi mx b) fs r = FDone r fs
 
 format1 (Apply iso a) fs r =
    case unapply iso r of
@@ -658,44 +666,72 @@ visitPre :: (forall r f t. Rule s t f i r -> Rule s t f i r) -> Rule s t f i r -
 visitPre f x = visit (visitPre f) (f x)
 
 visit :: (forall r f t. Rule s t f i r -> Rule s t f i r) -> Rule s t f i r -> Rule s t f i r
-visit f (Apply iso  x  ) = Apply iso  $ visit f x
-visit f (Alt        xs ) = Alt        $ map (visit f) xs
-visit f (Many       x  ) = Many       $ visit f x
-visit f (ManyTill   x y) = ManyTill    (visit f x) (visit f y)
-visit f (Set  name  x  ) = Set name   $ visit f x
-visit f (SetM names x  ) = SetM names $ visit f x
-visit f (And        xs ) = And        $ map (visit f) xs
-visit f (Not        x  ) = Not        $ visit f x
-visit f (        x :+ y) = visit f x :+ visit f y
-visit f (Count      x y) = Count        x (visit f y)
-visit f (Name name  x  ) = Name name  $ visit f x
---visit f (Ignore     x  ) = Ignore     $ visit f x
-visit f (Try        x  ) = Try        $ visit f x
-visit f other            = other
+visit f (Apply     iso  x  ) = Apply iso  $ visit f x
+visit f (Alt            xs ) = Alt        $ map (visit f) xs
+visit f (Many     mi mx x  ) = Many     mi mx (visit f x)
+visit f (ManyTill mi mx x y) = ManyTill mi mx (visit f x) (visit f y)
+visit f ( AnyTill mi mx x  ) =  AnyTill mi mx (visit f x)
+visit f (Set      name  x  ) = Set name   $ visit f x
+visit f (SetM     names x  ) = SetM names $ visit f x
+visit f (And            xs ) = And        $ map (visit f) xs
+visit f (Not            x  ) = Not        $ visit f x
+visit f (            x :+ y) = visit f x :+ visit f y
+visit f (Count          x y) = Count   x   (visit f y)
+visit f (Name     name  x  ) = Name name  $ visit f x
+visit f (Ignore        x   ) = Ignore     $ visit f x
+visit f (Try           x   ) = Try        $ visit f x
+visit f other                = other
 
-doManyTill = visitPost doManyTill1
+zzz x = doAnyToken x
+
+kkk = many AnyToken :+ Token 'c'
+
+{-
+>>> doAnyToken kkk
+
+-}
+
+
+class DoAnyToken a where
+   doAnyToken :: a -> a
+
+instance DoAnyToken (Rule [t] t f i ([t] :- o)) where
+   doAnyToken (Many mi mx AnyToken :+ b) = AnyTill mi mx b :+ b
+   doAnyToken other = other
+
+instance DoAnyToken (Rule s t f i o) where
+   doAnyToken (Many     mi mx a   :+ b) = ManyTill mi mx a b :+ b
+   doAnyToken ( AnyTill mi mx a   :+ b) =  AnyTill mi mx b   :+ b
+   doAnyToken (ManyTill mi mx a b :+ c) = ManyTill mi mx a c :+ c
+   doAnyToken other = other
 
 ll = AnyToken :+ AnyToken :+ AnyToken
 
---doManyTill1 (Many AnyToken :+ b) = AnyTill b :+ b
-doManyTill1 (Many a :+ b) = ManyTill a b :+ b
-doManyTill1 (AnyTill a :+ b) = AnyTill b :+ b
-doManyTill1 (ManyTill a b :+ c) = ManyTill a c :+ c
-doManyTill1 other = other
-
 nonEmpty :: Rule s t f i r -> Bool
-nonEmpty (Alt      a  ) = all nonEmpty a
-nonEmpty (      a :+ b) = nonEmpty a || nonEmpty b
-nonEmpty (Many     a  ) = False
-nonEmpty (ManyTill a b) = False
-nonEmpty (AnyTill  a  ) = False
-nonEmpty (Token    a  ) = True
-nonEmpty (String   a  ) = True
-nonEmpty  AnyToken      = False
-nonEmpty (Count    a b) = False
-nonEmpty (Apply    a b) = nonEmpty b
-nonEmpty (Name     a b) = nonEmpty b
+nonEmpty (Alt          a  ) = all nonEmpty a
+nonEmpty (          a :+ b) = nonEmpty a || nonEmpty b
+nonEmpty (Many     _ _ a  ) = False
+nonEmpty (ManyTill _ _ a b) = False
+nonEmpty (AnyTill  _ _ a  ) = False
+nonEmpty (Token        a  ) = True
+nonEmpty (String       a  ) = True
+nonEmpty  AnyToken          = False
+nonEmpty (Count        a b) = False
+nonEmpty (Apply        a b) = nonEmpty b
+nonEmpty (Name         a b) = nonEmpty b
 
+nullable :: Rule s t f i o -> Bool
+nullable (Alt          a  ) = any nullable a
+nullable (          a :+ b) = nullable a && nullable b
+nullable (Many     _ _ a  ) = True
+nullable (ManyTill _ _ a b) = True
+nullable (AnyTill  _ _ a  ) = True
+nullable (Token        a  ) = False
+nullable (String       a  ) = False
+nullable  AnyToken          = True
+nullable (Count        a b) = True
+nullable (Apply        a b) = nullable b
+nullable (Name         a b) = nullable b
 --nonEmptyPrefix :: Rule s t f r -> Rule s f t
 --nonEmptyPrefix (a :+ b) = if nonEmpty a then a else a :+ nonEmptyPrefix b
 
@@ -724,16 +760,16 @@ diff2 (Range a b) (Range c d) =
 diff3 [Range a b] = Range a b
 diff3 (a:b:cs) = Alt (a:b:cs)
 -}
-filename1 = AnyTill (Token '.') :+ Token '.' :+ Many AnyToken
+filename1 = AnyTill 0 0 (Token '.') :+ Token '.' :+ many AnyToken
 
-hostport = Build (HostPort "" 0) $ (Host <-- AnyTill (Token ':')) :+ Token ':' :+ (Port <-- int)
+hostport = Build (HostPort "" 0) $ (Host <-- AnyTill 0 0 (Token ':')) :+ Token ':' :+ (Port <-- int)
 
 rint s = read s :: Int
 
 isoint :: Iso String Int
 isoint = total read show
 
-int = Apply isoint $ Many (Range '0' '9')
+int = Apply isoint $ many (Range '0' '9')
 
 t = parse1 filename1 (M.empty::SSMap) "abc.mp3"
 
@@ -807,10 +843,10 @@ pure :: a -> Rule s t f i a
 pure = Return
 
 many :: Rule s t f i a -> Rule s t f i [a]
-many = Many
+many = Many 0 0
 
 many1 :: Rule s t f i a -> Rule s t f i [a]
-many1 p = icons >$< p >*< many p
+many1 p = Many 1 0 p
 
 sepBy x sep = icons >$< x >*< many (sep *< x) <|> Return []
 
@@ -824,9 +860,9 @@ chainr1 arg op f = f >$< arg >*< (op >*< chainr1 arg op f) <|> arg
 instance Show tok => Show (Rule str tok frame i res) where
    showsPrec d AnyToken r = "AnyToken"++r
    showsPrec d (Token t) r = "Token "++show t++r
-   showsPrec d (Many m) r = "Many "++showsPrec 10 m r
-   showsPrec d (ManyTill m t) r = "ManyTill "++showsPrec 10 m " "++showsPrec 10 t r
-   showsPrec d (AnyTill t) r = "AnyTill "++showsPrec 10 t r
+   showsPrec d (Many _ _ m) r = "Many "++showsPrec 10 m r
+   showsPrec d (ManyTill _ _ m t) r = "ManyTill "++showsPrec 10 m " "++showsPrec 10 t r
+   showsPrec d (AnyTill _ _ t) r = "AnyTill "++showsPrec 10 t r
    showsPrec d (Alt as) r = "Alt"++concatMap (\a -> showsPrec 10 a "") as++r
    showsPrec d (a :+ b) r = showsPrec 1 a " :+ "++showsPrec 1 b r
 
@@ -911,18 +947,18 @@ dataField  = (Build
 --   String "myget1" :+ s :+ FNameK <-- ident :+ s :+ String "=" :+ s :+ FNameK <-- ident :+ crlf :+
 --   String "myset1" :+ s :+ FNameK <-- ident :+ s :+ String "value" :+ s :+ String "frame" :+ s :+ String "=" :+ s :+ String "frame" :+ s :+ String "{" :+ s :+ FNameK <-- ident :+ s :+ String "=" :+ s :+ String "value" :+ s :+ String "}" :+ crlf
 
-dataInfoI = Build (DataInfo "" "" []) (TypeK --> \ty -> Many (Build (DataCon "" []) $ FieldsK <-- Many (dataInstance ty)))
+dataInfoI = Build (DataInfo "" "" []) (TypeK --> \ty -> many (Build (DataCon "" []) $ FieldsK <-- many (dataInstance ty)))
 
 dataInstance frame = Build (DataField "" "" "" "") $ String "instance Frame" :/ s1 :/ FKeyK <-- ident :/ s1 :/ FTypeK <-- ident :/ s1 :/ String frame :/ s1 :/ String "where" :/ crlf :/
    s3 :/ String "myget1" :/ s1 :/ FKeyK <-- ident :/ s1 :/ String "=" :/ s1 :/ FNameK <-- ident :/ crlf :/
    s3 :/ String "myset1" :/ s1 :/ FKeyK <-- ident :/ s1 :/ String "value frame = frame {" :/ s1 :/ FNameK <-- ident :/ s1 :/ String "= value }" :/ crlf
 
 dataDyn = Build (DataInfo "" "" []) $ String "instance FrameD" :/ s1 :/ DynTypeK <-- ident :/ s1 :/ TypeK <-- ident :/ s1 :/ String "where" :/ crlf :/
-   s3 :/ String "mygetD name frame       = case name of\n" :/ s6 :/ ConzK <-- Many dataConGet :/ crlf :/
-   s3 :/ String "mysetD name value frame = case name of\n" :/ s6 :/ ConzK <-- Many dataConSet :/ crlf
+   s3 :/ String "mygetD name frame       = case name of\n" :/ s6 :/ ConzK <-- many dataConGet :/ crlf :/
+   s3 :/ String "mysetD name value frame = case name of\n" :/ s6 :/ ConzK <-- many dataConSet :/ crlf
 
-dataConGet = Build (DataCon "" []) $ FieldsK <-- Many dataDynGet
-dataConSet = Build (DataCon "" []) $ FieldsK <-- Many dataDynSet
+dataConGet = Build (DataCon "" []) $ FieldsK <-- many dataDynGet
+dataConSet = Build (DataCon "" []) $ FieldsK <-- many dataDynSet
 
 dataDynGet = Build (DataField "" "" "" "") $ s6 :/ FDynKeyK <-- ident :/ s1 :/ String "-> toDyn $" :/ s1 :/ FNameK <-- ident :/ s1 :/ String "frame" :/ crlf
 dataDynSet = Build (DataField "" "" "" "") $ s6 :/ FDynKeyK <-- ident :/ s1 :/ String "-> frame {" :/ s1 :/ FNameK <-- ident :/ s1 :/ String "= fromDyn1 value }" :/ crlf
@@ -931,7 +967,7 @@ isWS c = c == ' ' || c == '\n'
 
 ws = Token ' ' <|> Token '\n'
 
-spaced str = foldr ((:/) . (\(a :- b) -> String a :/ Default b (Many ws))) (Return ()) (result $ parse (Many (AnyTill ws :+ Many ws)) str)
+spaced str = foldr ((:/) . (\(a :- b) -> String a :/ Default b (many ws))) (Return ()) (result $ parse (many (AnyTill 0 0 ws :+ many ws)) str)
 
 uppiso = total uppk unuppk
 
@@ -943,19 +979,19 @@ uppk cs = upp cs ++ "K"
 
 unuppk (c:cs) = cons (toLower c) $ init cs
 
-s1 = Default " " $ Many (Token ' ')
+s1 = Default " " $ many (Token ' ')
 s2 = sp 2
 s3 = sp 3
 s4 = sp 4
 s6 = sp 6
 
-sp n = Default (replicate n ' ') $ Many (Token ' ')
+sp n = Default (replicate n ' ') $ many (Token ' ')
 
 a /+ b = a :+ s1 :/ b :// s1
 
-crlf = Default "\n" $ Many (Token ' ' <|> Token '\n')
+crlf = Default "\n" $ many (Token ' ' <|> Token '\n')
 
-ident = Apply icons (alpha :+ Many alnum)
+ident = Apply icons (alpha :+ many alnum)
 
 zz j = Taken (Return 8)
 

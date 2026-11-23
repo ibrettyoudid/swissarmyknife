@@ -198,13 +198,12 @@ getRequest = addUserAgent . parseRequest_ . c
 --------------------------------------------------------------------------------
 getHTTP :: Manager -> T.Text -> T.Text
 getHTTP m url = c $ unsafePerformIO $ getHTTPIO m url
-
 --------------------------------------------------------------------------------
 getHTTPIO :: Manager -> T.Text -> IO T.Text
 getHTTPIO m url = do
    let req = getRequest url
    -- print req
-   resp <- simpleHTTP m req
+   resp <- httpLbs req m
    -- print resp
    return $ c $ responseBody resp
 
@@ -215,6 +214,15 @@ getHTML m url = nestParse url $ getHTTP m url
 getHTMLIO m url = nestParse url <$> getHTTPIO m url
 getHTMLReq m req = nestParse (show $ reqPath req) $ c $ unsafePerformIO $ getHTTPReq m req
 nestParse f = nest . parseHTML f
+
+ensureDirectoryFor file = do
+   let ds = split "/" file
+   mapM (\d -> do
+      putStrLn $ "creating "++d
+      flag <- doesDirectoryExist d
+      if flag
+         then return ()
+         else createDirectory d) $ map (\t -> intercalate "/" $ take t ds) [2..length ds - 1]
 
 readHTML f = nestParse f $ readFileBinary f
 
@@ -232,12 +240,15 @@ readWriteHTTP1 m url = do
       else do
          putStrLn $ "fetching " ++ file
          dat <- getHTTPIO m url
+         ensureDirectoryFor file
          writeFileBinary file dat
          putStrLn $ "written " ++ file
          return dat
 
 readWriteHTML1 m url = do
-   let file = urlToFileName url
+   let 
+      file = urlToFileName url
+      --flag = False
    flag <- doesFileExist file
    if flag
       then do
@@ -245,13 +256,21 @@ readWriteHTML1 m url = do
          putStrLn $ "read " ++ file
          return h
       else do
+         putStrLn $ "file not found " ++ file
          putStrLn $ "fetching " ++ url
          str <- getHTTPIO m url
          let html = nestParse url str
+         ensureDirectoryFor file
          writeFileBinary file str
+         putStrLn $ "written " ++ file
+         if any (flip isInfixOf file) ["5201", "4827"]
+            then do
+               putStrLn $ "NOT WRITTEN " ++ file ++ ".formatted"
+            else do
+               writeHTML (file++".formatted") html
+               putStrLn $ "written " ++ file ++ ".formatted"
          --html <- getHTMLIO m url
          --Data.ByteString.Builder.writeFile file $ formatB 0 html
-         putStrLn $ "written " ++ file
          return html
 
 
@@ -266,7 +285,7 @@ mytrace x = unsafePerformIO (do print x; return x)
 
 getHTTPRefr :: Manager -> T.Text -> T.Text -> IO T.Text
 getHTTPRefr m ref url = do
-   nsr <- simpleHTTP m (getRequestRefr (convertString ref) url)
+   nsr <- simpleHTTP m (setRequestRefr ref url)
    return $ c $ responseBody nsr
 
 getHTTPReq :: Manager -> Request -> IO T.Text
@@ -286,7 +305,7 @@ urlToFileName url =
    let
       s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
    
-   in c $ ".cache/"++last s
+   in c $ ".cache/"++(intercalate "/" $ drop (if head s == "https:" then 2 else 0) s)
 
 writeHTTP m url = do
    let fileName = urlToFileName url
@@ -351,14 +370,38 @@ data Property whole part = Property {getP :: whole -> part, putP :: part -> whol
 
 rqHeadersP = Property requestHeaders (\p w -> w{requestHeaders = p})
 
-getRequestRefr ref url =
+setRequestRefr ref url =
    let
       r = getRequest url
       h = requestHeaders r
    
-   in r{requestHeaders = h ++ [(hReferer, ref)]}
+   in r{requestHeaders = h}
 
-addUserAgent req = req{requestHeaders = (hUserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") : requestHeaders req}
+addUserAgent req = req {
+      requestHeaders = 
+         --(hUserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") :
+      {-         
+         (":authority",        "members.parliament.uk") :
+         (":method",           "GET") :
+         (":path",             intercalate "/" $ drop 3 $ split "/" $ Network.HTTP.Client.path req) :
+         (":scheme",           "https") :
+      -}   
+         (hAccept,             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7") :
+         --(hAcceptEncoding,     "gzip, deflate, br, zstd") :
+         (hAcceptLanguage,     "en-GB,en-US;q=0.9,en;q=0.8") :
+         ("dnt",               "1") :
+         ("priority",          "u=0, i") :
+         (hReferer,            Network.HTTP.Client.path req) :
+         ("sec-ch-ua",         "\"Chromium\";v=\"152\", \"Not?A_Brand\";v=\"24\", \"Google Chrome\";v=\"152\"") :
+         ("sec-ch-ua-mobile",  "?0") :
+         ("sec-ch-ua-platform","\"Linux\"") :
+         ("sec-fetch-dest",    "document") :
+         ("sec-fetch-mode",    "navigate") :
+         ("sec-fetch-site",    "same-origin") :
+         ("sec-fetch-user",    "?1") :
+         ("upgrade-insecure-requests",     "1") :
+         (hUserAgent,          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36") : requestHeaders req,
+      responseTimeout = responseTimeoutMicro 60000000 }
 
 {-
 urlToFileName url = let
@@ -1098,3 +1141,19 @@ writeHTML file html = do
 writeHTMLT file htmls = LB.writeFile file $ convertString $ toLazyText $ mconcat $ map (formatLT 0) htmls
 
 lego2 = writeHTML "lego.html" $ Tag "table" [] $ map (\(title, n, img) -> Tag "tr" [] [Tag "td" [] [Text n], Tag "td" [] [Text title], Tag "td" [] [Tag "image" [("src", img)] []]]) lego1
+
+google m q = readWriteHTML m $ "https://www.google.co.uk/search?q="++spacesToPluses q
+
+search m q = map search1 $ Prelude.init $ findClassesCon "result" $ readWriteHTML m $ "https://www.startpage.com/do/search?q="++spacesToPluses q++"&segment=startpage.vivaldi"
+
+search1 h = let
+   link = extractLink $ findClassCon "title-link-container" h
+   text = extractText $ findClassCon "result-title" h
+
+   in (link, text)
+
+google1 h = let
+   text = extractText $ findType "h3" h
+   link = extractText $ findType "cite" h
+
+   in (link, text)

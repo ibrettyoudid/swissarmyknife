@@ -34,7 +34,7 @@ import qualified HTTPTypes
 import qualified NumberParsers as NP
 import Show1
 
-import Parser3 hiding (Apply, pure)
+import Parser3 hiding (Apply, Frame, pure)
 import qualified Parser3 as P
 import Iso2 hiding (foldl, foldr, right, (!!), ignore)
 

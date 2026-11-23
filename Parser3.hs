@@ -329,7 +329,7 @@ linePos = M.fromList . zip [(0 :: Int) ..] . (0 :) . map (+ 1) . findIndices (==
 
 -- p s t = tree s $ parseE s t
 
-getLC x lps = let Just (n, s) = M.lookupLE x lps in (n, x - s)
+getLC n lps = let Just (lineno, start) = M.lookupLE n lps in (lineno, n - start)
 
 {-
 pD s t = do
@@ -353,138 +353,16 @@ parseE r t = do
    let
       lps = linePos t
       positem = maket 0 0 $ start r :: PosItemFT Char
-      active = SL.singleton positem
-      init = PIS.singleton $ positem :: PIS.PosItemSeq Char (PosItemFT Char)
-
-      comppredE n active = do
-         liftIO $ putStrLn $ "comppredE active="++show active
-         completed <- completeE2 n SL.empty active
-         predicted <- predictE2 n SL.empty completed
-         completeE1 n predicted
-
-      completeE1 n active 
-         | SL.null active = return SL.empty
-         | otherwise = do
-            liftIO $ putStrLn $ "   completeE1 active="++show active
-            completed <- completeE2 n SL.empty active
-            predictE1 n completed
-
-      predictE1 n active 
-         | SL.null active = return SL.empty
-         | otherwise = do
-            liftIO $ putStrLn $ "   predictE1 active="++show active
-            predicted <- predictE2 n SL.empty active
-            completeE1 n predicted
-
-      completeE2 n collect active 
-         | SL.null active = return collect
-         | otherwise = do
-            liftIO $ putStrLn $ "      completeE2 active="++show active
-            completed <- completeE3 n active
-            completeE2 n (SL.concat [collect, completed]) completed
-
-      predictE2 n collect active
-         | SL.null active = return collect
-         | otherwise = do
-            liftIO $ putStrLn $ "      predictE2 active="++show active
-            predicted <- predictE3 n active
-            predictE2 n (SL.concat [collect, predicted]) predicted
-
-      completeE3 n active = do
-         SL.concat <$> (SL.mapM (\subpositem -> do
-            liftIO $ putStrLn $ "         completeE3 sub="++show subpositem
-            piseq <- get
-            let
-               subfrom = from subpositem
-               subitem = item subpositem
-               subdot  = dot  subitem
-               subrule = rule subitem
-            SL.fromList . concat <$> (SL.mapM (\mainpositem -> do
-               liftIO $ putStrLn $ "         completeE3    main="++show mainpositem
-               let
-                  mainfrom = from mainpositem
-                  mainitem = item mainpositem
-                  maindot  = dot  mainitem
-                  mainrule = rule mainitem
-                  
-                  completed     d = completeditem $ Item mainrule d
-                  completeditem i = PIS.insertC (maket mainfrom n i) subpositem
-               if not (finished maindot) && finished subdot && anysubitem mainitem subitem
-                  then do
-                     --liftIO $ putStrLn $ show (mainrule, maindot)
-                     case (mainrule, maindot) of
-                        (Seq as, ISeq x) -> if
-                           | subdot == Fail -> completed $ Fail
-                           | x + 1 == length as ->
-                              if pass subdot
-                                 then do
-                                    let
-                                       seqs = childrenE piseq mainpositem
-                                       oldasts = map2 (asts . dot . item) seqs
-                                       ret = map crossList oldasts
-                                       cret = concat ret
-                                       newasts = map toDyn $ map reverse $ concat $ crossWith (:) (asts subdot) cret
-                                    liftIO $ putStrLn $ "         seqs="++show seqs++" oldasts="++show oldasts++" ret="++show ret++" cret="++show cret++" pass="++show (asts subdot)++" newasts="++show newasts
-                                    completed $ Pass newasts
-                              else
-                                 completed $ Fail
-                           | otherwise -> completed $ ISeq (x + 1)
-                        (Alt as, IAlt x) -> completed $ if
-                           | pass subdot   -> subdot
-                           | x < length as -> IAlt (x + 1)
-                           | otherwise     -> Fail
-                        (Name {}, Running) -> completed subdot
-                        (Apply {}, Running) -> 
-                           case subdot of
-                              Pass reslist -> do
-                                 concat <$> mapM (\res -> completed $ case mainrule of
-                                    Apply iso _ ->
-                                       case apply iso res of
-                                          Just j  -> Pass [j]
-                                          Nothing -> Fail) reslist
-                              Fail -> completed Fail
-                        (Not {}, Running) -> completed $
-                           case subdot of 
-                              Pass p -> Fail
-                              Fail   -> Pass [toDyn ()]
-                        (Bind i (j, k), Running) -> 
-                           case subdot of
-                              Pass reslist -> concat <$> mapM (\res -> completeditem $ start $ j res) reslist
-                              Fail -> completed Fail
-                        (Many minn maxn sr, IMany oldasts) ->
-                              if pass subdot
-                                 then do
-                                    let
-                                       newasts = concat $ crossWith (:) (asts subdot) oldasts
-                                       maxok = if maxn == 0 then newasts else filter ((<= maxn) . length) newasts
-                                       minok = filter ((>= minn) . length) maxok
-                                    liftIO $ putStrLn $ "         oldasts="++show oldasts++" pass="++show (asts subdot)++" newasts="++show newasts
-                                    r1 <- if not (null maxok) then completed $ IMany maxok                        else return []
-                                    r2 <- if not (null minok) then completed $ Pass $ map (toDyn . reverse) minok else return []
-                                    return $ r1++r2
-                              else
-                                 completed $ Fail
-                        _ -> error $ "no entry in case for "++show mainrule ++ " " ++ show maindot
-                  else
-                     return []
-               ) (fromMaybe SL.empty $ PI.lookup subrule (piseq PIS.! subfrom)))
-            ) active)
-
-      predictE3 n active = do
-         SL.concat <$> (SL.mapM (\mainpositem -> do
-            liftIO $ putStrLn $ "         predictE3 mainpositem="++show mainpositem
-            let subitems = predict1 n mainpositem 
-            liftIO $ putStrLn $ "         subitems="++show subitems
-            r <- mapM (PIS.insertP mainpositem) subitems
-            return $ (SL.fromList $ (concat r :: [PosItemFT Char]))) active)
+      init = PIS.singleton $ positem
 
    positemseq <- execStateT (do
-      active <- predictE1 0 active
-      piseq <- get :: StateT (PIS.PosItemSeq tok positem) IO (PIS.PosItemSeq tok positem)
+
+      active <- predictE1 lps 0 $ SL.singleton positem
+      piseq <- get
       liftIO $ putStrLn $ table t piseq
-      comppredE 0 active
+      comppredE lps 0 active
       mapM_ (\n -> do
-         piseq <- get :: StateT (PIS.PosItemSeq tok positem) IO (PIS.PosItemSeq tok positem)
+         piseq <- get
          liftIO $ putStrLn $ table t piseq
          liftIO $ putStrLn $ "SCAN " ++ take 75 (cycle "/\\") ++ " " ++ t
          liftIO $ putStrLn $ replicate (80+n) ' ' ++ "^"
@@ -493,11 +371,168 @@ parseE r t = do
                Nothing -> Nothing) $ SL.toList $ PI.setlist $ piseq PIS.! (n-1)
          mapM (\(sub, main) -> PIS.insertC main sub) scanned
          liftIO $ putStrLn $ "scanned=" ++ show scanned
-         comppredE n $ SL.fromList $ map snd scanned) [1..length t]
+         comppredE lps n $ SL.fromList $ map snd scanned) [1..length t]
       ) init
    
    putStrLn (table t positemseq)
    return $ concat $ mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (asts $ dot (item s))) (SL.toList $ PI.setlist $ positemseq PIS.! length t)
+
+parseLR1 r t = do
+   let
+      lps = linePos t
+      positem = maket 0 0 $ start r :: PosItemFT Char
+      init = PIS.singleton $ positem
+
+   positemseq <- execStateT (do
+
+      active <- predictE1 lps 0 $ SL.singleton positem
+      piseq <- get
+      liftIO $ putStrLn $ table t piseq
+      comppredE lps 0 active
+      mapM_ (\n -> do
+         piseq <- get
+         let
+            --closure  = SL.closure (predict2 n) kernel
+            scans    = SL.filter scan4 $ SL.map itemrule $ PI.setlist $ piseq PIS.! (n-1)
+            combined = combinescans $ SL.toList scans
+         liftIO $ putStrLn $ table t piseq
+         liftIO $ putStrLn $ "SCAN " ++ take 75 (cycle "/\\") ++ " " ++ t
+         liftIO $ putStrLn $ replicate (80+n) ' ' ++ "^"
+         let scanned = mapMaybe (\x -> case scan1 n (t !! (n-1)) x of
+               Just  j -> Just (x, j)
+               Nothing -> Nothing)
+                  $ SL.toList $ PI.setlist $ piseq PIS.! (n-1)
+         mapM (\(sub, main) -> PIS.insertC main sub) scanned
+         liftIO $ putStrLn $ "scanned=" ++ show scanned
+         comppredE lps n $ SL.fromList $ map snd scanned) [1..length t]
+      ) init
+   
+   putStrLn (table t positemseq)
+   return $ concat $ mapMaybe (\s -> ifJust (from s == 0 && rule (item s) == r && passi (item s)) (asts $ dot (item s))) (SL.toList $ PI.setlist $ positemseq PIS.! length t)
+
+comppredE lps n active = do
+   liftIO $ putStrLn $ "comppredE active="++show active
+   completed <- completeE2 lps n SL.empty active
+   predicted <- predictE2 lps n SL.empty completed
+   completeE1 lps n predicted
+
+completeE1 lps n active 
+   | SL.null active = return SL.empty
+   | otherwise = do
+      liftIO $ putStrLn $ "   completeE1 active="++show active
+      completed <- completeE2 lps n SL.empty active
+      predictE1 lps n completed
+
+predictE1 lps n active 
+   | SL.null active = return SL.empty
+   | otherwise = do
+      liftIO $ putStrLn $ "   predictE1 active="++show active
+      predicted <- predictE2 lps n SL.empty active
+      completeE1 lps n predicted
+
+completeE2 lps n collect active 
+   | SL.null active = return collect
+   | otherwise = do
+      liftIO $ putStrLn $ "      completeE2 active="++show active
+      completed <- completeE3 lps n active
+      completeE2 lps n (SL.concat [collect, completed]) completed
+
+predictE2 lps n collect active
+   | SL.null active = return collect
+   | otherwise = do
+      liftIO $ putStrLn $ "      predictE2 active="++show active
+      predicted <- predictE3 lps n active
+      predictE2 lps n (SL.concat [collect, predicted]) predicted
+
+completeE3 lps n active = do
+   SL.concat <$> (SL.mapM (\subpositem -> do
+      liftIO $ putStrLn $ "         completeE3 sub="++show subpositem
+      piseq <- get
+      let
+         subfrom = from subpositem
+         subitem = item subpositem
+         subdot  = dot  subitem
+         subrule = rule subitem
+      SL.fromList . concat <$> (SL.mapM (\mainpositem -> do
+         liftIO $ putStrLn $ "         completeE3    main="++show mainpositem
+         let
+            mainfrom = from mainpositem
+            mainitem = item mainpositem
+            maindot  = dot  mainitem
+            mainrule = rule mainitem
+            
+            completed     d = completeditem $ Item mainrule d
+            completeditem i = PIS.insertC (maket mainfrom n i) subpositem
+         if not (finished maindot) && finished subdot && anysubitem mainitem subitem
+            then do
+               --liftIO $ putStrLn $ show (mainrule, maindot)
+               case (mainrule, maindot) of
+                  (Seq as, ISeq x) -> if
+                     | subdot == Fail -> completed $ Fail
+                     | x + 1 == length as ->
+                        if pass subdot
+                           then do
+                              let
+                                 seqs = childrenE piseq mainpositem
+                                 oldasts = map2 (asts . dot . item) seqs
+                                 ret = map crossList oldasts
+                                 cret = concat ret
+                                 newasts = map toDyn $ map reverse $ concat $ crossWith (:) (asts subdot) cret
+                              liftIO $ putStrLn $ "         seqs="++show seqs++" oldasts="++show oldasts++" ret="++show ret++" cret="++show cret++" pass="++show (asts subdot)++" newasts="++show newasts
+                              completed $ Pass newasts
+                        else
+                           completed $ Fail
+                     | otherwise -> completed $ ISeq (x + 1)
+                  (Alt as, IAlt x) -> completed $ if
+                     | pass subdot   -> subdot
+                     | x < length as -> IAlt (x + 1)
+                     | otherwise     -> Fail
+                  (Name {}, Running) -> completed subdot
+                  (Apply {}, Running) -> 
+                     case subdot of
+                        Pass reslist -> do
+                           concat <$> mapM (\res -> completed $ case mainrule of
+                              Apply iso _ ->
+                                 case apply iso res of
+                                    Just j  -> Pass [j]
+                                    Nothing -> Fail) reslist
+                        Fail -> completed Fail
+                  (Not {}, Running) -> completed $
+                     case subdot of 
+                        Pass p -> Fail
+                        Fail   -> Pass [toDyn ()]
+                  (Bind i (j, k), Running) -> 
+                     case subdot of
+                        Pass reslist -> concat <$> mapM (\res -> completeditem $ start $ j res) reslist
+                        Fail -> completed Fail
+                  (Pos, Running) -> do
+                     completed $ Pass [toDyn $ getLC n lps]
+                  (Many minn maxn sr, IMany oldasts) ->
+                        if pass subdot
+                           then do
+                              let
+                                 newasts = concat $ crossWith (:) (asts subdot) oldasts
+                                 maxok = if maxn == 0 then newasts else filter ((<= maxn) . length) newasts
+                                 minok = filter ((>= minn) . length) maxok
+                              liftIO $ putStrLn $ "         oldasts="++show oldasts++" pass="++show (asts subdot)++" newasts="++show newasts
+                              r1 <- if not (null maxok) then completed $ IMany maxok                        else return []
+                              r2 <- if not (null minok) then completed $ Pass $ map (toDyn . reverse) minok else return []
+                              return $ r1++r2
+                        else
+                           completed $ Fail
+                  _ -> error $ "no entry in case for "++show mainrule ++ " " ++ show maindot
+            else
+               return []
+         ) (fromMaybe SL.empty $ PI.lookup subrule (piseq PIS.! subfrom)))
+      ) active)
+
+predictE3 lps n active = do
+   SL.concat <$> (SL.mapM (\mainpositem -> do
+      liftIO $ putStrLn $ "         predictE3 mainpositem="++show mainpositem
+      let subitems = predict1 n mainpositem 
+      liftIO $ putStrLn $ "         subitems="++show subitems
+      r <- mapM (PIS.insertP mainpositem) subitems
+      return $ (SL.fromList $ (concat r :: [PosItemFT Char]))) active)
 
 --data Main = Main { lps :: [(Int, Int)], stateseq :: PosItemSeq state tok }
 
@@ -554,6 +589,7 @@ seq as = (ISeq 0,
                      else
                         completed args $ Fail
                   | otherwise -> completed args $ ISeq (x + 1))
+
 -- start r@(Not a) = Item r (Pass $ toDyn ()) Item2
 start r = Item r $ start1 r
 
@@ -903,19 +939,19 @@ visitPreR :: (forall t a. RuleR t a -> RuleR t a) -> RuleR t a -> RuleR t a
 visitPreR f x = visitR (visitPreR f) (f x)
 
 visitR :: (forall t a. RuleR t a -> RuleR t a) -> RuleR t a -> RuleR t a
-visitR f (ApplyR iso x) = ApplyR iso $ visitR f x
-visitR f (AltR xs) = AltR $ map (visitR f) xs
-visitR f (ManyR a b x) = ManyR a b $ visitR f x
+visitR f (ApplyR    iso x  ) = ApplyR iso $ visitR f x
+visitR f (AltR          xs ) = AltR $ map (visitR f) xs
+visitR f (ManyR     a b x  ) = ManyR a b $ visitR f x
 visitR f (ManyTillR a b x y) = ManyTillR a b (visitR f x) (visitR f y)
 -- visitR f (SetR   name   x   ) = SetR name    $ visitR f x
 -- visitR f (SetM names x   ) = SetM names $ visitR f x
-visitR f (AndR x y) = AndR (visitR f x) (visitR f y)
-visitR f (NotR x) = NotR $ visitR f x
--- visitR f (            x :+ y) = visitR f x :+ visitR f y
--- visitR f (Count         x y) = Count            x (visitR f y)
-visitR f (NameR name x) = NameR name $ visitR f x
--- visitR f (Ignore       x   ) = Ignore       $ visitR f x
--- visitR f (Try            x   ) = Try            $ visitR f x
+visitR f (AndR          x y) = AndR (visitR f x) (visitR f y)
+visitR f (NotR            x) = NotR $ visitR f x
+visitR f (ThenR         x y) = ThenR (visitR f x) (visitR f y)
+visitR f (CountR        x y) = CountR            x (visitR f y)
+visitR f (NameR    name x  ) = NameR name $ visitR f x
+visitR f (IgnoreR       x  ) = IgnoreR       $ visitR f x
+visitR f (TryR          x  ) = TryR            $ visitR f x
 visitR f other = other
 
 r0 = sums1
@@ -1024,35 +1060,35 @@ makeLR1 kernel = do
    let
       closure  = SL.closure (predict2 n) kernel
       scans    = SL.filter scan4 $ SL.map rule closure
-      combined = combinescans $ map (\s -> (s, [s])) $ SL.toList scans
+      combined = combinescans $ SL.toList scans
    
    concat <$> mapM makeLR1 pred
 
 makeLR2 itemset = 0
 
 combinescans rules = let
-   new    = concatMap (\(r:rs) -> concatMap (combinescans1 r) rs) $ take (length rules - 1) $ tails rules
+   new    = concatMap (\(r:rs) -> concatMap (combinescans1 r) rs) $ init $ tails rules
    in if S.fromList new == S.fromList rules
          then rules
          else combinescans new
 
-combinescans1 c@(Token cr, cs) d@(Token dr, ds) =
+combinescans1 c@(Token cr) d@(Token dr) =
    if cr == dr
-      then [(Token cr, cs ++ ds)]
+      then [(Token cr)]
       else [c, d]
-combinescans1 c@(Token cr, cs) d@(Range d1 d2, ds) =
+combinescans1 c@(Token cr) d@(Range d1 d2) =
    if cr >= d1 && cr <= d2
-      then [(Range d1 (pred cr), ds), (Token cr, cs ++ ds), (Range (succ cr) d2, ds)]
+      then [Range d1 (pred cr), Token cr, Range (succ cr) d2]
       else [c, d]
-combinescans1 c@(Range c1 c2, cs) d@(Range d1 d2, ds) =
+combinescans1 c@(Range c1 c2) d@(Range d1 d2) =
    if c2 >= d1 && c1 <= d2
       then let
          o1 = max c1 d1
          o2 = min c2 d2
 
          in if c1 < d1
-            then [(Range c1 (pred o1), cs), (Range o1 o2, cs ++ ds), (Range (succ o2) d2, ds)]
-            else [(Range d1 (pred o1), ds), (Range o1 o2, cs ++ ds), (Range (succ o2) c2, cs)]
+            then [Range c1 (pred o1), Range o1 o2, Range (succ o2) d2]
+            else [Range d1 (pred o1), Range o1 o2, Range (succ o2) c2]
       else
          [c, d]
 

@@ -68,173 +68,175 @@ makepages = mapM_ (\n -> writeFile ("page"++fmt n++".html") $
          "    </body>",
          "</html>"]) [0, 2..434]
 -}
+data Projection = LamAziEA | LamConCon | Mercator | Robinson | NA
+
+pageNames = map (\(n, p, s) -> n) pages
+
 pages =
-   [ "The Solar System"
-   , "The Physical World"
-   , "Structure of the Earth"
-   , "Shaping the Landscape"
-   , "The Worlds's Oceans"
-   , "The Global Climate"
-   , "Life on Earth"
-   , "Man's Impact on the Environment"
-   , "Population & Settlement"
-   , "Languages & Religion"
-   , "World Health"
-   , "Water Resources"
-   , "The Economic System"
-   , "Global Communication"
-   , "The Political World"
-   , "States, Borders, Conflicts & Disputes"
-   , "Standard Time Zones"
-   , "North America"
-   , "North America Political"
-   , "North America Physical"
-   , "North America satellite image"
-   , "Canada"
-   , "Northern Canada"
-   , "Western Canada"
-   , "Southwest Canada"
-   , "Eastern Canada"
-   , "United States of America"
-   , "US: NE States & Southeast Canada"
-   , "US: Boston to Washington DC"
-   , "US: Eastern States"
-   , "US: Southeastern States"
-   , "US: Texas"
-   , "US: Great Lakes States"
-   , "US: Great Plains States"
-   , "US: Northwest States"
-   , "US: Southwest States"
-   , "US: California"
-   , "US: Alaska & Hawaii"
-   , "Northern Mexico"
-   , "Southern Mexico"
-   , "Central America"
-   , "The Caribbean"
-   , "North American City Plans"
-   , "South America"
-   , "South America Political"
-   , "South America Physical"
-   , "South America Satellite image"
-   , "Northern South America"
-   , "Western South America including Galapagos"
-   , "Amazon Basin"
-   , "Eastern Brazil"
-   , "Southeast Brazil"
-   , "Central South America"
-   , "River Plate"
-   , "Southern Argentina & Chile"
-   , "Central Chlie & Argentina"
-   , --    "South America City Plans",
-
-      "Africa"
-   , "Afirca Political"
-   , "Africa Physical"
-   , "Africa Satellite image"
-   , "Northeast Africa"
-   , "Northwest Africa"
-   , "West Africa including Cape Verde"
-   , "Central Africa"
-   , "East Africa"
-   , "Southern Africa including Madagascar and Comoros"
-   , "South Africa"
-   , "Africa City Plans"
-   , "Europe"
-   , "Europe Political"
-   , "Europe Physical"
-   , "Europe Satellite image"
-   , "Scandinavia, Finland & Iceland"
-   , "Southern Scandinavia"
-   , "United Kingdom & Ireland"
-   , "Northern Britain & Ireland"
-   , "Southern Britain"
-   , "The Low Countries"
-   , "France"
-   , "Northern France"
-   , "Southern France & the Pyrenees"
-   , "The Iberian Peninsula"
-   , "Southern Iberia"
-   , "The Italian Peninsula"
-   , "The Alpine States & Northern Italy"
-   , "Germany"
-   , "Rhineland & Hamburg"
-   , "Central Europe"
-   , "Southeast Europe"
-   , "Greece"
-   , "Romania, Moldova & Ukraine"
-   , "The Baltic States & Belarus"
-   , "Russian Federation"
-   , "Northern European Russia"
-   , "Southern European Russia"
-   , "The Mediterranean"
-   , "European City Plans 1"
-   , "European City Plans 2"
-   , "Asia"
-   , "Asia Political"
-   , "Asia Physical"
-   , "Asia Satellite image"
-   , "Southwest Asia"
-   , "Turkey & the Caucasus"
-   , "The Near East"
-   , "Israel & Lebanon"
-   , "The Arabian Peninsula"
-   , "Iran"
-   , "Central & South Asia"
-   , "Kazakhstan"
-   , "Central Asia"
-   , "Afghanistan & Pakistan"
-   , "Northern India, Nepal & Bangladesh"
-   , "Southern Inda & Sri Lanka"
-   , "East Asia"
-   , "Western China"
-   , "Southeast China"
-   , "Yangtze River Valley"
-   , "Yellow River Valley"
-   , "Northeast China"
-   , "Korea & Japan"
-   , "Southern Japan"
-   , "Northern Japan"
-   , "Southeast Asia"
-   , "Mainland Southeast Asia"
-   , "Western Maritime Southeast Asia"
-   , "Eastern Maritime Southeast Asia"
-   , "South China Sea & the Philippines"
-   , "Asian City Plans"
-   , "Australasia & Oceania"
-   , "Australasia & Oceania Political"
-   , "Australasia & Oceania Physical"
-   , "Australasia & Oceania Satellite image"
-   , "Australia"
-   , "Southeast Australia"
-   , "New Zealand"
-   , "Papua New Guinea & Melanesia"
-   , "Micronesia"
-   , "Polynesia"
-   , "Pacific Ocean"
-   , "Indian Ocean"
-   , "Atlantic Ocean"
-   , "Antarctica"
-   , "The Arctic"
-   , "Geographical Comparisons"
-   , "Countries of the World"
-   , "Geographical Names"
-   , "Index"
-   , "Credits/Acknowledgements"
-   ]
-
-path = "/home/brett/Documents/Info/Atlas/"
-
-hlink rel typ href = EmptyTag "link" [("rel", rel), ("type", typ), ("href", href)]
-
-stylesheet = hlink "stylesheet" "text/css"
-
-defstyle = [stylesheet "https://www.w3.org/StyleSheets/TR/W3C-REC"]
-
-button = Tag "td" [("align", "center"), ("valign", "center")] . s . Text
-
+   [ ("The Solar System"                                , NA       ,  0     )                 
+   , ("The Physical World"                              , NA       ,  0     )                   
+   , ("Structure of the Earth"                          , NA       ,  0     )                       
+   , ("Shaping the Landscape"                           , NA       ,  0     )                      
+   , ("The Worlds's Oceans"                             , NA       ,  0     )                    
+   , ("The Global Climate"                              , NA       ,  0     )                   
+   , ("Life on Earth"                                   , NA       ,  0     )              
+   , ("Man's Impact on the Environment"                 , NA       ,  0     )                                
+   , ("Population & Settlement"                         , NA       ,  0     )                        
+   , ("Languages & Religion"                            , NA       ,  0     )                     
+   , ("World Health"                                    , NA       ,  0     )             
+   , ("Water Resources"                                 , NA       ,  0     )                
+   , ("The Economic System"                             , NA       ,  0     )                    
+   , ("Global Communication"                            , NA       ,  0     )                     
+   , ("The Political World"                             , NA       ,  0     )                    
+   , ("States, Borders, Conflicts & Disputes"           , NA       ,  0     )                                      
+   , ("Standard Time Zones"                             , NA       ,  0     )                    
+   , ("North America"                                   , NA       ,  0     )              
+   , ("North America Political"                         , NA       ,  0     )                        
+   , ("North America Physical"                          , NA       ,  0     )                       
+   , ("North America satellite image"                   , NA       ,  0     )                              
+   , ("Canada"                                          , LamAziEA , 14.815 )       
+   , ("Northern Canada"                                 , LamConCon,  7.5   )                
+   , ("Western Canada"                                  , LamConCon,  7.5   )               
+   , ("Southwest Canada"                                , LamAziEA ,  3.75  )                 
+   , ("Eastern Canada"                                  , LamConCon,  7.5   )               
+   , ("United States of America"                        , LamAziEA , 10.25  )                         
+   , ("US: NE States & Southeast Canada"                , LamConCon,  3     )                                 
+   , ("US: Boston to Washington DC"                     , LamConCon,  1.5   )                            
+   , ("US: Eastern States"                              , LamConCon,  3     )                   
+   , ("US: Southeastern States"                         , LamConCon,  3     )                        
+   , ("US: Texas"                                       , LamConCon,  3.75  )          
+   , ("US: Great Lakes States"                          , LamConCon,  3     )                       
+   , ("US: Great Plains States"                         , LamConCon,  3.75  )                        
+   , ("US: Northwest States"                            , LamConCon,  3.75  )                     
+   , ("US: Southwest States"                            , LamConCon,  3.75  )                     
+   , ("US: California"                                  , LamConCon,  1.1875)               
+   , ("US: Alaska & Hawaii"                             , LamConCon,  8     )                    
+   , ("Northern Mexico"                                 , LamConCon,  4.25  )                
+   , ("Southern Mexico"                                 , LamConCon,  4.25  )                
+   , ("Central America"                                 , LamConCon,  4.25  )                
+   , ("The Caribbean"                                   , LamConCon,  6.25  )              
+   , ("North American City Plans"                       , NA       ,  0     )                          
+   , ("South America"                                   , NA       ,  0     )              
+   , ("South America Political"                         , NA       ,  0     )                        
+   , ("South America Physical"                          , NA       ,  0     )                       
+   , ("South America Satellite image"                   , NA       ,  0     )                              
+   , ("Northern South America"                          , LamAziEA ,  6.5   )                       
+   , ("Western South America including Galapagos"       , LamAziEA ,  6     )                                          
+   , ("Amazon Basin"                                    , LamAziEA ,  6.5   )             
+   , ("Eastern Brazil"                                  , LamAziEA ,  6.5   )               
+   , ("Southeast Brazil"                                , LamConCon,  2     )                 
+   , ("Central South America"                           , LamAziEA ,  6.5   )                      
+   , ("River Plate"                                     , LamConCon,  2     )            
+   , ("Southern Argentina & Chile"                      , LamAziEA ,  6.5   )                           
+   , ("Central Chlie & Argentina"                       , LamConCon,  2.6   )                          
+   , ("Africa"                                          , NA       ,  0     )       
+   , ("Afirca Political"                                , NA       ,  0     )                 
+   , ("Africa Physical"                                 , NA       ,  0     )                
+   , ("Africa Satellite image"                          , NA       ,  0     )                       
+   , ("Northeast Africa"                                , LamAziEA ,  8     )                 
+   , ("Northwest Africa"                                , LamAziEA ,  8     )                 
+   , ("West Africa including Cape Verde"                , LamAziEA ,  8     )                                 
+   , ("Central Africa"                                  , LamAziEA ,  8     )               
+   , ("East Africa"                                     , LamAziEA ,  8     )            
+   , ("Southern Africa including Madagascar and Comoros", LamAziEA ,  8     )                                                 
+   , ("South Africa"                                    , LamAziEA ,  4.65  )             
+   , ("Africa City Plans"                               , NA       ,  0     )                  
+   , ("Europe"                                          , NA       ,  0     )       
+   , ("Europe Political"                                , NA       ,  0     )                 
+   , ("Europe Physical"                                 , NA       ,  0     )                
+   , ("Europe Satellite image"                          , NA       ,  0     )                       
+   , ("Scandinavia, Finland & Iceland"                  , LamConCon,  4.75  )                               
+   , ("Southern Scandinavia"                            , LamConCon,  2.75  )                     
+   , ("United Kingdom & Ireland"                        , LamConCon,  2.75  )                         
+   , ("Northern Britain & Ireland"                      , LamConCon,  1.3   )                           
+   , ("Southern Britain"                                , LamConCon,  1.3   )                 
+   , ("The Low Countries"                               , LamConCon,  1.125 )                  
+   , ("France"                                          , LamConCon,  3.25  )       
+   , ("Northern France"                                 , LamConCon,  1.75  )                
+   , ("Southern France & the Pyrenees"                  , LamConCon,  1.75  )                               
+   , ("The Iberian Peninsula"                           , LamConCon,  3     )                      
+   , ("Southern Iberia"                                 , LamConCon,  1.9   )                
+   , ("The Italian Peninsula"                           , LamConCon,  3     )                      
+   , ("The Alpine States & Northern Italy"              , LamConCon,  2.1   )                                   
+   , ("Germany"                                         , LamConCon,  2.25  )        
+   , ("Rhineland & Hamburg"                             , LamConCon,  1.2   )                    
+   , ("Central Europe"                                  , LamConCon,  2.75  )               
+   , ("Southeast Europe"                                , LamConCon,  2.5   )                 
+   , ("Greece"                                          , LamConCon,  2.5   )       
+   , ("Romania, Moldova & Ukraine"                      , LamConCon,  3     )                           
+   , ("The Baltic States & Belarus"                     , LamConCon,  2.75  )                            
+   , ("Russian Federation"                              , LamConCon, 17.5   )                   
+   , ("Northern European Russia"                        , LamConCon,  5.75  )                         
+   , ("Southern European Russia"                        , LamConCon,  5.75  )                         
+   , ("The Mediterranean"                               , LamConCon,  8.75  )                  
+   , ("European City Plans 1"                           , NA       ,  0     )                      
+   , ("European City Plans 2"                           , NA       ,  0     )                      
+   , ("Asia"                                            , NA       ,  0     )     
+   , ("Asia Political"                                  , NA       ,  0     )               
+   , ("Asia Physical"                                   , NA       ,  0     )              
+   , ("Asia Satellite image"                            , NA       ,  0     )                     
+   , ("Southwest Asia"                                  , LamConCon, 11.75  )               
+   , ("Turkey & the Caucasus"                           , LamConCon,  4.3   )                      
+   , ("The Near East"                                   , LamConCon,  3     )              
+   , ("Israel & Lebanon"                                , LamConCon,  1.5   )                 
+   , ("The Arabian Peninsula"                           , LamConCon,  8     )                      
+   , ("Iran"                                            , LamConCon,  5.6   )     
+   , ("Central & South Asia"                            , LamAziEA , 15.5   )                     
+   , ("Kazakhstan"                                      , LamConCon,  6.25  )           
+   , ("Central Asia"                                    , LamConCon,  4.75  )             
+   , ("Afghanistan & Pakistan"                          , LamConCon,  5.25  )                       
+   , ("Northern India, Nepal & Bangladesh"              , LamConCon,  6.25  )                                   
+   , ("Southern India & Sri Lanka"                      , LamConCon,  6.75  )                           
+   , ("East Asia"                                       , LamAziEA , 14.5   )          
+   , ("Western China"                                   , LamConCon,  7.75  )              
+   , ("Southeast China"                                 , LamConCon,  7     )                
+   , ("Yangtze River Valley"                            , LamConCon,  3.75  )                     
+   , ("Yellow River Valley"                             , LamConCon,  3.75  )                    
+   , ("Northeast China"                                 , LamConCon,  6.25  )                
+   , ("Korea & Japan"                                   , LamConCon,  5     )              
+   , ("Southern Japan"                                  , LamConCon,  2.5   )               
+   , ("Northern Japan"                                  , LamConCon,  2.5   )               
+   , ("Southeast Asia"                                  , Mercator , 15.5   )               
+   , ("Mainland Southeast Asia"                         , LamConCon,  7     )                        
+   , ("Western Maritime Southeast Asia"                 , Mercator ,  7     )                                
+   , ("Eastern Maritime Southeast Asia"                 , Mercator ,  7     )                                
+   , ("South China Sea & the Philippines"               , Mercator ,  7     )                                  
+   , ("Asian City Plans"                                , NA       ,  0     )                 
+   , ("Australasia & Oceania"                           , NA       ,  0     )                      
+   , ("Australasia & Oceania Political"                 , NA       ,  0     )                                
+   , ("Australasia & Oceania Physical"                  , NA       ,  0     )                               
+   , ("Australasia & Oceania Satellite image"           , NA       ,  0     )                                      
+   , ("Australia"                                       , LamConCon, 13     )          
+   , ("Southeast Australia"                             , LamConCon,  6.5   )                    
+   , ("New Zealand"                                     , LamConCon,  3.2   )            
+   , ("Papua New Guinea & Melanesia"                    , Mercator , 10.1   )                             
+   , ("Micronesia"                                      , Mercator , 10.25  )           
+   , ("Polynesia"                                       , Mercator , 15.5   )          
+   , ("Pacific Ocean"                                   , Robinson , 62.5   )              
+   , ("Indian Ocean"                                    , Robinson , 32     )             
+   , ("Atlantic Ocean"                                  , Robinson , 34.4   )               
+   , ("Antarctica"                                      , LamAziEA , 18.19  )           
+   , ("The Arctic"                                      , LamAziEA , 18.19  )           
+   , ("Geographical Comparisons"                        , NA       ,  0     )                         
+   , ("Countries of the World"                          , NA       ,  0     )                       
+   , ("Geographical Names"                              , NA       ,  0     )                   
+   , ("Index"                                           , NA       ,  0     )      
+   , ("Credits/Acknowledgements"                        , NA       ,  0     )                         
+   ] 
+ 
+path = "/home/brett/Documents/Info/Atlas/" 
+ 
+hlink rel typ href = EmptyTag "link" [("rel", rel), ("type", typ), ("href",  href)]
+ 
+stylesheet = hlink "stylesheet" "text/css" 
+ 
+defstyle = [stylesheet "https://www.w3.org/StyleSheets/TR/W3C-REC"] 
+ 
+button = Tag "td" [("align", "center"), ("valign", "center")] . s . Text 
+ 
 iframe name src = with [("width", "100%"), ("height", "100%")] $ Tag "iframe" [("name", name), ("src", src)] []
-
-writeHtml f b h = writeFile f $ formatH 1 $ html b h
+ 
+writeHtml f b h = writeFile f $ formatH 1 $ html b h 
 {-
 index =
    writeFile (path ++ "index.html") $
@@ -249,7 +251,7 @@ index =
                      ]
                   ]
 -}
-contents = writeHtml (path ++ "contents.html") defstyle $ s $ olist $ zipWith (\n p -> with [("target", "main")] $ textLink ("joined/" ++ fmt1 3 n ++ ".png") p) [8, 10 .. 294] pages
+contents = writeHtml (path ++ "contents.html") defstyle $ s $ olist $ zipWith (\n p -> with [("target", "main")] $ textLink ("joined/" ++ fmt1 3 n ++ ".png") p) [8, 10 .. 294] pageNames
 
 makepages = do
    setCurrentDirectory path

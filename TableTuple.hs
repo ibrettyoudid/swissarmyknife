@@ -128,10 +128,10 @@ trimC = trimtrailingC . L.dropWhile isSpaceC
 trimtrailingC [] = []
 trimtrailingC (x : xs) = let xst = trimtrailingC xs in if isSpaceC x && null xst then [] else x : xst
 
-linesColour s = cons (case break (\(_, c) -> c == '\n') s of
-                              (l, s') -> (l, case s' of
-                                                []      -> []
-                                                _:s''   -> linesColour s''))
+linesColour s0 = cons (case break (\(_, c) -> c == '\n') s0 of
+                              (l, s1) -> (l, case s1 of
+                                                []   -> []
+                                                _:s2 -> linesColour s2))
    where
       cons ~(h, t) = h : t
 

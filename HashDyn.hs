@@ -19,6 +19,7 @@ import Data.Time.Calendar
 
 import Data.List hiding ((++), length, elemIndex)
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Data.IORef
 
@@ -82,35 +83,38 @@ instance {-# OVERLAPPING #-} Show1 HashDyn where
    show1 = showDyn1
 
 data Expr
-   = Value   { etype :: MType, value :: HashDyn }
-   | VarRef  { etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int }
-   | Let1    { etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int }
-   | VarDef  { xtype :: Expr , name :: String, frameIndex :: Int, memIndex :: Int }
-   | VarRef1 { etype :: MType, name :: String }
-   | Lambda  { etype :: MType, econstr :: Constr,                     subexpr :: Expr }
-   | Let     { etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr }
-   | Block   { etype :: MType, econstr :: Constr, subexprs :: [Expr] }
-   | Apply   { etype :: MType,                    subexprs :: [Expr] }
-   | Split   { etype :: MType,                    subexprs :: [Expr] }
-   | SplitJ  { etype :: MType,                    subexprs :: [Expr] }
-   | Exprs   { etype :: MType,                    subexprs :: [Expr] }
-   | If      { etype :: MType,                                  clauses :: [(Expr :- Expr)] }
-   | If1     { etype :: MType, then1 :: Expr,                   clauses :: [(Expr :- Expr)] }
-   | Case    { etype :: MType, of1   :: Expr,                   clauses :: [(Expr :- Expr)] }
-   | Case1   { etype :: MType,                                  clauses :: [(Expr :- Expr)] }
-   | Case2   { etype :: MType, of2   :: HashDyn,                clauses :: [(Expr :- Expr)] }
-   | Case3   { etype :: MType, of2   :: HashDyn, then1 :: Expr, clauses :: [(Expr :- Expr)] }
-   | Else
+   = Value   { etype :: MType, resIndex :: Int, value :: HashDyn }
+   | VarRef  { etype :: MType, resIndex :: Int, name :: String, frameIndex :: Int, memIndex :: Int }
+   | Let1    { etype :: MType, resIndex :: Int, name :: String, frameIndex :: Int, memIndex :: Int }
+   | VarDef  { xtype :: Expr , resIndex :: Int, name :: String, frameIndex :: Int, memIndex :: Int }
+   | VarRef1 { etype :: MType, resIndex :: Int, name :: String }
+   | Lambda  { etype :: MType, resIndex :: Int, econstr :: Constr,                     subexpr :: Expr }
+   | Let     { etype :: MType, resIndex :: Int, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr }
+   | Block   { etype :: MType, resIndex :: Int, econstr :: Constr, subexprs :: [Expr] }
+   | Apply   { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | Split   { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | SplitJ  { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | Exprs   { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | If      { etype :: MType, resIndex :: Int,                                  clauses :: [(Expr :- Expr)] }
+   | If1     { etype :: MType, resIndex :: Int, then1 :: Expr,                   clauses :: [(Expr :- Expr)] }
+   | Case    { etype :: MType, resIndex :: Int, of1   :: Expr,                   clauses :: [(Expr :- Expr)] }
+   | Case1   { etype :: MType, resIndex :: Int,                                  clauses :: [(Expr :- Expr)] }
+   | Case2   { etype :: MType, resIndex :: Int, of2   :: HashDyn,                clauses :: [(Expr :- Expr)] }
+   | Case3   { etype :: MType, resIndex :: Int, of2   :: HashDyn, then1 :: Expr, clauses :: [(Expr :- Expr)] }
+   | Else    { etype :: MType, resIndex :: Int }
    | Keyword { key :: String }
    | Join    { ejoiner :: Expr, eres :: Expr }
    | Join1   { eres :: Expr }
    | Join2   { joiner :: Joiner }    
    | SetJ    { joiner :: Joiner }
    | Apply2  { }
-   | CreateJ (IORef Int) (IORef HashDyn) [IORef HashDyn] 
-   deriving (Eq, Typeable)
+   | Tokens  (S.Set Char)
+   deriving (Eq, Ord, Typeable)
 
 data Joiner = Joiner { arg :: HashDyn, counter :: IORef Int, resref :: IORef HashDyn, resrefs :: [IORef HashDyn] } deriving (Eq, Typeable)
+
+instance Ord Joiner where
+   compare a b = compare (arg a) (arg b)
 
 instance Show Joiner where
    show j = "Joiner "++show (arg j)
@@ -138,7 +142,7 @@ type Env = [Frame]
 
 type EnvExpr = [(Env, Expr)]
 
-data Frame = Frame {fconstr :: Constr, items :: [HashDyn]} deriving (Show, Eq)
+data Frame = Frame {fconstr :: Constr, items :: [HashDyn]} deriving (Show, Eq, Ord)
 
 pattern Co n m = Constr n (TypeLink [] []) m
 

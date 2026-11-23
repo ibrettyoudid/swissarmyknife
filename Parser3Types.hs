@@ -7,7 +7,7 @@ import Data.Typeable
 import Favs
 import GHC.Stack
 import Iso2 hiding (foldl, (!!))
-import {-# SOURCE #-} HashDyn hiding (Apply, expr)
+import {-# SOURCE #-} HashDyn hiding (Apply, Frame, expr)
 import NewTuple hiding (apply)
 
 data Rule tok
@@ -37,38 +37,40 @@ data Rule tok
 data IgnoreMe a = IgnoreMe a
 
 data RuleR t r where
-   BindR :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> a) -> RuleR t b
-   ApplyR :: (Typeable a, Typeable b) => Iso a b -> RuleR t a -> RuleR t b
-   OptionR :: (Typeable a) => RuleR t a -> RuleR t (Maybe a)
-   EithR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (Either a s)
-   ThenR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
-   (:/) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
-   (://) :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t a
+   BindR     :: (Typeable a, Typeable b) => RuleR t a -> (a -> RuleR t b, b -> a) -> RuleR t b
+   ApplyR    :: (Typeable a, Typeable b) => Iso a b -> RuleR t a -> RuleR t b
+   OptionR   :: (Typeable a            ) => RuleR t a -> RuleR t (Maybe a)
+   EithR     :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (Either a s)
+   ThenR     :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
+   (:/)      :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t b
+   (://)     :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t a
    ManyTillR :: (Typeable a, Typeable b) => Int -> Int -> RuleR t a -> RuleR t b -> RuleR t [a]
-   CountR :: (Typeable b) => RuleR t Int -> RuleR t b -> RuleR t [b]
-   ManyR :: (Typeable a) => Int -> Int -> RuleR t a -> RuleR t [a]
-   SeqR :: (Typeable a) => [RuleR t a] -> RuleR t [a]
-   AltR :: (Typeable a) => [RuleR t a] -> RuleR t a
-   AndR :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
-   NotR :: (Typeable a) => RuleR t a -> RuleR t a
-   IgnoreR :: (Typeable a) => RuleR t a -> RuleR t (IgnoreMe a)
-   AnyTillR :: (Typeable a) => Int -> Int -> RuleR t a -> RuleR t [t]
-   TryR :: (Typeable a) => RuleR t a -> RuleR t a
-   BuildR :: (Typeable a) => f -> RuleR t a -> RuleR t f
-   LambdaR :: (Typeable a) => f -> RuleR t a -> RuleR t a
-   CallR :: (Typeable a) => f -> RuleR t a -> RuleR t a
-   NameR :: (Typeable a) => String -> RuleR t a -> RuleR t a
-   NameStubR :: (Typeable a) => String -> RuleR t a
-   PureR :: (Typeable a) => a -> RuleR t a
-   TokenR :: (Typeable t, Eq t) => t -> RuleR t t
-   RangeR :: (Typeable t) => t -> t -> RuleR t t
-   AnyTokenR :: (Typeable t) => RuleR t t
-   StringR :: (Typeable t) => [t] -> RuleR t [t]
-   RestR :: (Typeable t) => RuleR t [t]
-   PosR :: RuleR t (Int, Int)
+   CountR    :: (Typeable b            ) => RuleR t Int -> RuleR t b -> RuleR t [b]
+   ManyR     :: (Typeable a            ) => Int -> Int -> RuleR t a -> RuleR t [a]
+   SeqR      :: (Typeable a            ) => [RuleR t a] -> RuleR t [a]
+   AltR      :: (Typeable a            ) => [RuleR t a] -> RuleR t a
+   AndR      :: (Typeable a, Typeable b) => RuleR t a -> RuleR t b -> RuleR t (a :- b)
+   NotR      :: (Typeable a            ) => RuleR t a -> RuleR t a
+   IgnoreR   :: (Typeable a            ) => RuleR t a -> RuleR t (IgnoreMe a)
+   AnyTillR  :: (Typeable a            ) => Int -> Int -> RuleR t a -> RuleR t [t]
+   TryR      :: (Typeable a            ) => RuleR t a -> RuleR t a
+   BuildR    :: (Typeable a            ) => f -> RuleR t a -> RuleR t f
+   LambdaR   :: (Typeable a            ) => f -> RuleR t a -> RuleR t a
+   CallR     :: (Typeable a            ) => f -> RuleR t a -> RuleR t a
+   NameR     :: (Typeable a            ) => String -> RuleR t a -> RuleR t a
+   NameStubR :: (Typeable a            ) => String -> RuleR t a
+   PureR     :: (Typeable a            ) => a -> RuleR t a
+   TokenR    :: (Typeable t, Eq t      ) => t -> RuleR t t
+   RangeR    :: (Typeable t            ) => t -> t -> RuleR t t
+   AnyTokenR :: (Typeable t            ) => RuleR t t
+   StringR   :: (Typeable t            ) => [t] -> RuleR t [t]
+   RestR     :: (Typeable t            ) => RuleR t [t]
+   PosR      :: RuleR t (Int, Int)
+   --SetR      :: Frame      n v f      =>       n              -> RuleR t v -> RuleR t v
+
+class Frame n v f where
 
 -- GetR      :: Frame      n v f      =>       n              -> RuleR t v
--- SetR      :: Frame      n v f      =>       n              -> RuleR t v -> RuleR t v
 -- GetMR     :: FrameTuple n v f      =>       n              -> RuleR t v
 -- SetMR     :: FrameTuple n v f      =>       n              -> RuleR t v -> RuleR t v
 -- RedoR     :: Frame  n [t] f        =>       n              -> RuleR t a -> RuleR t a

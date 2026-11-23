@@ -12,16 +12,16 @@
 module Wiki where
 
 import Favs hiding (readNum, split, replace, ($<), trim)
-import HTMLT
+import HTMLB
 import HashDyn hiding ((?), toList2)
 import MyPretty2
-import NumberParsersT
-import TableT hiding (intC, insertWith4)
+import NumberParsersB
+import TableB hiding (intC, insertWith4)
 import ShowTuple
 import Show1
 import NewTuple
 import BString
-import AttoT
+import Atto
 import qualified Tree as Tree
 
 import Prelude hiding (null, init, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, putStr, readFile, writeFile, appendFile)
@@ -29,7 +29,6 @@ import qualified Prelude
 import Data.List (singleton, transpose, sort, elemIndex, findIndex)
 import Data.Char
 import qualified Data.Map as M
-import qualified Data.Text as T
 
 import Control.Monad hiding (join)
 import Control.Monad.State hiding (join)
@@ -109,7 +108,7 @@ nato m = M.fromList $ map (\row -> (extractText $ findType "a" $ row !! 2, ())) 
 cont m = byscrub (? "country") $ setFields ["country", "geo", "inter", "continent"] $ wikiTableD m "List of countries and territories by the United Nations geoscheme"
 
 europe m = byscrub (? "country")
-   $ fromGridH1 ["country"::Text, "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
+   $ fromGridH1 ["country"::ByteString, "member"] $ map (map (toDyn . extractText) . (\row -> findType "a" (head row) : take 1 (tail row))) $ drop 1 $ wikiGridsH m "List of sovereign states and dependent territories by continent" !! 2
 
 gdp  m = byscrub (? "country") $ setFields ["country"] $ wikiTableD m "List of countries by GDP (nominal)"
 
@@ -125,7 +124,7 @@ mileq1 m = by (showb . (? "country")) $ setFields ["country", "budget", "tanks",
 
 mileq m =
    byscrub (? "country")
-      $ fromGridH1 ["country"::Text, "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
+      $ fromGridH1 ["country"::ByteString, "budget", "tanks", "carriers", "aws", "cruisers", "destroyers", "frigates", "corvettes", "nuclear subs", "subs", "planes", "helicopters", "nukes", "satellites"]
       $ map
          ( \row ->
                (toDyn $ extractText $ findType "a" $ row !! 0)
@@ -137,7 +136,7 @@ mileq m =
 
 milper m = byscrub (? "Country") $ wikiTableD m "List of countries by number of military and paramilitary personnel"
 
-bzero = toDyn (BString.empty :: Text)
+bzero = toDyn (BString.empty :: ByteString)
 
 join2 xs = foldl1 (joinCollectMisses jLeft bzero) xs
 
@@ -149,7 +148,7 @@ gdph1 m = foldl1 (joinCollectMisses jLeft bzero) $ map (miss . by (showb . (? "c
 
 eustats m = foldSubTable3 sum
    $ byl [(? "isRussia"), (? "country")]
-   $ addCalcField "isRussia" (\r -> toDyn (r ? "country" == toDyn ("Russia" :: Text)))
+   $ addCalcField "isRussia" (\r -> toDyn (r ? "country" == toDyn ("Russia" :: ByteString)))
    $ join jInner bzero (europe m) (stats m)
 -- milper m = fromGridN 0 $ map (\row -> (extractText $ findType "a" $ row !! 1) : (map extractText $ drop 2 row)) $ convertGridH $ wikiTable m "List of countries by number of military and paramilitary personnel"
 
@@ -437,6 +436,7 @@ cjgrid2 tm1 g2 = do
    putStrLn $ "grid=" ++ tmd g2 ++ " accum=" ++ tmd res ++ " fields=" ++ show (let f = fst g2 in map fst (take 1 f) ++ map snd f)
    return res
 -}
+{-
 wc m = do
    list <- getList m
    master <- getMaster m
@@ -449,11 +449,11 @@ wc m = do
                   list
 
    joinHoriz m
-
+-}
 getMaster m = do
    master1 <- cjpageA m $ wiki "List of countries and dependencies by population"
 
-   let master = mapFields (\a -> ("Index"::Text) :- (""::Text) :- (0::Int) :- ("Index"::Text) :- (0::Int) :- a) master1
+   let master = mapFields (\a -> ("Index"::ByteString) :- (""::ByteString) :- (0::Int) :- ("Index"::ByteString) :- (0::Int) :- a) master1
    putStrLn $ "MASTER=" ++ showTableMeta master
    return master
 
@@ -535,7 +535,7 @@ cjgridA1 u n gn g = do
    print tb
    putStrLn $ b "printed master"
    let
-      indexField = (["Location" :: Text] :- (1::Int) :- ())
+      indexField = (["Location" :: ByteString] :- (1::Int) :- ())
       tb1 = filterFields (== indexField) $ byscrub (? indexField) tb
    
    return $ ifJust (not $ classCon "mw-collapsed" g) tb1
@@ -976,24 +976,50 @@ nestHeaders1 context (t : tags)
          in nest1 (insertLastSubTag (convertEmpty t) c : cs) tags
 
 -}
-lab m = let 
-   mps = concatMap (\page -> let
-            mpHtmls = findClasses "card card-member" $ readWriteHTML m $ showt page ++ ".html"
+page n = if n > 1 then "?page=" ++ c (show n) else ""
 
-            in map (\mpHtml -> let
-               imgUrl  = convertString $ fromMaybe "NOT FOUND" $ sbetween "url(" ");" $ convertString $ getAttrib "style" $ findClass "image" mpHtml
-               name    = trim $ extractText $ findClass "primary-info" mpHtml
-               const   = trim $ extractText $ findClass "indicator indicator-label" mpHtml
-               --cont    = readWriteHTML m $ getAttrib "href" mpHtml
-               --img2Url = sbetween "url(" ");" $ convertString $ getAttrib "style" $ findClass "image-inner" cont
+members mpsOrLords n m = Tag "table" [] $ concatMap (\p -> let
+   mpHtmls = findClasses "card card-member" $ readWriteHTML m $ "https://members.parliament.uk/members/"++mpsOrLords++page p
+
+   in concatMap (members1 m) mpHtmls) [1..n]
+
+mpsa m = Tag "table" [] $ concatMap (\p -> let
+   mpHtmls = findClasses "card card-member" $ readWriteHTML m $ c (show p) ++ ".html"
+
+   in concatMap (members1 m) mpHtmls) [1..33]
+
+members1 m mpHtml = let
+   imgUrl    = mytrace $ convertString <$> (sbetween "url(" ");" $ convertString $ getAttrib "style" $ findClass "image" mpHtml) :: Maybe ByteString
+   name      = trim $ extractText $ findClass "primary-info" mpHtml
+   party     = trim $ extractText $ findClass "secondary-info" mpHtml
+   const     = trim $ extractText $ findClass "indicator indicator-label" mpHtml
+   href      = split "/" $ getAttrib "href" mpHtml
+   Just n    = Data.List.elemIndex "member" href
+   number    = href !! (n + 1)
+   contact   = findClassCon "card-list" $ readWriteHTML m $ "https://members.parliament.uk/member/" ++ number ++ "/contact"
+   intPage n = readWriteHTML m $ "https://members.parliament.uk/member/" ++ number ++ "/registeredinterests" ++ page n
+   intHtml   = intPage 1
+   intPages  = map (parseNoFail 0 integer . trim . extractText) $ findTypes "li" $ findClass "pagination" intHtml
+   wikInf    = findTree (classCon "infobox") $ getWiki m $ name ++ " MP"
+   interests = map (findClassCon "card-list") $ case intPages of 
+                  [] -> [intHtml]
+                  _  -> intHtml : map intPage [2..maximum intPages]
+
+   in [Tag "tr" [] [Tag "td" [("rowspan","2")] (if isJust imgUrl then [img $ fromJust imgUrl] else [])]] {- , Tag "td" [] [Text number], Tag "td" [] [Text name]], 
+               Tag "tr" [] [Tag "td" [] [Text party], Tag "td" [] [Text const]],
+               Tag "tr" [] [Tag "td" [("colspan","3")] [contact]],
+               Tag "tr" [] [Tag "td" [("colspan","3")] interests],
+               Tag "tr" [] [Tag "td" [("colspan","3")] [wikInf]]]
+               -}
                
-               in (imgUrl, name, const)) mpHtmls) [1..21]
-   out = gridH $ groupN 8 $ map (\(imgUrl, name, const) -> [grid [[[img imgUrl], [Text name], [Text const]]]]) mps
-
-   in do
-      writeHTML "lab.html" out
-      return mps
       
+      --cont    = readWriteHTML m $ getAttrib "href" mpHtml
+      --img2Url = sbetween "url(" ");" $ convertString $ getAttrib "style" $ findClass "image-inner" cont
+
+mps = members "commons" 33
+
+lords = members "lords" 40
+
 lfi m = wikiBodyN $ readWriteHTML m $ wiki "Labour Friends of Israel"
 
 wikiHeaders = filterTree ((> 0) . headerNum)
@@ -1003,3 +1029,26 @@ wikiBody = subTags . findClass "mw-content-ltr mw-parser-output"
 wikiBodyN = nestHeaders4 . wikiBody
 
 wikiNav = findTrees (\t -> getAttrib "role" t == "navigation" && tagClass t == "navbox")
+
+interests m = map (\n -> getHTML m $ "https://members.parliament.uk/members/commons?page="++c (show n)) [1..33]
+
+--https://members.parliament.uk/member/4384/registeredinterests
+
+{-
+:authority           members.parliament.uk
+:method              GET
+:path                /member/5120/registeredinterests
+:scheme              https
+accept               text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+accept-encoding      gzip, deflate, br, zstd
+accept-language      en-GB,en-US;q=0.9,en;q=0.8
+dnt                  1
+priority             u=0, i
+referer              https://members.parliament.uk/
+sec-fetch-dest       document
+sec-fetch-mode       navigate
+sec-fetch-site       same-origin
+sec-fetch-user       ?1
+upgrade-insecure-requests     1
+user-agent           Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
+-}

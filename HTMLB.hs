@@ -22,7 +22,7 @@ import BString
 import Atto
 
 import Prelude hiding (null, tail, head, elem, length, (++), (!!), toLower, split, last, take, drop, notElem, concat, takeWhile, dropWhile, putStrLn, splitAt)
-import Data.List (singleton, transpose, sort, elemIndex, findIndex)
+import Data.List (singleton, transpose, sort, elemIndex, findIndex, partition)
 import qualified Data.List as L
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
@@ -107,19 +107,26 @@ countHBF tag = (length $ map (subTagsType "tr") $ subTagsType "thead" tag,
                 length $ map (subTagsType "tr") $ subTagsType "tfoot" tag)
 
 cGridHBFH tag = let
-   hbf = cGridH tag
-   (h, b, f) = countHBF tag
-   (h1, bf1) = splitAt h hbf
-   (b1, f1)  = splitAt (h+b) hbf
-   in (h1, b1, f1)
+   caption = extractText $ wrap $ subTagsType "caption" tag
+   rows = findTypes "tr" tag
+   h = filter        headerrow  rows
+   b = filter (not . headerrow) rows
+   f = concatMap (subTagsType "tr") $ subTagsType "tfoot" tag
+   in map3t (cGridH . wrap) (caption, h, b, f)
 
-map3t fn (h, b, f) = (fn h, fn b, fn f)
+map3t fn (c, h, b, f) = (c, fn h, fn b, fn f)
 
 cGridHBF tag = map3t transpose $ cGridHBFH tag
 
 cGridH tag = padRWith (Text "") $ expandV4 $ map (expand . findTrees (\t -> tagType t `elem` ["td", "th"])) (findTypes "tr" tag)
 cGrid = transpose . cGridH
 -----------------------------------------------------------------------------------------------------------------------------------
+headerrow (Tag "tr" attr subs) = most (tagType $= "th") subs
+
+most pred xs = let
+   (p, f) = Data.List.partition pred xs
+   in length p >= length f
+
 gridH = Tag "table" [] . map (Tag "tr" [] . map (Tag "td" []))
 grid = gridH . transpose
 
@@ -192,6 +199,15 @@ getHTMLIO m url = nestParse url <$> getHTTPIO m url
 getHTMLReq m req = nestParse (show $ reqPath req) $ c $ unsafePerformIO $ getHTTPReq m req
 nestParse f = nest . parseHTML f
 
+ensureDirectoryFor file = do
+   let ds = split "/" file
+   mapM (\d -> do
+      putStrLn $ "creating "++d
+      flag <- doesDirectoryExist d
+      if flag
+         then return ()
+         else createDirectory d) $ map (\t -> intercalate "/" $ take t ds) [2..length ds - 1]
+
 readHTML f = nestParse f $ readFileBinary f
 
 readWriteHTTP m url = unsafePerformIO $ readWriteHTTP1 m url
@@ -221,13 +237,20 @@ readWriteHTML1 m url = do
          putStrLn $ "read " ++ file
          return h
       else do
-         putStrLn $ "fetching " ++ file
+         putStrLn $ "file not found " ++ file
+         putStrLn $ "fetching " ++ url
          str <- getHTTPIO m url
          let html = nestParse url str
+         ensureDirectoryFor file
          writeFileBinary file str
-         --html <- getHTMLIO m url
-         --Data.ByteString.Builder.writeFile file $ formatB 0 html
          putStrLn $ "written " ++ file
+         if True -- any (flip isInfixOf file) ["5201", "4827"]
+            then do
+               print html
+               putStrLn $ "NOT WRITTEN " ++ file ++ ".formatted"
+            else do
+               writeHTML (file++".formatted") html
+               putStrLn $ "written " ++ file ++ ".formatted"
          return html
 
 
@@ -262,7 +285,8 @@ urlToFileName url =
    let
       s = split "/" $ replace "%20" " " url -- (if ".html" `isSuffixOf` url then id else (++ ".html")) $
    
-   in c $ ".cache/"++last s
+   in c $ ".cache/"++(intercalate "/" $ drop (if head s == "https:" then 2 else 0) s)
+--   in c $ ".cache/"++last s
 
 writeHTTP m url = do
    let fileName = urlToFileName url
@@ -334,7 +358,32 @@ getRequestRefr ref url =
    
    in r{requestHeaders = h ++ [(hReferer, ref)]}
 
-addUserAgent req = req{requestHeaders = (hUserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") : requestHeaders req}
+addUserAgent req = req {
+      requestHeaders = 
+         --(hUserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36") :
+      {-         
+         (":authority",        "members.parliament.uk") :
+         (":method",           "GET") :
+         (":path",             intercalate "/" $ drop 3 $ split "/" $ Network.HTTP.Client.path req) :
+         (":scheme",           "https") :
+      -}   
+         (hAccept,             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7") :
+         --(hAcceptEncoding,     "gzip, deflate, br, zstd") :
+         (hAcceptLanguage,     "en-GB,en-US;q=0.9,en;q=0.8") :
+         ("dnt",               "1") :
+         ("priority",          "u=0, i") :
+         (hReferer,            Network.HTTP.Client.path req) :
+         ("sec-ch-ua",         "\"Chromium\";v=\"152\", \"Not?A_Brand\";v=\"24\", \"Google Chrome\";v=\"152\"") :
+         ("sec-ch-ua-mobile",  "?0") :
+         ("sec-ch-ua-platform","\"Linux\"") :
+         ("sec-fetch-dest",    "document") :
+         ("sec-fetch-mode",    "navigate") :
+         ("sec-fetch-site",    "same-origin") :
+         ("sec-fetch-user",    "?1") :
+         ("upgrade-insecure-requests",     "1") :
+         (hUserAgent,          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36") : requestHeaders req,
+      responseTimeout = responseTimeoutMicro 60000000 }
+
 
 {-
 urlToFileName url = let
@@ -758,6 +807,10 @@ formatBS1 (Tag typ attribs terms) =
 formatAttrib (name, val) = string7 " " <> byteString name <> string7 "=\"" <> byteString val <> string7 "\""
 formatAttribs a = mconcat $ map formatAttrib a
 -}
+format html = convertString $ formatLBS html :: ByteString
+
+formatHTML = HTMLB.format
+
 formatLBS html = toLazyByteString $ formatB 0 html
 
 formatB :: Int -> HTML -> Builder
