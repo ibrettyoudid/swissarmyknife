@@ -15,7 +15,8 @@
 module TableB where
 
 import Favs hiding (levenshtein, trim, squash)
-import MHashDynamic3 hiding (toList2, (?))
+import Dyn hiding (toDyn, fromDyn1, fromDynamic)
+import HashDyn hiding (toList2, (?))
 import MyPretty2
 import NewTuple
 import ShowTuple
@@ -55,8 +56,6 @@ type Amount = Int
 
 ymd = YearMonthDay
 
-data Trans = Trans {day :: Day, amount :: Amount, person :: Person, typ :: Type}
-
 -- go = putGridF =<< readfods
 
 linux = True
@@ -64,15 +63,6 @@ linux = True
 importdir = if linux then "/home/brett/SOL/Office/" else "D:/Office/"
 
 names = ["Tyrone", "Danny", "James"]
-
-trans =
-   [ (ymd 2023 6 13, -20, Tyrone, M)
-   , (ymd 2023 6 13, -30, Tyrone, M)
-   , (ymd 2023 6 13, -20, James, M)
-   , (ymd 2023 6 13, -25, James, M)
-   , (ymd 2023 6 13, -3, James, To)
-   , (ymd 2023 6 13, -20, Danny, M)
-   ]
 
 -- counts :: (Ord a, Show a) => [a] -> String
 -- counts = show . rsort . mode1
@@ -82,30 +72,6 @@ groupBy f = combine (:) [] . mapfxx f
 
 applyL fs x = map ($ x) fs
 
-combine2 :: [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine2 fs ts rows = let
-   frows = map (applyL fs) rows
-
-   fcols = transpose frows
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
-
-combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine3 g fs ts rows = let
-   frows = map (applyL fs) rows
-   fcols = transpose frows
-   gcol = map g rows
-   gf = combine (:) [] $ zip gcol fcols
-   x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
-   blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   blah
 {-
 readfods = do
 Right r <- parseFromFile htmlP (importdir ++ "money.fods")
@@ -146,26 +112,6 @@ trimGrid2 = takeWhile (\x -> x !! 2 /= "")
 trimGrid2b :: [[String]] -> [[String]]
 trimGrid2b = reverse . dropWhile ((!! 2) $= "") . reverse . drop 2
 -}
-convertGrid1 = map2 (parse1 csvcell)
-{-
-convertGrid2 table =
-let
-   t = cTextGrid table
-   n = tagAttrib "table:name" table
-   l = maximum $ map length t
-   in
-   replicate l n : t
--}
-readcsvs = concat <$> mapM readCSVFile names
-
-readCSVFile fn = do
-   let fn1 = importdir ++ fn ++ ".csv"
-   f <- readFile fn1
-   return $ parse2 csv f
-
-csv = many csvline
-
-csvline = sepBy csvcell $ char ','
 
 txt = toDyn . bof <$> do char '"'; s <- many anyChar; char '"'; return s
 
@@ -177,7 +123,7 @@ csvcell  = choice [try (toDyn <$> dateExcel), try numberDyn, txt]
 
 wikicell = choice [try (toDyn <$> dateExcel), try numberDyn, txt]
 
-int = fromInteger <$> NP.integer
+int = fromInteger <$> NP.integer :: Parser Int
 
 numberDyn = choice [try (toDyn <$> NP.forceFloatingC), try (toDyn <$> intC)]
 
@@ -263,13 +209,10 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
+instance {-# OVERLAPPING #-} (Show a) => Show (Table String a HashDyn) where
    show = showGrid . showTable2
 
-instance (Show i, Show r) => Show (Table String i r) where
-   show = showTable1
-
-instance (ProperTuple a, ShowNewTuple a) => Show (Table a z Dynamic) where
+instance (ProperTuple a, ShowNewTuple a) => Show (Table a z HashDyn) where
    show = showTableNew
 
 showTable t =  showGridD colWidths1 width $ 
@@ -297,6 +240,17 @@ showTableMeta1 (Table fields (INode records)) = show (M.size fields) ++ "x" ++ s
 showTableMeta1 (Table fields (Recs  records)) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show (Tree.size records)
 showTableMeta1 (Table fields (Rec   record )) = "NO INDEX " ++ show (M.size fields) ++ "x" ++ show 1
 showTableMeta2 t = GridH $ map showT $ fieldsUT t
+
+showStructure (Table fields group) = foldr (++) "" $ map (++"\n") $ showStructureI 0 group
+
+showStructureI i (INode records) = (sp i ++ "INode") : concatMap (showStructureG (i+5)) (M.toList records)
+
+showStructureG i (k, Recs  records) = (sp i ++ "Recs"  ++ showt k) : concatMap (showStructureR (i+5)) (Tree.toList records)
+
+showStructureR i (k, Rec   records) = [sp i ++ "Rec"   ++ showt k ++ "=" ++ showt (Tree.toList records)]
+
+sp :: Int -> Text
+sp n = convertString $ replicate n ' '
 
 setFields newnames (Table fields group) = let
    (names, numbers) = unzip $ sortOn snd $ M.toList fields
@@ -356,7 +310,12 @@ fromGridHD9 c u n fs rs = fromGridH1 (zipWith (\fnum fnames -> (c !! 0, c !! 1, 
 fromGridHD10 c u n [] = TableB.empty
 fromGridHD10 c u n (fs : rs) = fromGridH1 (zipWith (\x y -> (c !! 0, c !! 1, c !! 2, c !! 3, c !! 4, c !! 5, u, n, x, clean y)) [1..] fs) $ map2 (dynCell . clean) rs
 
-fromGridHBF (hs, bs, fs) = fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1..]) $ map2 (dynCell . clean) bs
+fromGridHBF (c, hs, bs, fs) = unsafePerformIO $ do
+   print c
+   print hs
+   print bs
+   print fs
+   return $ fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1::Int ..]) $ map2 (dynCell . clean) bs
 
 fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ Tree.fromElems $ map (Rec . Tree.fromElems) recordl
@@ -545,74 +504,91 @@ appendTable joinType func (Table tfs tr) (Table bfs br) = let
    (tftobf2, fieldsj) = joinFields joinType func tfs bfs
    in Table fieldsj $ appendTableG tr $ translateTableG tftobf2 br
 
+mapFields func (Table fs rs) = let
+   (fs3, fs2) = mapFields1 func fs 
+   in Table fs2 $ mapFieldsG func fs3 rs
+
+mapFields1 func fs = let
+   fs1 = M.fromList $ map (\(fld, k) -> (k, func fld)) $ M.toList fs
+   fs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList fs
+   fs3 = M.fromList $ map tflip $ M.toList $ M.compose fs2 fs1
+   in (fs3, fs2)
+
+mapFieldsG func fs3 (INode rs) = INode $ M.map (mapFieldsG func fs3) rs
+mapFieldsG func fs3 (Recs  rs) = Recs  $ Tree.map (mapFieldsG func fs3) rs
+mapFieldsG func fs3 (Rec   rs) = Rec   $ Tree.fromList $ M.toList $ M.compose (M.fromList $ Tree.toList rs) fs3
+
 joinFields joinType func tfs bfs = let
    --y = map (\((a, b, c, d, e, f, g, h, i, j), k) -> let) $ M.toList tfs
-   tfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList tfs
-   bfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList bfs
+   --tfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList tfs
+   --bfs1 = M.fromList $ map (\(fld, k) -> (fld, func fld)) $ M.toList bfs
    tfs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList tfs
    bfs2 = M.fromList $ map (\(fld, k) -> (func fld, k)) $ M.toList bfs
-   z = -1
    -- the field numbers in bfs must be changed to match those in tfs
    -- for the fields that are in bfs but not tfs, we need new numbers. 
    -- we can start numbering from maxt+1 because we can ignore the current bfs numbers,
-   -- because they're going to be changed anyway
-   f8 = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
-   tftobf = map snd $ M.toList f8 
-   maxtf  = maximum $ map fst tftobf
-   (tfz, tfs3) = partition ((== z) . fst) tftobf                 -- tfz, the fields in bfs but not tfs, are marked with a -1 entry for tf (the first)
-   newbyold = zip [maxtf+1..] $ map snd tfz                      -- new field numbers for fields in bfs not tfs
-   tftobf2 = M.fromList (newbyold ++ filter ((/= z) . snd) tfs3) -- updated field numbers for all of bfs
-   bftotf  = M.fromList $ map (\(tf, bf) -> if bf == z then (tf, tf) else (bf, tf)) (newbyold ++ tfs3)
+   -- because they're going to be changed anyway#
 
-   -- and now we need to do the field indices
-   -- M.union tfs bfs is all the original dectuples from tfs plus the ones from bfs not in tfs
-   -- ie. a map from tuples to field numbers in tfs or bfs
-   -- the ones in both have the tfs field numbers
+   -- tf uname
+   -- tf jname
+   -- 3 types of fields numbers
+   -- tf f# original
+   -- tfn f# new -- a new number for a field that was previously not in tfs, only in bfs
+   -- bf f#
+   -- 3 types of pairs
+   -- t = fields only in tf
+   -- b = fields only in bf
+   -- j = fields only in tf & bf
+   -- bj = fields in b and j
+   f8_tf_bf  = M.intersectionWith (,) tfs2 bfs2
+   tf_bf_j   = map snd $ M.toList f8_tf_bf
+   f8_bf_b   = bfs2 M.\\ tfs2
+   tf_t      = map snd $ M.toList tfs
+   max_tf    = if null tf_t then 0 else maximum tf_t
+   tfn_bf_b  = zip [max_tf+1..] $ map snd $ M.toList f8_bf_b
+   tfn_bf_bj = M.fromList (tfn_bf_b ++ tf_bf_j) -- updated field numbers for all of bfs
 
-   -- in this call:
+{-
+   f8        = unionWith3A joinType (,) (,z) (z,) tfs2 bfs2
+   tf_bf_a   = map snd $ M.toList f8 
+   maxtf     = if null tf_bf_a then 0 else maximum $ map fst tf_bf_a
+   tf_bf_b   = filter ((== z) . fst) tf_bf_a
+   tfn_bf_b  = zip [maxtf+1..] $ map snd tf_bf_b                      -- new field numbers for fields in bfs not tfs
+   tf_bf_j   = filter (\(tf, bf) -> tf >= 0 && bf >= 0) tf_bf_a
+   tfn_bf_bj = M.fromList (tfn_bf_b ++ tf_bf_j) -- updated field numbers for all of bfs
+-}
    -- M.compose Map b c -> Map a b -> Map a c
-   -- a is the dectuples
-   -- b is the old field numbers
-   -- c is the new field numbers
-   compb = M.compose (M.fromList $ map tflip newbyold) bfs  -- using newbyold, we only get the new fields from bfs
-   compt = M.compose (M.map fst f8) tfs1
-   fieldsj = M.union compt compb
-   in (tftobf2, fieldsj)
-      {-
+   compb = M.compose (M.fromList $ map tflip $ M.toList tfn_bf_bj) bfs
+   fieldsj = union3A joinType tfs compb
+   in  -- (tfn_bf_bj, fieldsj)
+      
       unsafePerformIO $ do
-      putStrLn "tfs="
+      putStrLn $ t "tfs="
       mapM_ print $ M.toList tfs
-      putStrLn "bfs="
+      putStrLn $ t "bfs="
       mapM_ print $ M.toList bfs
-      putStrLn "tfs1="
-      mapM_ print $ M.toList tfs1
-      putStrLn "bfs1="
-      mapM_ print $ M.toList bfs1
-      putStrLn "tfs2="
+      putStrLn $ t "tfs2="
       mapM_ print $ M.toList tfs2
-      putStrLn "bfs2="
+      putStrLn $ t "bfs2="
       mapM_ print $ M.toList bfs2
-      putStrLn "f8="
-      mapM_ print $ M.toList f8
-      putStrLn "tftobf="
-      mapM_ print tftobf
-      putStrLn $ "maxtf="++show maxtf
-      putStrLn "tfz="
-      mapM_ print tfz
-      putStrLn "tfs3="
-      mapM_ print tfs3
-      putStrLn "newbyold="
-      mapM_ print newbyold
-      putStrLn "tftobf2="
-      mapM_ print $ M.toList tftobf2
-      putStrLn "bftotf="
-      mapM_ print $ M.toList bftotf
-      putStrLn "compb="
+      putStrLn $ t "f8_tf_bf="
+      mapM_ print $ M.toList f8_tf_bf
+      putStrLn $ t "tf_bf_j="
+      mapM_ print tf_bf_j
+      putStrLn $ t "f8_bf_b="
+      mapM_ print $ M.toList f8_bf_b
+      putStrLn $ t "tf_t="
+      mapM_ print tf_t
+      putStrLn $ "max_tf="++show max_tf
+      putStrLn $ t "tfn_bf_b="
+      mapM_ print tfn_bf_b
+      putStrLn $ t "tfn_bf_bj="
+      mapM_ print $ M.toList tfn_bf_bj
+      putStrLn $ t "compb="
       mapM_ print $ M.toList compb
-      putStrLn "compt="
-      mapM_ print $ M.toList compt
-      return (tftobf2, fieldsj)
-      -}
+      putStrLn $ t "fieldsj="
+      mapM_ print $ M.toList fieldsj
+      return (tfn_bf_bj, fieldsj)
 
 appendTableG (INode ts) (INode bs) = INode $ M.unionWith appendTableG ts bs
 appendTableG (Recs  ts) (Recs  bs) = Recs  $ Tree.append (Tree.minKey bs - Tree.maxKey ts + 1) ts bs
@@ -708,7 +684,7 @@ delField fieldName t = if head (fields t) == fieldName
 class LookupR a b c | a b -> c, c -> a where
    lookup :: a -> b -> c
 
-instance LookupR Dynamic (Table f Dynamic r) (Table f Dynamic r) where
+instance LookupR HashDyn (Table f HashDyn r) (Table f HashDyn r) where
    lookup = lookupgk
 
 instance LookupR Int (Table f i r) (Record f r) where

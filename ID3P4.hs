@@ -375,9 +375,6 @@ instance Zero Integer where
 instance Zero [a] where
    zero = []
 
-instance Zero Term where
-   zero = String1 ""
-
 instance (Zero a, Zero b) => Zero (a, b) where
    zero = (zero, zero)
 
@@ -662,8 +659,6 @@ readFSD db f
    | otherwise = return [f]
 
 --writeFS f = writeTag (path f) $ framesOfMeta f
-
-zeroTime = DateTime (posixSecondsToUTCTime 0)
 
 -- intOfFT (FILETIME ft) = fromIntegral ft
 -- https://www.ubereats.com/gb/orders/d79a668a-365e-46fa-8d75-af17bd713bb0

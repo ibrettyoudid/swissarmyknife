@@ -16,7 +16,7 @@
 module TableT where
 
 import Favs hiding (levenshtein, trim, squash)
-import MHashDynamic3 hiding (toList2, (?))
+import HashDyn hiding (toList2, (?))
 import MyPretty2
 import NewTuple
 import ShowTuple
@@ -85,30 +85,6 @@ groupBy f = combine (:) [] . mapfxx f
 
 applyL fs x = map ($ x) fs
 
-combine2 :: [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine2 fs ts rows = let
-   frows = map (applyL fs) rows
-
-   fcols = transpose frows
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   zipWith (++) fcols $ padRWith (String1 "") $ zipWith applyL ts fcols
-
-combine3 :: ([Term] -> Term) -> [[Term] -> Term] -> [[[Term] -> Term]] -> [[Term]] -> [[Term]]
-combine3 g fs ts rows = let
-   frows = map (applyL fs) rows
-   fcols = transpose frows
-   gcol = map g rows
-   gf = combine (:) [] $ zip gcol fcols
-   x g f = [g] : zipWith (++) f (padRWith (String1 "") $ zipWith applyL ts f)
-   blah = concatMap (transpose . padRWith (String1 "") . uncurry x) gf
-   in
-   -- rows2 = map (applyL fs) $ transpose rows
-   -- in frows ++ (transpose $ padRWith (String1 "") $ zipWith applyL ts fcols)
-
-   blah
 {-
 readfods = do
 Right r <- parseFromFile htmlP (importdir ++ "money.fods")
@@ -274,13 +250,13 @@ unmap (INode m) = m
 unrecs (Recs r) = r
 unrec (Rec r) = r
 
-instance {-# OVERLAPPING #-} (Show a) => Show (Table String a Dynamic) where
+instance {-# OVERLAPPING #-} (Show a) => Show (Table String a HashDyn) where
    show = showGrid . showTable2
 
 instance (Show i, Show r) => Show (Table String i r) where
    show = showTable1
 
-instance (ProperTuple a, ShowNewTuple a) => Show (Table a z Dynamic) where
+instance (ProperTuple a, ShowNewTuple a) => Show (Table a z HashDyn) where
    show = showTableNew
 
 showTable t =  showGridD colWidths1 width $ 
@@ -289,7 +265,7 @@ showTable t =  showGridD colWidths1 width $
                ungroupFill (map (\(_, v) -> (v, toDyn (""::Text))) $ M.toList $ fields t) $
                tgroup t
 
-showTableNew :: (ShowNewTuple f, HasCallStack) => Table f i Dynamic -> String
+showTableNew :: (ShowNewTuple f, HasCallStack) => Table f i HashDyn -> String
 showTableNew t =  showGridD colWidths1 width $ 
                   zipWith (++) (map (map toDyn . showNewT) $ fieldsUT t) $ 
                   transposez (toDyn (""::Text)) $ 
@@ -388,7 +364,7 @@ fromGridHBF (c, hs, bs, fs) = unsafePerformIO $ do
    print fs
    return $ fromGridH1 (zipWith (\h fn -> map clean h :- fn :- ()) (transpose hs) [1::Int ..]) $ map2 (dynCell . clean) bs
 
-fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f Dynamic r
+fromGridH1 :: (UniqueList f, Ord f, Show r) => [f] -> [[r]] -> Table f HashDyn r
 fromGridH1 fields recordl = Table (uniquify $ zip fields [0..]) $ Recs $ Tree.fromElems $ map (Rec . Tree.fromElems) recordl
 
 tz :: (Show a) => [a] -> Tree.Tree a
@@ -772,7 +748,7 @@ delField fieldName t = if head (fields t) == fieldName
 class LookupR a b c | a b -> c, c -> a where
    lookup :: a -> b -> c
 
-instance LookupR Dynamic (Table f Dynamic r) (Table f Dynamic r) where
+instance LookupR HashDyn (Table f HashDyn r) (Table f HashDyn r) where
    lookup = lookupgk
 
 instance LookupR Int (Table f i r) (Record f r) where

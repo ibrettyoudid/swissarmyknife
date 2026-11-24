@@ -13,7 +13,7 @@ import qualified Data.IntMap as I
 import GHC.Stack
 --data states  a = states  { set :: S.Set a, list :: [a]}
 
-data PosItems tok state = PosItems { imap :: M.Map (Rule tok) (SL.SetList state), setlist :: SL.SetList state } deriving Show
+data PosItems tok positem = PosItems { predby :: M.Map (Rule tok) (SL.SetList positem), compby :: M.Map positem (SL.SetList positem), setlist :: SL.SetList positem } deriving Show
 {-
 want to be able to look up states by end token number and subitem for complete
 states also need to be checked for uniqueness
@@ -36,15 +36,15 @@ i ! r = case PosItems.lookup r i of
    Nothing -> error $ "no entry for "++show r++" in "++show i
    Just  j -> j
 
-lookup r (PosItems i s) = M.lookup r i
+lookup r (PosItems p c s) = M.lookup r p
 
-fromList l = PosItems (mapFromList SL.insert SL.empty $ mapfxx (rule . item) l) (SL.fromList l)
+fromList l = PosItems (mapFromList SL.insert SL.empty $ mapfxx (rule . item) l) M.empty (SL.fromList l)
 
-fromSL sl = PosItems (mapFromList SL.insert SL.empty $ mapfxx (rule . item) $ SL.toList sl) sl
+fromSL sl = PosItems (mapFromList SL.insert SL.empty $ mapfxx (rule . item) $ SL.toList sl) M.empty sl
 
-singleton e = PosItems M.empty (SL.singleton e)
+singleton e = PosItems M.empty M.empty (SL.singleton e)
 
-empty = PosItems M.empty SL.empty
+empty = PosItems M.empty M.empty SL.empty
 
 instance Foldable (PosItems tok) where
    foldl f z xs = foldl f z $ setlist xs

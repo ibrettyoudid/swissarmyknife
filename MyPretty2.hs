@@ -54,9 +54,11 @@ module MyPretty2 (
    justify,
    justify1,
    test,
+   colWidths1A,
+   factors,
+   GridHV(..),
    GridH(..),
-   GridV(..),
-   Term (Int1, Integer1, Data, Double1, String1, Date, DateTime, Bool1, List, NDiffTime, ByteStr),
+   GridV(..)
 )
 where
 
@@ -64,9 +66,10 @@ import Favs
 import Numeric
 import Show1
 import ShowTuple
-import {-# SOURCE #-} MHashDynamic3
-import MSolve hiding (list, number)
-import MPoly hiding (replaceIndices, showm)
+--import Dyn hiding (z)
+import {-# SOURCE #-} HashDyn
+import {-# SOURCE #-} MSolve
+import {-# SOURCE #-} MPoly hiding (replaceIndices, showm)
 import Poly
 import Colour
 
@@ -98,7 +101,7 @@ import Text.ParserCombinators.Parsec.Token qualified as T
 import Debug.Trace
 import GHC.IO (unsafePerformIO)
 import GHC.Stack
-import {-# SOURCE #-} MHashDynamic2 (MType(MType))
+--import {-# SOURCE #-} HashDyn (MType(MType))
 
 width1 = 412
 
@@ -1480,7 +1483,7 @@ colWidths9 width cellLengthCols = let
    full = catMaybes $ concat $ zipWith3 (\cv -> zipWith3 (\rv cfc clc -> if cfc then Just $ cv * rv * mnum (recip clc) else Nothing) rowVars) colVars cellFullCols cellLengthCols
    area = sum $ concat $ crossWith (*) colVars rowVars
    [areasubst] = until ((== 1) . length) (\(x:xs) -> map (subst x) xs) $ full ++ [area]
-   diffareas = map (\cv -> diffp cv areasubst) [0 .. length colWidths1 - 1]
+   diffareas = map (\cv -> diffmp cv areasubst) [0 .. length colWidths1 - 1]
 
    in msolve diffareas
    --colWidths = zipWith (\cfc clc -> sum $ filterPattern cfc $ zipWith (/) clc rowHeights1) cellFullCols cellLengthCols
@@ -2103,7 +2106,7 @@ showRowD1 row = let
          b2 = l2 - a2
          in (cw, rh, b2, a2, l2, s)) row
 
-showGridD :: HasCallStack => (Int -> [[Int]] -> [Int]) -> Int -> [[Dynamic]] -> String
+showGridD :: HasCallStack => (Int -> [[Int]] -> [Int]) -> Int -> [[HashDyn]] -> String
 showGridD f width1 tab1 =
    let
       colsz           = map2 (showTerms (0, 0, 0, 0, 0, toDyn (0::Int))) tab1

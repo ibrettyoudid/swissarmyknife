@@ -163,7 +163,6 @@ tagTreeM1 d =
 
 -- test = afl . ta . tagTree2
 
-afl = arrayFromList (ByteStr "")
 
 ta = concat . zipWith (\n -> map (\fr -> ((frid fr, n), val fr))) [1 ..]
 
@@ -707,8 +706,6 @@ readFSD db f
    | otherwise = return [f]
 
 writeFS f = writeTag (path f) $ framesOfMeta f
-
-zeroTime = DateTime (posixSecondsToUTCTime 0)
 
 -- intOfFT (FILETIME ft) = fromIntegral ft
 -- https://www.ubereats.com/gb/orders/d79a668a-365e-46fa-8d75-af17bd713bb0

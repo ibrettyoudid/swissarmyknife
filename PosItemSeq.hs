@@ -22,13 +22,13 @@ insert st m = let
    n = to st
    r = rule $ item st
    m1 = case I.lookup n m of
-            Nothing -> PI.PosItems M.empty SL.empty
+            Nothing -> PI.PosItems M.empty M.empty SL.empty
             Just  j -> j
-   m2 = case M.lookup r (PI.imap m1) of
+   m2 = case M.lookup r (PI.predby m1) of
             Nothing -> SL.empty
             Just  j -> j
    m2new = SL.insert st m2
-   m1new = PI.PosItems (M.insert r m2new $ PI.imap m1) (SL.insert st $ PI.setlist m1)
+   m1new = PI.PosItems (M.insert r m2new $ PI.predby m1) M.empty (SL.insert st $ PI.setlist m1)
 
    in I.insert n m1new m
 
@@ -39,9 +39,10 @@ insertP main sub = do
       n = to main
       r = rule $ item sub
       m1 = case I.lookup n m of
-               Nothing -> PI.PosItems M.empty SL.empty
+               Nothing -> PI.PosItems M.empty M.empty SL.empty
                Just  j -> j
-      m1r = PI.imap m1
+      m1r = PI.predby m1
+      m1c = PI.compby m1
       m1s = PI.setlist m1
 
       m2r = case M.lookup r m1r of
@@ -59,7 +60,7 @@ insertP main sub = do
    if needsAddingr || needsAddings
       then do
          liftIO $ putStrLn $ "Predict "++show main++" --> "++show sub++if needsAddingr then " new connection" else ""
-         put $ PosItemSeq $ I.insert n (PI.PosItems m1rnew m1snew) m
+         put $ PosItemSeq $ I.insert n (PI.PosItems m1rnew m1c m1snew) m
          return [sub]
       else
          return []
@@ -70,18 +71,27 @@ insertC main sub = do
    let
       n = to main
       m1 = case I.lookup n m of
-               Nothing -> PI.PosItems M.empty SL.empty
+               Nothing -> PI.PosItems M.empty M.empty SL.empty
                Just  j -> j
-      m1r = PI.imap m1
+      m1r = PI.predby m1
+      m1c = PI.compby m1
       m1s = PI.setlist m1
+
+      m2c = case M.lookup main m1c of
+               Nothing -> SL.empty
+               Just  j -> j
+      needsAddingc = not $ SL.member sub  m2c
+      m1cnew = if needsAddingc
+         then M.insert main (SL.insert sub m2c) m1c
+         else m1c
       needsAddings = not $ SL.member main m1s
       m1snew = if needsAddings
          then SL.insert main m1s
          else m1s
-   if needsAddings
+   if needsAddings || needsAddingc
       then do
-         liftIO $ putStrLn $ "Complete "++show main++" <-- "++show sub
-         put $ PosItemSeq $ I.insert n (PI.PosItems m1r m1snew) m
+         liftIO $ putStrLn $ "Complete "++show main++" <-- "++show sub++if needsAddingc then " new connection" else ""
+         put $ PosItemSeq $ I.insert n (PI.PosItems m1r m1cnew m1snew) m
          return [main]
       else
          return []
@@ -94,7 +104,7 @@ lookup n (PosItemSeq m) = I.lookup n m
 
 lookupNI n i (PosItemSeq m) = do
    s <- I.lookup n m
-   M.lookup i (PI.imap s)
+   M.lookup i (PI.predby s)
 
 domain (PosItemSeq i) = (fst $ fromJust $ I.lookupMin i, fst $ fromJust $ I.lookupMax i)
 

@@ -29,9 +29,13 @@ import HashParser
 
 import qualified Parser3 as P
 
+import Prelude hiding (exp)
+
 import Data.IORef
 
 import Data.List
+import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Data.Functor ((<&>))
 
@@ -101,7 +105,7 @@ repl1 env = do
    ex1 <- case ex of
       [] -> do
          putStrLn "no parse"
-         return $ Value u 0
+         return $ Value u 0 0
       ex2:_  -> return $ runDoVars ex2 (map fconstr env)
    putStrLn "print ex"
    print ex
@@ -113,7 +117,7 @@ repl1 env = do
       Nothing -> putStrLn "unparsing failed"
    putStrLn ""
    (res, env3) <- case ex1 of
-      Block _ constr exs -> do
+      Block _ _ constr exs -> do
          fr <- makeFrame constr
          let env2 = fr : env
          res <- eval2 env2 exs
@@ -134,29 +138,29 @@ eval env stat = do
 
 eval1 :: Env -> Expr -> IO HashDyn
 eval1 env expr = case expr of
-   Value _ v -> return v
-   VarRef _ name nFr nV -> do
+   Value _ _ v -> return v
+   VarRef _ _ name nFr nV -> do
       return $ items (env !! nFr) !! nV
-   VarRef1 t "quit" -> error "quit"
-   VarRef1 t "env" -> return $ toDyn env
-   VarRef1 t "frame" -> return $ toDyn $ head env
-   VarRef1 t name -> return $ lookups name env
-   Lambda _ args stat -> return $ toDyn $ Closure args stat env
-   If _ cases -> evalIf cases
-   Case t of1 cases -> do ofres <- eval env of1; evalCase ofres cases
-   Else -> return $ toDyn True
-   Apply t exprsP -> do
+   VarRef1 t _ "quit" -> error "quit"
+   VarRef1 t r "env" -> return $ toDyn env
+   VarRef1 t r "frame" -> return $ toDyn $ head env
+   VarRef1 t r name -> return $ lookups name env
+   Lambda _ r args stat -> return $ toDyn $ Closure args stat env
+   If _ r cases -> evalIf cases
+   Case t r of1 cases -> do ofres <- eval env of1; evalCase ofres cases
+   Else t r -> return $ toDyn True
+   Apply t r exprsP -> do
       res <- mapM (eval env) exprsP
       if fromDyn1 (head res) == mymem
          then apply (take 2 res ++ [toDyn (exprsP !! 2)])
          else apply res
       --apply res
-   Let t co exps stat -> do
+   Let t r co exps stat -> do
       newfr <- makeFrame co
       let newenv = newfr : env
       zipWithM_ (\ref ex -> do v <- eval newenv ex; writeIORef (fromDyn1 ref) v) (items newfr) exps
       eval newenv stat
-   Block t co exprsP -> do
+   Block t r co exprsP -> do
       newfr <- makeFrame co
       eval2 (newfr : env) exprsP
    where
@@ -178,6 +182,273 @@ eval1 env expr = case expr of
 eval2 env exprsP = do
    res <- mapM (eval env) exprsP
    return $ last res
+
+
+
+data Interpreter = 
+   Interpreter 
+      { 
+         env      :: Env, 
+         exp      :: [Expr], 
+         re       :: HashDyn, 
+         parents  :: IORef [IORef Interpreter], 
+         returnsto:: IORef [IORef Interpreter],
+         children :: IORef [IORef Interpreter], 
+         retfrom  :: IORef [IORef Interpreter], 
+         prev     :: IORef [IORef Interpreter],
+         next     :: IORef [IORef Interpreter],
+         starts   :: IORef [IORef Interpreter], 
+         ends     :: IORef [IORef Interpreter]
+      }
+      deriving (Eq)
+
+instance Ord Interpreter where
+   compare a b = compare (env a, exp a, re a) (env b, exp b, re b)
+
+newIORefCheck existing new1 = do
+   existingmap <- readIORef existing
+   [a, b, c, d, e, f, g, h] <- mapM newIORef [[], [], [], [], [], [], [], []]
+   let 
+      new = new1 {
+            parents  = a,
+            children = b,
+            returnsto= c,
+            retfrom  = d,
+            next     = e,
+            prev     = f,
+            starts   = g,
+            ends     = h
+         }
+   let search = M.lookup new existingmap
+   case search of
+      Just existingref -> return existingref
+      Nothing          -> do
+         newref <- newIORef new
+         writeIORef existing $ M.insert new newref existingmap
+         return newref
+
+addIfNotThere x xs = if elem x xs then xs else x : xs
+
+linkPN prevref nextref = do
+   prevint  <- readIORef prevref
+   nextint  <- readIORef nextref
+   prevnext <- readIORef (next prevint)
+   writeIORef (next prevint) $ addIfNotThere nextref prevnext
+   nextprev <- readIORef (prev nextint)
+   writeIORef (prev nextint) $ addIfNotThere prevref nextprev
+   return [nextref]
+
+linkPC parref kidref = do
+   parint <- readIORef parref
+   kidint <- readIORef kidref
+   parkid <- readIORef (children parint)
+   writeIORef (children parint) $ addIfNotThere kidref parkid
+   kidpar <- readIORef (parents kidint)
+   writeIORef (parents kidint) $ addIfNotThere parref kidpar
+   return [kidref]
+
+linkRC retref kidref = do
+   retint <- readIORef retref
+   kidint <- readIORef kidref
+   retkid <- readIORef (retfrom retint)
+   writeIORef (retfrom retint) $ addIfNotThere kidref retkid
+   kidret <- readIORef (returnsto kidint)
+   writeIORef (returnsto kidint) $ addIfNotThere retref kidret
+   return [kidref]
+
+linkStart startref nextref = do
+   startint <- readIORef startref
+   nextint <- readIORef nextref
+   nextstart <- readIORef $ starts nextint
+   writeIORef (starts nextint) $ addIfNotThere startref nextstart
+
+call existing parref kidint nextint = do
+   nextref <- newIORefCheck existing nextint
+   kidref  <- newIORefCheck existing kidint
+   linkPC parref kidref
+   linkPN parref nextref
+   linkRC nextref kidref                   -- next ref is where we will return to
+   linkStart kidref kidref                 -- mark it as the start of a subroutine
+   return [nextref, kidref]
+
+addNext existing prevref nextint = do
+   prevint  <- readIORef prevref
+   startrefs <- readIORef $ starts prevint
+   nextref  <- newIORefCheck existing nextint
+   prevto <- readIORef $ returnsto prevint -- read the returnsto list of prevint
+   linkPN prevref nextref
+   mapM (flip linkRC    nextref) prevto    -- add nextref to retfrom of each retto
+   mapM (flip linkStart nextref) startrefs
+   return [nextref]
+
+intreturn int = do
+   intret <- readIORef $ returnsto int
+   mapM (\retref -> do
+      retint <- readIORef retref
+      writeIORef retref retint { re = re int }
+      return retref) intret
+
+evalSteps env expr = do
+   [a, b, c, d, e, f, g, h] <- mapM newIORef [[], [], [], [], [], [], [], []]
+   let active = Interpreter env expr (toDyn ()) a b c d e f g h
+   activeref <- newIORef active
+   let m = M.fromList [(active, activeref)]
+   existing <- newIORef m
+   --evalSteps1 existing [] [active]
+   evalSteps2 existing m
+
+evalSteps1 existing done active = do
+   new <- concat <$> mapM (evalStep1 existing) active
+   let
+      newactive = new \\ done
+      newdone   = done ++ newactive
+   if null new then return done else evalSteps1 existing newdone newactive
+
+evalSteps2 doneref active = do
+   done <- readIORef doneref
+   
+   newrefs <- concat <$> mapM (evalStep1 doneref) active
+   new <- mapM readIORef newrefs
+   let
+      newmap    = M.fromList $ zip new newrefs
+      newactive = newmap M.\\ done
+      newdone   = done `M.union` newactive
+   if null new
+      then return done
+      else do
+         done2 <- readIORef doneref
+         if done2 == newdone 
+            then evalSteps2 doneref newactive
+            else error "bad"
+
+evalStep1 existing intref = do
+   int <- readIORef intref
+   evalStep existing intref int
+
+evalStep existing intref int@(Interpreter { env = env, exp = [        ], re = re }) = intreturn int
+evalStep existing intref int@(Interpreter { env = env, exp = (exp:rest), re = re }) = let
+
+   call1    c x = call     existing intref (int { env = c, exp = x }) (int { exp = rest })
+   executee e x = addNext  existing intref int { env = e, exp = x ++ rest } 
+   execute    x = addNext  existing intref int { exp = x ++ rest } 
+   returnVal  r = addNext  existing intref int { re  = r } 
+
+   in case exp of
+         Tokens tok               -> return [intref]
+         Value t r v              -> returnVal v 
+         VarRef t r name nFr nV   -> returnVal $ items (env !! nFr) !! nV 
+         Lambda t r args lexpr      -> returnVal $ toDyn $ Closure args lexpr env 
+
+         Apply t r args             -> do
+            let le = length args
+            zref <- newIORef le
+            argrefs <- mapM newIORef $ replicate le $ toDyn (0 :: Int)
+            yy <- sequence $ zipWith (\arg argref -> execute [ arg, Join2 (Joiner (toDyn (0 :: Int)) zref argref argrefs), Apply2 ] ) args argrefs
+            return $ concat yy
+         
+         {- this needs work
+         Split t args             -> do
+            let le = length args
+            zref <- newIORef le
+            argrefs <- mapM newIORef $ replicate le $ toDyn (0 :: Int)
+            return $ map (\arg -> int { ienv = (env, arg) : rest } ) args
+         -}
+
+         SplitJ t r args            -> do
+            let le = length args
+            zref <- newIORef le
+            resrefs <- mapM newIORef $ replicate le $ toDyn (0 :: Int)
+            yy <- sequence $ zipWith (\arg resref -> execute [ arg, SetJ (Joiner (toDyn (0 :: Int)) zref resref resrefs) ] ) args resrefs
+            return $ concat yy
+
+         SetJ joiner@(Joiner arg zref resref resrefs) -> do
+            returnVal $ toDyn $ joiner { arg = re }
+
+         Join ejoiner eres        -> 
+            execute [ejoiner, Join1 eres]
+
+         Join1 eres               ->
+            case fromDynamic re :: Maybe Joiner of
+               Just joiner -> 
+                  execute [eres, Join2 joiner]
+
+         Join2 (Joiner arg zref resref resrefs) -> do
+            writeIORef resref re
+            z <- subtract 1 <$> readIORef zref
+            writeIORef zref z
+            if z == 0
+               then do
+                  results <- mapM readIORef resrefs
+                  returnVal $ toDyn results
+               else
+                  return []
+
+         Apply2                   -> do
+            case fromDynamic re :: Maybe [HashDyn] of
+               Just args -> 
+                  case fromDynamic (head args) :: Maybe Closure of
+                     Just (Closure co cexpr cenv) -> do
+                        par <- execute []
+                        newfr <- makeFrame co
+                        call1 (newfr : cenv) [cexpr]
+                     Nothing -> do
+                        res1 <- apply args
+                        returnVal res1 
+
+         Case t r of1 clauses -> 
+            execute [of1, Case1 t 0 clauses]
+
+         Case1 t r clauses -> 
+            execute [Case2 t 0 re clauses]
+
+         Case2 t r of2 [] ->
+            execute []
+
+         Case2 t r of2 ((case1 :- expr1) : clauses) ->
+            execute [case1, Case3 t 0 of2 expr1 clauses]
+
+         Case3 t r of2 expr1 clauses ->
+            if of2 == re
+               then execute [expr1]
+               else execute [Case2 t 0 of2 clauses]
+
+         If t r ((if1 :- then1) : clauses) -> execute [if1, If1 t 0 then1 clauses]
+
+         If1 t r then1 clauses ->
+            case fromDynamic re :: Maybe Bool of
+               Just True  -> execute [then1]
+               Just False -> execute [If t 0 clauses]
+               Nothing    -> error "if condition must be Boolean!"
+
+         Else t r-> returnVal $ toDyn True
+
+         Let t r co subexprs lexpr -> do
+            newfr <- makeFrame co
+            let newenv = newfr : env
+            executee newenv $ concat 
+               (transpose [subexprs, zipWith (\m nv -> Let1 t 0 (mname m) 0 nv) (members co) [0..]])
+               ++ [lexpr]
+
+         Let1 t r name nFr nV ->
+            case fromDynamic $ items (env !! nFr) !! nV :: Maybe (IORef HashDyn) of
+               Just ioref -> do
+                  writeIORef ioref re
+                  execute []
+
+               Nothing -> error "weirdly, the var does not have type IORef HashDyn"
+
+         Block t r co subexprs -> do
+            newfr <- makeFrame co
+            let newenv = newfr : env
+            executee newenv subexprs
+{-
+showTree intref = do
+   int <- readIORef intref
+   kids <- readIORef $ children int
+   foldM (\y kidref -> do
+      kid <- readIORef kidref
+      if ) 0 kids
+-}
 
 makeFrame co = do
    newvals <- replicateM (length $ members co) (newIORef $ toDyn ())
@@ -211,43 +482,43 @@ apply1a (f : xs) =
       typeOf (undefined :: Maybe (IORef HashDyn)) ->
       -}
    case fromDynamic f :: Maybe (IORef HashDyn) of
-   Just ref -> do putStrLn "readIORef"; dyn <- readIORef ref; apply1 (dyn : xs)
-   Nothing -> case fromDynamic f :: Maybe (NamedValue HashDyn) of
-      Just named -> return $ nvalue named
-      Nothing -> case fromDynamic f :: Maybe Closure of
-         Just (Closure con stat env) -> do
-            let lx = length xs
-            let ly = length $ members con
-            if lx >= ly
-               then do
-                  xrefs <- mapM newIORef $ take ly xs
-                  ev <- eval (Frame con (map toDyn xrefs) : env) stat
-                  apply (ev : drop ly xs)
-               else
-                  return $ toDyn $ PartApply xs con stat env
-         Nothing -> case fromDynamic f :: Maybe PartApply of
-            Just (PartApply oldxs con stat env) -> do
-               let allxs = oldxs ++ xs
-               let lx = length allxs
+      Just ref -> do putStrLn "readIORef"; dyn <- readIORef ref; apply1 (dyn : xs)
+      Nothing -> case fromDynamic f :: Maybe (NamedValue HashDyn) of
+         Just named -> return $ nvalue named
+         Nothing -> case fromDynamic f :: Maybe Closure of
+            Just (Closure con stat env) -> do
+               let lx = length xs
                let ly = length $ members con
                if lx >= ly
                   then do
-                  xrefs <- mapM newIORef $ take ly allxs
-                  ev <- eval (Frame con (map toDyn xrefs) : env) stat
-                  apply (ev : drop ly allxs)
+                     xrefs <- mapM newIORef $ take ly xs
+                     ev <- eval (Frame con (map toDyn xrefs) : env) stat
+                     apply (ev : drop ly xs)
                   else
-                  return $ toDyn $ PartApply allxs con stat env
-            Nothing -> do
-               case fromDynamic f :: Maybe (Multimethod HashDyn) of
-                  Just m -> do
-                     putStrLn "multimethod"
-                     a <- applyMultimethodIO m xs
-                     case a of
-                        Left e -> return $ error e
-                        Right r -> return r
-                  Nothing -> do
-                     putStrLn $ "could not apply " ++ showDyn f
-                     return $ toDyn (0 :: Int)
+                     return $ toDyn $ PartApply xs con stat env
+            Nothing -> case fromDynamic f :: Maybe PartApply of
+               Just (PartApply oldxs con stat env) -> do
+                  let allxs = oldxs ++ xs
+                  let lx = length allxs
+                  let ly = length $ members con
+                  if lx >= ly
+                     then do
+                     xrefs <- mapM newIORef $ take ly allxs
+                     ev <- eval (Frame con (map toDyn xrefs) : env) stat
+                     apply (ev : drop ly allxs)
+                     else
+                     return $ toDyn $ PartApply allxs con stat env
+               Nothing -> do
+                  case fromDynamic f :: Maybe (Multimethod HashDyn) of
+                     Just m -> do
+                        putStrLn "multimethod"
+                        a <- applyMultimethodIO m xs
+                        case a of
+                           Left e -> return $ error e
+                           Right r -> return r
+                     Nothing -> do
+                        putStrLn $ "could not apply " ++ showDyn f
+                        return $ toDyn (0 :: Int)
 
 showType typ = show (typeRepTyCon typ)
 
@@ -281,7 +552,7 @@ wrapBlock expr = do
    push $ Co "" []
    sres <- deepseq1 $ doVars expr
    fnew <- pop
-   return $ Block u fnew [expr]
+   return $ Block u 0 fnew [expr]
 
 {-}
    error "hello"
@@ -292,45 +563,53 @@ wrapBlock expr = do
 findWithIndex p xs = find (p . snd) $ zip [0..] xs
 
 doVars :: Expr -> State [Constr] Expr
-doVars stat = case stat of
-   Lambda t vs stat -> do
-      push vs
-      sres <- wrapBlock stat
+doVars expr = case expr of
+   Lambda { } -> do
+      push $ econstr expr
+      sres <- wrapBlock $ subexpr expr
       pop
-      return $ Lambda t vs sres
-   VarRef1 t name -> do
-      if name `elem` ["env", "frame", "quit"]
-         then return $ VarRef1 t name
+      r <- pushVar u "lambda"
+      return $ expr { resIndex = r, subexpr = sres }
+   VarRef1 { } -> do
+      if name expr `elem` ["env", "frame", "quit"]
+         then return expr
          else do
             e <- get
-            case blah2 name e of
-               Just v -> return v
-               Nothing -> VarRef t name 0 <$> pushVar t name
-   Apply t exprsP -> do
+            r <- pushVar u "varref"
+            case blah2 (name expr) e of
+               Just v -> return v { resIndex = r }
+               Nothing -> do
+                  v <- pushVar (etype expr) (name expr)
+                  return expr { resIndex = r, frameIndex = 0, memIndex = v }
+   Apply t _ exprsP -> do
       done <- mapM doVars exprsP
+      r <- pushVar u "apply"
       if varname (head exprsP) == "@"
          then do
             if isUnknown $ etype $ done !! 1
-            then return $ Apply u done
+            then return $ Apply u r done
             else do
                push $ constr $ etype $ done !! 1
                done2 <- doVars $ done !! 2
                pop
-               return $ Apply (etype done2) (take 2 done ++ [done2])
-         else return $ Apply t done
-   If t cases -> do
+               return $ Apply (etype done2) r (take 2 done ++ [done2])
+         else return $ Apply t r done
+   If t _ cases -> do
+      r <- pushVar u "if"
       x <- mapM (\(a :- b) -> do
          ra <- doVars a
          rb <- doVars b
          return $ ra :- rb) cases
-      return $ If t x
-   Value t v -> return $ Value t v
+      return $ If t r x
+   Value t _ v -> do
+      r <- pushVar u "value"
+      return $ Value t r v
    other -> error (show other)
 
 isUnknown typ = typ == u
 
 blah2 name e = case findWithIndex isJust $ map (findWithIndex (\x -> mname x == name) . members) e of
-   Just (i, Just (j, v2)) -> Just $ VarRef (mtype v2) (mname v2) i j
+   Just (i, Just (j, v2)) -> Just $ VarRef (mtype v2) 0 (mname v2) i j
    Nothing -> Nothing
 
 -- look up name in a list of frames
@@ -340,8 +619,8 @@ lookups name e = items (e !! frameIndex vr) !! memIndex vr
       vr = fromJust $ blah2 name $ map fconstr e
 
 mymem = NamedValue "mymem" $ toDyn $ \frame vr -> case vr of
-   VarRef1 _ name -> lookups name [frame]
-   VarRef mtype mname i j -> items frame !! j
+   VarRef1 _ _ name -> lookups name [frame]
+   VarRef mtype r mname i j -> items frame !! j
 
 convEnv env = do
    (ns, rs) <- unzip <$> mapM envNewRef env
@@ -403,7 +682,7 @@ toDynIO3 f = toDyn $ \x y z -> do r <- f x y z; return $ toDyn r
 dynApplyLL :: [HashDyn] -> [HashDyn] -> HashDyn
 dynApplyLL fs xs = head $ foldl dynApplyL fs xs
 
---not used, not sure what it does
+--apply a list of functions to two arguments (not used)
 dynApplyL2 :: [HashDyn] -> HashDyn -> HashDyn -> HashDyn
 dynApplyL2 fs x y = head ((fs `dynApplyL` x) `dynApplyL` y)
 
@@ -566,8 +845,8 @@ fOps = fOpsL (0 :: Float) ++ fOpsL (0 :: Double)
 
 fOpsL t =
    -- [("pi"      , toDyn (pi @= t))
-   [ ("exp"    , toDyn (\a -> exp       (a @= t) @= t))
-   , ("log"    , toDyn (\a -> log       (a @= t) @= t))
+   [ ("log"    , toDyn (\a -> log       (a @= t) @= t))
+--  , ("exp"    , toDyn (\a -> exp       (a @= t) @= t))
    , ("sqrt"   , toDyn (\a -> sqrt      (a @= t) @= t))
    , ("sin"    , toDyn (\a -> sin       (a @= t) @= t))
    , ("cos"    , toDyn (\a -> cos       (a @= t) @= t))
@@ -643,20 +922,20 @@ exprsP = do
    s <- groupOfP expri
    return $ case s of
       [s1] -> s1
-      ss   -> Block u (Co "" [])  ss
+      ss   -> Block u 0 (Co "" []) ss
 
 terms = do
    t <- many1 termP
    return $ case t of
       [t1] -> t1
-      ts -> Apply u ts
+      ts -> Apply u 0 ts
 
-termP = choice [do f <- try forceFloating; return $ Value u $ toDyn f,
-                Value u . toDyn <$> natural,
-                Value u . toDyn <$> stringLiteral,
-                VarRef1 u <$> identifierP,
+termP = choice [do f <- try forceFloating; return $ Value u 0 $ toDyn f,
+                Value u 0 . toDyn <$> natural,
+                Value u 0 . toDyn <$> stringLiteral,
+                VarRef1 u 0 <$> identifierP,
                 do symbol "("; s <- exprP; symbol ")"; return s,
-                do reservedOp "\\"; is <- many1 identifierP; reservedOp "->"; exprsP <&> Lambda u (Co "lambda" []),
+                do reservedOp "\\"; is <- many1 identifierP; reservedOp "->"; exprsP <&> Lambda u 0 (Co "lambda" []),
                 listP,
                 ifP,
                 caseP]
@@ -665,7 +944,7 @@ listP = do
          symbol "["
          ss <- sepBy exprsP (symbol ",")
          symbol "]"
-         return $ foldr (\x y -> Apply u [VarRef1 u ":",x,y]) (VarRef1 u "[]") ss
+         return $ foldr (\x y -> Apply u 0 [VarRef1 u 0 ":",x,y]) (VarRef1 u 0 "[]") ss
 {-
 letP = do
    try $ reserved "let"
@@ -691,8 +970,8 @@ ifP = do
       reserved "else"
       optional $ reservedOp "->"
       else1 <- exprsP
-      return [Else :- else1]
-   return $ If u (a : b ++ c)
+      return [Else u 0 :- else1]
+   return $ If u 0 (a : b ++ c)
 
 caseP = do
    try $ reserved "case"
@@ -709,8 +988,8 @@ caseP = do
          reserved "else" <|> reserved "otherwise"
          optional $ reservedOp "->"
          else1 <- exprsP
-         return [Else :- else1]
-      return $ Case u c (x ++ y)
+         return [Else u 0 :- else1]
+      return $ Case u 0 c (x ++ y)
 
 type PState = (Int, Int, Bool)
 
@@ -759,7 +1038,7 @@ optable   = [  doinfixr 9 [".", "!!"],
 doinfixa assoc p ops = [Infix (try $ do 
    op <- operator
    guard (op `elem` ops)
-   return (\a1 a2 -> Apply u [VarRef1 u op, a1, a2])) assoc]
+   return (\a1 a2 -> Apply u 0 [VarRef1 u 0 op, a1, a2])) assoc]
 
 doinfixl = doinfixa AssocLeft
 doinfixr = doinfixa AssocRight
@@ -876,23 +1155,23 @@ a <-> b = hcat [a, b]
 a <:> b = vcat [a, b]
 
 formatStat :: Int -> Expr -> Doc
-formatStat w (Value _ v) = t $ showDyn v
-formatStat w (VarRef1 _ n) = t n
-formatStat w (Else) = t "else"
-formatStat w (Apply _ (f : xs)) =
+formatStat w (Value _ _ v) = t $ showDyn v
+formatStat w (VarRef1 _ _ n) = t n
+formatStat w (Else _ _) = t "else"
+formatStat w (Apply _ _ (f : xs)) =
    fit
    w
    [ scat $ intersperse (t " ") $ map (formatStat w) (f : xs)
    , formatStat w f <\> (vcat $ map (formatStat w) xs)
    ]
-formatStat w (If _ cases) =
+formatStat w (If _ _ cases) =
    t "if "
    <\> fit
       (w - 3)
       [ scat $ zipWith (formatCase (w - 3)) [0 ..] cases
       , vcat $ zipWith (formatCase (w - 3)) (repeat 0) cases
       ]
-formatStat w (Case _ c cases) =
+formatStat w (Case _ _ c cases) =
    t "case "
    <\> formatStat (w - 5) c
    <\> t " of "
@@ -911,13 +1190,13 @@ formatCase w n (cond :- exec) =
       , formatStat w cond <:> (t " -> " <\> formatStat (w - 4) exec)
       ]
 
-notElse Else = False
+notElse (Else _ _) = False
 notElse _ = True
 
-fmtStat (Value _ v) = t $ showDyn v
-fmtStat (VarRef1 _ n) = t n
-fmtStat (Else) = t "else"
-fmtStat (Apply _ (f : xs)) =
+fmtStat (Value _ _ v) = t $ showDyn v
+fmtStat (VarRef1 _ _ n) = t n
+fmtStat (Else _ _) = t "else"
+fmtStat (Apply _ _ (f : xs)) =
    (foldr1 (:-:) $ intersperse (t " ") $ map fmtStat (f : xs))
    :|: (foldr1 (:^:) $ map fmtStat (f : xs))
 

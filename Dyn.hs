@@ -87,6 +87,9 @@ data TypeLink = TypeLink {tlparents :: [MType], tllinear :: [MType]} deriving (E
 
 data Constr = Constr {cname :: String, tl :: TypeLink, members :: [Member]} deriving (Show, Eq)
 
+instance Ord Constr where
+   compare a b = compare (cname a, map mname $ members a) (cname b, map mname $ members b)
+
 data Member = Member {mtype :: MType, mname :: String} deriving (Show, Eq)
 
 data MMEntry dyn = Method dyn | Types [MType] deriving Show

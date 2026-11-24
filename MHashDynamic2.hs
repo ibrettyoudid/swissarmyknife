@@ -32,8 +32,8 @@ import qualified BString as B
 import qualified HTTPTypes
 import qualified NumberParsers as NP
 
-import Parser3 hiding (Apply)
-import Parser3Types hiding (Apply)
+import Parser3 hiding (Apply, Frame)
+import Parser3Types hiding (Apply, Frame)
 import Iso2 hiding (foldl, foldr, right, (!!))
 
 import Data.List

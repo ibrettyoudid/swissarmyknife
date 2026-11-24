@@ -71,15 +71,15 @@ num = "num" <=> valueIso >$< (readShow :: Iso String Int) >$< many1 (RangeR '0' 
 
 numIso = valueIso :: Iso Int Expr
 
-valueIso = Iso "valueIso" (Just . Value u . toDyn) (\case Value _ n -> fromDynamic n; _ -> Nothing)
+valueIso = Iso "valueIso" (Just . Value u 0 . toDyn) (\case Value _ _ n -> fromDynamic n; _ -> Nothing)
 
-varIso = Iso "varIso" (Just . VarRef1 u) varfn
+varIso = Iso "varIso" (Just . VarRef1 u 0) varfn
 
-varIsoT = Iso "varIsoT" (\(v :- t) -> Just $ VarRef1 t v) varfnt
+varIsoT = Iso "varIsoT" (\(v :- t) -> Just $ VarRef1 t 0 v) varfnt
 
 var = "var" <=> varIso >$< identifier
 
-vardefiso = Iso "vardef" (\(n :- t) -> Just $ VarDef t n 0 0) (\case VarDef t n _ _ -> Just (n :- t); _ -> Nothing)
+vardefiso = Iso "vardef" (\(n :- t) -> Just $ VarDef t 0 n 0 0) (\case VarDef t _ n _ _ -> Just (n :- t); _ -> Nothing)
 
 vardef = "vardef" <=> vardefiso >$< text "var" *< identifier >*< ((text "::" *< expr) <|> (valueIso >$< P.pure u))
 
@@ -89,15 +89,15 @@ typeanno = expr >*< text "::" *< expr
 
 mem = Iso "mem" (Just . Member u) (\(Member _ n) -> Just n) >$< identifier
 
-varfn (VarRef1 _ v) = Just v
-varfn (VarRef _ v _ _) = Just v
+varfn (VarRef1 _ _ v) = Just v
+varfn (VarRef _ _ v _ _) = Just v
 varfn _ = Nothing
 
-varfnt (VarRef t v _ _) = Just (v :- t)
-varfnt (VarRef1 t v) = Just (v :- t)
+varfnt (VarRef t _ v _ _) = Just (v :- t)
+varfnt (VarRef1 t _ v) = Just (v :- t)
 varfnt _ = Nothing
 
-app (Apply _ l) = l
+app (Apply _ _ l) = l
 
 --prediso p = Iso (ifPred p) (ifPred p)
 
@@ -105,9 +105,9 @@ opiso :: [String] -> Iso (Expr :- (String :- Expr)) Expr
 opiso ops =
    Iso
       "opiso"
-      (\(a :- op :- b) -> Just $ Apply u [VarRef1 u op, a, b])
+      (\(a :- op :- b) -> Just $ Apply u 0 [VarRef1 u 0 op, a, b])
       ( \case
-         Apply _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a :- op :- b)
+         Apply _ _ [varfn -> Just op, a, b] -> ifJust (op `elem` ops) (a :- op :- b)
          _ -> Nothing
       )
 
@@ -127,9 +127,9 @@ op = "op" <=> varIso >$< text "(" *< opc ops >* text ")"
 leftsec = "leftsec" <=>
    Iso
       "leftsec"
-      (\(a :- op) -> Just $ Lambda u (Co "lam" [Member u "b"]) (Apply u [VarRef1 u op, a, VarRef1 u "b"]))
+      (\(a :- op) -> Just $ Lambda u 0 (Co "lam" [Member u "b"]) (Apply u 0 [VarRef1 u 0 op, a, VarRef1 u 0 "b"]))
       ( \case
-         (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, a, VarRef1 _ b])) -> ifJust (b `elem` map mname locals) (a :- op)
+         (Lambda _ _ (Co _ locals) (Apply _ _ [VarRef1 _ _ op, a, VarRef1 _ _ b])) -> ifJust (b `elem` map mname locals) (a :- op)
          _ -> Nothing
       )
       >$< text "(" *< term >*< opc ops >* text ")"
@@ -137,9 +137,9 @@ leftsec = "leftsec" <=>
 rightsec = "rightsec" <=>
    Iso
       "rightsec"
-      (\(op :- b) -> Just $ Lambda u (Co "lam" [Member u "a"]) (Apply u [VarRef1 u op, VarRef1 u "a", b]))
+      (\(op :- b) -> Just $ Lambda u 0 (Co "lam" [Member u "a"]) (Apply u 0 [VarRef1 u 0 op, VarRef1 u 0 "a", b]))
       ( \case
-         (Lambda _ (Co _ locals) (Apply _ [VarRef1 _ op, VarRef1 _ a, b])) -> ifJust (a `elem` map mname locals) (op :- b)
+         (Lambda _ _ (Co _ locals) (Apply _ _ [VarRef1 _ _ op, VarRef1 _ _ a, b])) -> ifJust (a `elem` map mname locals) (op :- b)
          _ -> Nothing
       )
       >$< text "(" *< opc ops >*< term >* text ")"
@@ -149,21 +149,21 @@ parens = text "(" *< expr >* text ")"
 list = "list" <=> text "[" *< list2 >* text "]"
 
 list3 = chainr1 expr (text ",")
-list2 = Iso "list" (Just . Apply u . (VarRef1 u "list" :)) (\(Apply _ (f : xs)) -> ifJust (f == VarRef1 u "list") xs) >$< expr `sepBy` text ","
+list2 = Iso "list" (Just . Apply u 0 . (VarRef1 u 0 "list" :)) (\(Apply _ _ (f : xs)) -> ifJust (f == VarRef1 u 0 "list") xs) >$< expr `sepBy` text ","
 
 term = "term" <=> num <|> var <|> leftsec <|> rightsec
 
-varname (VarRef1 _ v) = v
-varname (VarRef _ v _ _) = v
+varname (VarRef1 _ _ v) = v
+varname (VarRef _ _ v _ _) = v
 varname _ = ""
 
 applic =
    "application"
       <=> Iso
          "application"
-         (\ts -> Just $ if length ts >= 2 then Apply u ts else head ts)
+         (\ts -> Just $ if length ts >= 2 then Apply u 0 ts else head ts)
          ( \case
-            Apply _ (f : xs) | notElem (varname f) ops -> Just (f : xs)
+            Apply _ _ (f : xs) | notElem (varname f) ops -> Just (f : xs)
             x -> Just [x]
          )
       >$< sepBy term sepSpace
@@ -193,8 +193,8 @@ expr0 = "expr0" <=> opiso ["$", "="] >$< expr3 >*< opc ["$", "="] >*< expr0 <|> 
 ifSyn = "ifSyn" <=>
    Iso
       "if"
-      (Just . If u)
-      (\case If _ blah -> Just blah; _ -> Nothing)
+      (Just . If u 0)
+      (\case If _ _ blah -> Just blah; _ -> Nothing)
       >$< text "if"
       *< groupOf (expr0 >*< text "->" *< expr0 :: RuleR Char (Expr :- Expr))
 
@@ -202,15 +202,15 @@ conIso = Iso "conIso" (Just . Co "data") (\case Co _ members -> Just members)
 
 lambdaSyn = "lambdaSyn" <=>
    Iso "lambdaSyn"
-      (\(params :- exp) -> Just $ Lambda u (Co "" params) exp)
-      (\case Lambda _ (Co _ params) exp -> Just (params :- exp); _ -> Nothing)
+      (\(params :- exp) -> Just $ Lambda u 0 (Co "" params) exp)
+      (\case Lambda _ _ (Co _ params) exp -> Just (params :- exp); _ -> Nothing)
          >$< text "\\" *< many mem >*< text "->" *< expr0
 
 blockSyn = "blockSyn" <=>
    Iso
       "blockSyn"
-      (\exp -> Just $ Block u (Co "" []) exp)
-      (\case Block _ _ exp -> Just exp; _ -> Nothing)
+      (\exp -> Just $ Block u 0 (Co "" []) exp)
+      (\case Block _ _ _ exp -> Just exp; _ -> Nothing)
       >$< groupOf expr0
 
 dataSyn = valueIso >$< conIso >$< text "data" *< sepSpace *< mem `sepBy` sepSpace

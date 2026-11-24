@@ -3,24 +3,42 @@ module HashDyn where
 import Dyn
 import NewTuple
 
+import Data.IORef
+import qualified Data.Set as S
+
 newtype HashDyn = HashDyn Dynamic
 
 instance Dyn HashDyn
 
 data Expr
-   = Value   {etype :: MType, value :: HashDyn}
-   | VarRef  {etype :: MType, name :: String, frameIndex :: Int, memIndex :: Int}
-   | VarDef  {xtype :: Expr , name :: String, frameIndex :: Int, memIndex :: Int}
-   | VarRef1 {etype :: MType, name :: String}
-   | Lambda  {etype :: MType, econstr :: Constr,                     subexpr :: Expr}
-   | Let     {etype :: MType, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr}
-   | Block   {etype :: MType, econstr :: Constr, subexprs :: [Expr]}
-   | Apply   {etype :: MType,                    subexprs :: [Expr]}
-   | If      {etype :: MType,                clauses :: [(Expr :- Expr)]}
-   | Case    {etype :: MType, case1 :: Expr, clauses :: [(Expr :- Expr)]}
-   | Else
-   | Exprs   {etype :: MType, exprs1 :: [Expr]}
-   | Keyword String
+   = Value   { etype :: MType, resIndex :: Int, value :: HashDyn }
+   | VarRef  { etype :: MType, resIndex :: Int, name :: String, frameIndex :: Int, memIndex :: Int }
+   | Let1    { etype :: MType, resIndex :: Int, name :: String, frameIndex :: Int, memIndex :: Int }
+   | VarDef  { xtype :: Expr , resIndex :: Int, name :: String, frameIndex :: Int, memIndex :: Int }
+   | VarRef1 { etype :: MType, resIndex :: Int, name :: String }
+   | Lambda  { etype :: MType, resIndex :: Int, econstr :: Constr,                     subexpr :: Expr }
+   | Let     { etype :: MType, resIndex :: Int, econstr :: Constr, subexprs :: [Expr], subexpr :: Expr }
+   | Block   { etype :: MType, resIndex :: Int, econstr :: Constr, subexprs :: [Expr] }
+   | Apply   { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | Split   { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | SplitJ  { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | Exprs   { etype :: MType, resIndex :: Int,                    subexprs :: [Expr] }
+   | If      { etype :: MType, resIndex :: Int,                                  clauses :: [(Expr :- Expr)] }
+   | If1     { etype :: MType, resIndex :: Int, then1 :: Expr,                   clauses :: [(Expr :- Expr)] }
+   | Case    { etype :: MType, resIndex :: Int, of1   :: Expr,                   clauses :: [(Expr :- Expr)] }
+   | Case1   { etype :: MType, resIndex :: Int,                                  clauses :: [(Expr :- Expr)] }
+   | Case2   { etype :: MType, resIndex :: Int, of2   :: HashDyn,                clauses :: [(Expr :- Expr)] }
+   | Case3   { etype :: MType, resIndex :: Int, of2   :: HashDyn, then1 :: Expr, clauses :: [(Expr :- Expr)] }
+   | Else    { etype :: MType, resIndex :: Int }
+   | Keyword { key :: String }
+   | Join    { ejoiner :: Expr, eres :: Expr }
+   | Join1   { eres :: Expr }
+   | Join2   { joiner :: Joiner }    
+   | SetJ    { joiner :: Joiner }
+   | Apply2  { }
+   | Tokens  (S.Set Char)
+
+data Joiner = Joiner { arg :: HashDyn, counter :: IORef Int, resref :: IORef HashDyn, resrefs :: [IORef HashDyn] }
 
 data Closure = Closure Constr Expr Env 
 
@@ -43,3 +61,7 @@ instance Eq HashDyn
 instance Ord HashDyn
 
 instance Show HashDyn
+
+toDyn :: Typeable a => a -> HashDyn
+fromDyn :: Typeable a => HashDyn -> a -> a
+fromDynamic :: Typeable a => HashDyn -> Maybe a

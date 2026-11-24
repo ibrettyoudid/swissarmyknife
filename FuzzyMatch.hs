@@ -23,7 +23,6 @@ import qualified Data.Set as S
 import qualified Data.Hashable as HS
 import qualified Data.HashSet as HS
 
-import qualified Data.KdTree.Static as KD
 import Debug.Trace
 
 --heuristic [x, y] = abs ((length a - x) - (length b - y))
@@ -56,7 +55,8 @@ pointfn (Point v ks) = ks
 data Tree k v  = Tree { x :: k, y :: k, se :: Tree k v, sw :: Tree k v, ne :: Tree k v }
                | Leaf { x :: k, y :: k, value :: v }
                | Empty
-
+{- needs KDTree -}
+{-
 fuzzyMatch7 a b = let
    la = length a
    lb = length b
@@ -89,7 +89,6 @@ fuzzyMatch7 a b = let
    blah start = mapxfx (actDist start) $ nearest start
    in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
    --in t
-   {-
    in putStr $ unlines $ map (\a -> let
       (xs, ys) = u M.! a
       in foldr (\i -> replaceIndex (round i) '*') s ys) a
@@ -317,13 +316,15 @@ data WithInf a = NegInf | Normal a | PosInf deriving (Eq, Ord, Show)
 fuzzyMatch9 a b = let
    la = length a
    lb = length b
-   index a = multimap $ zip (cons NegInf (map Normal a)++[PosInf]) [0..]
-   int = M.intersectionWith (,) (index a) (index b)
-   i = M.map (\(xs, ys) -> (S.fromList xs, S.fromList ys)) int
+   tag   a = cons NegInf (map Normal a) ++ [PosInf]
+   index a = multimap $ zip (tag a) [0..]
+   indxl a = multimap $ zip (tails $ tag a) [0..]
+   inter = M.intersectionWith (,) (index a) (index b)                                        -- inter = Map (WithInf Char) ([Int], [Int])
+   inset = M.map (\(xs, ys) -> (S.fromList xs, S.fromList ys)) inter                         -- inset = Map (WithInf Char) (Set Int, Set Int)
    --u = M.map (\(xs, ys) -> (sort xs, sort ys)) $ unionWith3 (,) (,[]) ([],) ai bi
-   z = concatMap (\(c, (xs, ys)) -> concat $ crossWith (c,,) xs ys) $ M.toList int
-   fx = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, ys)) $ S.toList xs) $ M.toList i
-   fy = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, xs)) $ S.toList ys) $ M.toList i
+   z = concatMap (\(c, (xs, ys)) -> concat $ crossWith (c,,) xs ys) $ M.toList inter
+   fx = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, ys)) $ S.toList xs) $ M.toList inset -- fx = Map xs (char, ys)
+   fy = M.fromList $ concatMap (\(v, (xs, ys)) -> map (,(v, xs)) $ S.toList ys) $ M.toList inset -- fy = Map ys (char, xs)
 
    start = [0, 0]
    goal = [la + 1, lb + 1]
@@ -336,18 +337,18 @@ fuzzyMatch9 a b = let
       [x0, y0] = pos
       oldh = heuristic pos
       neighbour step tonodes = AtLeastL (done + oldh + step) (done + step) step tonodes prev
-      xys = map (\(x, (c, ys)) -> neighbour (x - x0 - 1) $
-                              map (\y -> [x, y]) $
-                              S.toList $
-                              S.takeWhileAntitone (<= x - x0 + y0) $
-                              S.dropWhileAntitone (<= y0) ys) $
+      xys = map (\(x, (c, ys)) ->   neighbour (x - x0 - 1) $
+                                    map (\y -> [x, y]) $
+                                    S.toList $
+                                    S.takeWhileAntitone (<= x - x0 + y0) $
+                                    S.dropWhileAntitone (<= y0) ys) $
             M.toList $
             M.dropWhileAntitone (<= x0) fx
-      yxs = map (\(y, (c, xs)) -> neighbour (y - y0 - 1)
-                              $ map (\x -> [x, y]) $
-                              S.toList $
-                              S.takeWhileAntitone (<  y - y0 + x0) $
-                              S.dropWhileAntitone (<= x0) xs) $
+      yxs = map (\(y, (c, xs)) ->   neighbour (y - y0 - 1) $
+                                    map (\x -> [x, y]) $
+                                    S.toList $
+                                    S.takeWhileAntitone (<  y - y0 + x0) $
+                                    S.dropWhileAntitone (<= x0) xs) $
             M.toList $
             M.dropWhileAntitone (<= y0) fy
 
@@ -563,6 +564,7 @@ fuzzyMatch10 a b = let
    ds = zipWith actDist j (tail j)
    --in (sum ds, ds)
    blah start = mapxfx (actDist start) $ nearest start
+   
    in mapM (\x -> putStrLn $ show x ++ " = " ++ show (blah x)) j
 {-x = not allowed
 
@@ -602,7 +604,7 @@ the way I have it now, they come out in reverse Ls
 the reverse L at the bottom of 3 west
      5          2          7
      5          1          6
-     5  +       0          5
+     5  +       0  =       5
      5          1          6
      5          2          7
 555555     876543     321098
